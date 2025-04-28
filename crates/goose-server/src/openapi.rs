@@ -3,13 +3,16 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
-use goose::message::{Message, MessageContent, ContextLengthExceeded, ToolRequest, ToolResponse, ToolConfirmationRequest, ThinkingContent, RedactedThinkingContent, FrontendToolRequest};
-use mcp_core::role::Role;
-use mcp_core::handler::ToolResultSchema;
-use mcp_core::content::{Content, TextContent, ImageContent, Annotations, EmbeddedResource};
-use mcp_core::resource::ResourceContents;
+use goose::message::{
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
+    ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+};
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
+use mcp_core::content::{Annotations, Content, EmbeddedResource, ImageContent, TextContent};
+use mcp_core::handler::ToolResultSchema;
+use mcp_core::resource::ResourceContents;
+use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use utoipa::OpenApi;
 

@@ -66,15 +66,13 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
@@ -89,14 +87,12 @@ pub struct FrontendToolRequest {
     pub tool_call: ToolResult<ToolCall>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextLengthExceeded {
     pub msg: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -285,8 +281,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {

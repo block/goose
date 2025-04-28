@@ -83,6 +83,14 @@ export default function ChatView({
     setIsSummaryModalOpen(true);
   };
 
+  useEffect(() => {
+    // Log all messages when the component first mounts
+    console.log('Initial messages when resuming session:', chat.messages);
+    window.electron.logInfo(
+      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
+    );
+  }, [chat.messages]); // Empty dependency array means this runs once on mount; TODO: remove dep for testing
+
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
@@ -103,6 +111,12 @@ export default function ChatView({
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
+
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 300);
 
       // Disabled askAi calls to save costs
       // const messageText = getTextContent(message);
@@ -206,7 +220,6 @@ export default function ChatView({
     if (content.trim()) {
       setLastInteractionTime(Date.now());
 
-      // Check if we have a summarized thread and this is the first message after editing
       if (summarizedThread.length > 0) {
         // First reset the messages with the summary
         resetMessagesWithSummary();
@@ -323,31 +336,12 @@ export default function ChatView({
     return message.content.some((content) => content.type === 'contextLengthExceeded');
   };
 
-  // const handleContextLengthExceeded = async () => {
-  //   // If we already have a summary, use that
-  //   if (summaryContent) {
-  //     return summaryContent;
-  //   }
-  //
-  //   // Otherwise, generate a summary
-  //   const response = await manageContextFromBackend({ messages: messages, manageAction: 'summarize' });
-  //
-  //   // Convert API messages to frontend messages
-  //   const convertedMessages = response.messages.map(apiMessage =>
-  //       convertApiMessageToFrontendMessage(apiMessage)
-  //   );
-  //
-  //   setSummarizedThread(convertedMessages);
-  //
-  //   const summaryMessage = convertedMessages[0].content[0] as TextContent  // to avoid type errors
-  //   return summaryMessage.text;
-  // };
-
   interface ContextLengthExceededHandlerProps {
     onSummaryFetched: (summary: string, convertedMessages: Message[]) => void;
     existingSummary: string;
     onViewSummary: (summary: string) => void;
     messages: Message[];
+    messageId: string;
   }
 
   const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandlerProps> = ({
@@ -355,16 +349,33 @@ export default function ChatView({
     existingSummary,
     onViewSummary,
     messages,
+    messageId,
   }) => {
     const [isLoading, setIsLoading] = useState(!existingSummary);
     const [error, setError] = useState(false);
     const [hasFetchStarted, setHasFetchStarted] = useState(false);
 
+    const isCurrentMessageLatest =
+      messageId === messages[messages.length - 1].id ||
+      messageId === messages[messages.length - 1].created.toString();
+
+    // Only process and allow editing summaries for the most recent context length exceeded event
+    // We skip summary processing for older CLE events
+    // to prevent editing outdated summaries that don't reflect the current conversation state
+    // if true: ALLOW fetching summary and display loading state and edit summary button
+    const shouldAllowSummaryInteraction = isCurrentMessageLatest;
+
     // Use a ref to track if we've started the fetch
     const fetchStartedRef = useRef(false);
 
     // Immediately invoke the fetch function in the render phase, but only once
-    if (!existingSummary && isLoading && !error && !hasFetchStarted) {
+    if (
+      !existingSummary &&
+      isLoading &&
+      !error &&
+      !hasFetchStarted &&
+      shouldAllowSummaryInteraction
+    ) {
       setHasFetchStarted(true);
       fetchStartedRef.current = true;
 
@@ -392,6 +403,8 @@ export default function ChatView({
 
     // Handle retry
     const handleRetry = () => {
+      if (!shouldAllowSummaryInteraction) return;
+
       setIsLoading(true);
       setError(false);
 
@@ -414,27 +427,29 @@ export default function ChatView({
         });
     };
 
-    //                      onClick={() => error ? handleRetry() : onViewSummary(existingSummary)}
-
     // Render the notification UI
     return (
       <div className="flex flex-col items-start mt-1 pl-4">
-        {isLoading ? (
-          // Only show loading indicator during loading state, no "Session summarized" text
+        {isLoading && shouldAllowSummaryInteraction ? (
+          // Only show loading indicator during loading state
           <div className="flex items-center text-xs text-gray-400">
             <span className="mr-2">Preparing summary...</span>
             <span className="animate-spin h-3 w-3 border-2 border-gray-400 rounded-full border-t-transparent"></span>
           </div>
         ) : (
-          // Show "Session summarized" text only after loading is complete
+          // Show different UI based on whether it's already handled
           <>
-            <span className="text-xs text-gray-400 italic">Session summarized</span>
-            <button
-              onClick={() => (error ? handleRetry() : onViewSummary(existingSummary))}
-              className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-            >
-              {error ? 'Retry loading summary' : 'View or edit summary'}
-            </button>
+            <span className="text-xs text-gray-400 italic">{'Session summarized'}</span>
+
+            {/* Only show the button if its last message */}
+            {shouldAllowSummaryInteraction && (
+              <button
+                onClick={() => (error ? handleRetry() : onViewSummary(existingSummary))}
+                className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+              >
+                {error ? 'Retry loading summary' : 'View or edit summary'}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -476,36 +491,46 @@ export default function ChatView({
 
   // Function to reset messages with the summarized thread
   const resetMessagesWithSummary = () => {
-    if (summarizedThread.length > 0) {
-      // Make a copy of the summarized thread
-      const newMessages = [...summarizedThread];
+    // update summarizedThread with some metadata
+    const updatedSummarizedThread = summarizedThread.map((msg) => ({
+      ...msg,
+      display: false,
+      sendToLLM: true,
+    }));
 
-      // Update the messages state with the summarized thread
-      setMessages(newMessages);
+    // update list of messages with other metadata
+    const updatedMessages = messages.map((msg) => ({
+      ...msg,
+      display: true,
+      sendToLLM: false,
+    }));
 
-      // Clear the summarized thread state since we've now used it
-      setSummarizedThread([]);
+    // Make a copy of the summarized thread
+    const newMessages = [...updatedMessages, ...updatedSummarizedThread];
 
-      // Clear the summary content as well
-      setSummaryContent('');
+    // Update the messages state with the summarized thread
+    setMessages(newMessages);
 
-      // Scroll to the bottom after the state updates
-      setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 100);
-    }
+    // Clear the summarized thread state since we've now used it
+    setSummarizedThread([]);
+
+    // Clear the summary content as well
+    setSummaryContent('');
+
+    // Scroll to the bottom after the state updates
+    setTimeout(() => {
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
+    }, 300);
   };
 
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
   const filteredMessages = messages.filter((message) => {
-    // TODO: use this summarized thread in the chat window
-    if (summarizedThread.length > 0) {
-      // we have a summarized thread
-      console.log('summarized thread has been created --', summarizedThread);
-    }
+    // Only filter out when display is explicitly false
+    if (message.display === false) return false;
+
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
 
@@ -552,8 +577,6 @@ export default function ChatView({
       fetchSessionTokens();
     }
   }, [chat.id, messages]);
-
-  console.log('message summary', summarizedThread);
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -609,6 +632,7 @@ export default function ChatView({
                           existingSummary={summaryContent}
                           onViewSummary={handleViewSummary}
                           messages={messages}
+                          messageId={message.id ?? message.created.toString()}
                         />
                       ) : (
                         <GooseMessage
@@ -675,13 +699,6 @@ export default function ChatView({
             // Use our function to update both summary and thread
             updateSummary(editedContent);
             setIsSummaryModalOpen(false);
-
-            // Show a small notification to the user that they can now continue the conversation
-            // with the summarized history
-            window.electron.showNotification({
-              title: 'Summary updated',
-              body: 'Your conversation summary has been updated. Your next message will continue with this summary.',
-            });
           }}
           summaryContent={summaryContent}
         />

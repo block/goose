@@ -1,11 +1,10 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value};
 use serde_json::json;
+use serde_json::Value;
 use thiserror::Error;
-use utoipa::{ToSchema};
-
+use utoipa::ToSchema;
 
 #[non_exhaustive]
 #[derive(Error, Debug, Clone, Deserialize, Serialize, PartialEq)]

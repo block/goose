@@ -7,8 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotations {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16,7 +15,8 @@ pub struct Annotations {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = String, format = "date-time", example = "2023-01-01T00:00:00Z")] // for openapi
+    #[schema(value_type = String, format = "date-time", example = "2023-01-01T00:00:00Z")]
+    // for openapi
     pub timestamp: Option<DateTime<Utc>>,
 }
 
@@ -36,8 +36,7 @@ impl Annotations {
     }
 }
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextContent {
     pub text: String,
@@ -45,8 +44,7 @@ pub struct TextContent {
     pub annotations: Option<Annotations>,
 }
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageContent {
     pub data: String,
@@ -55,8 +53,7 @@ pub struct ImageContent {
     pub annotations: Option<Annotations>,
 }
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedResource {
     pub resource: ResourceContents,
@@ -73,8 +70,7 @@ impl EmbeddedResource {
     }
 }
 
-#[derive(ToSchema)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Content {
     Text(TextContent),

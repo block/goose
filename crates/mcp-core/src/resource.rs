@@ -1,10 +1,10 @@
+use crate::content::Annotations;
 /// Resources that servers provide to clients
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
 use utoipa::ToSchema;
-use crate::content::Annotations;
 
 const EPSILON: f32 = 1e-6; // Tolerance for floating point comparison
 
