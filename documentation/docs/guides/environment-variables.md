@@ -67,6 +67,7 @@ These variables control security related features.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
+| `GOOSE_ALLOWLIST` | Controls which extensions can be loaded | URL for [allowed extensions](/docs/guides/allowlist) list | Unset |
 | `GOOSE_DISABLE_KEYRING` | Disables the system keyring for secret storage | Set to any value (e.g., "1", "true", "yes") to disable. The actual value doesn't matter, only whether the variable is set. | Unset (keyring enabled) |
 
 :::tip
