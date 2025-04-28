@@ -7,6 +7,7 @@ use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::{tool::Tool, TextContent};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -152,6 +153,7 @@ pub async fn detect_read_only_tools(
 }
 
 // Define return structure
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,
     pub needs_approval: Vec<ToolRequest>,
