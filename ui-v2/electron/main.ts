@@ -105,34 +105,6 @@ async function createWindow() {
     }
   );
 
-  ipcMain.handle('open-file', async (): Promise<string> => {
-    const { filePaths } = await dialog.showOpenDialog({
-      properties: ['openFile'],
-    });
-
-    if (filePaths && filePaths[0]) {
-      const content = await fs.readFile(filePaths[0], 'utf8');
-      return content;
-    }
-    return '';
-  });
-
-  ipcMain.on('window-minimize', () => {
-    mainWindow.minimize();
-  });
-
-  ipcMain.on('window-maximize', () => {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-  });
-
-  ipcMain.on('window-close', () => {
-    mainWindow.close();
-  });
-
   // Load the app
   if (isDevelopment) {
     mainWindow.loadURL('http://localhost:3001/');

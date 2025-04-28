@@ -1,5 +1,5 @@
-# codename goose v2
-### A local, extensible, open source AI agent that automates engineering tasks
+# codename goose ui v2
+Your on-machine AI agent, automating tasks seamlessly.
 
 ## Development
 
