@@ -1,0 +1,21 @@
+/* Debug comment to force rebuild */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-app: #ffffff;
+  --text-prominent: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-app: #1a1a1a;
+    --text-prominent: #ffffff;
+  }
+}
+
+/* Debug styles to verify Tailwind processing */
+.tailwind-test {
+  @apply bg-blue-500 text-white p-4;
+}
