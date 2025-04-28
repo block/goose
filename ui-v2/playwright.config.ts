@@ -5,7 +5,8 @@ export default defineConfig({
   workers: 1,
   use: {
     trace: 'on-first-retry',
-    headless: false,
+    // Use headless mode in CI, non-headless locally unless specified
+    headless: process.env.CI === 'true' || process.env.HEADLESS === 'true',
   },
   projects: [
     {

@@ -49,8 +49,8 @@ jobs:
         env:
           HEADLESS: true
         run: |
-          npm run test:e2e:web:headless
-          npm run test:e2e:electron:headless
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- npm run test:e2e:web:headless
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- npm run test:e2e:electron:headless
 
       - name: Upload Test Results
         if: always()
