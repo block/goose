@@ -22,12 +22,13 @@
     "typecheck": "npm run tsc:web && npm run tsc:electron",
     "lint": "eslint . && npm run lint:style",
     "lint:fix": "eslint . --fix && npm run lint:style:fix",
-    "lint:style": "stylelint \"src/**/*.{css,scss}\"",
-    "lint:style:fix": "stylelint \"src/**/*.{css,scss}\" --fix",
-    "prettier": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,scss}\" \"electron/**/*.{ts,tsx,js,jsx,css,scss}\"",
-    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,scss}\" \"electron/**/*.{ts,tsx,js,jsx,css,scss}\"",
+    "lint:style": "stylelint \"src/**/*.{css}\"",
+    "lint:style:fix": "stylelint \"src/**/*.{css}\" --fix",
+    "prettier": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css}\" \"electron/**/*.{ts,tsx,js,jsx,css}\"",
+    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css}\" \"electron/**/*.{ts,tsx,js,jsx,css}\"",
     "format": "npm run prettier:fix && npm run lint:style:fix",
-    "check-all": "npm run typecheck && npm run lint && npm run prettier"
+    "check-all": "npm run typecheck && npm run lint && npm run prettier",
+    "prepare": "cd ../.. && husky install"
   },
   "dependencies": {
     "react": "^19.1.0",
@@ -62,7 +63,9 @@
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
+    "husky": "^9.1.7",
     "jsdom": "^26.1.0",
+    "lint-staged": "^15.5.1",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "stylelint": "^16.19.1",
@@ -71,6 +74,17 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.3",
     "vitest": "^3.1.2"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0 --no-warn-ignored",
+      "prettier --write",
+      "tsc --noemit"
+    ],
+    "src/**/*.{css,json}": [
+      "prettier --write",
+      "stylelint --fix"
+    ]
   },
   "config": {
     "forge": "./forge.config.ts"
