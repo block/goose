@@ -27,7 +27,7 @@ const App: React.FC = (): React.ReactElement => {
           Running in: {isElectron ? 'Electron' : 'Web Browser'}
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <GooseLogo />
           <h1 className="text-2xl font-bold text-textProminent">Goose v2</h1>
         </div>
