@@ -1,16 +1,79 @@
-# Electron React App
+# codename goose v2
+### A local, extensible, open source AI agent that automates engineering tasks
 
-A modern Electron and React application template with TypeScript support, featuring:
-- 🔥 Hot reloading for development
-- 🎯 TypeScript for type safety
-- ⚡ Vite for fast builds
-- 🧪 Vitest for testing
-- 🎨 Platform-agnostic design
+## Development
+
+### Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start both web and electron development servers
+npm start
+
+# Start web server only
+npm run start:web
+
+# Start electron only
+npm run start:electron
+```
+
+### Building and Packaging
+
+```bash
+# Build web application
+npm run build:web
+
+# Build electron application
+npm run build:electron
+
+# Package electron app
+npm run package
+
+# Create distributable
+npm run make
+
+# Preview web build
+npm run preview:web
+```
+
+### Quality and Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Generate test coverage
+npm run test:coverage
+
+# Type checking
+npm run typecheck      # Check all TypeScript files
+npm run tsc:web       # Check web TypeScript files
+npm run tsc:electron  # Check electron TypeScript files
+
+# Linting
+npm run lint          # Run all linting
+npm run lint:fix      # Fix linting issues
+npm run lint:style    # Check CSS
+npm run lint:style:fix # Fix CSS issues
+
+# Code formatting
+npm run prettier      # Check formatting
+npm run prettier:fix  # Fix formatting
+npm run format        # Fix all formatting (prettier + style)
+
+# Run all checks (types, lint, format)
+npm run check-all
+```
 
 ## Project Structure
 
 ```
-├── electron/                   # Electron main process files
+├── electron/                  # Electron main process files
 │   ├── main.ts                # Main process entry
 │   └── preload.ts             # Preload script
 ├── src/
@@ -100,25 +163,6 @@ export class ElectronPlatformService implements IPlatformService {
 }
 ```
 
-### Component Architecture
-
-The UI layer follows React best practices:
-
-1. **Strict Mode**: Development builds use React.StrictMode for catching potential issues
-2. **Suspense**: Lazy loading support with Suspense boundaries
-3. **TypeScript**: Full type safety with React.FC and proper prop typing
-
-Example component structure:
-```typescript
-interface Props {
-  // Type definitions
-}
-
-const Component: React.FC<Props> = ({ ...props }) => {
-  // Implementation
-};
-```
-
 ### Build System
 
 The project uses a sophisticated build system with multiple configurations:
@@ -128,14 +172,3 @@ The project uses a sophisticated build system with multiple configurations:
    - Main Process: Separate Vite config for Electron main process
    - Renderer Process: Specialized config for Electron renderer
    - Preload Scripts: Dedicated build configuration for preload scripts
-
-### Development Environment
-
-The development setup supports:
-
-1. **Hot Reloading**: Both web and Electron builds support HMR
-2. **Concurrent Development**: Can run web and Electron development servers simultaneously
-3. **Type Checking**: Real-time TypeScript type checking during development
-4. **Testing**: Integrated Vitest setup with React Testing Library
-
-## Scripts
