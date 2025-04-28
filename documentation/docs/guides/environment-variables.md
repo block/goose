@@ -12,7 +12,7 @@ These variables control the [language models](/docs/getting-started/providers) a
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured(/docs/getting-started/providers#configure-provider)]) |
+| `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None ((must be [configured](/docs/getting-started/providers#configure-provider)) |
 | `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-3.5-sonnet") | None (must be configured) |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
 
