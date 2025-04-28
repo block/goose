@@ -1,17 +1,17 @@
-@import "tailwindcss";
+@import url("tailwindcss");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg-app: #ffffff;
-  --text-prominent: #000000;
+  --bg-app: #fff;
+  --text-prominent: #000;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-app: #1a1a1a;
-    --text-prominent: #ffffff;
+    --text-prominent: #fff;
   }
 }
