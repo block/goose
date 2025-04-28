@@ -2,6 +2,7 @@
 title: Quick Goose Tips
 sidebar_position: 6
 sidebar_label: Quick Tips
+description: Best practices for working with Goose
 ---
 
 ### Goose works on your behalf
