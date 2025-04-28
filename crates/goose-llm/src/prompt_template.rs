@@ -70,30 +70,15 @@ pub fn render_global_file<T: Serialize>(
     render_global_template(&template_name, context_data)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-    use std::collections::HashMap;
 
     /// For convenience in tests, define a small struct or use a HashMap to provide context.
     #[derive(Serialize)]
     struct TestContext {
         name: String,
         age: u32,
-    }
-
-    // A simple function to help us test missing or partial data
-    fn build_context(name: Option<&str>, age: Option<u32>) -> HashMap<String, serde_json::Value> {
-        let mut ctx = HashMap::new();
-        if let Some(n) = name {
-            ctx.insert("name".to_string(), json!(n));
-        }
-        if let Some(a) = age {
-            ctx.insert("age".to_string(), json!(a));
-        }
-        ctx
     }
 
     #[test]

@@ -1,3 +1,3 @@
-mod prompt_template;
 mod completion;
-pub use completion::{completion, Extension, CompletionResponse};
+mod prompt_template;
+pub use completion::{completion, CompletionResponse, Extension};
