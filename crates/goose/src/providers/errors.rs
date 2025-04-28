@@ -82,9 +82,6 @@ pub struct OpenAIError {
     pub message: Option<String>,
     #[serde(rename = "type")]
     pub error_type: Option<String>,
-    // Skip any other fields when deserializing
-    #[serde(skip)]
-    _ignore_rest: (),
 }
 
 fn code_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
