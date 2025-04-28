@@ -82,6 +82,9 @@ pub struct OpenAIError {
     pub message: Option<String>,
     #[serde(rename = "type")]
     pub error_type: Option<String>,
+    // Skip any other fields when deserializing
+    #[serde(skip)]
+    _ignore_rest: (),
 }
 
 fn code_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -93,11 +96,11 @@ where
 
     struct CodeVisitor;
 
-    impl Visitor<'_> for CodeVisitor {
+    impl<'de> Visitor<'de> for CodeVisitor {
         type Value = Option<String>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string or a number for the code field")
+            formatter.write_str("a string, a number, null, or none for the code field")
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -120,9 +123,23 @@ where
         {
             Ok(None)
         }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_any(CodeVisitor)
+        }
     }
 
-    deserializer.deserialize_any(CodeVisitor)
+    deserializer.deserialize_option(CodeVisitor)
 }
 
 impl OpenAIError {
