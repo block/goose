@@ -9,6 +9,9 @@ Goose supports various environment variables that allow you to customize its beh
 ## Model Configuration
 
 These variables control the [language models](/docs/getting-started/providers) and their behavior.
+### Basic Provider Configuration
+
+These are the minimum required variables to get started with Goose.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -24,7 +27,23 @@ export GOOSE_PROVIDER="anthropic"
 export GOOSE_MODEL="claude-3.5-sonnet"
 export GOOSE_TEMPERATURE=0.7
 ```
+### Advanced Provider Configuration
 
+These variables are needed when using custom endpoints, enterprise deployments, or specific provider implementations.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PROVIDER__TYPE` | The specific type/implementation of the provider | Provider type (e.g., "openai", "anthropic") | Derived from GOOSE_PROVIDER |
+| `GOOSE_PROVIDER__HOST` | Custom API endpoint for the provider | URL (e.g., "https://api.openai.com") | Provider-specific default |
+| `GOOSE_PROVIDER__API_KEY` | Authentication key for the provider | API key string | None |
+
+**Examples**
+
+```bash
+# Advanced provider configuration
+export GOOSE_PROVIDER__TYPE="anthropic"
+export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
+export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ## Planning Mode Configuration
 
 These variables control Goose's [planning functionality](/docs/guides/creating-plans).
@@ -51,6 +70,7 @@ These variables control how Goose handles [tool permissions](/docs/guides/tool-p
 | `GOOSE_MODE` | Controls how Goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/guides/experimental-features/#ollama-tool-shim) | Model name (e.g. llama3.2, qwen2.5) | System default |
+| `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 
 **Examples**
 
@@ -59,7 +79,7 @@ These variables control how Goose handles [tool permissions](/docs/guides/tool-p
 export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
-```
+export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 
 ## Security Configuration
 
