@@ -90,6 +90,30 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
   │
   └  Enabled jetbrains extension
   ```
+
+  5. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◇  Which built-in extension would you like to enable?
+  │  JetBrains
+  │
+  ◇  Please set the timeout for this tool (in secs):
+  │  300
+  │
+  // highlight-start
+  ◆  Would you like to add a description?
+  │  No
+  // highlight-end
+  │
+  └
+  ```
   </TabItem>
 </Tabs>
 

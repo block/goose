@@ -121,8 +121,35 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     └ 
   ``` 
+
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  vscode-mcp
+    │
+    ◇  What command should be run?
+    │  npx vscode-mcp-server install
+    │
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    │
+    └ 
+  ```
   
-  6. No additional environment variables are required for basic setup
+  7. No additional environment variables are required for basic setup
   
   </TabItem>
 </Tabs>
