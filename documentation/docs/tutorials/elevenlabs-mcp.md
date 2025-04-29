@@ -33,7 +33,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=elevenlabs-mcp&id=elevenlabs&name=ElevenLabs&description=ElevenLabs%20voice%20synthesis%20server&env=ELEVENLABS_API_KEY)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  4. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -180,12 +186,6 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     └  Added elevenlabs extension
   ```   
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=elevenlabs-mcp&id=elevenlabs&name=ElevenLabs&description=ElevenLabs%20voice%20synthesis%20server&env=ELEVENLABS_API_KEY)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
