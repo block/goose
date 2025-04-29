@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use console::style;
 use std::{collections::HashMap, path::Path};
-use tera::{Tera, Context as TeraContext};
+use tera::{Context as TeraContext, Tera};
 
 use goose::recipe::Recipe;
 
@@ -73,18 +73,20 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
 fn render_string_with_params(
     tera: &mut Tera,
     content: &str,
-    context: &TeraContext
+    context: &TeraContext,
 ) -> Result<String> {
     match tera.render_str(content, context) {
         Ok(rendered) => Ok(rendered),
-        Err(_) => Err(anyhow::anyhow!("Failed to render the recipe - please check if all required parameters are provided"))
+        Err(_) => Err(anyhow::anyhow!(
+            "Failed to render the recipe - please check if all required parameters are provided"
+        )),
     }
 }
 
 pub fn load_and_apply_recipe<P: AsRef<Path>>(
     path: P,
     log: bool,
-    params: Vec<(String, String)>
+    params: Vec<(String, String)>,
 ) -> Result<Recipe> {
     let recipe = load_recipe(&path, log)?;
 
