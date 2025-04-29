@@ -27,7 +27,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-puppeteer&id=puppeteer&name=Puppeteer&description=Headless%20browser%20automation)
+  2. Press `Yes` to confirm the installation
+  3. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -138,11 +143,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   ```  
 
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-puppeteer&id=puppeteer&name=Puppeteer&description=Headless%20browser%20automation)
-  2. Press `Yes` to confirm the installation
-  3. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
 </Tabs>
 
 
@@ -152,17 +152,16 @@ In this example, I’ll show you how to use Goose with the Puppeteer Extension t
 This allows you to quickly identify and resolve accessibility issues without manually inspecting each page.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
-
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open a new session in Goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Open a terminal and start a new Goose session:
 
   ```sh
   goose session
   ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open a new session in Goose Desktop
   </TabItem>
 </Tabs>
 

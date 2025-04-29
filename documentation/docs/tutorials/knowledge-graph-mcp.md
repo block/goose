@@ -27,7 +27,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)
+  2. Press `Yes` to confirm the installation
+  3. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -136,11 +141,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added knowledge graph memory extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)
-  2. Press `Yes` to confirm the installation
-  3. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
