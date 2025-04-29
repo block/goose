@@ -51,6 +51,18 @@ npm run test:ui
 # Generate test coverage
 npm run test:coverage
 
+# End-to-End Testing
+npm run test:e2e              # Run all e2e tests headlessly
+npm run test:e2e:ui           # Run e2e tests with UI mode for both web and electron
+
+npm run test:e2e:web          # Run web e2e tests with browser visible
+npm run test:e2e:web:headless # Run web e2e tests headlessly
+npm run test:e2e:web:ui       # Run web e2e tests with Playwright UI mode
+
+npm run test:e2e:electron          # Run electron e2e tests with window visible
+npm run test:e2e:electron:headless # Run electron e2e tests headlessly
+npm run test:e2e:electron:ui       # Run electron e2e tests with Playwright UI mode
+
 # Type checking
 npm run typecheck      # Check all TypeScript files
 npm run tsc:web       # Check web TypeScript files
@@ -86,6 +98,11 @@ npm run check-all
 │   │       ├── IPlatformService.ts
 │   │       └── index.ts
 │   ├── test/                 # Test setup and configurations
+│   │   ├── e2e/             # End-to-end test files
+│   │   │   ├── electron/    # Electron-specific e2e tests
+│   │   │   │   └── electron.spec.ts
+│   │   │   └── web/        # Web-specific e2e tests
+│   │   │       └── web.spec.ts
 │   │   ├── setup.ts
 │   │   └── types.d.ts
 │   ├── App.tsx
@@ -93,6 +110,7 @@ npm run check-all
 │   └── web.tsx               # Web entry
 ├── electron.html             # Electron HTML template
 ├── index.html               # Web HTML template
+├── playwright.config.ts     # Playwright e2e test configuration
 ├── vite.config.ts           # Vite config for web
 ├── vite.main.config.ts      # Vite config for electron main
 ├── vite.preload.config.ts   # Vite config for preload script
