@@ -44,6 +44,7 @@ These variables are needed when using custom endpoints, enterprise deployments, 
 export GOOSE_PROVIDER__TYPE="anthropic"
 export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
+```
 ## Planning Mode Configuration
 
 These variables control Goose's [planning functionality](/docs/guides/creating-plans).
@@ -80,7 +81,7 @@ export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
-
+```
 ## Security Configuration
 
 These variables control security related features.
