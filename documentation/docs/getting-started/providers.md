@@ -37,7 +37,27 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Provider Settings` page in the Goose Desktop.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  **To update your LLM provider and API key:** 
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Next to `Models`, click `Browse`
+  4. Click `Configure` in the upper right corner
+  4. Press the `+` button next to the provider of your choice
+  5. Add additional configurations (API key, host, etc) then press `submit`
+
+  **To change provider model**
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Next to `Models`, click `Browse`
+  4. Scroll down to `Add Model` 
+  5. Select a Provider from drop down menu
+  6. Enter Model name
+  7. Press `+ Add Model`
+
+  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider's website. Once you've found the model you want, return to step 6 and paste the model name.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     1. Run the following command: 
 
     ```sh
@@ -89,27 +109,6 @@ To configure your chosen provider or see available options, run `goose configure
    └  
 ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  **To update your LLM provider and API key:** 
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Next to `Models`, click `Browse`
-  4. Click `Configure` in the upper right corner
-  4. Press the `+` button next to the provider of your choice
-  5. Add additional configurations (API key, host, etc) then press `submit`
-
-  **To change provider model**
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Next to `Models`, click `Browse`
-  4. Scroll down to `Add Model` 
-  5. Select a Provider from drop down menu
-  6. Enter Model name
-  7. Press `+ Add Model`
-
-  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider's website. Once you've found the model you want, return to step 6 and paste the model name.
-  </TabItem>
-
 </Tabs>
 
 ## Using Custom OpenAI Endpoints
@@ -171,17 +170,7 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
 ### Setup Instructions
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
-    1. Run `goose configure`
-    2. Select `Configure Providers`
-    3. Choose `OpenAI` as the provider
-    4. Enter your configuration when prompted:
-       - API key
-       - Host URL (if using custom endpoint)
-       - Organization ID (if using organization tracking)
-       - Project identifier (if using project management)
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
+  <TabItem value="ui" label="Goose Desktop" default>
     1. Click `...` in the upper right corner
     2. Click `Advanced Settings`
     3. Next to `Models`, click the `browse` link
@@ -193,6 +182,16 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
        - Organization ID (for usage tracking)
        - Project (for resource management)
     7. Press `submit`
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+    1. Run `goose configure`
+    2. Select `Configure Providers`
+    3. Choose `OpenAI` as the provider
+    4. Enter your configuration when prompted:
+       - API key
+       - Host URL (if using custom endpoint)
+       - Organization ID (if using organization tracking)
+       - Project identifier (if using project management)
   </TabItem>
 </Tabs>
 
@@ -217,7 +216,16 @@ Google Gemini provides a free tier. To start using the Gemini API with Goose, yo
 To set up Google Gemini with Goose, follow these steps:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  **To update your LLM provider and API key:** 
+
+    1. Click on the three dots in the top-right corner.
+    2. Select `Provider Settings` from the menu.
+    2. Choose `Google Gemini` as provider from the list.
+    3. Click Edit, enter your API key, and click `Set as Active`.
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     1. Run: 
     ```sh
     goose configure
@@ -246,16 +254,6 @@ To set up Google Gemini with Goose, follow these steps:
     │
     └ Configuration saved successfully
     ```
-    
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  **To update your LLM provider and API key:** 
-
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose `Google Gemini` as provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
-
   </TabItem>
 </Tabs>
 
@@ -375,7 +373,12 @@ ollama run michaelneale/deepseek-r1-goose
 ```
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+    3. Click `...` in the top-right corner.
+    4. Navigate to `Advanced Settings` -> `Browse Models` -> and select `Ollama` from the list.
+    5. Enter `michaelneale/deepseek-r1-goose` for the model name.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     3. In a separate terminal window, configure with Goose:
 
     ```sh
@@ -450,11 +453,6 @@ ollama run michaelneale/deepseek-r1-goose
     │
     └  Configuration saved successfully
     ```
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-    3. Click `...` in the top-right corner.
-    4. Navigate to `Advanced Settings` -> `Browse Models` -> and select `Ollama` from the list.
-    5. Enter `michaelneale/deepseek-r1-goose` for the model name.
   </TabItem>
 </Tabs>
 

@@ -41,7 +41,14 @@ Note that you'll need [JBang](https://www.jbang.dev/download) installed on your 
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [XYZ Access Token](/) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -194,13 +201,6 @@ Note that you'll need [JBang](https://www.jbang.dev/download) installed on your 
   ```  
 
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [XYZ Access Token](/) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
 </Tabs>
 
 ## Example Usage
@@ -214,7 +214,7 @@ Note that you'll need [JBang](https://www.jbang.dev/download) installed on your 
 
 ### Goose Output
 
-:::note CLI
+:::note Desktop
 
 {exact output}
 
