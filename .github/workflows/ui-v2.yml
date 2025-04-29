@@ -44,11 +44,17 @@ jobs:
         working-directory: ui-v2
         run: npx playwright install --with-deps chromium
 
+      - name: Configure Electron Sandbox
+        working-directory: ui-v2
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
       - name: Run E2E Tests
         working-directory: ui-v2
         env:
           HEADLESS: true
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: "--loader ts-node/esm --max-old-space-size=4096"
         run: |
           # Increase system limits
           sudo sysctl -w vm.max_map_count=262144
