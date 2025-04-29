@@ -10,7 +10,7 @@ use crate::commands::mcp::run_server;
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipe::load_recipe;
+use crate::recipe::load_and_apply_recipe;
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -57,6 +57,14 @@ fn extract_identifier(identifier: Identifier) -> session::Identifier {
     } else {
         unreachable!()
     }
+}
+
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let parts: Vec<&str> = s.splitn(2, '=').collect();
+    if parts.len() != 2 {
+        return Err(format!("invalid KEY=VALUE: {}", s));
+    }
+    Ok((parts[0].to_string(), parts[1].to_string()))
 }
 
 #[derive(Subcommand)]
@@ -271,6 +279,16 @@ enum Command {
         )]
         recipe: Option<String>,
 
+        #[arg(
+            long,
+            value_name = "KEY=VALUE",
+            help = "Dynamic parameters (e.g., --param username=alice)",
+            long_help = "Key-value parameters to pass to the recipe or instruction file. Can be specified multiple times.",
+            action = clap::ArgAction::Append,
+            value_parser = parse_key_val,
+        )]
+        param: Vec<(String, String)>,
+
         /// Continue in interactive mode after processing input
         #[arg(
             short = 's',
@@ -414,7 +432,7 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session = build_session(SessionBuilderConfig {
+                    let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
                         resume,
                         extensions,
@@ -445,7 +463,9 @@ pub async fn cli() -> Result<()> {
             extensions,
             remote_extensions,
             builtins,
+            param,
         }) => {
+            println!("Parameters: {:?}", param);
             let input_config = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
@@ -479,7 +499,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(file)) => {
-                    let recipe = load_recipe(&file, true).unwrap_or_else(|err| {
+                    let recipe = load_and_apply_recipe(&file, true, param).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });

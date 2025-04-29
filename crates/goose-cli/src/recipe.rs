@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use console::style;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
+use tera::{Tera, Context as TeraContext};
 
 use goose::recipe::Recipe;
 
@@ -67,4 +68,32 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
     }
 
     Ok(recipe)
+}
+
+pub fn load_and_apply_recipe<P: AsRef<Path>>(
+    path: P,
+    log: bool,
+    params: Vec<(String, String)>
+) -> Result<Recipe> {
+    let recipe = load_recipe(&path, log)?;
+
+    // Turn params into HashMap
+    let param_map: HashMap<String, String> = params.into_iter().collect();
+
+    // Create a Tera context
+    let mut context: TeraContext = TeraContext::new();
+    for (key, value) in &param_map {
+        context.insert(key, value);
+    }
+
+    let mut tera = Tera::default();
+    tera.add_template_files(vec![(path.as_ref(), None::<&str>)])?;
+
+    // Render each field (adapt this if Recipe has more fields!)
+    let instructions = tera.render_str(&recipe.instructions, &context)?;
+
+    Ok(Recipe {
+        instructions,
+        ..recipe
+    })
 }
