@@ -465,7 +465,6 @@ pub async fn cli() -> Result<()> {
             builtins,
             param,
         }) => {
-            println!("Parameters: {:?}", param);
             let input_config = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
