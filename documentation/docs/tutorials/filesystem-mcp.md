@@ -26,7 +26,26 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+    1. Click `...` in the upper right corner
+    2. Click `Advanced Settings`
+    3. Under `Extensions`, click the `Add` link
+    4. On the `Add Extension Manually` modal, enter the following:
+            * **Type**: `Standard IO`
+            * **ID**: `filesystem-mcp` (_set this to whatever you want_)
+            * **Name**: `filesystem` (_set this to whatever you want_)
+            * **Description**: `filesystem MCP Server` (_set this to whatever you want_)
+            * **Command**: `npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory`
+    5. Click `Add Extension` button
+
+        :::tip Multiple Directories
+        You can specify multiple directories by separating them with a space.
+        ::: 
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
     1. Run the `configure` command:
     ```sh
     goose configure
@@ -137,25 +156,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         // highlight-end
         └  Added filesystem extension
     ```  
-  </TabItem>
-
-  <TabItem value="ui" label="Goose Desktop">
-
-    1. Click `...` in the upper right corner
-    2. Click `Advanced Settings`
-    3. Under `Extensions`, click the `Add` link
-    4. On the `Add Extension Manually` modal, enter the following:
-            * **Type**: `Standard IO`
-            * **ID**: `filesystem-mcp` (_set this to whatever you want_)
-            * **Name**: `filesystem` (_set this to whatever you want_)
-            * **Description**: `filesystem MCP Server` (_set this to whatever you want_)
-            * **Command**: `npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory`
-    5. Click `Add Extension` button
-
-        :::tip Multiple Directories
-        You can specify multiple directories by separating them with a space.
-        ::: 
-
   </TabItem>
 </Tabs>
 

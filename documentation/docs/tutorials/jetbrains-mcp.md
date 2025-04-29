@@ -20,7 +20,12 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
 2. Enable built-in Goose extension:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Under `Extensions`, toggle `Jetbrains` to on.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -86,11 +91,6 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
   └  Enabled jetbrains extension
   ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Under `Extensions`, toggle `Jetbrains` to on.
-  </TabItem>
 </Tabs>
 
 ## Example Usage
@@ -103,7 +103,15 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open [IntelliJ](https://www.jetbrains.com/idea/download) (JetBrains' Java and Kotlin IDE)
+   2. Open a new session in Goose Desktop
+   :::note
+   You will interact with two separate apps: the Goose Desktop app and the IntelliJ IDE.
+   :::
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open [IntelliJ](https://www.jetbrains.com/idea/download) (JetBrains' Java and Kotlin IDE)
   2. Open a terminal within your IDE and start a new Goose session:
@@ -111,14 +119,6 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
   ```sh
   goose session
   ```
-
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open [IntelliJ](https://www.jetbrains.com/idea/download) (JetBrains' Java and Kotlin IDE)
-   2. Open a new session in Goose Desktop
-   :::note
-   You will interact with two separate apps: the Goose Desktop app and the IntelliJ IDE.
-   :::
 
   </TabItem>
 </Tabs>

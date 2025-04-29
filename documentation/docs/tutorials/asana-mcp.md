@@ -34,7 +34,17 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40roychri%2Fmcp-server-asana&id=asana&name=Asana&description=enable%20task%20automation%2C%20project%20tracking%2C%20and%20team%20collaboration&env=ASANA_ACCESS_TOKEN%3DAsana%20Access%20Token)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in
+  :::info
+  See [Asana's developer docs](https://developers.asana.com/docs/personal-access-token) if you need detailed instructions on creating an access token.
+  :::
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -156,16 +166,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added Asana extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40roychri%2Fmcp-server-asana&id=asana&name=Asana&description=enable%20task%20automation%2C%20project%20tracking%2C%20and%20team%20collaboration&env=ASANA_ACCESS_TOKEN%3DAsana%20Access%20Token)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in
-  :::info
-  See [Asana's developer docs](https://developers.asana.com/docs/personal-access-token) if you need detailed instructions on creating an access token.
-  :::
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

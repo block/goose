@@ -51,7 +51,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-postgres&id=postgres&name=PostgreSQL&description=PostgreSQL%20database%20integration&env=POSTGRES_URL%3DYour%20PostgreSQL%20connection%20URL)
+  2. Press `Yes` to confirm the installation
+  3. Enter your PostgreSQL connection URL in the format: `postgresql://username:password@hostname:5432/database`
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -150,13 +157,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added PostgreSQL extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-postgres&id=postgres&name=PostgreSQL&description=PostgreSQL%20database%20integration&env=POSTGRES_URL%3DYour%20PostgreSQL%20connection%20URL)
-  2. Press `Yes` to confirm the installation
-  3. Enter your PostgreSQL connection URL in the format: `postgresql://username:password@hostname:5432/database`
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
