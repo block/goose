@@ -44,11 +44,11 @@ jobs:
         working-directory: ui-v2
         run: npx playwright install --with-deps chromium
 
-      - name: Configure Electron Sandbox
-        working-directory: ui-v2
-        run: |
-          sudo chown root:root node_modules/electron/dist/chrome-sandbox
-          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+#      - name: Configure Electron Sandbox
+#        working-directory: ui-v2
+#        run: |
+#          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+#          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 
       - name: Run E2E Tests
         working-directory: ui-v2
