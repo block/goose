@@ -126,8 +126,35 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     └ 
   ``` 
+
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+    ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  Asana
+    │
+    ◇  What command should be run?
+    │  npx -y @roychri/mcp-server-asana
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    │
+    └ 
+  ```
   
-  6. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in.
+  7. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in.
   :::info
   See [Asana's developer docs](https://developers.asana.com/docs/personal-access-token) if you need detailed instructions on creating an access token.
   :::
@@ -149,6 +176,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │     
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │    
     // highlight-start
     ◆  Would you like to add environment variables?

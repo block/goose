@@ -134,7 +134,30 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```
 
-  6. Configure your PostgreSQL connection URL
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+  ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  PostgreSQL
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◆  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```
+
+  7. Configure your PostgreSQL connection URL
   ```sh
     ┌   goose-configure 
     │
@@ -149,6 +172,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │     
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │    
     // highlight-start
     ◆  Would you like to add environment variables?

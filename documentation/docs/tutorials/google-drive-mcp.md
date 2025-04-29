@@ -182,12 +182,33 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ``` 
 
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  google drive
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```
 
-:::tip
-You may need to use absolute paths (rather than relying on shell exapansion for `~`) for the `GDRIVE_CREDENTIALS_PATH` and `GDRIVE_OAUTH_PATH`.
-:::
-
-  6. Add your environment variables 
+  7. Add your environment variables 
 
    ```sh
     ┌   goose-configure 
@@ -206,6 +227,9 @@ You may need to use absolute paths (rather than relying on shell exapansion for 
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │    
     // highlight-start
     ◆  Would you like to add environment variables?

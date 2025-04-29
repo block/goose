@@ -120,7 +120,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     // highlight-end
     │
     └ 
-  ``` 
+  ```
+
   6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
   ```sh
     ┌   goose-configure 

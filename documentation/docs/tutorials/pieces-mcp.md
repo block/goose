@@ -143,10 +143,12 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │
         ◇  Please set the timeout for this tool (in secs):
         │  300
+        │
         // highlight-start
         ◆  Would you like to add a description?
         │  ○ Yes  / ● No 
         // highlight-end
+        │
         └ 
       ```
 
@@ -169,6 +171,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │
         ◇  Please set the timeout for this tool (in secs):
         │  300
+        │
         ◇  Would you like to add a description?
         │  No 
         │
