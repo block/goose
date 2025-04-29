@@ -70,6 +70,17 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
     Ok(recipe)
 }
 
+fn render_string_with_params(
+    tera: &mut Tera,
+    content: &str,
+    context: &TeraContext
+) -> Result<String> {
+    match tera.render_str(content, context) {
+        Ok(rendered) => Ok(rendered),
+        Err(_) => Err(anyhow::anyhow!("Failed to render the recipe - please check if all required parameters are provided"))
+    }
+}
+
 pub fn load_and_apply_recipe<P: AsRef<Path>>(
     path: P,
     log: bool,
@@ -90,7 +101,7 @@ pub fn load_and_apply_recipe<P: AsRef<Path>>(
     tera.add_template_files(vec![(path.as_ref(), None::<&str>)])?;
 
     // Render each field (adapt this if Recipe has more fields!)
-    let instructions = tera.render_str(&recipe.instructions, &context)?;
+    let instructions = render_string_with_params(&mut tera, &recipe.instructions, &context)?;
 
     Ok(Recipe {
         instructions,
