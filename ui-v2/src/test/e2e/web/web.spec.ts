@@ -129,10 +129,6 @@ test.describe('web app', () => {
     const response = await page.goto('http://localhost:3000');
     console.log('Navigation status:', response?.status());
 
-    // Add more verbose debugging
-    const content = await page.content();
-    console.log('Page content:', content);
-
     // Wait for and check the text with more detailed logging
     console.log('Looking for runtime text...');
     const runtimeText = page.locator('text=Running in: Web Browser');
