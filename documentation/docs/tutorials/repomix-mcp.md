@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/69h4LLkIg_E" />
 
 
 This tutorial covers how to add the [Repomix MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable automated repository packing, codebase analysis, architecture summaries, test generation, and code exploration, all while compressing the codebase to minimize token usage and stay within your LLM's context limits.
