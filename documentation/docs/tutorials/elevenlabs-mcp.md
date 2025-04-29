@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1Z8XtjQ9El0" />
 
 
 This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable AI-powered voice generation, voice cloning, audio editing, and speech-to-text transcription.
