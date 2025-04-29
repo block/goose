@@ -25,3 +25,8 @@ out/
 # Generated JavaScript files in source
 electron/**/*.js
 !electron/**/*.config.js
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

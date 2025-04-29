@@ -1,4 +1,5 @@
 # codename goose ui v2
+
 Your on-machine AI agent, automating tasks seamlessly.
 
 ## Development
@@ -50,6 +51,18 @@ npm run test:ui
 # Generate test coverage
 npm run test:coverage
 
+# End-to-End Testing
+npm run test:e2e              # Run all e2e tests headlessly
+npm run test:e2e:ui           # Run e2e tests with UI mode for both web and electron
+
+npm run test:e2e:web          # Run web e2e tests with browser visible
+npm run test:e2e:web:headless # Run web e2e tests headlessly
+npm run test:e2e:web:ui       # Run web e2e tests with Playwright UI mode
+
+npm run test:e2e:electron          # Run electron e2e tests with window visible
+npm run test:e2e:electron:headless # Run electron e2e tests headlessly
+npm run test:e2e:electron:ui       # Run electron e2e tests with Playwright UI mode
+
 # Type checking
 npm run typecheck      # Check all TypeScript files
 npm run tsc:web       # Check web TypeScript files
@@ -85,6 +98,11 @@ npm run check-all
 │   │       ├── IPlatformService.ts
 │   │       └── index.ts
 │   ├── test/                 # Test setup and configurations
+│   │   ├── e2e/             # End-to-end test files
+│   │   │   ├── electron/    # Electron-specific e2e tests
+│   │   │   │   └── electron.spec.ts
+│   │   │   └── web/        # Web-specific e2e tests
+│   │   │       └── web.spec.ts
 │   │   ├── setup.ts
 │   │   └── types.d.ts
 │   ├── App.tsx
@@ -92,6 +110,7 @@ npm run check-all
 │   └── web.tsx               # Web entry
 ├── electron.html             # Electron HTML template
 ├── index.html               # Web HTML template
+├── playwright.config.ts     # Playwright e2e test configuration
 ├── vite.config.ts           # Vite config for web
 ├── vite.main.config.ts      # Vite config for electron main
 ├── vite.preload.config.ts   # Vite config for preload script
@@ -118,6 +137,7 @@ export interface IPlatformService {
 ```
 
 This is implemented through two concrete classes:
+
 - `WebPlatformService`: Implements functionality for web browsers using Web APIs
 - `ElectronPlatformService`: Implements functionality for Electron using IPC
 
@@ -130,6 +150,7 @@ The application uses a dependency injection pattern for platform services:
 3. **Unified Access**: Components access platform features through a single `platformService` instance
 
 Example usage in components:
+
 ```typescript
 import { platformService } from '@platform';
 
@@ -142,6 +163,7 @@ await platformService.copyToClipboard(text);
 For Electron-specific functionality, the architecture includes:
 
 1. **Preload Script**: Safely exposes Electron APIs to the renderer process
+
 ```typescript
 // Type definitions for Electron APIs
 declare global {
@@ -154,6 +176,7 @@ declare global {
 ```
 
 2. **IPC Communication**: Typed handlers for main process communication
+
 ```typescript
 // Electron implementation
 export class ElectronPlatformService implements IPlatformService {
@@ -168,7 +191,7 @@ export class ElectronPlatformService implements IPlatformService {
 The project uses a sophisticated build system with multiple configurations:
 
 1. **Web Build**: Vite-based build for web deployment
-2. **Electron Build**: 
+2. **Electron Build**:
    - Main Process: Separate Vite config for Electron main process
    - Renderer Process: Specialized config for Electron renderer
    - Preload Scripts: Dedicated build configuration for preload scripts

@@ -8,13 +8,7 @@ const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = [
   {
-    ignores: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/out/**',
-      '**/coverage/**',
-      '**/.vite/**',
-    ],
+    ignores: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/coverage/**', '**/.vite/**'],
   },
   // Configuration for Node.js files
   {

@@ -13,6 +13,7 @@ const config: ForgeConfig = {
     },
     {
       name: '@electron-forge/maker-zip',
+      config: {},
       platforms: ['darwin'],
     },
     {
@@ -40,7 +41,6 @@ const config: ForgeConfig = {
         {
           name: 'main_window',
           config: 'vite.renderer.config.ts',
-          entry: ['electron.html'],
         },
       ],
     }),
