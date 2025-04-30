@@ -16,7 +16,6 @@ pub async fn download_github_recipe(recipe_name: &str, target_dir: &PathBuf) -> 
             recipe_name, ext
         );
 
-        println!("Downloading recipe from: {}", api_url);
         let token = std::env::var("GITHUB_TOKEN").unwrap_or_default();
         // Make request to GitHub API
         let client = reqwest::Client::new();
@@ -50,7 +49,7 @@ pub async fn download_github_recipe(recipe_name: &str, target_dir: &PathBuf) -> 
                 recipe_name, ext
             );
             println!(
-                "Downloaded recipe from GitHub {:?} to : {:?}",
+                "Downloaded recipe from GitHub {:?} to {:?}",
                 github_url, target_path
             );
             return Ok(target_path);

@@ -20,11 +20,12 @@ pub async fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
         let path = PathBuf::from(recipe_name);
         if path.exists() {
             return Ok(path);
+        } else {
+            return Err(anyhow!("Recipe file not found: {}", path.display()));
         }
     }
     // First check current directory
     let current_dir = std::env::current_dir()?;
-    println!("Current directory: {:?}", current_dir);
     if let Some(path) = check_recipe_in_dir(&current_dir, recipe_name) {
         return Ok(path);
     }
@@ -44,14 +45,14 @@ pub async fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
     // Try to download from GitHub as a fallback
     match download_github_recipe(recipe_name, &recipes_dir).await {
         Ok(download_path) => Ok(download_path),
-        Err(e) => {
+        Err(_) => {
+            let github_directory =
+                format!("https://github.com/squareup/goose-recipes/{}", recipe_name);
             // Log the GitHub download error for debugging
-            eprintln!("Failed to download from GitHub: {}", e);
             // Return a more descriptive error
             Err(anyhow!(
-                "Recipe '{}' not found locally or on GitHub: {}",
-                recipe_name,
-                e
+                "Recipe '{}' not found. \n  No {}.yaml, or {}.json file found in current directory, {} directory \n  No recipe.yaml or recipe.json file found in github directory {}",
+                recipe_name, recipe_name, recipe_name, recipes_dir.display(), github_directory
             ))
         }
     }
