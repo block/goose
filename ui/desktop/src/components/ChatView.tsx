@@ -239,7 +239,7 @@ function ChatContent({
     if (content.trim()) {
       setLastInteractionTime(Date.now());
 
-      if (summarizedThread.length > 0) {
+      if (process.env.ALPHA && summarizedThread.length > 0) {
         // First reset the messages with the summary
         resetMessagesWithSummary(messages, setMessages);
 
