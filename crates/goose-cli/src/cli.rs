@@ -282,12 +282,12 @@ enum Command {
         #[arg(
             long,
             value_name = "KEY=VALUE",
-            help = "Dynamic parameters (e.g., --param username=alice)",
-            long_help = "Key-value parameters to pass to the recipe or instruction file. Can be specified multiple times.",
+            help = "Dynamic parameters (e.g., --params username=alice --params channel_name=goose-channel)",
+            long_help = "Key-value parameters to pass to the recipe file. Can be specified multiple times.",
             action = clap::ArgAction::Append,
             value_parser = parse_key_val,
         )]
-        param: Vec<(String, String)>,
+        params: Vec<(String, String)>,
 
         /// Continue in interactive mode after processing input
         #[arg(
@@ -463,7 +463,7 @@ pub async fn cli() -> Result<()> {
             extensions,
             remote_extensions,
             builtins,
-            param,
+            params,
         }) => {
             let input_config = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
@@ -498,7 +498,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(file)) => {
-                    let recipe = load_recipe(&file, true, Some(param)).unwrap_or_else(|err| {
+                    let recipe = load_recipe(&file, true, Some(params)).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
