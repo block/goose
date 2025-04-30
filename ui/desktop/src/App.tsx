@@ -551,6 +551,20 @@ export default function App() {
     };
   }, []);
 
+  // Focus the first found input field
+  useEffect(() => {
+    const handleFocusInput = (_event: IpcRendererEvent) => {
+      const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
+      if (inputField) {
+        inputField.focus();
+      }
+    };
+    window.electron.on('focus-input', handleFocusInput);
+    return () => {
+      window.electron.off('focus-input', handleFocusInput);
+    };
+  }, []);
+
   // TODO: modify
   const handleConfirm = async () => {
     if (pendingLink) {
