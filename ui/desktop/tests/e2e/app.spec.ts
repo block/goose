@@ -99,8 +99,14 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
   // Find and verify the provider card container
   console.log(`Looking for ${provider.name} card...`);
-  const providerContainer = await mainWindow.waitForSelector(`[data-testid="provider-card-${provider.name.toLowerCase()}"]`);
-  expect(await providerContainer.isVisible()).toBe(true);
+  let providerContainer;
+  try {
+    providerContainer = await mainWindow.waitForSelector(`[data-testid="provider-card-${provider.name.toLowerCase()}"]`);
+    expect(await providerContainer.isVisible()).toBe(true);
+  } catch (error) {
+    console.error(`Provider card not found for ${provider.name}. This could indicate a missing or incorrectly configured provider.`);
+    throw error;
+  }
 
   // Find the Launch button within the provider container
   console.log(`Looking for Launch button in ${provider.name} card...`);
@@ -162,7 +168,7 @@ test.describe('Goose App', () => {
       env: {
         ...process.env,
         ELECTRON_IS_DEV: '1',
-        NODE_ENV: 'development'
+        NODE_ENV: 'development',
       },
       recordVideo: {
         dir: 'test-results/videos/',
@@ -405,21 +411,6 @@ test.describe('Goose App', () => {
             fs.mkdirSync('test-results', { recursive: true });
           }
 
-          // Clean up any existing running-quotes extensions from localStorage
-          // todo: extensions are no longer in localstorage so we need a way to delete extensions from the ui or config to actually clean these up
-          await mainWindow.evaluate(() => {
-            const USER_SETTINGS_KEY = 'user_settings';
-            const settings = JSON.parse(localStorage.getItem(USER_SETTINGS_KEY) || '{"extensions":[]}');
-            
-            // Remove any running-quotes extensions
-            settings.extensions = settings.extensions.filter(ext => ext.id !== 'running-quotes');
-            
-            // Save back to localStorage
-            localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings));
-            
-            console.log('Cleaned up existing running-quotes extensions');
-          });
-      
           try {
             // Reload the page to ensure settings are fresh
             await mainWindow.reload();
@@ -435,66 +426,121 @@ test.describe('Goose App', () => {
             // Take screenshot of initial state
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-initial-state.png` });
 
+            // First navigate to Advanced Settings to check for existing Running Quotes extension
+            console.log('Checking for existing Running Quotes extension...');
+            
             // Click the menu button (3 dots)
-            console.log('Attempting to find menu button...');
             const menuButton = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
               timeout: 2000,
               state: 'visible'
             });
-            
-            // Verify menu button is visible and clickable
-            const isMenuButtonVisible = await menuButton.isVisible();
-            console.log('Menu button visible:', isMenuButtonVisible);
-            
-            // Take screenshot before clicking menu
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-before-menu.png` });
-            
             await menuButton.click();
-            console.log('Clicked menu button');
+            
+            // Wait for menu to appear
+            await mainWindow.waitForTimeout(1000);
+            
+            // Click Advanced settings
+            const advancedSettingsButton = await mainWindow.waitForSelector('button:has-text("Advanced settings")', {
+              timeout: 2000,
+              state: 'visible'
+            });
+            await advancedSettingsButton.click();
+            
+            // Wait for settings page to load
+            await mainWindow.waitForTimeout(1000);
+            
+            // Look for Running Quotes extension card
+            console.log('Looking for existing Running Quotes extension...');
+            const existingExtension = await mainWindow.$('div.flex:has-text("Running Quotes")');
+            
+            if (existingExtension) {
+              console.log('Found existing Running Quotes extension, removing it...');
+              
+              // Find and click the settings gear icon next to Running Quotes
+              const settingsButton = await existingExtension.$('button[aria-label="Extension settings"]');
+              if (settingsButton) {
+                await settingsButton.click();
+                
+                // Wait for modal to appear
+                await mainWindow.waitForTimeout(500);
+                
+                // Click the Remove Extension button
+                const removeButton = await mainWindow.waitForSelector('button:has-text("Remove Extension")', {
+                  timeout: 2000,
+                  state: 'visible'
+                });
+                await removeButton.click();
+                
+                // Wait for confirmation modal
+                await mainWindow.waitForTimeout(500);
+                
+                // Click the Remove button in confirmation dialog
+                const confirmButton = await mainWindow.waitForSelector('button:has-text("Remove")', {
+                  timeout: 2000,
+                  state: 'visible'
+                });
+                await confirmButton.click();
+                
+                // Wait for extension to be removed
+                await mainWindow.waitForTimeout(1000);
+              }
+            }
+            
+            // Click Back to return to main menu
+            let backButton = await mainWindow.waitForSelector('button:has-text("Back")', {
+              timeout: 2000,
+              state: 'visible'
+            });
+            await backButton.click();
+            
+            // Wait for menu transition
+            await mainWindow.waitForTimeout(1000);
+            
+            // Now proceed with adding the extension
+            console.log('Proceeding with adding Running Quotes extension...');
+
+            // Find and click the menu button (3 dots) again
+            console.log('Finding menu button again...');
+            const menuButtonAgain = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
+              timeout: 2000,
+              state: 'visible'
+            });
+            await menuButtonAgain.click();
             
             // Wait for menu to appear and take screenshot
             await mainWindow.waitForTimeout(1000);
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-after-menu.png` });
 
-            // Click Advanced settings
-            console.log('Looking for Advanced settings button...');
-            const advancedSettingsButton = await mainWindow.waitForSelector('button:has-text("Advanced settings")', {
+            // Click Advanced settings again
+            console.log('Looking for Advanced settings button again...');
+            const advancedSettingsButtonAgain = await mainWindow.waitForSelector('button:has-text("Advanced settings")', {
               timeout: 2000,
               state: 'visible'
             });
-            
-            // Verify advanced settings button is visible
-            const isAdvancedSettingsVisible = await advancedSettingsButton.isVisible();
-            console.log('Advanced settings button visible:', isAdvancedSettingsVisible);
-            
-            await advancedSettingsButton.click();
+            await advancedSettingsButtonAgain.click();
             console.log('Clicked Advanced settings');
             
             // Wait for navigation and take screenshot
             await mainWindow.waitForTimeout(1000);
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-settings-page.png` });
 
-            // Click Add Custom Extension button
-            console.log('Looking for Add Custom Extension button...');
-            const addExtensionButton = await mainWindow.waitForSelector('button:has-text("Add Custom Extension")', {
+            // Click "Add custom extension" button
+            console.log('Looking for Add custom extension button...');
+            const addExtensionButton = await mainWindow.waitForSelector('button:has-text("Add custom extension")', {
               timeout: 2000,
               state: 'visible'
             });
             
             // Verify add extension button is visible
             const isAddExtensionVisible = await addExtensionButton.isVisible();
-            console.log('Add Extension button visible:', isAddExtensionVisible);
+            console.log('Add custom extension button visible:', isAddExtensionVisible);
             
             await addExtensionButton.click();
-            console.log('Clicked Add Custom Extension');
+            console.log('Clicked Add custom extension');
 
             // Wait for modal and take screenshot
             await mainWindow.waitForTimeout(1000);
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-modal.png` });
-
-            // Get page content for debugging
-            const modalContent = await mainWindow.evaluate(() => document.body.innerHTML);
-            console.log('Modal content:', modalContent);
 
             // Fill the form
             console.log('Filling form fields...');
@@ -515,7 +561,7 @@ test.describe('Goose App', () => {
             
             // Fill Command
             const mcpScriptPath = join(__dirname, 'basic-mcp.ts');
-            const commandInput = await mainWindow.waitForSelector('input[placeholder*="npx -y @modelcontextprotocol"]', {
+            const commandInput = await mainWindow.waitForSelector('input[placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"]', {
               timeout: 2000,
               state: 'visible'
             });
@@ -524,18 +570,23 @@ test.describe('Goose App', () => {
             // Take screenshot of filled form
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-filled-form.png` });
 
-            // Click Add Extension button
-            console.log('Looking for Add Extension button...');
-            const addButton = await mainWindow.waitForSelector('button:has-text("Add Extension")', {
+            // Wait for any animations to complete
+            await mainWindow.waitForTimeout(1000);
+
+            // Click Add Extension button in modal footer
+            console.log('Looking for Add Extension button in modal...');
+            const modalAddButton = await mainWindow.waitForSelector('button.text-textProminent', {
               timeout: 2000,
               state: 'visible'
             });
             
-            // Verify add button is visible
-            const isAddButtonVisible = await addButton.isVisible();
-            console.log('Add button visible:', isAddButtonVisible);
+            // Verify button is visible
+            const isModalAddButtonVisible = await modalAddButton.isVisible();
+            console.log('Add Extension button visible:', isModalAddButtonVisible);
+
+            // Click the button
+            await modalAddButton.click();
             
-            await addButton.click();
             console.log('Clicked Add Extension button');
 
             // Wait for the Running Quotes extension to appear in the list
@@ -563,10 +614,6 @@ test.describe('Goose App', () => {
             } catch (error) {
               console.error('Error verifying extension:', error);
               
-              // Get current page content
-              const pageContent = await mainWindow.evaluate(() => document.body.innerHTML);
-              console.log('Page content after clicking Add Extension:', pageContent);
-              
               // Get any error messages that might be visible
               const errorElements = await mainWindow.$$eval('.text-red-500, .text-error', 
                 elements => elements.map(el => el.textContent)
@@ -579,7 +626,7 @@ test.describe('Goose App', () => {
             }
 
             // Click Back button
-            const backButton = await mainWindow.waitForSelector('button:has-text("Back")', { 
+            backButton = await mainWindow.waitForSelector('button:has-text("Back")', { 
               timeout: 2000,
               state: 'visible'
             });
