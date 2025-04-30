@@ -42,7 +42,31 @@ Tool permissions work alongside [Goose Permission Modes](/docs/guides/goose-perm
 ## Configuring Tool Permissions
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+    You can configure tool permissions through either Manual or Smart Approval modes:
+
+     <Tabs>
+      <TabItem value="manual" label="Manual Approval" default>
+        1. Click `...` in the upper right corner
+        2. Click `Advanced Settings`
+        3. Under `Mode Selection`, choose `Manual Approval`
+        4. Click on an extension name
+        5. Use the dropdown next to each tool to set its permission level
+      </TabItem>
+      <TabItem value="smart" label="Smart Approval">
+      :::tip
+        In Smart Approval mode, Goose will automatically detect and allow read-only operations while requiring approval for state-changing actions.
+      :::
+        1. Click `...` in the upper right corner
+        2. Click `Advanced Settings`
+        3. Under `Mode Selection`, choose `Smart Approval`
+        4. Click on an extension name
+        5. Use the dropdown next to each tool to set its permission level
+      </TabItem>
+    </Tabs>   
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
     1. Run the configure command:
     ```sh
@@ -101,30 +125,6 @@ Tool permissions work alongside [Goose Permission Modes](/docs/guides/goose-perm
     │  ○ Never Allow 
     └
     ```
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-    You can configure tool permissions through either Manual or Smart Approval modes:
-
-     <Tabs>
-      <TabItem value="manual" label="Manual Approval" default>
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
-        3. Under `Mode Selection`, choose `Manual Approval`
-        4. Click on an extension name
-        5. Use the dropdown next to each tool to set its permission level
-      </TabItem>
-      <TabItem value="smart" label="Smart Approval">
-      :::tip
-        In Smart Approval mode, Goose will automatically detect and allow read-only operations while requiring approval for state-changing actions.
-      :::
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
-        3. Under `Mode Selection`, choose `Smart Approval`
-        4. Click on an extension name
-        5. Use the dropdown next to each tool to set its permission level
-      </TabItem>
-    </Tabs>   
   </TabItem>
 </Tabs>
 

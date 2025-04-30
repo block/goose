@@ -24,25 +24,6 @@ Goose is an open source AI agent that supercharges your software development by 
 You can use Goose via CLI or Desktop application.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI">
-  <details>
-  <summary>Quickstart Video Demo</summary>
-    <iframe
-    class="aspect-ratio"
-    src="https://www.youtube.com/embed/SbomoGzTRQY"
-    title="Getting started with the Goose CLI"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowFullScreen
-    ></iframe>
-  </details>
-
-    Run the following command to install the latest version of Goose:
-
-    ```sh
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-    ```
-  </TabItem>
   <TabItem value="ui" label="Goose Desktop (macOS only)" default>
     <details>
     <summary>Quickstart Video Demo</summary>
@@ -70,6 +51,25 @@ You can use Goose via CLI or Desktop application.
       2. Run the executable file to launch the Goose desktop application.
     </div>
   </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  <details>
+  <summary>Quickstart Video Demo</summary>
+    <iframe
+    class="aspect-ratio"
+    src="https://www.youtube.com/embed/SbomoGzTRQY"
+    title="Getting started with the Goose CLI"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    ></iframe>
+  </details>
+
+    Run the following command to install the latest version of Goose:
+
+    ```sh
+    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+    ```
+  </TabItem>
 </Tabs>
 
 ## Configure Provider
@@ -77,6 +77,9 @@ You can use Goose via CLI or Desktop application.
 Goose works with [supported LLM providers][providers]. When you install Goose, you'll be prompted to choose your preferred LLM and supply an API key.
 
 <Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+    ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
+  </TabItem>
   <TabItem value="cli" label="Goose CLI">
     Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice.
 
@@ -99,9 +102,6 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
     │
     └ Configuration saved successfully
   ```
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop" default>
-    ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
 

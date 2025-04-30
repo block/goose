@@ -29,7 +29,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40angiejones%2Fmcp-selenium&id=selenium-mcp&name=Selenium%20MCP&description=automates%20browser%20interactions)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -111,8 +117,35 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     └ 
   ``` 
+
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+    ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  Selenium
+    │
+    ◇  What command should be run?
+    │  npx -y @angiejones/mcp-selenium
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    │
+    └ 
+  ```
   
-  6. Choose No when asked to add environment variables
+  7. Choose No when asked to add environment variables
 
    ```sh
     ┌   goose-configure 
@@ -131,6 +164,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │     
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │    
     // highlight-start
     ◆  Would you like to add environment variables?
@@ -140,12 +176,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added Selenium extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40angiejones%2Fmcp-selenium&id=selenium-mcp&name=Selenium%20MCP&description=automates%20browser%20interactions)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

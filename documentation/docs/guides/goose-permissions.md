@@ -28,7 +28,22 @@ Goose’s permissions determine how much autonomy it has when modifying files, u
 Here's how to configure:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+    You can change modes before or during a session and it will take effect immediately.
+
+     <Tabs>
+      <TabItem value="session" label="In Session" default>
+      Click the Goose Mode option from the bottom menu. 
+      </TabItem>
+      <TabItem value="settings" label="From Settings">
+        1. Click `...` in the upper right corner
+        2. Click `Settings`
+        3. Under `Mode Selection`, choose the mode you'd like
+      </TabItem>
+    </Tabs>   
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
     <Tabs>
       <TabItem value="session" label="In Session" default>
@@ -100,21 +115,6 @@ Here's how to configure:
         ```     
       </TabItem>
     </Tabs>
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-    You can change modes before or during a session and it will take effect immediately.
-
-     <Tabs>
-      <TabItem value="session" label="In Session" default>
-      Click the Goose Mode option from the bottom menu. 
-      </TabItem>
-      <TabItem value="settings" label="From Settings">
-        1. Click `...` in the upper right corner
-        2. Click `Settings`
-        3. Under `Mode Selection`, choose the mode you'd like
-      </TabItem>
-    </Tabs>   
   </TabItem>
 </Tabs>
 

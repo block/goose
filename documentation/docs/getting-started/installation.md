@@ -18,28 +18,7 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
     Choose to install Goose on CLI and/or Desktop:
 
     <Tabs groupId="interface">
-      <TabItem value="cli" label="Goose CLI" default>
-        Run the following command to install the latest version of Goose on macOS:
-
-        ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-        ```
-        This script will fetch the latest version of Goose and set it up on your system.
-
-        If you'd like to install without interactive configuration, disable `CONFIGURE`:
-
-        ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-        ```
-
-        :::tip Updating Goose
-        It's best to keep Goose updated. To update Goose, run:
-        ```sh
-        goose update
-        ```
-        :::
-      </TabItem>
-      <TabItem value="ui" label="Goose Desktop">
+      <TabItem value="ui" label="Goose Desktop" default>
         Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
         
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
@@ -61,13 +40,34 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
         ---
         <div style={{ marginTop: '1rem' }}>
           :::note Permissions
-          If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
+          If you're on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
 
           Ensure the `~/.config` directory has read and write access.
 
           Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues)
           :::
         </div>
+      </TabItem>
+      <TabItem value="cli" label="Goose CLI">
+        Run the following command to install the latest version of Goose on macOS:
+
+        ```sh
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        ```
+        This script will fetch the latest version of Goose and set it up on your system.
+
+        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+
+        ```sh
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        ```
+
+        :::tip Updating Goose
+        It's best to keep Goose updated. To update Goose, run:
+        ```sh
+        goose update
+        ```
+        :::
       </TabItem>
     </Tabs>
   </TabItem>
@@ -119,10 +119,17 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
 </Tabs>
 
 ## Set LLM Provider
-Goose works with a set of [supported LLM providers][providers], and you’ll need an API key to get started. When you use Goose for the first time, you’ll be prompted to select a provider and enter your API key.
+Goose works with a set of [supported LLM providers][providers], and you'll need an API key to get started. When you use Goose for the first time, you'll be prompted to select a provider and enter your API key.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+    Upon installing, the Provider screen will appear. Here is where you can choose your LLM Provider.
+
+    ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
+
+    Once selecting your provider, you'll be prompted to enter an API key if applicable. Do so, and click `Submit`.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     Upon installing, Goose will automatically enter its configuration screen. Here is where you can set up your LLM provider.
 
     :::tip Windows Users
@@ -167,18 +174,20 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
   ```
   :::
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-    Upon installing, the Provider screen will appear. Here is where you can choose your LLM Provider.
-
-    ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
-
-    Once selecting your provider, you'll be prompted to enter an API key if applicable. Do so, and click `Submit`.
-  </TabItem>
 </Tabs>
 
 ## Update Provider
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  **To update your LLM provider and API key:**
+
+    1. Click on the three dots in the top-right corner.
+    2. Select `Provider Settings` from the menu.
+    2. Choose a provider from the list.
+    3. Click Edit, enter your API key, and click `Set as Active`.
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     **To update your LLM provider and API key:**
     1. Run the following command:
     ```sh
@@ -211,15 +220,6 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
     └  Configuration saved successfully
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  **To update your LLM provider and API key:**
-
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose a provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
-
-  </TabItem>
 </Tabs>
 
 <RateLimits />
@@ -227,16 +227,16 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
 ## Running Goose
 
 <Tabs groupId="interface">
-    <TabItem value="cli" label="Goose CLI" default>
+    <TabItem value="ui" label="Goose Desktop" default>
+        Starting a session in the Goose Desktop is straightforward. After choosing your provider, you'll see the session interface ready for use.
+
+        Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately.
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
         From your terminal, navigate to the directory you'd like to start from and run:
         ```sh
         goose session
         ```
-    </TabItem>
-    <TabItem value="ui" label="Goose Desktop">
-        Starting a session in the Goose Desktop is straightforward. After choosing your provider, you’ll see the session interface ready for use.
-
-        Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately.
     </TabItem>
 </Tabs>
 
@@ -249,16 +249,16 @@ While core configurations are shared between interfaces, extensions have flexibi
 ::: 
 
 <Tabs groupId="interface">
-    <TabItem value="cli" label="Goose CLI" default>
+    <TabItem value="ui" label="Goose Desktop" default>
+        Navigate to shared configurations through:
+        1. Click `...` in the upper right corner
+        2. Click `Advanced Settings`
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
         Use the following command to manage shared configurations:
         ```sh
         goose configure
         ```
-    </TabItem>
-    <TabItem value="ui" label="Goose Desktop">
-        Navigate to shared configurations through:
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
     </TabItem>
 </Tabs>
 
