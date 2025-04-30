@@ -2,9 +2,10 @@ use anyhow::{anyhow, Result};
 use base64::Engine as _;
 use reqwest;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
-pub async fn download_github_recipe(recipe_name: &str, target_dir: &PathBuf) -> Result<PathBuf> {
+pub async fn download_github_recipe(recipe_name: &str, target_dir: &Path) -> Result<PathBuf> {
     // Try both yaml and json extensions
     for ext in &["yaml", "json"] {
         let filename = format!("{}.{}", recipe_name, ext);
