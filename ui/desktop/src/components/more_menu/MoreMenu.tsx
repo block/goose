@@ -13,6 +13,7 @@ interface MenuButtonProps {
   className?: string;
   danger?: boolean;
   icon?: React.ReactNode;
+  isLoading?: boolean;
 }
 
 const MenuButton: React.FC<MenuButtonProps> = ({
@@ -22,14 +23,16 @@ const MenuButton: React.FC<MenuButtonProps> = ({
   className = '',
   danger = false,
   icon,
+  isLoading = false,
 }) => (
   <button
     onClick={onClick}
     className={`w-full text-left px-4 py-3 min-h-[64px] text-sm hover:bg-bgSubtle transition-[background] border-b border-borderSubtle ${
       danger ? 'text-red-400' : ''
-    } ${className}`}
+    } ${isLoading ? 'cursor-not-allowed' : ''} ${className}`}
+    disabled={isLoading}
   >
-    <div className="flex justify-between items-center">
+    <div className={`flex justify-between items-center ${isLoading ? 'opacity-50' : ''}`}>
       <div className="flex flex-col">
         <span>{children}</span>
         {subtitle && (
@@ -97,9 +100,11 @@ const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) =
 export default function MoreMenu({
   setView,
   setIsGoosehintsModalOpen,
+  isLoading,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isLoading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
@@ -215,6 +220,7 @@ export default function MoreMenu({
                 onClick={() => setView('sessions')}
                 subtitle="View and share previous sessions"
                 icon={<Time className="w-4 h-4" />}
+                isLoading={isLoading}
               >
                 Session history
               </MenuButton>
@@ -243,6 +249,7 @@ export default function MoreMenu({
                 className={
                   window.appConfig.get('recipeConfig') ? 'opacity-50 cursor-not-allowed' : ''
                 }
+                isLoading={isLoading}
               >
                 Make Agent from this session
                 {window.appConfig.get('recipeConfig') && (
@@ -259,6 +266,7 @@ export default function MoreMenu({
                 }}
                 subtitle="View all settings and options"
                 icon={<Sliders className="w-4 h-4 rotate-90" />}
+                isLoading={isLoading}
               >
                 Advanced settings
                 <span className="text-textSubtle ml-1">⌘,</span>
@@ -278,6 +286,7 @@ export default function MoreMenu({
                   danger
                   subtitle="Clear selected model and restart (alpha)"
                   icon={<Refresh className="w-4 h-4 text-textStandard" />}
+                  isLoading={isLoading}
                   className="border-b-0"
                 >
                   Reset provider and model
@@ -295,6 +304,7 @@ export default function MoreMenu({
                   danger
                   subtitle="Clear selected model and restart"
                   icon={<Refresh className="w-4 h-4 text-textStandard" />}
+                  isLoading={isLoading}
                   className="border-b-0"
                 >
                   Reset provider and model
