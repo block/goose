@@ -161,7 +161,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
 };
 
 // Create a hook to use the context
-export const useContextManager = () => {
+export const useChatContextManager = () => {
   const context = useContext(ContextManagerContext);
   if (context === undefined) {
     throw new Error('useContextManager must be used within a ContextManagerProvider');

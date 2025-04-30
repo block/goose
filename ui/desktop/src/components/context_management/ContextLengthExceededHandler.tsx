@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../../types/message';
-import { useContextManager } from './ContextManager';
+import { useChatContextManager } from './ContextManager';
 
 interface ContextLengthExceededHandlerProps {
   messages: Message[];
@@ -12,7 +12,7 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
   messageId,
 }) => {
   const { fetchSummary, summaryContent, isLoadingSummary, errorLoadingSummary, openSummaryModal } =
-    useContextManager();
+    useChatContextManager();
 
   const [hasFetchStarted, setHasFetchStarted] = useState(false);
 

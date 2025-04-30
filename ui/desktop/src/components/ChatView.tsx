@@ -20,7 +20,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import { Recipe } from '../recipe';
-import { ContextManagerProvider, useContextManager } from './context_management/ContextManager';
+import { ContextManagerProvider, useChatContextManager } from './context_management/ContextManager';
 import { ContextLengthExceededHandler } from './context_management/ContextLengthExceededHandler';
 import {
   Message,
@@ -105,7 +105,7 @@ function ChatContent({
     closeSummaryModal,
     updateSummary,
     hasContextLengthExceededContent,
-  } = useContextManager();
+  } = useChatContextManager();
 
   useEffect(() => {
     // Log all messages when the component first mounts
@@ -157,7 +157,6 @@ function ChatContent({
         });
       }
     },
-    // removed unused code
   });
 
   // Listen for make-agent-from-chat event
