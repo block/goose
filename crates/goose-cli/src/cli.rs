@@ -10,7 +10,7 @@ use crate::commands::mcp::run_server;
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipe::load_and_apply_recipe;
+use crate::recipe::load_recipe;
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -498,7 +498,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(file)) => {
-                    let recipe = load_and_apply_recipe(&file, true, param).unwrap_or_else(|err| {
+                    let recipe = load_recipe(&file, true, Some(param)).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });

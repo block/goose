@@ -11,6 +11,7 @@ use goose::recipe::Recipe;
 ///
 /// * `path` - Path to the recipe file (YAML or JSON)
 /// * `log`  - whether to log information about the recipe or not
+/// * `params` - optional parameters to render the recipe with
 ///
 /// # Returns
 ///
@@ -23,7 +24,11 @@ use goose::recipe::Recipe;
 /// - The file can't be read
 /// - The YAML/JSON is invalid
 /// - The required fields are missing
-pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
+pub fn load_recipe<P: AsRef<Path>>(
+    path: P,
+    log: bool,
+    params: Option<Vec<(String, String)>>,
+) -> Result<Recipe> {
     let path = path.as_ref();
 
     // Check if file exists
@@ -33,13 +38,18 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
     // Read file content
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read recipe file: {}", path.display()))?;
+    // Check if any parameters were provided
+    let rendered_content = match params {
+        None => content,
+        Some(params) => render_content_with_params(&content, path, &params)?,
+    };
 
     // Determine file format based on extension and parse accordingly
     let recipe: Recipe = if let Some(extension) = path.extension() {
         match extension.to_str().unwrap_or("").to_lowercase().as_str() {
-            "json" => serde_json::from_str(&content)
+            "json" => serde_json::from_str(&rendered_content)
                 .with_context(|| format!("Failed to parse JSON recipe file: {}", path.display()))?,
-            "yaml" => serde_yaml::from_str(&content)
+            "yaml" => serde_yaml::from_str(&rendered_content)
                 .with_context(|| format!("Failed to parse YAML recipe file: {}", path.display()))?,
             _ => {
                 return Err(anyhow::anyhow!(
@@ -70,43 +80,25 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
     Ok(recipe)
 }
 
-fn render_string_with_params(
-    tera: &mut Tera,
+fn render_content_with_params(
     content: &str,
-    context: &TeraContext,
+    path: &Path,
+    params: &[(String, String)],
 ) -> Result<String> {
-    match tera.render_str(content, context) {
-        Ok(rendered) => Ok(rendered),
-        Err(_) => Err(anyhow::anyhow!(
-            "Failed to render the recipe - please check if all required parameters are provided"
-        )),
-    }
-}
-
-pub fn load_and_apply_recipe<P: AsRef<Path>>(
-    path: P,
-    log: bool,
-    params: Vec<(String, String)>,
-) -> Result<Recipe> {
-    let recipe = load_recipe(&path, log)?;
-
     // Turn params into HashMap
-    let param_map: HashMap<String, String> = params.into_iter().collect();
+    let param_map: HashMap<String, String> = params.iter().cloned().collect();
 
     // Create a Tera context
     let mut context: TeraContext = TeraContext::new();
     for (key, value) in &param_map {
         context.insert(key, value);
     }
-
     let mut tera = Tera::default();
-    tera.add_template_files(vec![(path.as_ref(), None::<&str>)])?;
-
-    // Render each field (adapt this if Recipe has more fields!)
-    let instructions = render_string_with_params(&mut tera, &recipe.instructions, &context)?;
-
-    Ok(Recipe {
-        instructions,
-        ..recipe
-    })
+    tera.add_template_files(vec![(path, None::<&str>)])?;
+    return match tera.render_str(content, &context) {
+        Ok(rendered) => Ok(rendered),
+        Err(_) => Err(anyhow::anyhow!(
+            "Failed to render the recipe - please check if all required parameters are provided"
+        )),
+    };
 }
