@@ -9,7 +9,7 @@ use crate::recipes::github_recipe::download_github_recipe;
 ///
 /// # Arguments
 ///
-/// * `recipe_name` - Name of the recipe to search for (without extension)
+/// * `recipe_name` - Name of the recipe to search for (without extension) or the full path to the recipe file
 ///
 /// # Returns
 ///

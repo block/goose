@@ -139,18 +139,20 @@ pub enum BenchCommand {
 #[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
-    #[command(about = "Validate a recipe file with the recipe name")]
+    #[command(about = "Validate a recipe")]
     Validate {
         /// Recipe name to get recipe file to validate
-        #[arg(help = "recipe name to get recipe file to validate")]
+        #[arg(help = "recipe name to get recipe file or full path to the recipe file to validate")]
         recipe_name: String,
     },
 
     /// Generate a deeplink for a recipe file
-    #[command(about = "Generate a deeplink for a recipe file with the recipe name")]
+    #[command(about = "Generate a deeplink for a recipe")]
     Deeplink {
         /// Recipe name to get recipe file to generate deeplink
-        #[arg(help = "recipe name to get recipe file to generate deeplink")]
+        #[arg(
+            help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
+        )]
         recipe_name: String,
     },
 }
@@ -259,13 +261,13 @@ enum Command {
         )]
         input_text: Option<String>,
 
-        /// Path to recipe.yaml file
+        /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
             long = "recipe",
-            value_name = "FILE",
-            help = "Path to recipe.yaml file",
-            long_help = "Path to a recipe.yaml file that defines a custom agent configuration",
+            value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
+            help = "Recipe name to get recipe file or the full path of the recipe file",
+            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration",
             conflicts_with = "instructions",
             conflicts_with = "input_text"
         )]
