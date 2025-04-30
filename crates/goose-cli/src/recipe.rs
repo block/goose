@@ -95,10 +95,10 @@ fn render_content_with_params(
     }
     let mut tera = Tera::default();
     tera.add_template_files(vec![(path, None::<&str>)])?;
-    return match tera.render_str(content, &context) {
+    match tera.render_str(content, &context) {
         Ok(rendered) => Ok(rendered),
         Err(_) => Err(anyhow::anyhow!(
             "Failed to render the recipe - please check if all required parameters are provided"
         )),
-    };
+    }
 }
