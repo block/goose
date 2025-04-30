@@ -24,6 +24,7 @@
     "test-e2e:ui": "npm run generate-api && playwright test --ui",
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
+    "test-e2e:single": "npm run generate-api && playwright test -g",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix --no-warn-ignored",
     "lint:check": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0 --no-warn-ignored",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
