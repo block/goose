@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[allow(unused_imports)] // this is used in schema below
 use serde_json::json;
 use serde_json::Value;
 use thiserror::Error;
