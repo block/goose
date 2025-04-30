@@ -139,19 +139,19 @@ pub enum BenchCommand {
 #[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
-    #[command(about = "Validate a recipe file")]
+    #[command(about = "Validate a recipe file with the recipe name")]
     Validate {
-        /// Path to the recipe file to validate
-        #[arg(help = "Path to the recipe file to validate")]
-        file: String,
+        /// Recipe name to get recipe file to validate
+        #[arg(help = "recipe name to get recipe file to validate")]
+        recipe_name: String,
     },
 
     /// Generate a deeplink for a recipe file
-    #[command(about = "Generate a deeplink for a recipe file")]
+    #[command(about = "Generate a deeplink for a recipe file with the recipe name")]
     Deeplink {
-        /// Path to the recipe file
-        #[arg(help = "Path to the recipe file")]
-        file: String,
+        /// Recipe name to get recipe file to generate deeplink
+        #[arg(help = "recipe name to get recipe file to generate deeplink")]
+        recipe_name: String,
     },
 }
 
@@ -478,8 +478,8 @@ pub async fn cli() -> Result<()> {
                     extensions_override: None,
                     additional_system_prompt: None,
                 },
-                (_, _, Some(file)) => {
-                    let recipe = load_recipe(&file, true).unwrap_or_else(|err| {
+                (_, _, Some(recipe_name)) => {
+                    let recipe = load_recipe(&recipe_name, true).await.unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
@@ -544,11 +544,11 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Recipe { command }) => {
             match command {
-                RecipeCommand::Validate { file } => {
-                    handle_validate(file)?;
+                RecipeCommand::Validate { recipe_name } => {
+                    handle_validate(&recipe_name).await?;
                 }
-                RecipeCommand::Deeplink { file } => {
-                    handle_deeplink(file)?;
+                RecipeCommand::Deeplink { recipe_name } => {
+                    handle_deeplink(&recipe_name).await?;
                 }
             }
             return Ok(());

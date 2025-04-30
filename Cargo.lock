@@ -2476,6 +2476,7 @@ dependencies = [
  "clap 4.5.31",
  "cliclack",
  "console",
+ "dirs 5.0.1",
  "etcetera",
  "futures",
  "goose",

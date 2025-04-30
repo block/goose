@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use console::style;
-use std::path::Path;
 
 use goose::recipe::Recipe;
+
+use crate::recipes::search_recipe::find_recipe_file;
 
 /// Loads and validates a recipe from a YAML or JSON file
 ///
@@ -22,15 +23,15 @@ use goose::recipe::Recipe;
 /// - The file can't be read
 /// - The YAML/JSON is invalid
 /// - The required fields are missing
-pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
-    let path = path.as_ref();
+pub async fn load_recipe(recipe_name: &str, log: bool) -> Result<Recipe> {
+    let path = find_recipe_file(recipe_name).await?;
 
     // Check if file exists
     if !path.exists() {
         return Err(anyhow::anyhow!("recipe file not found: {}", path.display()));
     }
     // Read file content
-    let content = std::fs::read_to_string(path)
+    let content = std::fs::read_to_string(path.clone())
         .with_context(|| format!("Failed to read recipe file: {}", path.display()))?;
 
     // Determine file format based on extension and parse accordingly

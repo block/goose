@@ -1,0 +1,39 @@
+version: 1.0.0
+title: Custom recipe from chat
+description: a custom recipe instance from this chat session
+instructions: Fetch and analyze news content from online sources, providing structured summaries of headlines and key stories. Present the information in a clear, hierarchical format using Markdown, with main stories categorized by topic and including brief summaries of each major story. When the content is paginated or truncated, make multiple fetch requests to ensure comprehensive coverage. Focus on presenting the most newsworthy and current information first, followed by supporting details and analysis.
+extensions:
+- type: stdio
+  name: fetch
+  cmd: uvx
+  args:
+  - mcp-server-fetch
+  envs: {}
+  env_keys: []
+  timeout: null
+  description: Web content fetching and processing capabilities
+  bundled: null
+- type: stdio
+  name: slack
+  cmd: uvx
+  args:
+  - mcp_slack
+  envs: {}
+  env_keys:
+  - SLACK_TOKEN
+  - SLACK_DEFAULT_WORKSPACE_ID
+  timeout: 300
+  description: Slack integration to perform operations on behalf of a user
+  bundled: null
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+activities:
+- Summarize today's headlines
+- Track specific news topic
+- Compare news across sources
+- Extract key political updates
+author:
+  contact: lifei
