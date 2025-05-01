@@ -69,6 +69,12 @@ You can use Goose via CLI or Desktop application.
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
     ```
+    or install Goose via homebrew
+    
+    ```sh
+    brew install block-goose-cli
+    ```
+    
   </TabItem>
 </Tabs>
 
