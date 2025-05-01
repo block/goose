@@ -58,7 +58,7 @@ fn ensure_repo_cloned(github_clone_url: &str, local_repo_parent_path: &Path) -> 
     } else {
         // Create the local repo parent directory if it doesn't exist
         if !local_repo_parent_path.exists() {
-            std::fs::create_dir_all(&local_repo_parent_path)?;
+            std::fs::create_dir_all(local_repo_parent_path)?;
         }
         let error_message: String = format!("Failed to clone repo: {}", github_clone_url);
         let status = Command::new("git")
