@@ -71,7 +71,8 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      const isMac = window.electron.platform === 'darwin';
+      if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         setIsSearchVisible(true);
       }
