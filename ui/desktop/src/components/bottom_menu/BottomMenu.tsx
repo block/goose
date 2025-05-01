@@ -174,11 +174,13 @@ export default function BottomMenu({
         <TooltipProvider>
           <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
             <TooltipTrigger asChild>
-              <div className="block max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 [direction:rtl]">
-                <span ref={dirRef} className="truncate block">
-                  {window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                </span>
-              </div>
+              <span
+                ref={dirRef}
+                className="max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 block overflow-hidden text-ellipsis direction-rtl"
+                style={{ direction: 'rtl', textAlign: 'left' }}
+              >
+                {window.appConfig.get('GOOSE_WORKING_DIR') as string}
+              </span>
             </TooltipTrigger>
             {isDirTruncated && (
               <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
