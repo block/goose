@@ -14,6 +14,8 @@ use mcp_core::handler::ToolResultSchema;
 use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolAnnotations};
+use goose::session::info::SessionInfo;
+use goose::session::SessionMetadata;
 use utoipa::OpenApi;
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
@@ -33,7 +35,9 @@ use utoipa::OpenApi;
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
         super::routes::reply::confirm_permission,
-        super::routes::context::manage_context, // Added this path
+        super::routes::context::manage_context,
+        super::routes::session::list_sessions,
+        super::routes::session::get_session_history
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -48,6 +52,8 @@ use utoipa::OpenApi;
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
+        super::routes::session::SessionListResponse,
+        super::routes::session::SessionHistoryResponse,
         Message,
         MessageContent,
         Content,
@@ -76,6 +82,8 @@ use utoipa::OpenApi;
         PermissionLevel,
         PrincipalType,
         ModelInfo,
+        SessionInfo,
+        SessionMetadata,
     ))
 )]
 pub struct ApiDoc;
