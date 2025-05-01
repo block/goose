@@ -45,7 +45,7 @@ pub fn get_file_content_from_github(
     local_repo_path: &Path,
     file_path_in_repo: &str,
 ) -> Result<String> {
-    let ref_and_path = format!("origin/douwe/joke-of-the-day:{}", file_path_in_repo);
+    let ref_and_path = format!("origin/main:{}", file_path_in_repo);
     let error_message: String = format!("Failed to get content from {}", file_path_in_repo);
     let output = Command::new("git")
         .args(["show", &ref_and_path])
