@@ -3,10 +3,10 @@ use chrono::Utc;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use goose::message::Message;
-use goose::model::ModelConfig;
-use goose::providers::create;
-use goose::providers::errors::ProviderError;
+use crate::message::Message;
+use crate::model::ModelConfig;
+use crate::providers::create;
+use crate::providers::errors::ProviderError;
 
 use std::time::Instant;
 
@@ -32,11 +32,11 @@ pub async fn completion(
         .collect::<Vec<_>>();
 
     let start_provider = Instant::now();
-    let (response, usage) = provider.complete(&system_prompt, messages, &tools).await?;
+    let response = provider.complete(&system_prompt, messages, &tools).await?;
     let total_time_ms_provider = start_provider.elapsed().as_millis();
     let total_time_ms = start_total.elapsed().as_millis();
 
-    let tokens_per_second = usage.usage.total_tokens.and_then(|toks| {
+    let tokens_per_second = response.usage.total_tokens.and_then(|toks| {
         if total_time_ms_provider > 0 {
             Some(toks as f64 / (total_time_ms_provider as f64 / 1000.0))
         } else {
@@ -47,9 +47,12 @@ pub async fn completion(
     let runtime_metrics =
         RuntimeMetrics::new(total_time_ms, total_time_ms_provider, tokens_per_second);
 
-    let result = CompletionResponse::new(response.clone(), usage.clone(), runtime_metrics);
-
-    Ok(result)
+    Ok(CompletionResponse::new(
+        response.message,
+        response.model,
+        response.usage,
+        runtime_metrics,
+    ))
 }
 
 fn construct_system_prompt(system_preamble: &str, extensions: &[Extension]) -> String {

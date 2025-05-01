@@ -1,24 +1,33 @@
-use goose::message::Message;
-use goose::providers::base::ProviderUsage;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+use crate::message::Message;
+use crate::providers::Usage;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionResponse {
-    message: Message,
-    usage: ProviderUsage,
-    runtime_metrics: RuntimeMetrics,
+    pub message: Message,
+    pub model: String,
+    pub usage: Usage,
+    pub runtime_metrics: RuntimeMetrics,
 }
 
 impl CompletionResponse {
-    pub fn new(message: Message, usage: ProviderUsage, runtime_metrics: RuntimeMetrics) -> Self {
+    pub fn new(
+        message: Message,
+        model: String,
+        usage: Usage,
+        runtime_metrics: RuntimeMetrics,
+    ) -> Self {
         Self {
             message,
+            model,
             usage,
             runtime_metrics,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeMetrics {
     pub total_time_ms: u128,
     pub total_time_ms_provider: u128,
@@ -40,7 +49,8 @@ impl RuntimeMetrics {
 }
 
 /// A tool that can be used by a model.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Tool {
     /// The name of the tool
     pub name: String,
@@ -50,7 +60,22 @@ pub struct Tool {
     pub input_schema: serde_json::Value,
 }
 
-#[derive(Debug, Clone)]
+impl Tool {
+    /// Create a new tool with the given name and description
+    pub fn new<N, D>(name: N, description: D, input_schema: serde_json::Value) -> Self
+    where
+        N: Into<String>,
+        D: Into<String>,
+    {
+        Tool {
+            name: name.into(),
+            description: description.into(),
+            input_schema,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Extension {
     name: String,
     instructions: Option<String>,

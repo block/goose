@@ -1,8 +1,8 @@
 use std::vec;
 
 use anyhow::Result;
-use goose::message::Message;
-use goose::model::ModelConfig;
+use goose_llm::Message;
+use goose_llm::ModelConfig;
 use goose_llm::{completion, CompletionResponse, Extension, Tool};
 use serde_json::json;
 
@@ -31,7 +31,6 @@ async fn main() -> Result<()> {
                 }
             }
         }),
-        None,
     );
 
     let bash_tool = Tool::new(
@@ -47,7 +46,6 @@ async fn main() -> Result<()> {
                 }
             }
         }),
-        None,
     );
 
     let extensions = vec![

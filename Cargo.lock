@@ -2522,15 +2522,23 @@ name = "goose-llm"
 version = "1.0.20"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "base64 0.21.7",
  "chrono",
- "goose",
+ "criterion",
  "include_dir",
  "mcp-core",
  "minijinja",
  "once_cell",
+ "regex",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
  "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
