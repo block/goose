@@ -3,7 +3,7 @@ use dirs::home_dir;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::github_recipe::{download_github_recipe, GOOSE_RECIPE_REPO_NAME};
+use super::github_recipe::{download_github_recipe, GOOSE_RECIPE_GITHUB_HTTP_URL};
 
 // use crate::recipes::github_recipe::download_github_recipe;
 
@@ -57,10 +57,7 @@ pub fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
     match download_github_recipe(recipe_name, &recipes_dir) {
         Ok(download_path) => Ok(download_path),
         Err(_) => {
-            let github_directory = format!(
-                "https://github.com/squareup/{}/{}",
-                GOOSE_RECIPE_REPO_NAME, recipe_name
-            );
+            let github_directory = format!("{}/{}", GOOSE_RECIPE_GITHUB_HTTP_URL, recipe_name);
             Err(anyhow!(
                 "{}\n  No recipe.yaml or recipe.json file found in github directory {}",
                 error_message,

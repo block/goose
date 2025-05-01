@@ -3,11 +3,16 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-pub const GOOSE_RECIPE_REPO_NAME: &str = "goose-recipes";
+const GOOSE_RECIPE_REPO_NAME: &str = "goose-recipes";
 const GOOSE_RECIPE_GITHUB_CLONE_URL: &str = "org-49461806@github.com:squareup/goose-recipes.git";
+pub const GOOSE_RECIPE_GITHUB_HTTP_URL: &str = "https://github.com/squareup/goose-recipes";
 const LOCAL_REPO_PARENT_PATH: &str = "/tmp";
 
 pub fn download_github_recipe(recipe_name: &str, target_dir: &Path) -> Result<PathBuf> {
+    println!(
+        "downloading recipe from github repo {}/{} to {:?}",
+        GOOSE_RECIPE_GITHUB_HTTP_URL, recipe_name, target_dir
+    );
     let local_repo_parent_path = Path::new(LOCAL_REPO_PARENT_PATH);
     let local_repo_path =
         ensure_repo_cloned(GOOSE_RECIPE_GITHUB_CLONE_URL, local_repo_parent_path)?;
@@ -20,6 +25,10 @@ pub fn download_github_recipe(recipe_name: &str, target_dir: &Path) -> Result<Pa
             Ok(content) => {
                 let downloaded_file_path = target_dir.join(format!("{}.{}", recipe_name, ext));
                 std::fs::write(downloaded_file_path.clone(), content)?;
+                println!(
+                    "downloaded recipe from github repo {}/{}/recipe.{} to {:?}",
+                    GOOSE_RECIPE_GITHUB_HTTP_URL, recipe_name, ext, downloaded_file_path
+                );
                 return Ok(downloaded_file_path);
             }
             Err(_) => continue,
