@@ -1917,12 +1917,6 @@ impl GoogleDriveRouter {
                 }
             };
 
-        tracing::error!(
-            "source_mime_type and target_mime_type: {:?} vs {:?}",
-            source_mime_type,
-            target_mime_type
-        );
-
         // Upload the file to Google Drive
         self.upload_to_drive(
             FileOperation::Create {
