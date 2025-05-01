@@ -1,9 +1,7 @@
 use goose::message::Message;
 use goose::providers::base::ProviderUsage;
-use mcp_core::tool::Tool;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CompletionResponse {
     message: Message,
     usage: ProviderUsage,
@@ -20,7 +18,7 @@ impl CompletionResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RuntimeMetrics {
     pub total_time_ms: u128,
     pub total_time_ms_provider: u128,
@@ -41,7 +39,18 @@ impl RuntimeMetrics {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A tool that can be used by a model.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Tool {
+    /// The name of the tool
+    pub name: String,
+    /// A description of what the tool does
+    pub description: String,
+    /// A JSON Schema object defining the expected parameters for the tool
+    pub input_schema: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
 pub struct Extension {
     name: String,
     instructions: Option<String>,

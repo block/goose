@@ -3,8 +3,7 @@ use std::vec;
 use anyhow::Result;
 use goose::message::Message;
 use goose::model::ModelConfig;
-use goose_llm::{completion, CompletionResponse, Extension};
-use mcp_core::tool::Tool;
+use goose_llm::{completion, CompletionResponse, Extension, Tool};
 use serde_json::json;
 
 #[tokio::main]
