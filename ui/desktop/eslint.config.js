@@ -70,6 +70,7 @@ module.exports = [
         HTMLTextAreaElement: 'readonly',
         HTMLButtonElement: 'readonly',
         HTMLDivElement: 'readonly',
+        File: 'readonly',
         FileList: 'readonly',
         FileReader: 'readonly',
         DOMParser: 'readonly',
