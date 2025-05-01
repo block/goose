@@ -13,7 +13,7 @@ pub struct BenchRunner {
 
 impl BenchRunner {
     pub fn new(config_path: PathBuf) -> anyhow::Result<BenchRunner> {
-        let config = BenchRunConfig::from(config_path)?;
+        let config = BenchRunConfig::from(config_path.clone())?;
 
         let resolved_output_dir = match &config.output_dir {
             Some(path) => {
