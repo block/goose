@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.20"
+    "version": "1.0.21"
   },
   "paths": {
     "/agent/tools": {
@@ -408,10 +408,76 @@
           }
         }
       }
+    },
+    "/context/manage": {
+      "post": {
+        "tags": [
+          "Context Management"
+        ],
+        "operationId": "manage_context",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContextManageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Context managed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextManageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "412": {
+            "description": "Precondition failed - Agent not available"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "Annotations": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "nullable": true
+          },
+          "priority": {
+            "type": "number",
+            "format": "float",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T00:00:00Z"
+          }
+        }
+      },
       "ConfigKey": {
         "type": "object",
         "required": [
@@ -459,6 +525,152 @@
           "config": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "Content": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TextContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddedResource"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "ContextLengthExceeded": {
+        "type": "object",
+        "required": [
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
+          }
+        }
+      },
+      "ContextManageRequest": {
+        "type": "object",
+        "description": "Request payload for context management operations",
+        "required": [
+          "messages",
+          "manageAction"
+        ],
+        "properties": {
+          "manageAction": {
+            "type": "string",
+            "description": "Operation to perform: \"truncation\" or \"summarize\""
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "Collection of messages to be managed"
+          }
+        }
+      },
+      "ContextManageResponse": {
+        "type": "object",
+        "description": "Response from context management operations",
+        "required": [
+          "messages",
+          "tokenCounts"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "Processed messages after the operation"
+          },
+          "tokenCounts": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "EmbeddedResource": {
+        "type": "object",
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "annotations": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Annotations"
+              }
+            ],
+            "nullable": true
+          },
+          "resource": {
+            "$ref": "#/components/schemas/ResourceContents"
           }
         }
       },
@@ -704,6 +916,265 @@
           }
         }
       },
+      "FrontendToolRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "toolCall"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "toolCall": {
+            "type": "object"
+          }
+        }
+      },
+      "ImageContent": {
+        "type": "object",
+        "required": [
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "annotations": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Annotations"
+              }
+            ],
+            "nullable": true
+          },
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "description": "A message to or from an LLM",
+        "required": [
+          "role",
+          "created",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageContent"
+            }
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
+      "MessageContent": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TextContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "toolRequest"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ToolResponse"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "toolResponse"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ToolConfirmationRequest"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "toolConfirmationRequest"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FrontendToolRequest"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "frontendToolRequest"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThinkingContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "thinking"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RedactedThinkingContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "redactedThinking"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContextLengthExceeded"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "contextLengthExceeded"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "description": "Content passed inside a message, which can be both simple content and tool content",
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -841,6 +1312,100 @@
           }
         }
       },
+      "RedactedThinkingContent": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceContents": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "uri",
+              "text"
+            ],
+            "properties": {
+              "mime_type": {
+                "type": "string",
+                "nullable": true
+              },
+              "text": {
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "uri",
+              "blob"
+            ],
+            "properties": {
+              "blob": {
+                "type": "string"
+              },
+              "mime_type": {
+                "type": "string",
+                "nullable": true
+              },
+              "uri": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      },
+      "TextContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "annotations": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Annotations"
+              }
+            ],
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ThinkingContent": {
+        "type": "object",
+        "required": [
+          "thinking",
+          "signature"
+        ],
+        "properties": {
+          "signature": {
+            "type": "string"
+          },
+          "thinking": {
+            "type": "string"
+          }
+        }
+      },
       "Tool": {
         "type": "object",
         "description": "A tool that can be used by a model.",
@@ -898,6 +1463,27 @@
           }
         }
       },
+      "ToolConfirmationRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "toolName",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "toolName": {
+            "type": "string"
+          }
+        }
+      },
       "ToolInfo": {
         "type": "object",
         "description": "Information about the tool used for building prompts",
@@ -943,6 +1529,61 @@
             "type": "string",
             "description": "Unique identifier and name of the tool, format <extension_name>__<tool_name>"
           }
+        }
+      },
+      "ToolRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "toolCall"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "toolCall": {
+            "type": "object"
+          }
+        }
+      },
+      "ToolResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "toolResult"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "toolResult": {
+            "type": "object"
+          }
+        }
+      },
+      "ToolResultSchema": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string",
+            "example": "Operation completed successfully",
+            "nullable": true
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "example": {
+          "data": {},
+          "success": true
         }
       },
       "UpsertConfigQuery": {

@@ -186,7 +186,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   </TabItem>
 </Tabs>
 
-
 ## Example Usage
 
 The PostgreSQL extension enables you to query and analyze data or give you information about the table structures. The extension is only capable of *read-only* operations, so you can use it to get information about your database, but not to modify it.

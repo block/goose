@@ -533,7 +533,13 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { cmd }) => {
             match cmd {
                 BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
-                BenchCommand::InitConfig { name } => BenchRunConfig::default().save(name),
+                BenchCommand::InitConfig { name } => {
+                    let mut config = BenchRunConfig::default();
+                    let cwd =
+                        std::env::current_dir().expect("Failed to get current working directory");
+                    config.output_dir = Some(cwd);
+                    config.save(name);
+                }
                 BenchCommand::Run { config } => BenchRunner::new(config)?.run()?,
                 BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
                 BenchCommand::ExecEval { config } => {

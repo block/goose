@@ -22,7 +22,7 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 // https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
-pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
 // Databricks can passthrough to a wide range of models, we only provide the default
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",

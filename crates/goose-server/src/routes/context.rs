@@ -9,23 +9,43 @@ use axum::{
 use goose::message::Message;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 
-// Direct message serialization for context mgmt request
-#[derive(Debug, Deserialize)]
+/// Request payload for context management operations
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextManageRequest {
-    messages: Vec<Message>,
-    manage_action: String,
+    /// Collection of messages to be managed
+    pub messages: Vec<Message>,
+    /// Operation to perform: "truncation" or "summarize"
+    pub manage_action: String,
 }
 
-// Direct message serialization for context mgmt request
-#[derive(Debug, Serialize)]
+/// Response from context management operations
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextManageResponse {
-    messages: Vec<Message>,
-    token_counts: Vec<usize>,
+    /// Processed messages after the operation
+    pub messages: Vec<Message>,
+    /// Token counts for each processed message
+    pub token_counts: Vec<usize>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/context/manage",
+    request_body = ContextManageRequest,
+    responses(
+        (status = 200, description = "Context managed successfully", body = ContextManageResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 412, description = "Precondition failed - Agent not available"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Context Management"
+)]
 async fn manage_context(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -40,7 +60,8 @@ async fn manage_context(
 
     let mut processed_messages: Vec<Message> = vec![];
     let mut token_counts: Vec<usize> = vec![];
-    if request.manage_action == "trunction" {
+
+    if request.manage_action == "truncation" {
         (processed_messages, token_counts) = agent
             .truncate_context(&request.messages)
             .await
