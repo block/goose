@@ -59,6 +59,13 @@ fn extract_identifier(identifier: Identifier) -> session::Identifier {
     }
 }
 
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    match s.split_once('=') {
+        Some((key, value)) => Ok((key.to_string(), value.to_string())),
+        None => Err(format!("invalid KEY=VALUE: {}", s)),
+    }
+}
+
 #[derive(Subcommand)]
 enum SessionCommand {
     #[command(about = "List all available sessions")]
@@ -271,6 +278,16 @@ enum Command {
         )]
         recipe: Option<String>,
 
+        #[arg(
+            long,
+            value_name = "KEY=VALUE",
+            help = "Dynamic parameters (e.g., --params username=alice --params channel_name=goose-channel)",
+            long_help = "Key-value parameters to pass to the recipe file. Can be specified multiple times.",
+            action = clap::ArgAction::Append,
+            value_parser = parse_key_val,
+        )]
+        params: Vec<(String, String)>,
+
         /// Continue in interactive mode after processing input
         #[arg(
             short = 's',
@@ -414,7 +431,7 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session = build_session(SessionBuilderConfig {
+                    let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
                         resume,
                         extensions,
@@ -445,6 +462,7 @@ pub async fn cli() -> Result<()> {
             extensions,
             remote_extensions,
             builtins,
+            params,
         }) => {
             let input_config = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
@@ -479,7 +497,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(file)) => {
-                    let recipe = load_recipe(&file, true).unwrap_or_else(|err| {
+                    let recipe = load_recipe(&file, true, Some(params)).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
