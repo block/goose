@@ -63,7 +63,6 @@ export default function ChatView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-
   return (
     <ContextManagerProvider>
       <ChatContent
