@@ -851,7 +851,7 @@ app.whenReady().then(async () => {
     fileMenu.submenu.append(
       new MenuItem({
         label: 'New Chat Window',
-        accelerator: 'CmdOrCtrl+N',
+        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
         click() {
           ipcMain.emit('create-chat-window');
         },
