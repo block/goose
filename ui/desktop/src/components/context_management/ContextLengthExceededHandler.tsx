@@ -5,21 +5,30 @@ import { useChatContextManager } from './ContextManager';
 interface ContextLengthExceededHandlerProps {
   messages: Message[];
   messageId: string;
+  chatId: string;
+  workingDir: string;
 }
 
 export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandlerProps> = ({
   messages,
   messageId,
+  chatId,
+  workingDir,
 }) => {
-  const { fetchSummary, summaryContent, isLoadingSummary, errorLoadingSummary, openSummaryModal } =
-    useChatContextManager();
+  const {
+    summaryContent,
+    isLoadingSummary,
+    errorLoadingSummary,
+    openSummaryModal,
+    handleContextLengthExceeded,
+  } = useChatContextManager();
 
   const [hasFetchStarted, setHasFetchStarted] = useState(false);
 
   // Find the relevant message to check if it's the latest
   const isCurrentMessageLatest =
-    messageId === messages[messages.length - 1].id ||
-    messageId === messages[messages.length - 1].created.toString();
+    messageId === messages[messages.length - 1]?.id ||
+    messageId === String(messages[messages.length - 1]?.created);
 
   // Only allow interaction for the most recent context length exceeded event
   const shouldAllowSummaryInteraction = isCurrentMessageLatest;
@@ -27,24 +36,47 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
   // Use a ref to track if we've started the fetch
   const fetchStartedRef = useRef(false);
 
+  // Function to trigger the async operation properly
+  const triggerContextLengthExceeded = () => {
+    setHasFetchStarted(true);
+    fetchStartedRef.current = true;
+
+    // Call the async function without awaiting it in useEffect
+    handleContextLengthExceeded(messages, chatId, workingDir).catch((err) => {
+      console.error('Error handling context length exceeded:', err);
+    });
+  };
+
   useEffect(() => {
-    // Automatically fetch summary if conditions are met
     if (
       !summaryContent &&
       !hasFetchStarted &&
       shouldAllowSummaryInteraction &&
       !fetchStartedRef.current
     ) {
-      setHasFetchStarted(true);
-      fetchStartedRef.current = true;
-      fetchSummary(messages);
+      // Use the wrapper function instead of calling the async function directly
+      triggerContextLengthExceeded();
     }
-  }, [fetchSummary, hasFetchStarted, messages, shouldAllowSummaryInteraction, summaryContent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    hasFetchStarted,
+    messages,
+    shouldAllowSummaryInteraction,
+    summaryContent,
+    chatId,
+    workingDir,
+  ]);
 
-  // Handle retry
+  // Handle retry - Call the async function properly
   const handleRetry = () => {
     if (!shouldAllowSummaryInteraction) return;
-    fetchSummary(messages);
+
+    // Reset states for retry
+    setHasFetchStarted(false);
+    fetchStartedRef.current = false;
+
+    // Trigger the process again
+    triggerContextLengthExceeded();
   };
 
   // Render the notification UI
@@ -59,7 +91,7 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
       ) : (
         // Show different UI based on whether it's already handled
         <>
-          <span className="text-xs text-gray-400 italic">{'Session summarized'}</span>
+          <span className="text-xs text-gray-400 italic">{`Session summarized`}</span>
 
           {/* Only show the button if its last message */}
           {shouldAllowSummaryInteraction && (
