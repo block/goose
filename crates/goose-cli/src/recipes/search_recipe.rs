@@ -3,7 +3,9 @@ use dirs::home_dir;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::recipes::github_recipe::download_github_recipe;
+use super::github_recipe::{download_github_recipe, GOOSE_RECIPE_REPO_NAME};
+
+// use crate::recipes::github_recipe::download_github_recipe;
 
 /// Searches for a recipe file locally and on GitHub if not found
 ///
@@ -14,7 +16,7 @@ use crate::recipes::github_recipe::download_github_recipe;
 /// # Returns
 ///
 /// The path to the recipe file if found
-pub async fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
+pub fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
     // If recipe_name ends with yaml or json, treat it as a direct path
     if recipe_name.ends_with(".yaml") || recipe_name.ends_with(".json") {
         let path = PathBuf::from(recipe_name);
@@ -42,17 +44,27 @@ pub async fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
         return Ok(path);
     }
 
+    let error_message = format!(
+        "No {}.yaml, or {}.json file found in current directory, {} directory",
+        recipe_name,
+        recipe_name,
+        recipes_dir.display()
+    );
+    if !is_block_internal()? {
+        return Err(anyhow!(error_message.clone()));
+    }
     // Try to download from GitHub as a fallback
-    match download_github_recipe(recipe_name, &recipes_dir).await {
+    match download_github_recipe(recipe_name, &recipes_dir) {
         Ok(download_path) => Ok(download_path),
         Err(_) => {
-            let github_directory =
-                format!("https://github.com/squareup/goose-recipes/{}", recipe_name);
-            // Log the GitHub download error for debugging
-            // Return a more descriptive error
+            let github_directory = format!(
+                "https://github.com/squareup/{}/{}",
+                GOOSE_RECIPE_REPO_NAME, recipe_name
+            );
             Err(anyhow!(
-                "Recipe '{}' not found. \n  No {}.yaml, or {}.json file found in current directory, {} directory \n  No recipe.yaml or recipe.json file found in github directory {}",
-                recipe_name, recipe_name, recipe_name, recipes_dir.display(), github_directory
+                "{}\n  No recipe.yaml or recipe.json file found in github directory {}",
+                error_message,
+                github_directory
             ))
         }
     }
@@ -67,6 +79,15 @@ fn check_recipe_in_dir(dir: &Path, recipe_name: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn is_block_internal() -> Result<bool> {
+    if let Ok(host) = std::env::var("DATABRICKS_HOST") {
+        if host.contains("block-lakehouse-production") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]

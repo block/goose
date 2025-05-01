@@ -23,8 +23,8 @@ use crate::recipes::search_recipe::find_recipe_file;
 /// - The file can't be read
 /// - The YAML/JSON is invalid
 /// - The required fields are missing
-pub async fn load_recipe(recipe_name: &str, log: bool) -> Result<Recipe> {
-    let path = find_recipe_file(recipe_name).await?;
+pub fn load_recipe(recipe_name: &str, log: bool) -> Result<Recipe> {
+    let path = find_recipe_file(recipe_name)?;
 
     // Check if file exists
     if !path.exists() {

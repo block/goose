@@ -481,7 +481,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(recipe_name)) => {
-                    let recipe = load_recipe(&recipe_name, true).await.unwrap_or_else(|err| {
+                    let recipe = load_recipe(&recipe_name, true).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
@@ -547,10 +547,10 @@ pub async fn cli() -> Result<()> {
         Some(Command::Recipe { command }) => {
             match command {
                 RecipeCommand::Validate { recipe_name } => {
-                    handle_validate(&recipe_name).await?;
+                    handle_validate(&recipe_name)?;
                 }
                 RecipeCommand::Deeplink { recipe_name } => {
-                    handle_deeplink(&recipe_name).await?;
+                    handle_deeplink(&recipe_name)?;
                 }
             }
             return Ok(());

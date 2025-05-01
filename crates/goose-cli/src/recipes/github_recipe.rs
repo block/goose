@@ -1,78 +1,90 @@
-use anyhow::{anyhow, Result};
-use base64::Engine as _;
-use reqwest;
-use std::fs;
+use anyhow::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 
-pub async fn download_github_recipe(recipe_name: &str, target_dir: &Path) -> Result<PathBuf> {
-    // Try both yaml and json extensions
-    for ext in &["yaml", "json"] {
-        let filename = format!("{}.{}", recipe_name, ext);
-        let target_path = target_dir.join(&filename);
+pub const GOOSE_RECIPE_REPO_NAME: &str = "goose-recipes";
+const GOOSE_RECIPE_GITHUB_CLONE_URL: &str = "org-49461806@github.com:squareup/goose-recipes.git";
+const LOCAL_REPO_PARENT_PATH: &str = "/tmp";
 
-        // GitHub API URL for the recipe file
-        let api_url = format!(
-            "https://api.github.com/repos/squareup/goose-recipes/contents/{}/recipe.{}?ref=douwe/joke-of-the-day",
-            recipe_name, ext
-        );
+pub fn download_github_recipe(recipe_name: &str, target_dir: &Path) -> Result<PathBuf> {
+    let local_repo_parent_path = Path::new(LOCAL_REPO_PARENT_PATH);
+    let local_repo_path =
+        ensure_repo_cloned(GOOSE_RECIPE_GITHUB_CLONE_URL, local_repo_parent_path)?;
+    fetch_origin(&local_repo_path)?;
+    let file_extensions = ["yaml", "json"];
 
-        let token = std::env::var("GITHUB_TOKEN").unwrap_or_default();
-        // Make request to GitHub API
-        let client = reqwest::Client::new();
-        let response = client
-            .get(&api_url)
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("Authorization", format!("Bearer {}", token))
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .header("User-Agent", "goose-cli")
-            .send()
-            .await?;
-
-        if response.status().is_success() {
-            // Parse the GitHub API response
-            let github_content: serde_json::Value = response.json().await?;
-
-            // Extract the content (base64 encoded)
-            let content = github_content["content"]
-                .as_str()
-                .ok_or_else(|| anyhow!("Content field missing in GitHub response"))?;
-
-            // Decode base64 content
-            let decoded =
-                base64::engine::general_purpose::STANDARD.decode(content.replace("\n", ""))?;
-            let file_content = String::from_utf8(decoded)?;
-
-            // Write content to local file
-            fs::write(&target_path, file_content)?;
-            let github_url = format!(
-                "https://github.com/squareup/goose-recipes/{}/recipe.{}",
-                recipe_name, ext
-            );
-            println!(
-                "Downloaded recipe from GitHub {:?} to {:?}",
-                github_url, target_path
-            );
-            return Ok(target_path);
+    for ext in file_extensions {
+        let file_path_in_repo = format!("{}/recipe.{}", recipe_name, ext);
+        match get_file_content_from_github(&local_repo_path, &file_path_in_repo) {
+            Ok(content) => {
+                let downloaded_file_path = target_dir.join(format!("{}.{}", recipe_name, ext));
+                std::fs::write(downloaded_file_path.clone(), content)?;
+                return Ok(downloaded_file_path);
+            }
+            Err(_) => continue,
         }
     }
-
-    Err(anyhow!("Recipe '{}' not found on GitHub", recipe_name))
+    Err(anyhow::anyhow!(
+        "Failed to retrieve recipe.yaml or recipe.json in {} directory in {}",
+        GOOSE_RECIPE_REPO_NAME,
+        GOOSE_RECIPE_GITHUB_CLONE_URL
+    ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn get_file_content_from_github(
+    local_repo_path: &Path,
+    file_path_in_repo: &str,
+) -> Result<String> {
+    let ref_and_path = format!("origin/douwe/joke-of-the-day:{}", file_path_in_repo);
+    let error_message: String = format!("Failed to get content from {}", file_path_in_repo);
+    let output = Command::new("git")
+        .args(["show", &ref_and_path])
+        .current_dir(local_repo_path)
+        .output()
+        .map_err(|_: std::io::Error| anyhow::anyhow!(error_message.clone()))?;
 
-    #[tokio::test]
-    async fn test_download_github_recipe() {
-        // Get current directory for test
-        let current_dir = std::env::current_dir().unwrap();
-        let recipe_name = "joke-of-the-day";
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(anyhow::anyhow!(error_message.clone()))
+    }
+}
 
-        match download_github_recipe(recipe_name, &current_dir).await {
-            Ok(path) => println!("Downloaded recipe to: {:?}", path),
-            Err(e) => println!("Error downloading recipe: {}", e),
+fn ensure_repo_cloned(github_clone_url: &str, local_repo_parent_path: &Path) -> Result<PathBuf> {
+    let local_repo_path = local_repo_parent_path.join(GOOSE_RECIPE_REPO_NAME);
+    if local_repo_path.join(".git").exists() {
+        Ok(local_repo_path)
+    } else {
+        // Create the local repo parent directory if it doesn't exist
+        if !local_repo_parent_path.exists() {
+            std::fs::create_dir_all(&local_repo_parent_path)?;
         }
+        let error_message: String = format!("Failed to clone repo: {}", github_clone_url);
+        let status = Command::new("git")
+            .args(["clone", github_clone_url, local_repo_path.to_str().unwrap()])
+            .status()
+            .map_err(|_: std::io::Error| anyhow::anyhow!(error_message.clone()))?;
+
+        if status.success() {
+            Ok(local_repo_path)
+        } else {
+            Err(anyhow::anyhow!(error_message))
+        }
+    }
+}
+
+fn fetch_origin(local_repo_path: &Path) -> Result<()> {
+    let error_message: String = format!("Failed to fetch at {}", local_repo_path.to_str().unwrap());
+    let status = Command::new("git")
+        .args(["fetch", "origin"])
+        .current_dir(local_repo_path)
+        .status()
+        .map_err(|_| anyhow::anyhow!(error_message.clone()))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(error_message))
     }
 }
