@@ -60,11 +60,10 @@ fn extract_identifier(identifier: Identifier) -> session::Identifier {
 }
 
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
-    let parts: Vec<&str> = s.splitn(2, '=').collect();
-    if parts.len() != 2 {
-        return Err(format!("invalid KEY=VALUE: {}", s));
+    match s.split_once('=') {
+        Some((key, value)) => Ok((key.to_string(), value.to_string())),
+        None => Err(format!("invalid KEY=VALUE: {}", s)),
     }
-    Ok((parts[0].to_string(), parts[1].to_string()))
 }
 
 #[derive(Subcommand)]
