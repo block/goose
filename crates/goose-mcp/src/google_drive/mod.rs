@@ -1153,6 +1153,7 @@ impl GoogleDriveRouter {
     async fn get_google_file(
         &self,
         uri: &str,
+        mime_type: &str,
         include_images: bool,
     ) -> Result<Vec<Content>, ToolError> {
         let result = self
@@ -1171,10 +1172,6 @@ impl GoogleDriveRouter {
                 uri, e
             ))),
             Ok(r) => {
-                let file = r.1;
-                let mime_type = file
-                    .mime_type
-                    .unwrap_or("application/octet-stream".to_string());
                 if mime_type.starts_with("text/") || mime_type == "application/json" {
                     if let Ok(body) = r.0.into_body().collect().await {
                         if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
@@ -1277,7 +1274,8 @@ impl GoogleDriveRouter {
             self.export_google_file(&drive_uri, &mime_type, include_images)
                 .await
         } else {
-            self.get_google_file(&drive_uri, include_images).await
+            self.get_google_file(&drive_uri, &mime_type, include_images)
+                .await
         }
     }
 
