@@ -2527,7 +2527,6 @@ dependencies = [
  "chrono",
  "criterion",
  "include_dir",
- "mcp-core",
  "minijinja",
  "once_cell",
  "regex",

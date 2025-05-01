@@ -1,9 +1,9 @@
 use super::base::Usage;
 use crate::model::ModelConfig;
 use crate::providers::errors::{OpenAIError, ProviderError};
+use crate::ImageContent;
 use anyhow::Result;
 use base64::Engine;
-use mcp_core::content::ImageContent;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -93,7 +93,7 @@ pub fn get_env(key: &str) -> Result<String> {
     let env_key = key.to_uppercase();
     if let Ok(val) = env::var(&env_key) {
         let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
-        return Ok(serde_json::from_value(value)?);
+        Ok(serde_json::from_value(value)?)
     } else {
         Err(anyhow::anyhow!(
             "Environment variable {} not found",
@@ -206,7 +206,6 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     Ok(ImageContent {
         mime_type: mime_type.to_string(),
         data,
-        annotations: None,
     })
 }
 

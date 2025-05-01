@@ -1,5 +1,9 @@
 use std::collections::HashSet;
 
+use crate::Role;
+use crate::ToolCall;
+use crate::ToolResult;
+use crate::{Content, ImageContent, TextContent};
 /// Messages which represent the content sent back and forth to LLM provider
 ///
 /// We use these messages in the agent code, and interfaces which interact with
@@ -8,12 +12,6 @@ use std::collections::HashSet;
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
 use chrono::Utc;
-use mcp_core::content::{Content, ImageContent, TextContent};
-use mcp_core::handler::ToolResult;
-use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
-use mcp_core::resource::ResourceContents;
-use mcp_core::role::Role;
-use mcp_core::tool::ToolCall;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -101,17 +99,13 @@ pub enum MessageContent {
 
 impl MessageContent {
     pub fn text<S: Into<String>>(text: S) -> Self {
-        MessageContent::Text(TextContent {
-            text: text.into(),
-            annotations: None,
-        })
+        MessageContent::Text(TextContent { text: text.into() })
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
         MessageContent::Image(ImageContent {
             data: data.into(),
             mime_type: mime_type.into(),
-            annotations: None,
         })
     }
 
@@ -234,42 +228,7 @@ impl From<Content> for MessageContent {
         match content {
             Content::Text(text) => MessageContent::Text(text),
             Content::Image(image) => MessageContent::Image(image),
-            Content::Resource(resource) => MessageContent::Text(TextContent {
-                text: resource.get_text(),
-                annotations: None,
-            }),
         }
-    }
-}
-
-impl From<PromptMessage> for Message {
-    fn from(prompt_message: PromptMessage) -> Self {
-        // Create a new message with the appropriate role
-        let message = match prompt_message.role {
-            PromptMessageRole::User => Message::user(),
-            PromptMessageRole::Assistant => Message::assistant(),
-        };
-
-        // Convert and add the content
-        let content = match prompt_message.content {
-            PromptMessageContent::Text { text } => MessageContent::text(text),
-            PromptMessageContent::Image { image } => {
-                MessageContent::image(image.data, image.mime_type)
-            }
-            PromptMessageContent::Resource { resource } => {
-                // For resources, convert to text content with the resource text
-                match resource.resource {
-                    ResourceContents::TextResourceContents { text, .. } => {
-                        MessageContent::text(text)
-                    }
-                    ResourceContents::BlobResourceContents { blob, .. } => {
-                        MessageContent::text(format!("[Binary content: {}]", blob))
-                    }
-                }
-            }
-        };
-
-        message.with_content(content)
     }
 }
 
@@ -449,10 +408,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::EmbeddedResource;
-    use mcp_core::handler::ToolError;
-    use mcp_core::prompt::PromptMessageContent;
-    use mcp_core::resource::ResourceContents;
+    use crate::ToolError;
     use serde_json::{json, Value};
 
     #[test]
@@ -566,138 +522,6 @@ mod tests {
         } else {
             panic!("Expected ToolRequest content");
         }
-    }
-
-    #[test]
-    fn test_from_prompt_message_text() {
-        let prompt_content = PromptMessageContent::Text {
-            text: "Hello, world!".to_string(),
-        };
-
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
-
-        let message = Message::from(prompt_message);
-
-        if let MessageContent::Text(text_content) = &message.content[0] {
-            assert_eq!(text_content.text, "Hello, world!");
-        } else {
-            panic!("Expected MessageContent::Text");
-        }
-    }
-
-    #[test]
-    fn test_from_prompt_message_image() {
-        let prompt_content = PromptMessageContent::Image {
-            image: ImageContent {
-                data: "base64data".to_string(),
-                mime_type: "image/jpeg".to_string(),
-                annotations: None,
-            },
-        };
-
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
-
-        let message = Message::from(prompt_message);
-
-        if let MessageContent::Image(image_content) = &message.content[0] {
-            assert_eq!(image_content.data, "base64data");
-            assert_eq!(image_content.mime_type, "image/jpeg");
-        } else {
-            panic!("Expected MessageContent::Image");
-        }
-    }
-
-    #[test]
-    fn test_from_prompt_message_text_resource() {
-        let resource = ResourceContents::TextResourceContents {
-            uri: "file:///test.txt".to_string(),
-            mime_type: Some("text/plain".to_string()),
-            text: "Resource content".to_string(),
-        };
-
-        let prompt_content = PromptMessageContent::Resource {
-            resource: EmbeddedResource {
-                resource,
-                annotations: None,
-            },
-        };
-
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
-
-        let message = Message::from(prompt_message);
-
-        if let MessageContent::Text(text_content) = &message.content[0] {
-            assert_eq!(text_content.text, "Resource content");
-        } else {
-            panic!("Expected MessageContent::Text");
-        }
-    }
-
-    #[test]
-    fn test_from_prompt_message_blob_resource() {
-        let resource = ResourceContents::BlobResourceContents {
-            uri: "file:///test.bin".to_string(),
-            mime_type: Some("application/octet-stream".to_string()),
-            blob: "binary_data".to_string(),
-        };
-
-        let prompt_content = PromptMessageContent::Resource {
-            resource: EmbeddedResource {
-                resource,
-                annotations: None,
-            },
-        };
-
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
-
-        let message = Message::from(prompt_message);
-
-        if let MessageContent::Text(text_content) = &message.content[0] {
-            assert_eq!(text_content.text, "[Binary content: binary_data]");
-        } else {
-            panic!("Expected MessageContent::Text");
-        }
-    }
-
-    #[test]
-    fn test_from_prompt_message() {
-        // Test user message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
-                text: "Hello, world!".to_string(),
-            },
-        };
-
-        let message = Message::from(prompt_message);
-        assert_eq!(message.role, Role::User);
-        assert_eq!(message.content.len(), 1);
-        assert_eq!(message.as_concat_text(), "Hello, world!");
-
-        // Test assistant message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::Assistant,
-            content: PromptMessageContent::Text {
-                text: "I can help with that.".to_string(),
-            },
-        };
-
-        let message = Message::from(prompt_message);
-        assert_eq!(message.role, Role::Assistant);
-        assert_eq!(message.content.len(), 1);
-        assert_eq!(message.as_concat_text(), "I can help with that.");
     }
 
     #[test]

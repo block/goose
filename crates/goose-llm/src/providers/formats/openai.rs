@@ -7,9 +7,9 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use crate::Tool;
+use crate::ToolError;
+use crate::{Content, Role, ToolCall};
 use anyhow::{anyhow, Error};
-use mcp_core::ToolError;
-use mcp_core::{Content, Role, ToolCall};
 use serde_json::{json, Value};
 
 /// Convert internal Message format to OpenAI's API message specification
@@ -85,22 +85,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(contents) => {
-                            // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = contents
-                                .iter()
-                                .filter(|content| {
-                                    content
-                                        .audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
-                                .map(|content| content.unannotated())
-                                .collect();
-
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
                             let mut image_messages = Vec::new();
 
-                            for content in abridged {
+                            for content in contents {
                                 match content {
                                     Content::Image(image) => {
                                         // Add placeholder text in the tool response
@@ -109,14 +98,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image, image_format)]
+                                            "content": [convert_image(image, image_format)]
                                         }));
                                     }
-                                    Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
-                                    }
                                     _ => {
-                                        tool_content.push(content);
+                                        tool_content.push(content.clone());
                                     }
                                 }
                             }
@@ -454,7 +440,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::Content;
+    use crate::Content;
     use serde_json::json;
 
     #[test]
