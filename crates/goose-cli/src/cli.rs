@@ -483,18 +483,10 @@ pub async fn cli() -> Result<()> {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
-
-                    let (contents, additional_system_prompt) = match recipe.prompt {
-                        Some(ref p) if !p.trim().is_empty() => {
-                            (Some(p.clone()), Some(recipe.instructions.clone()))
-                        }
-                        _ => (Some(recipe.instructions.clone()), None),
-                    };
-
                     InputConfig {
-                        contents,
+                        contents: recipe.prompt,
                         extensions_override: recipe.extensions,
-                        additional_system_prompt,
+                        additional_system_prompt: recipe.instructions,
                     }
                 }
                 (None, None, None) => {
