@@ -112,7 +112,7 @@ impl AzureProvider {
 
         loop {
             // Check if we've exceeded max retries
-            if attempts > 0 && attempts > DEFAULT_MAX_RETRIES {
+            if attempts > DEFAULT_MAX_RETRIES {
                 let error_msg = format!(
                     "Exceeded maximum retry attempts ({}) for rate limiting",
                     DEFAULT_MAX_RETRIES

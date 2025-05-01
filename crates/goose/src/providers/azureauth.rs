@@ -2,7 +2,6 @@ use chrono;
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use thiserror::Error;
 use tokio::sync::RwLock;
 
 /// Represents errors that can occur during Azure authentication.
@@ -57,7 +56,6 @@ struct TokenResponse {
 #[derive(Debug)]
 pub struct AzureAuth {
     credentials: AzureCredentials,
-    client: reqwest::Client,
     cached_token: Arc<RwLock<Option<CachedToken>>>,
 }
 
@@ -79,7 +77,6 @@ impl AzureAuth {
 
         Ok(Self {
             credentials,
-            client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(None)),
         })
     }
