@@ -3,6 +3,7 @@ use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::EvaluationSuite;
 use crate::runners::model_runner::ModelRunner;
 use crate::utilities::{await_process_exits, parallel_bench_cmd};
+use anyhow::Context;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -11,9 +12,27 @@ pub struct BenchRunner {
 }
 
 impl BenchRunner {
-    pub fn new(config: PathBuf) -> anyhow::Result<BenchRunner> {
-        let config = BenchRunConfig::from(config)?;
-        BenchmarkWorkDir::init_experiment();
+    pub fn new(config_path: PathBuf) -> anyhow::Result<BenchRunner> {
+        let config = BenchRunConfig::from(config_path.clone())?;
+
+        let resolved_output_dir = match &config.output_dir {
+            Some(path) => {
+                if !path.is_absolute() {
+                    anyhow::bail!(
+                         "Config Error in '{}': 'output_dir' must be an absolute path, but found relative path: {}",
+                         config_path.display(),
+                         path.display()
+                     );
+                }
+                path.clone()
+            }
+            None => std::env::current_dir().context(
+                "Failed to get current working directory to use as default output directory",
+            )?,
+        };
+
+        BenchmarkWorkDir::init_experiment(resolved_output_dir)?;
+
         config.save("config.cfg".to_string());
         Ok(BenchRunner { config })
     }
