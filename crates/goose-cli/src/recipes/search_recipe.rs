@@ -57,7 +57,8 @@ fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<String> {
             Err(_) => continue,
         }
     }
-    Err(anyhow!(
-        "No recipe.yaml or recipe.json file found in current directory."
-    ))
+    Err(anyhow!(format!(
+        "No {}.yaml or {}.json recipe file found in current directory.",
+        recipe_name, recipe_name
+    )))
 }

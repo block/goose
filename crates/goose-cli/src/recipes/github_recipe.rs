@@ -33,7 +33,7 @@ pub fn retrieve_recipe_from_github(
         }
     }
     Err(anyhow::anyhow!(
-        "Failed to retrieve recipe.yaml or recipe.json in path {} in  github repo {} ",
+        "Failed to retrieve recipe.yaml or recipe.json in path {} in github repo {} ",
         recipe_name,
         recipe_repo_full_name,
     ))
