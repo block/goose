@@ -56,34 +56,34 @@ const isUserMessage = (message: Message): boolean => {
 };
 
 export default function ChatView({
-                                   chat,
-                                   setChat,
-                                   setView,
-                                   setIsGoosehintsModalOpen,
-                                 }: {
+  chat,
+  setChat,
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   return (
-      <ChatContextManagerProvider>
-        <ChatContent
-            chat={chat}
-            setChat={setChat}
-            setView={setView}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        />
-      </ChatContextManagerProvider>
+    <ChatContextManagerProvider>
+      <ChatContent
+        chat={chat}
+        setChat={setChat}
+        setView={setView}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      />
+    </ChatContextManagerProvider>
   );
 }
 
 function ChatContent({
-                       chat,
-                       setChat,
-                       setView,
-                       setIsGoosehintsModalOpen,
-                     }: {
+  chat,
+  setChat,
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -112,7 +112,7 @@ function ChatContent({
   useEffect(() => {
     // Log all messages when the component first mounts
     window.electron.logInfo(
-        'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
+      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount;
@@ -223,12 +223,12 @@ function ChatContent({
         // Create a new window for the recipe editor
         console.log('Opening recipe editor with config:', response.recipe);
         window.electron.createChatWindow(
-            undefined, // query
-            undefined, // dir
-            undefined, // version
-            undefined, // resumeSessionId
-            response.recipe, // recipe config
-            'recipeEditor' // view type
+          undefined, // query
+          undefined, // dir
+          undefined, // version
+          undefined, // resumeSessionId
+          response.recipe, // recipe config
+          'recipeEditor' // view type
         );
 
         window.electron.logInfo('Opening recipe editor window');
@@ -275,7 +275,13 @@ function ChatContent({
 
       if (summarizedThread.length > 0) {
         // move current `messages` to `ancestorMessages` and `messages` to `summarizedThread`
-        resetMessagesWithSummary(messages, setMessages, ancestorMessages, setAncestorMessages);
+        resetMessagesWithSummary(
+          messages,
+          setMessages,
+          ancestorMessages,
+          setAncestorMessages,
+          summaryContent
+        );
 
         // update the chat with new sessionId
 
@@ -310,7 +316,7 @@ function ChatContent({
 
     // check if the last user message has any tool response(s)
     const isToolResponse = lastMessage.content.some(
-        (content): content is ToolResponseMessageContent => content.type == 'toolResponse'
+      (content): content is ToolResponseMessageContent => content.type == 'toolResponse'
     );
 
     // isUserMessage also checks if the message is a toolConfirmationRequest
@@ -335,25 +341,25 @@ function ChatContent({
       // the last message was an assistant message
       // check if we have any tool requests or tool confirmation requests
       const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
-          .filter(
-              (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
-                  content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
-          )
-          .map((content) => {
-            if (content.type === 'toolRequest') {
-              return [content.id, content.toolCall];
-            } else {
-              // extract tool call from confirmation
-              const toolCall: ToolCallResult<ToolCall> = {
-                status: 'success',
-                value: {
-                  name: content.toolName,
-                  arguments: content.arguments,
-                },
-              };
-              return [content.id, toolCall];
-            }
-          });
+        .filter(
+          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
+            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+        )
+        .map((content) => {
+          if (content.type === 'toolRequest') {
+            return [content.id, content.toolCall];
+          } else {
+            // extract tool call from confirmation
+            const toolCall: ToolCallResult<ToolCall> = {
+              status: 'success',
+              value: {
+                name: content.toolName,
+                arguments: content.arguments,
+              },
+            };
+            return [content.id, toolCall];
+          }
+        });
 
       if (toolRequests.length !== 0) {
         // This means we were interrupted during a tool request
@@ -402,7 +408,7 @@ function ChatContent({
       const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
       const hasTextContent = message.content.some((c) => c.type === 'text');
       const hasToolConfirmation = message.content.every(
-          (c) => c.type === 'toolConfirmationRequest'
+        (c) => c.type === 'toolConfirmationRequest'
       );
 
       // Keep the message if it has text content or tool confirmation or is not just tool responses
@@ -414,16 +420,16 @@ function ChatContent({
 
   const commandHistory = useMemo(() => {
     return filteredMessages
-        .reduce<string[]>((history, message) => {
-          if (isUserMessage(message)) {
-            const text = message.content.find((c) => c.type === 'text')?.text?.trim();
-            if (text) {
-              history.push(text);
-            }
+      .reduce<string[]>((history, message) => {
+        if (isUserMessage(message)) {
+          const text = message.content.find((c) => c.type === 'text')?.text?.trim();
+          if (text) {
+            history.push(text);
           }
-          return history;
-        }, [])
-        .reverse();
+        }
+        return history;
+      }, [])
+      .reverse();
   }, [filteredMessages]);
 
   // Fetch session metadata to get token count
@@ -442,123 +448,123 @@ function ChatContent({
   }, [chat.id, messages]);
 
   return (
-      <div className="flex flex-col w-full h-screen items-center justify-center">
-        {/* Loader when generating recipe */}
-        {isGeneratingRecipe && <LayingEggLoader />}
-        <div className="relative flex items-center h-[36px] w-full">
-          <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-        </div>
-
-        <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
-          {recipeConfig?.title && messages.length > 0 && (
-              <AgentHeader
-                  title={recipeConfig.title}
-                  profileInfo={
-                    recipeConfig.profile
-                        ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                        : undefined
-                  }
-                  onChangeProfile={() => {
-                    // Handle profile change
-                    console.log('Change profile clicked');
-                  }}
-              />
-          )}
-          {messages.length === 0 ? (
-              <Splash
-                  append={(text) => append(createUserMessage(text))}
-                  activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
-                  title={recipeConfig?.title}
-              />
-          ) : (
-              <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-                <SearchView>
-                  {filteredMessages.map((message, index) => (
-                      <div
-                          key={message.id || index}
-                          className="mt-4 px-4"
-                          data-testid="message-container"
-                      >
-                        {isUserMessage(message) ? (
-                            <UserMessage message={message} />
-                        ) : (
-                            <>
-                              {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
-                              {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
-                                  <ContextLengthExceededHandler
-                                      messages={messages}
-                                      messageId={message.id ?? message.created.toString()}
-                                      chatId={chat.id}
-                                      workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                                  />
-                              ) : (
-                                  <GooseMessage
-                                      messageHistoryIndex={chat?.messageHistoryIndex}
-                                      message={message}
-                                      messages={messages}
-                                      append={(text) => append(createUserMessage(text))}
-                                      appendMessage={(newMessage) => {
-                                        const updatedMessages = [...messages, newMessage];
-                                        setMessages(updatedMessages);
-                                      }}
-                                  />
-                              )}
-                            </>
-                        )}
-                      </div>
-                  ))}
-                </SearchView>
-                {error && (
-                    <div className="flex flex-col items-center justify-center p-4">
-                      <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                        {error.message || 'Honk! Goose experienced an error while responding'}
-                      </div>
-                      <div
-                          className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                          onClick={async () => {
-                            // Find the last user message
-                            const lastUserMessage = messages.reduceRight(
-                                (found, m) => found || (m.role === 'user' ? m : null),
-                                null as Message | null
-                            );
-                            if (lastUserMessage) {
-                              append(lastUserMessage);
-                            }
-                          }}
-                      >
-                        Retry Last Message
-                      </div>
-                    </div>
-                )}
-                <div className="block h-16" />
-              </ScrollArea>
-          )}
-
-          <div className="relative">
-            {isLoading && <LoadingGoose />}
-            <Input
-                handleSubmit={handleSubmit}
-                isLoading={isLoading}
-                onStop={onStopGoose}
-                commandHistory={commandHistory}
-                initialValue={_input}
-            />
-            <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={sessionTokenCount} />
-          </div>
-        </Card>
-
-        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-        {process.env.ALPHA && (
-            <SessionSummaryModal
-                isOpen={isSummaryModalOpen}
-                onClose={closeSummaryModal}
-                onSave={(editedContent) => {
-                  updateSummary(editedContent);
-                  closeSummaryModal();
-                }}
-                summaryContent={summaryContent}
-            />
-        )}
+    <div className="flex flex-col w-full h-screen items-center justify-center">
+      {/* Loader when generating recipe */}
+      {isGeneratingRecipe && <LayingEggLoader />}
+      <div className="relative flex items-center h-[36px] w-full">
+        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
+
+      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+        {recipeConfig?.title && messages.length > 0 && (
+          <AgentHeader
+            title={recipeConfig.title}
+            profileInfo={
+              recipeConfig.profile
+                ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                : undefined
+            }
+            onChangeProfile={() => {
+              // Handle profile change
+              console.log('Change profile clicked');
+            }}
+          />
+        )}
+        {messages.length === 0 ? (
+          <Splash
+            append={(text) => append(createUserMessage(text))}
+            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
+            title={recipeConfig?.title}
+          />
+        ) : (
+          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+            <SearchView>
+              {filteredMessages.map((message, index) => (
+                <div
+                  key={message.id || index}
+                  className="mt-4 px-4"
+                  data-testid="message-container"
+                >
+                  {isUserMessage(message) ? (
+                    <UserMessage message={message} />
+                  ) : (
+                    <>
+                      {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
+                      {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
+                        <ContextLengthExceededHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                        />
+                      ) : (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          append={(text) => append(createUserMessage(text))}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </SearchView>
+            {error && (
+              <div className="flex flex-col items-center justify-center p-4">
+                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                  {error.message || 'Honk! Goose experienced an error while responding'}
+                </div>
+                <div
+                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                  onClick={async () => {
+                    // Find the last user message
+                    const lastUserMessage = messages.reduceRight(
+                      (found, m) => found || (m.role === 'user' ? m : null),
+                      null as Message | null
+                    );
+                    if (lastUserMessage) {
+                      append(lastUserMessage);
+                    }
+                  }}
+                >
+                  Retry Last Message
+                </div>
+              </div>
+            )}
+            <div className="block h-16" />
+          </ScrollArea>
+        )}
+
+        <div className="relative">
+          {isLoading && <LoadingGoose />}
+          <Input
+            handleSubmit={handleSubmit}
+            isLoading={isLoading}
+            onStop={onStopGoose}
+            commandHistory={commandHistory}
+            initialValue={_input}
+          />
+          <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={sessionTokenCount} />
+        </div>
+      </Card>
+
+      {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
+      {process.env.ALPHA && (
+        <SessionSummaryModal
+          isOpen={isSummaryModalOpen}
+          onClose={closeSummaryModal}
+          onSave={(editedContent) => {
+            updateSummary(editedContent);
+            closeSummaryModal();
+          }}
+          summaryContent={summaryContent}
+        />
+      )}
+    </div>
   );
 }

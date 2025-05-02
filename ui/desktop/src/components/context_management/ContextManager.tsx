@@ -18,7 +18,8 @@ interface ChatContextManagerActions {
     messages: Message[],
     setMessages: (messages: Message[]) => void,
     ancestorMessages: Message[],
-    setAncestorMessages: (messages: Message[]) => void
+    setAncestorMessages: (messages: Message[]) => void,
+    summaryContent: string
   ) => void;
   openSummaryModal: () => void;
   closeSummaryModal: () => void;
@@ -144,17 +145,45 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     messages: Message[],
     setMessages: (messages: Message[]) => void,
     ancestorMessages: Message[],
-    setAncestorMessages: (messages: Message[]) => void
+    setAncestorMessages: (messages: Message[]) => void,
+    summaryContent: string
   ) => {
-    // Update summarizedThread with metadata
-    const updatedSummarizedThread = summarizedThread.map((msg) => ({
+    // Create a copy of the summarized thread
+    const updatedSummarizedThread = [...summarizedThread];
+
+    // Make sure there's at least one message in the summarized thread
+    if (updatedSummarizedThread.length > 0) {
+      // Get the first message
+      const firstMessage = { ...updatedSummarizedThread[0] };
+
+      // Make a copy of the content array
+      const contentCopy = [...firstMessage.content];
+
+      // Assuming the first content item is of type TextContent
+      if (contentCopy.length > 0 && 'text' in contentCopy[0]) {
+        // Update the text with the new summary content
+        contentCopy[0] = {
+          ...contentCopy[0],
+          text: summaryContent,
+        };
+
+        // Update the first message with the new content
+        firstMessage.content = contentCopy;
+
+        // Update the first message in the thread
+        updatedSummarizedThread[0] = firstMessage;
+      }
+    }
+
+    // Update metadata for the summarized thread
+    const finalUpdatedThread = updatedSummarizedThread.map((msg) => ({
       ...msg,
       display: false,
       sendToLLM: true,
     }));
 
     // Update the messages state
-    setMessages(updatedSummarizedThread);
+    setMessages(finalUpdatedThread);
 
     // If ancestorMessages already has items, extend it instead of replacing it
     if (ancestorMessages.length > 0) {
