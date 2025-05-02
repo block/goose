@@ -1,6 +1,7 @@
 // An example script to run an MCP server
 use anyhow::Result;
-use goose_mcp::MemoryRouter;
+// use goose_mcp::MemoryRouter;
+use goose_mcp::GoogleDriveRouter;
 use mcp_server::router::RouterService;
 use mcp_server::{ByteTransport, Server};
 use tokio::io::{stdin, stdout};
@@ -25,7 +26,8 @@ async fn main() -> Result<()> {
     tracing::info!("Starting MCP server");
 
     // Create an instance of our counter router
-    let router = RouterService(MemoryRouter::new());
+    // let router = RouterService(MemoryRouter::new());
+    let router = RouterService(GoogleDriveRouter::new());
 
     // Create and run the server
     let server = Server::new(router);

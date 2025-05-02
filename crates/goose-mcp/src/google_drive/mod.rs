@@ -1,3 +1,4 @@
+mod google_labels;
 mod oauth_pkce;
 pub mod storage;
 
@@ -33,6 +34,7 @@ use google_drive3::{
     hyper_util::{self, client::legacy::connect::HttpConnector},
     DriveHub,
 };
+use google_labels::DriveLabelsHub;
 use google_sheets4::{self, Sheets};
 use http_body_util::BodyExt;
 
@@ -80,6 +82,7 @@ pub struct GoogleDriveRouter {
     tools: Vec<Tool>,
     instructions: String,
     drive: DriveHub<HttpsConnector<HttpConnector>>,
+    drive_labels: DriveLabelsHub<HttpsConnector<HttpConnector>>,
     sheets: Sheets<HttpsConnector<HttpConnector>>,
     docs: Docs<HttpsConnector<HttpConnector>>,
     credentials_manager: Arc<CredentialsManager>,
@@ -88,6 +91,7 @@ pub struct GoogleDriveRouter {
 impl GoogleDriveRouter {
     async fn google_auth() -> (
         DriveHub<HttpsConnector<HttpConnector>>,
+        DriveLabelsHub<HttpsConnector<HttpConnector>>,
         Sheets<HttpsConnector<HttpConnector>>,
         Docs<HttpsConnector<HttpConnector>>,
         Arc<CredentialsManager>,
@@ -180,11 +184,18 @@ impl GoogleDriveRouter {
                 );
 
                 let drive_hub = DriveHub::new(client.clone(), auth.clone());
+                let drive_labels_hub = DriveLabelsHub::new(client.clone(), auth.clone());
                 let sheets_hub = Sheets::new(client.clone(), auth.clone());
                 let docs_hub = Docs::new(client, auth);
 
                 // Create and return the DriveHub, Sheets and our PKCE OAuth2 client
-                (drive_hub, sheets_hub, docs_hub, credentials_manager)
+                (
+                    drive_hub,
+                    drive_labels_hub,
+                    sheets_hub,
+                    docs_hub,
+                    credentials_manager,
+                )
             }
             Err(e) => {
                 tracing::error!(
@@ -199,7 +210,7 @@ impl GoogleDriveRouter {
 
     pub async fn new() -> Self {
         // handle auth
-        let (drive, sheets, docs, credentials_manager) = Self::google_auth().await;
+        let (drive, drive_labels, sheets, docs, credentials_manager) = Self::google_auth().await;
 
         let search_tool = Tool::new(
             "search".to_string(),
@@ -717,6 +728,26 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let list_labels_tool = Tool::new(
+            "list_labels".to_string(),
+            indoc! {r#"
+                List labels available in Google Drive.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+              },
+            }),
+            Some(ToolAnnotations {
+                title: Some("List labels".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -735,6 +766,7 @@ impl GoogleDriveRouter {
             11. update_file - Update a existing file
             12. sheets_tool - Work with Google Sheets data using various operations
             13. docs_tool - Work with Google Docs data using various operations
+            14. list_labels - List the labels available in Google Drive
 
             ## Available Tools
 
@@ -865,6 +897,10 @@ impl GoogleDriveRouter {
             - startPosition: The start position for delete_content operation
             - endPosition: The end position for delete_content operation
 
+            ### 14. List Labels
+            Lists all labels available in Google Drive. These labels can then be
+            added or removed from files, by ID.
+
             ## Common Usage Pattern
 
             1. First, search for the file you want to read, searching by name.
@@ -903,9 +939,11 @@ impl GoogleDriveRouter {
                 list_drives_tool,
                 get_permissions_tool,
                 sharing_tool,
+                list_labels_tool,
             ],
             instructions,
             drive,
+            drive_labels,
             sheets,
             docs,
             credentials_manager,
@@ -2928,6 +2966,28 @@ impl GoogleDriveRouter {
             )),
         }
     }
+
+    async fn list_labels(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
+        let builder = self
+            .drive_labels
+            .labels()
+            .list()
+            // .clear_scopes()
+            // .add_scope("https://www.googleapis.com/auth/drive.labels.readonly")
+            // .add_scope(google_labels::Scope::DriveLabelsReadonly)
+            // TODO: Used in working google API docs example
+            .param("view", "LABEL_VIEW_FULL");
+
+        let result = builder.doit().await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to list labels for Google Drive {}",
+                e
+            ))),
+            // Ok(r) => Ok(vec![Content::text(self.output_permission(r.1))]),
+            Ok(r) => Ok(vec![Content::text(format!("{:#?}", r.1))]),
+        }
+    }
 }
 
 impl Router for GoogleDriveRouter {
@@ -2972,6 +3032,7 @@ impl Router for GoogleDriveRouter {
                 "list_drives" => this.list_drives(arguments).await,
                 "get_permissions" => this.get_permissions(arguments).await,
                 "sharing" => this.sharing(arguments).await,
+                "list_labels" => this.list_labels(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
@@ -3017,6 +3078,7 @@ impl Clone for GoogleDriveRouter {
             tools: self.tools.clone(),
             instructions: self.instructions.clone(),
             drive: self.drive.clone(),
+            drive_labels: self.drive_labels.clone(),
             sheets: self.sheets.clone(),
             docs: self.docs.clone(),
             credentials_manager: self.credentials_manager.clone(),
