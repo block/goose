@@ -110,9 +110,8 @@ impl ToolCall {
     }
 
     /// Set needs_approval field
-    pub fn with_needs_approval(mut self, needs_approval: bool) -> Self {
-        self.needs_approval = needs_approval;
-        self
+    pub fn set_needs_approval(&mut self, flag: bool) {
+        self.needs_approval = flag;
     }
 }
 

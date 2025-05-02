@@ -277,6 +277,10 @@ impl Contents {
      * 1-line ergonomic helpers
      *---------------------------------------------------------*/
 
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, MessageContent> {
+        self.0.iter_mut()
+    }
+
     pub fn push(&mut self, item: impl Into<MessageContent>) {
         self.0.push(item.into());
     }

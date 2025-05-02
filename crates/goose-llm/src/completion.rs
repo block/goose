@@ -5,12 +5,49 @@ use chrono::Utc;
 use serde_json::Value;
 
 use crate::{
-    message::Message,
+    message::{Message, MessageContent},
     model::ModelConfig,
     prompt_template,
     providers::{create, errors::ProviderError},
-    types::completion::{CompletionResponse, ExtensionConfig, RuntimeMetrics},
+    types::completion::{CompletionResponse, ExtensionConfig, RuntimeMetrics, ToolApprovalMode},
 };
+
+/// Adjust the `needs_approval` flag on **every** tool-call inside the message.
+pub fn update_needs_approval_for_tool_calls(
+    message: &mut Message,
+    tool_approval_modes: &HashMap<String, ToolApprovalMode>,
+) {
+    for content in message.content.iter_mut() {
+        match content {
+            // ──────────────────────────────────────────────
+            // 1.  Hosted MCP tool calls
+            //      * Manual  → `needs_approval = true`
+            //      * Auto    → `needs_approval = false`
+            //      * Smart   → TODO: use LLM to decide
+            // ──────────────────────────────────────────────
+            MessageContent::ToolRequest(req) => {
+                if let Ok(call) = &mut req.tool_call {
+                    let mode = tool_approval_modes.get(&call.name);
+                    call.set_needs_approval(matches!(
+                        mode,
+                        Some(ToolApprovalMode::Manual) | Some(ToolApprovalMode::Smart)
+                    ));
+                }
+            }
+
+            // ──────────────────────────────────────────────
+            // 2.  **Frontend** tool calls are *always* manual
+            // ──────────────────────────────────────────────
+            MessageContent::FrontendToolRequest(req) => {
+                if let Ok(call) = &mut req.tool_call {
+                    call.set_needs_approval(true); // <<— your new rule
+                }
+            }
+
+            _ => {}
+        }
+    }
+}
 
 /// Public API for the Goose LLM completion function
 pub async fn completion(
@@ -31,7 +68,7 @@ pub async fn completion(
         .collect::<Vec<_>>();
 
     let start_provider = Instant::now();
-    let response = provider.complete(&system_prompt, messages, &tools).await?;
+    let mut response = provider.complete(&system_prompt, messages, &tools).await?;
     let total_time_ms_provider = start_provider.elapsed().as_millis();
     let tokens_per_second = response.usage.total_tokens.and_then(|toks| {
         if total_time_ms_provider > 0 {
@@ -41,8 +78,13 @@ pub async fn completion(
         }
     });
 
-    // // Update the `needs_approval` field in the response message
-    // update_needs_approval(&mut response.message, &extensions);
+    // Update the `needs_approval` field in the response message
+    let tool_approval_modes: HashMap<String, ToolApprovalMode> = extensions
+        .into_iter()
+        .flat_map(|ext| ext.get_prefixed_tool_approval_modes().into_iter())
+        .collect();
+
+    update_needs_approval_for_tool_calls(&mut response.message, &tool_approval_modes);
 
     let total_time_ms = start_total.elapsed().as_millis();
     Ok(CompletionResponse::new(

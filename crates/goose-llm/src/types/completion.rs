@@ -2,6 +2,8 @@
 // Many of these are adapted based on the Goose Service API:
 // https://docs.google.com/document/d/1r5vjSK3nBQU1cIRf0WKysDigqMlzzrzl_bxEE4msOiw/edit?tab=t.0
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{message::Message, providers::Usage};
@@ -128,6 +130,17 @@ impl ExtensionConfig {
             .map(|tool| {
                 let name = format!("{}__{}", self.name, tool.name);
                 tool.to_core_tool(Some(&name))
+            })
+            .collect()
+    }
+
+    /// Get a map of prefixed tool names to their approval modes
+    pub fn get_prefixed_tool_approval_modes(&self) -> HashMap<String, ToolApprovalMode> {
+        self.tools
+            .iter()
+            .map(|tool| {
+                let name = format!("{}__{}", self.name, tool.name);
+                (name, tool.approval_mode.clone())
             })
             .collect()
     }
