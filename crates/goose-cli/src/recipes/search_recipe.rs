@@ -1,20 +1,10 @@
 use anyhow::{anyhow, Context, Result};
+use goose::config::Config;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::github_recipe::retrieve_recipe_from_github;
 
-// use crate::recipes::github_recipe::download_github_recipe;
-
-/// Searches for a recipe file locally and on GitHub if not found
-///
-/// # Arguments
-///
-/// * `recipe_name` - Name of the recipe to search for (without extension) or the full path to the recipe file
-///
-/// # Returns
-///
-/// The path to the recipe file if found
 pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
     // If recipe_name ends with yaml or json, treat it as a direct path
     if recipe_name.ends_with(".yaml") || recipe_name.ends_with(".json") {
@@ -24,17 +14,27 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
 
     // First check current directory
     let current_dir = std::env::current_dir()?;
+    if let Ok(content) = read_recipe_in_dir(&current_dir, recipe_name) {
+        return Ok(content);
+    }
     match read_recipe_in_dir(&current_dir, recipe_name) {
-        Ok(content_with_file_extension) => return Ok(content_with_file_extension),
+        Ok(content) => return Ok(content),
         Err(e) => {
-            if !is_block_internal()? {
-                return Err(e);
+            if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
+                retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
+            } else {
+                Err(e)
             }
         }
     }
-    let recipe_repo_full_name = "squareup/goose-recipes";
-    // Try to retrieve from GitHub as a fallback
-    retrieve_recipe_from_github(recipe_name, recipe_repo_full_name)
+}
+
+fn configured_github_recipe_repo() -> Option<String> {
+    let config = Config::global();
+    match config.get_param("GOOSE_RECIPE_GITHUB_REPO") {
+        Ok(Some(recipe_repo_full_name)) => Some(recipe_repo_full_name),
+        _ => None,
+    }
 }
 
 fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<String> {
@@ -60,44 +60,4 @@ fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<String> {
     Err(anyhow!(
         "No recipe.yaml or recipe.json file found in current directory."
     ))
-}
-
-fn is_block_internal() -> Result<bool> {
-    if let Ok(host) = std::env::var("DATABRICKS_HOST") {
-        if host.contains("block-lakehouse-production") {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_check_recipe_in_dir() {
-        let temp_dir = TempDir::new().unwrap();
-        let dir_path = temp_dir.path();
-
-        // Create test recipe files
-        fs::write(dir_path.join("test_recipe.yaml"), "test yaml content").unwrap();
-        fs::write(dir_path.join("test_recipe2.json"), "test json content").unwrap();
-
-        // Test finding existing yaml recipe
-        let result = check_recipe_in_dir(dir_path, "test_recipe");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), dir_path.join("test_recipe.yaml"));
-
-        // Test finding existing json recipe
-        let result = check_recipe_in_dir(dir_path, "test_recipe2");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), dir_path.join("test_recipe2.json"));
-
-        // Test non-existent recipe returns None
-        let result = check_recipe_in_dir(dir_path, "nonexistent");
-        assert!(result.is_none());
-    }
 }
