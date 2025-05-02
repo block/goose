@@ -5,45 +5,72 @@ use chrono::Utc;
 use serde_json::Value;
 
 use crate::{
-    message::{Message, MessageContent},
+    message::{FrontendToolRequest, Message, MessageContent},
     model::ModelConfig,
     prompt_template,
     providers::{create, errors::ProviderError},
-    types::completion::{CompletionResponse, ExtensionConfig, RuntimeMetrics, ToolApprovalMode},
+    types::completion::{
+        CompletionResponse, ExtensionConfig, ExtensionType, RuntimeMetrics, ToolApprovalMode,
+        ToolConfig,
+    },
 };
 
-/// Adjust the `needs_approval` flag on **every** tool-call inside the message.
+/// Convert assistant tool-requests into frontend tool-requests when
+/// `extension_type == Frontend`, and mark them as `needs_approval = true`.
+pub fn update_tool_request_type(message: &mut Message, tool_configs: &HashMap<String, ToolConfig>) {
+    for content in message.content.iter_mut() {
+        // Only assistant-initiated tool calls can turn into frontend calls
+        if let MessageContent::ToolRequest(req) = content {
+            if let Ok(tool_call) = req.tool_call.as_mut() {
+                // `as_mut()` gives us `&mut ToolCall`
+                if matches!(
+                    tool_configs.get(&tool_call.name).map(|c| &c.extension_type),
+                    Some(ExtensionType::Frontend)
+                ) {
+                    // 1️⃣ flip the flag in-place
+                    tool_call.set_needs_approval(true);
+
+                    // 2️⃣ rewrite the enum variant
+                    let replacement = FrontendToolRequest {
+                        id: req.id.clone(),
+                        tool_call: req.tool_call.clone(), // clone *after* the mutation
+                    };
+                    *content = MessageContent::FrontendToolRequest(replacement);
+                }
+            }
+        }
+    }
+}
+
+/// Set `needs_approval` on *every* tool call in the message.
+///
+/// Rules  
+/// • Manual  → true  
+/// • Auto    → false  
+/// • Smart   → true (current spec)  
+/// • Any Frontend-type tool call  → true always
 pub fn update_needs_approval_for_tool_calls(
     message: &mut Message,
-    tool_approval_modes: &HashMap<String, ToolApprovalMode>,
+    tool_configs: &HashMap<String, ToolConfig>,
 ) {
     for content in message.content.iter_mut() {
+        // cover both assistant & frontend variants
         match content {
-            // ──────────────────────────────────────────────
-            // 1.  Hosted MCP tool calls
-            //      * Manual  → `needs_approval = true`
-            //      * Auto    → `needs_approval = false`
-            //      * Smart   → TODO: use LLM to decide
-            // ──────────────────────────────────────────────
             MessageContent::ToolRequest(req) => {
                 if let Ok(call) = &mut req.tool_call {
-                    let mode = tool_approval_modes.get(&call.name);
-                    call.set_needs_approval(matches!(
-                        mode,
-                        Some(ToolApprovalMode::Manual) | Some(ToolApprovalMode::Smart)
-                    ));
+                    // Frontend tool calls (either by type or by config) are always manual.
+                    let needs = match tool_configs.get(&call.name) {
+                        Some(cfg) if matches!(cfg.extension_type, ExtensionType::Frontend) => true,
+                        Some(cfg) => match cfg.approval_mode {
+                            ToolApprovalMode::Auto => false,
+                            ToolApprovalMode::Manual | ToolApprovalMode::Smart => true,
+                        },
+                        None => call.needs_approval, // unknown tool: leave flag unchanged
+                    };
+
+                    call.set_needs_approval(needs);
                 }
             }
-
-            // ──────────────────────────────────────────────
-            // 2.  **Frontend** tool calls are *always* manual
-            // ──────────────────────────────────────────────
-            MessageContent::FrontendToolRequest(req) => {
-                if let Ok(call) = &mut req.tool_call {
-                    call.set_needs_approval(true); // <<— your new rule
-                }
-            }
-
             _ => {}
         }
     }
@@ -78,13 +105,16 @@ pub async fn completion(
         }
     });
 
-    // Update the `needs_approval` field in the response message
-    let tool_approval_modes: HashMap<String, ToolApprovalMode> = extensions
+    let tool_configs: HashMap<String, ToolConfig> = extensions
         .into_iter()
-        .flat_map(|ext| ext.get_prefixed_tool_approval_modes().into_iter())
+        .flat_map(|ext| ext.get_prefixed_tool_configs().into_iter())
         .collect();
 
-    update_needs_approval_for_tool_calls(&mut response.message, &tool_approval_modes);
+    // Update tool requests to frontend tool requests based on extension config
+    update_tool_request_type(&mut response.message, &tool_configs);
+
+    // Update the `needs_approval` field in the response message
+    update_needs_approval_for_tool_calls(&mut response.message, &tool_configs);
 
     let total_time_ms = start_total.elapsed().as_millis();
     Ok(CompletionResponse::new(

@@ -60,12 +60,19 @@ pub enum ToolApprovalMode {
     Smart,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum ExtensionType {
+    McpHttp,
+    Frontend,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolConfig {
     pub name: String,
     pub description: String,
     pub input_schema: serde_json::Value,
     pub approval_mode: ToolApprovalMode,
+    pub extension_type: ExtensionType,
 }
 
 impl ToolConfig {
@@ -74,12 +81,14 @@ impl ToolConfig {
         description: &str,
         input_schema: serde_json::Value,
         approval_mode: ToolApprovalMode,
+        extension_type: ExtensionType,
     ) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             input_schema,
             approval_mode,
+            extension_type: extension_type,
         }
     }
 
@@ -94,32 +103,19 @@ impl ToolConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum ExtensionType {
-    McpHttp,
-    Frontend,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ExtensionConfig {
     name: String,
     instructions: Option<String>,
     tools: Vec<ToolConfig>,
-    extension_type: ExtensionType,
 }
 
 impl ExtensionConfig {
-    pub fn new(
-        name: String,
-        instructions: Option<String>,
-        tools: Vec<ToolConfig>,
-        extension_type: ExtensionType,
-    ) -> Self {
+    pub fn new(name: String, instructions: Option<String>, tools: Vec<ToolConfig>) -> Self {
         Self {
             name,
             instructions,
             tools,
-            extension_type,
         }
     }
 
@@ -135,12 +131,12 @@ impl ExtensionConfig {
     }
 
     /// Get a map of prefixed tool names to their approval modes
-    pub fn get_prefixed_tool_approval_modes(&self) -> HashMap<String, ToolApprovalMode> {
+    pub fn get_prefixed_tool_configs(&self) -> HashMap<String, ToolConfig> {
         self.tools
             .iter()
             .map(|tool| {
                 let name = format!("{}__{}", self.name, tool.name);
-                (name, tool.approval_mode.clone())
+                (name, tool.clone())
             })
             .collect()
     }

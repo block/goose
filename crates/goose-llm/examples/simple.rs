@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
             }
         }),
         ToolApprovalMode::Auto,
+        ExtensionType::Frontend,
     );
 
     let bash_tool = ToolConfig::new(
@@ -52,6 +53,24 @@ async fn main() -> Result<()> {
             }
         }),
         ToolApprovalMode::Manual,
+        ExtensionType::McpHttp,
+    );
+
+    let list_dir_tool = ToolConfig::new(
+        "list_directory",
+        "List files in a directory",
+        json!({
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The directory path to list files from"
+                }
+            }
+        }),
+        ToolApprovalMode::Auto,
+        ExtensionType::McpHttp,
     );
 
     let extensions = vec![
@@ -59,13 +78,11 @@ async fn main() -> Result<()> {
             "calculator_extension".to_string(),
             Some("This extension provides a calculator tool.".to_string()),
             vec![calculator_tool],
-            ExtensionType::McpHttp,
         ),
         ExtensionConfig::new(
             "bash_extension".to_string(),
             Some("This extension provides a bash shell tool.".to_string()),
-            vec![bash_tool],
-            ExtensionType::Frontend,
+            vec![bash_tool, list_dir_tool],
         ),
     ];
 
@@ -73,8 +90,7 @@ async fn main() -> Result<()> {
 
     for text in [
         "Add 10037 + 23123 using calculator and also run 'date -u' using bash",
-        // "Write some random bad words to end of words.txt",
-        // "List all json files in the current directory and then multiply the count of the files by 7",
+        "List all files in the current directory",
     ] {
         println!("\n---------------\n");
         println!("User Input: {text}");
