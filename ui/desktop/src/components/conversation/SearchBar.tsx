@@ -18,6 +18,10 @@ interface SearchBarProps {
     count: number;
     currentIndex: number;
   };
+  /** Optional ref for the search input element */
+  inputRef?: React.RefObject<HTMLInputElement>;
+  /** Initial search term */
+  initialSearchTerm?: string;
 }
 
 /**
@@ -35,12 +39,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onClose,
   onNavigate,
   searchResults,
+  inputRef: externalInputRef,
+  initialSearchTerm = '',
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [displayTerm, setDisplayTerm] = useState(''); // For immediate visual feedback
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [displayTerm, setDisplayTerm] = useState(initialSearchTerm); // For immediate visual feedback
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const internalInputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef || internalInputRef;
 
   // Create debounced search function
   const debouncedSearch = useCallback(
@@ -54,7 +61,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [inputRef]);
+
+  // Handle changes to initialSearchTerm
+  useEffect(() => {
+    if (initialSearchTerm) {
+      setSearchTerm(initialSearchTerm);
+      setDisplayTerm(initialSearchTerm);
+      debouncedSearch(initialSearchTerm, caseSensitive);
+    }
+  }, [initialSearchTerm, caseSensitive, debouncedSearch]);
 
   // Cleanup debounced function on unmount
   useEffect(() => {
