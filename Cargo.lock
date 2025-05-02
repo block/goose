@@ -2484,6 +2484,7 @@ dependencies = [
  "mcp-client",
  "mcp-core",
  "mcp-server",
+ "minijinja",
  "once_cell",
  "rand",
  "regex",

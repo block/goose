@@ -237,16 +237,6 @@ goose run --recipe recipe_no_prompt.yaml
 
 ---
 
-### agents
-
-Used to show the available implementations of the agent loop itself
-
-**Usage:**
-
-```bash
-goose agents
-```
-
 ### bench
 
 Used to evaluate system-configuration across a range of practical tasks. See the [detailed guide](/docs/guides/benchmarking) for more information.
