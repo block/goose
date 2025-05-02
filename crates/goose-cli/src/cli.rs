@@ -499,10 +499,11 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(recipe_name)) => {
-                    let recipe = load_recipe(&recipe_name, true).unwrap_or_else(|err| {
-                        eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                        std::process::exit(1);
-                    });
+                    let recipe =
+                        load_recipe(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        });
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,

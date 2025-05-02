@@ -3,7 +3,7 @@ use console::style;
 
 use goose::recipe::Recipe;
 use minijinja::UndefinedBehavior;
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use crate::recipes::search_recipe::find_recipe_file;
 
@@ -26,7 +26,11 @@ use crate::recipes::search_recipe::find_recipe_file;
 /// - The file can't be read
 /// - The YAML/JSON is invalid
 /// - The required fields are missing
-pub fn load_recipe(recipe_name: &str, log: bool, params: Option<Vec<(String, String)>>) -> Result<Recipe> {
+pub fn load_recipe(
+    recipe_name: &str,
+    log: bool,
+    params: Option<Vec<(String, String)>>,
+) -> Result<Recipe> {
     let path = find_recipe_file(recipe_name)?;
 
     // Check if file exists
