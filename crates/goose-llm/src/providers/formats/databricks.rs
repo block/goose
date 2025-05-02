@@ -30,7 +30,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
 
-        for content in &message.content {
+        for content in message.content.iter() {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -258,7 +258,7 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 /// Convert Databricks' API response to internal Message format
 pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     let original = response["choices"][0]["message"].clone();
-    let mut content = Vec::new();
+    let mut content: Vec<MessageContent> = Vec::new();
 
     // Handle array-based content
     if let Some(content_array) = original.get("content").and_then(|c| c.as_array()) {
@@ -353,7 +353,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     Ok(Message {
         role: Role::Assistant,
         created: chrono::Utc::now().timestamp(),
-        content,
+        content: content.into(),
     })
 }
 

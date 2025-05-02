@@ -96,7 +96,7 @@ pub struct ToolCall {
     /// The parameters for the execution
     pub arguments: serde_json::Value,
     /// Whether the tool call needs approval before execution. Default is false.
-    pub needs_approval: bool
+    pub needs_approval: bool,
 }
 
 impl ToolCall {

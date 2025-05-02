@@ -27,7 +27,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         let mut output = Vec::new();
 
-        for content in &message.content {
+        for content in message.content.iter() {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -269,7 +269,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     Ok(Message {
         role: Role::Assistant,
         created: chrono::Utc::now().timestamp(),
-        content,
+        content: content.into(),
     })
 }
 

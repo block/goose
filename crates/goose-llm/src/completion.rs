@@ -33,8 +33,6 @@ pub async fn completion(
     let start_provider = Instant::now();
     let response = provider.complete(&system_prompt, messages, &tools).await?;
     let total_time_ms_provider = start_provider.elapsed().as_millis();
-    let total_time_ms = start_total.elapsed().as_millis();
-
     let tokens_per_second = response.usage.total_tokens.and_then(|toks| {
         if total_time_ms_provider > 0 {
             Some(toks as f64 / (total_time_ms_provider as f64 / 1000.0))
@@ -43,14 +41,15 @@ pub async fn completion(
         }
     });
 
-    let runtime_metrics =
-        RuntimeMetrics::new(total_time_ms, total_time_ms_provider, tokens_per_second);
+    // // Update the `needs_approval` field in the response message
+    // update_needs_approval(&mut response.message, &extensions);
 
+    let total_time_ms = start_total.elapsed().as_millis();
     Ok(CompletionResponse::new(
         response.message,
         response.model,
         response.usage,
-        runtime_metrics,
+        RuntimeMetrics::new(total_time_ms, total_time_ms_provider, tokens_per_second),
     ))
 }
 

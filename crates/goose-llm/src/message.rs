@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter::FromIterator, ops::Deref};
 
 /// Messages which represent the content sent back and forth to LLM provider
 ///
@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smallvec::SmallVec;
 
 use crate::types::core::{Content, ImageContent, Role, TextContent, ToolCall, ToolResult};
 
@@ -196,6 +197,22 @@ impl MessageContent {
         None
     }
 
+    pub fn as_tool_request_id(&self) -> Option<&str> {
+        if let Self::ToolRequest(r) = self {
+            Some(&r.id)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_response_id(&self) -> Option<&str> {
+        if let Self::ToolResponse(r) = self {
+            Some(&r.id)
+        } else {
+            None
+        }
+    }
+
     /// Get the text content if this is a TextContent variant
     pub fn as_text(&self) -> Option<&str> {
         match self {
@@ -219,6 +236,19 @@ impl MessageContent {
             _ => None,
         }
     }
+
+    pub fn is_text(&self) -> bool {
+        matches!(self, Self::Text(_))
+    }
+    pub fn is_image(&self) -> bool {
+        matches!(self, Self::Image(_))
+    }
+    pub fn is_tool_request(&self) -> bool {
+        matches!(self, Self::ToolRequest(_))
+    }
+    pub fn is_tool_response(&self) -> bool {
+        matches!(self, Self::ToolResponse(_))
+    }
 }
 
 impl From<Content> for MessageContent {
@@ -230,37 +260,105 @@ impl From<Content> for MessageContent {
     }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 2. Contents – a new-type wrapper around SmallVec
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Holds the heterogeneous fragments that make up one chat message.
+///
+/// *   Up to two items are stored inline on the stack.
+/// *   Falls back to a heap allocation only when necessary.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(transparent)]
+pub struct Contents(SmallVec<[MessageContent; 2]>);
+
+impl Contents {
+    /*----------------------------------------------------------
+     * 1-line ergonomic helpers
+     *---------------------------------------------------------*/
+
+    pub fn push(&mut self, item: impl Into<MessageContent>) {
+        self.0.push(item.into());
+    }
+
+    pub fn texts(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().filter_map(|c| c.as_text())
+    }
+
+    pub fn concat_text_str(&self) -> String {
+        self.texts().collect::<Vec<_>>().join("\n")
+    }
+
+    /// Returns `true` if *any* item satisfies the predicate.
+    pub fn any_is<P>(&self, pred: P) -> bool
+    where
+        P: FnMut(&MessageContent) -> bool,
+    {
+        self.iter().any(pred)
+    }
+
+    /// Returns `true` if *every* item satisfies the predicate.
+    pub fn all_are<P>(&self, pred: P) -> bool
+    where
+        P: FnMut(&MessageContent) -> bool,
+    {
+        self.iter().all(pred)
+    }
+}
+
+impl From<Vec<MessageContent>> for Contents {
+    fn from(v: Vec<MessageContent>) -> Self {
+        Contents(SmallVec::from_vec(v))
+    }
+}
+
+impl FromIterator<MessageContent> for Contents {
+    fn from_iter<I: IntoIterator<Item = MessageContent>>(iter: I) -> Self {
+        Contents(SmallVec::from_iter(iter))
+    }
+}
+
+/*--------------------------------------------------------------
+ * Allow &message.content to behave like a slice of fragments.
+ *-------------------------------------------------------------*/
+impl Deref for Contents {
+    type Target = [MessageContent];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub role: Role,
     pub created: i64,
-    pub content: Vec<MessageContent>,
+    pub content: Contents,
 }
 
 impl Message {
+    pub fn new(role: Role) -> Self {
+        Self {
+            role,
+            created: Utc::now().timestamp(),
+            content: Contents::default(),
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
-        Message {
-            role: Role::User,
-            created: Utc::now().timestamp(),
-            content: Vec::new(),
-        }
+        Self::new(Role::User)
     }
 
     /// Create a new assistant message with the current timestamp
     pub fn assistant() -> Self {
-        Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content: Vec::new(),
-        }
+        Self::new(Role::Assistant)
     }
 
-    /// Add any MessageContent to the message
-    pub fn with_content(mut self, content: MessageContent) -> Self {
-        self.content.push(content);
+    /// Add any item that implements Into<MessageContent> to the message
+    pub fn with_content(mut self, item: impl Into<MessageContent>) -> Self {
+        self.content.push(item);
         self
     }
 
@@ -332,74 +430,43 @@ impl Message {
         self.with_content(MessageContent::context_length_exceeded(msg))
     }
 
-    /// Get the concatenated text content of the message, separated by newlines
-    pub fn as_concat_text(&self) -> String {
-        self.content
-            .iter()
-            .filter_map(|c| c.as_text())
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
     /// Check if the message is a tool call
-    pub fn is_tool_call(&self) -> bool {
-        self.content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+    pub fn contains_tool_call(&self) -> bool {
+        self.content.any_is(MessageContent::is_tool_request)
     }
 
     /// Check if the message is a tool response
-    pub fn is_tool_response(&self) -> bool {
-        self.content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+    pub fn contains_tool_response(&self) -> bool {
+        self.content.any_is(MessageContent::is_tool_response)
     }
 
-    /// Retrieves all tool `id` from the message
-    pub fn get_tool_ids(&self) -> HashSet<&str> {
-        self.content
-            .iter()
-            .filter_map(|content| match content {
-                MessageContent::ToolRequest(req) => Some(req.id.as_str()),
-                MessageContent::ToolResponse(res) => Some(res.id.as_str()),
-                _ => None,
-            })
-            .collect()
+    /// Check if the message contains only text content
+    pub fn has_only_text_content(&self) -> bool {
+        self.content.all_are(MessageContent::is_text)
     }
 
     /// Retrieves all tool `id` from ToolRequest messages
-    pub fn get_tool_request_ids(&self) -> HashSet<&str> {
+    pub fn tool_request_ids(&self) -> HashSet<&str> {
         self.content
             .iter()
-            .filter_map(|content| {
-                if let MessageContent::ToolRequest(req) = content {
-                    Some(req.id.as_str())
-                } else {
-                    None
-                }
-            })
+            .filter_map(MessageContent::as_tool_request_id)
             .collect()
     }
 
     /// Retrieves all tool `id` from ToolResponse messages
-    pub fn get_tool_response_ids(&self) -> HashSet<&str> {
+    pub fn tool_response_ids(&self) -> HashSet<&str> {
         self.content
             .iter()
-            .filter_map(|content| {
-                if let MessageContent::ToolResponse(res) = content {
-                    Some(res.id.as_str())
-                } else {
-                    None
-                }
-            })
+            .filter_map(MessageContent::as_tool_response_id)
             .collect()
     }
 
-    /// Check if the message has only TextContent
-    pub fn has_only_text_content(&self) -> bool {
-        self.content
-            .iter()
-            .all(|c| matches!(c, MessageContent::Text(_)))
+    /// Retrieves all tool `id` from the message
+    pub fn tool_ids(&self) -> HashSet<&str> {
+        self.tool_request_ids()
+            .into_iter()
+            .chain(self.tool_response_ids())
+            .collect()
     }
 }
 
@@ -489,7 +556,8 @@ mod tests {
                         "status": "success",
                         "value": {
                             "name": "test_tool",
-                            "arguments": {"param": "value"}
+                            "arguments": {"param": "value"},
+                            "needsApproval": false
                         }
                     }
                 }
@@ -526,21 +594,18 @@ mod tests {
     #[test]
     fn test_message_with_text() {
         let message = Message::user().with_text("Hello");
-        assert_eq!(message.as_concat_text(), "Hello");
+        assert_eq!(message.content.concat_text_str(), "Hello");
     }
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(ToolCall {
-            name: "test_tool".to_string(),
-            arguments: serde_json::json!({}),
-        });
+        let tool_call = Ok(ToolCall::new("test_tool", json!({})));
 
         let message = Message::assistant().with_tool_request("req1", tool_call);
-        assert!(message.is_tool_call());
-        assert!(!message.is_tool_response());
+        assert!(message.contains_tool_call());
+        assert!(!message.contains_tool_response());
 
-        let ids = message.get_tool_ids();
+        let ids = message.tool_ids();
         assert_eq!(ids.len(), 1);
         assert!(ids.contains("req1"));
     }
