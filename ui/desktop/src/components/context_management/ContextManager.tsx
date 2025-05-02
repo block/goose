@@ -176,10 +176,10 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     }
 
     // Update metadata for the summarized thread
-    const finalUpdatedThread = updatedSummarizedThread.map((msg) => ({
+    const finalUpdatedThread = updatedSummarizedThread.map((msg, index) => ({
       ...msg,
-      display: false,
-      sendToLLM: true,
+      display: index === 0, // First message has display: true, others false
+      sendToLLM: true, // All messages have sendToLLM: true
     }));
 
     // Update the messages state

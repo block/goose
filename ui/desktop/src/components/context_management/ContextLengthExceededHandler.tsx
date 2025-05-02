@@ -82,8 +82,14 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
   // Render the notification UI
   return (
     <div className="flex flex-col items-start mt-1 pl-4">
+      {/* Horizontal line with text in the middle - shown regardless of loading state */}
+      <div className="relative flex items-center py-2 w-full">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+
       {isLoadingSummary && shouldAllowSummaryInteraction ? (
-        // Only show loading indicator during loading state
+        // Show loading indicator during loading state
         <div className="flex items-center text-xs text-gray-400">
           <span className="mr-2">Preparing summary...</span>
           <span className="animate-spin h-3 w-3 border-2 border-gray-400 rounded-full border-t-transparent"></span>
@@ -91,15 +97,17 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
       ) : (
         // Show different UI based on whether it's already handled
         <>
-          <span className="text-xs text-gray-400 italic">{`Session summarized`}</span>
-
+          <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
+          <span className="text-xs text-gray-400">{`Messages above this line remain viewable but are not included in the active context`}</span>
           {/* Only show the button if its last message */}
           {shouldAllowSummaryInteraction && (
             <button
               onClick={() => (errorLoadingSummary ? handleRetry() : openSummaryModal())}
               className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
             >
-              {errorLoadingSummary ? 'Retry loading summary' : 'View or edit summary'}
+              {errorLoadingSummary
+                ? 'Retry loading summary'
+                : 'View or edit summary (you may continue your conversation based on the summary)'}
             </button>
           )}
         </>
