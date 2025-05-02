@@ -879,8 +879,20 @@ app.whenReady().then(async () => {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    // open goose to specific dir and set that as its working space
-    fileMenu.submenu.append(
+    fileMenu.submenu.insert(
+      0,
+      new MenuItem({
+        label: 'New Chat Window',
+        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
+        click() {
+          ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    // Open goose to specific dir and set that as its working space
+    fileMenu.submenu.insert(
+      1,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -891,8 +903,8 @@ app.whenReady().then(async () => {
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      fileMenu.submenu.append(
+      fileMenu.submenu.insert(
+        2,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -900,19 +912,12 @@ app.whenReady().then(async () => {
       );
     }
 
-    // Add menu items to File menu
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'New Chat Window',
-        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
-        click() {
-          ipcMain.emit('create-chat-window');
-        },
-      })
-    );
+    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
 
-    // Add menu item for hotkey
-    fileMenu?.submenu.append(
+    // The Close Window item is here.
+
+    // Add menu item to tell the user about the keyboard shortcut
+    fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
         accelerator: 'CmdOrCtrl+Alt+Shift+G',
