@@ -29,6 +29,9 @@ export default function ChatInput({
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
+    // Reset history index when input is cleared
+    setHistoryIndex(-1);
+    setIsInGlobalHistory(false);
   }, [initialValue]);
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
@@ -49,17 +52,20 @@ export default function ChatInput({
   const maxHeight = 10 * 24;
 
   // If we have dropped files, add them to the input and update our state.
-  if (processedFilePaths !== droppedFiles) {
-    // Append file paths that aren't in displayValue.
-    let joinedPaths =
-      displayValue.trim() +
-      ' ' +
-      droppedFiles.filter((path) => !displayValue.includes(path)).join(' ');
-    setDisplayValue(joinedPaths);
-    setValue(joinedPaths);
-    textAreaRef.current?.focus();
-    setProcessedFilePaths(droppedFiles);
-  }
+  useEffect(() => {
+    if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
+      // Append file paths that aren't in displayValue.
+      const currentText = displayValue || '';
+      const joinedPaths = currentText.trim()
+        ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
+        : droppedFiles.join(' ');
+
+      setDisplayValue(joinedPaths);
+      setValue(joinedPaths);
+      textAreaRef.current?.focus();
+      setProcessedFilePaths(droppedFiles);
+    }
+  }, [droppedFiles, processedFilePaths, displayValue]);
 
   // Debounced function to update actual value
   const debouncedSetValue = useCallback((val: string) => {
@@ -121,87 +127,59 @@ export default function ChatInput({
     evt.preventDefault();
 
     // Get global history once to avoid multiple calls
-    const globalHistory = LocalMessageStorage.getRecentMessages();
-    console.log('Global history:', globalHistory); // Debug log
-    console.log('Chat history:', commandHistory); // Debug log
-    console.log('Current index:', historyIndex); // Debug log
-    console.log('Is in global:', isInGlobalHistory); // Debug log
+    const globalHistory = LocalMessageStorage.getRecentMessages() || [];
 
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
-      setSavedInput(displayValue);
+      setSavedInput(displayValue || '');
       setIsInGlobalHistory(commandHistory.length === 0);
     }
 
-    // Calculate new history index and determine which history to use
+    // Determine which history we're using
+    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
     let newIndex = historyIndex;
     let newValue = '';
-    let useGlobalHistory = isInGlobalHistory;
 
-    // If we're in a new chat, always use global history
-    if (commandHistory.length === 0) {
-      useGlobalHistory = true;
-      if (isUp && newIndex < globalHistory.length - 1) {
+    // Handle navigation
+    if (isUp) {
+      // Moving up through history
+      if (newIndex < currentHistory.length - 1) {
+        // Still have items in current history
         newIndex = historyIndex + 1;
+        newValue = currentHistory[newIndex];
+      } else if (!isInGlobalHistory && globalHistory.length > 0) {
+        // Switch to global history
+        setIsInGlobalHistory(true);
+        newIndex = 0;
         newValue = globalHistory[newIndex];
-      } else if (isDown && newIndex > -1) {
-        newIndex = historyIndex - 1;
-        newValue = newIndex === -1 ? savedInput : globalHistory[newIndex];
       }
     } else {
-      // In an existing chat with messages
-      if (isUp) {
-        if (!useGlobalHistory && newIndex < commandHistory.length - 1) {
-          // Still in chat history
-          newIndex = historyIndex + 1;
-          newValue = commandHistory[newIndex];
-        } else if (!useGlobalHistory) {
-          // Transition to global history
-          useGlobalHistory = true;
-          newIndex = 0;
-          newValue = globalHistory[newIndex];
-        } else if (newIndex < globalHistory.length - 1) {
-          // In global history
-          newIndex = historyIndex + 1;
-          newValue = globalHistory[newIndex];
-        }
+      // Moving down through history
+      if (newIndex > 0) {
+        // Still have items in current history
+        newIndex = historyIndex - 1;
+        newValue = currentHistory[newIndex];
+      } else if (isInGlobalHistory && commandHistory.length > 0) {
+        // Switch to chat history
+        setIsInGlobalHistory(false);
+        newIndex = commandHistory.length - 1;
+        newValue = commandHistory[newIndex];
       } else {
-        // Moving down
-        if (useGlobalHistory && newIndex > 0) {
-          // Still in global history
-          newIndex = historyIndex - 1;
-          newValue = globalHistory[newIndex];
-        } else if (useGlobalHistory) {
-          // Transition back to chat history
-          useGlobalHistory = false;
-          newIndex = commandHistory.length - 1;
-          newValue = commandHistory[newIndex];
-        } else if (newIndex > 0) {
-          // In chat history
-          newIndex = historyIndex - 1;
-          newValue = commandHistory[newIndex];
-        } else {
-          // Return to original input
-          newIndex = -1;
-          newValue = savedInput;
-        }
+        // Return to original input
+        newIndex = -1;
+        newValue = savedInput;
       }
     }
 
-    console.log('New index:', newIndex); // Debug log
-    console.log('New value:', newValue); // Debug log
-    console.log('Using global:', useGlobalHistory); // Debug log
-
-    // Update state if we found a new value or changed history type
-    if (newIndex !== historyIndex || useGlobalHistory !== isInGlobalHistory) {
+    // Update display if we have a new value
+    if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
-      setIsInGlobalHistory(useGlobalHistory);
       if (newIndex === -1) {
-        setDisplayValue(savedInput);
-        setValue(savedInput);
+        setDisplayValue(savedInput || '');
+        setValue(savedInput || '');
       } else {
-        setDisplayValue(newValue);
-        setValue(newValue);
+        setDisplayValue(newValue || '');
+        setValue(newValue || '');
       }
     }
   };
