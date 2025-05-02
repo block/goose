@@ -41,7 +41,7 @@ fn default_version() -> String {
 ///     version: "1.0.0".to_string(),
 ///     title: "Example Agent".to_string(),
 ///     description: "An example Recipe configuration".to_string(),
-///     instructions: "Act as a helpful assistant".to_string(),
+///     instructions: Some("Act as a helpful assistant".to_string()),
 ///     prompt: None,
 ///     extensions: None,
 ///     context: None,
