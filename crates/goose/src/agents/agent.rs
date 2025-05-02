@@ -341,14 +341,6 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
-                // TODO: For testing: force a context length exceeded error on single msg
-                if messages.len() == 5 {
-                    yield Message::assistant().with_context_length_exceeded(
-                        "The context length of the model has been exceeded. Please start a new session and try again.",
-                    );
-                    break;
-                }
-
                 match Self::generate_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
