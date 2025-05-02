@@ -10,8 +10,8 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::SessionMetadata;
 use goose::session::info::{get_session_info, SessionInfo, SortOrder};
+use goose::session::SessionMetadata;
 use serde::Serialize;
 use utoipa::ToSchema;
 

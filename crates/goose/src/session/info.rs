@@ -1,8 +1,8 @@
+use crate::session::{self, SessionMetadata};
 use anyhow::Result;
 use serde::Serialize;
 use std::cmp::Ordering;
 use utoipa::ToSchema;
-use crate::session::{self, SessionMetadata};
 
 #[derive(Clone, Serialize, ToSchema)]
 pub struct SessionInfo {
