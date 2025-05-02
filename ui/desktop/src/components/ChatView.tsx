@@ -512,7 +512,8 @@ function ChatContent({
                   ) : (
                     <>
                       {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
-                      {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
+                      {process.env.NODE_ENV === 'development' &&
+                      hasContextLengthExceededContent(message) ? (
                         <ContextLengthExceededHandler
                           messages={messages}
                           messageId={message.id ?? message.created.toString()}
@@ -577,7 +578,7 @@ function ChatContent({
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-      {process.env.ALPHA && (
+      {process.env.NODE_ENV === 'development' && (
         <SessionSummaryModal
           isOpen={isSummaryModalOpen}
           onClose={closeSummaryModal}
