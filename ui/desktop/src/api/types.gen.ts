@@ -292,6 +292,74 @@ export type ResourceContents = {
 
 export type Role = 'user' | 'assistant';
 
+export type SessionHistoryResponse = {
+    /**
+     * List of messages in the session conversation
+     */
+    messages: Array<Message>;
+    metadata: SessionMetadata;
+    /**
+     * Unique identifier for the session
+     */
+    sessionId: string;
+};
+
+export type SessionInfo = {
+    id: string;
+    metadata: SessionMetadata;
+    modified: string;
+    path: string;
+};
+
+export type SessionListResponse = {
+    /**
+     * List of available session information objects
+     */
+    sessions: Array<SessionInfo>;
+};
+
+/**
+ * Metadata for a session, stored as the first line in the session file
+ */
+export type SessionMetadata = {
+    /**
+     * The number of input tokens used in the session. Accumulated across all messages.
+     */
+    accumulated_input_tokens?: number | null;
+    /**
+     * The number of output tokens used in the session. Accumulated across all messages.
+     */
+    accumulated_output_tokens?: number | null;
+    /**
+     * The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).
+     */
+    accumulated_total_tokens?: number | null;
+    /**
+     * A short description of the session, typically 3 words or less
+     */
+    description: string;
+    /**
+     * The number of input tokens used in the session. Retrieved from the provider's last usage.
+     */
+    input_tokens?: number | null;
+    /**
+     * Number of messages in the session
+     */
+    message_count: number;
+    /**
+     * The number of output tokens used in the session. Retrieved from the provider's last usage.
+     */
+    output_tokens?: number | null;
+    /**
+     * The total number of tokens used in the session. Retrieved from the provider's last usage.
+     */
+    total_tokens?: number | null;
+    /**
+     * Working directory for the session
+     */
+    working_dir: string;
+};
+
 export type TextContent = {
     annotations?: Annotations | null;
     text: string;
@@ -774,6 +842,69 @@ export type ManageContextResponses = {
 };
 
 export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+
+export type ListSessionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions';
+};
+
+export type ListSessionsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListSessionsResponses = {
+    /**
+     * List of available sessions retrieved successfully
+     */
+    200: SessionListResponse;
+};
+
+export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
+
+export type GetSessionHistoryData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}';
+};
+
+export type GetSessionHistoryErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionHistoryResponses = {
+    /**
+     * Session history retrieved successfully
+     */
+    200: SessionHistoryResponse;
+};
+
+export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

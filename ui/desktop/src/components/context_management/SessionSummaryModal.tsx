@@ -93,6 +93,12 @@ export function SessionSummaryModal({
         ref={textareaRef}
         defaultValue={summaryContent}
         className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-sm w-full min-h-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        style={{
+          textRendering: 'optimizeLegibility',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
+          transform: 'translateZ(0)', // Force hardware acceleration
+        }}
       />
     </div>
   );

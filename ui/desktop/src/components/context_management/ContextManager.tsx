@@ -3,7 +3,7 @@ import { Message } from '../../types/message';
 import { manageContextFromBackend, convertApiMessageToFrontendMessage } from './index';
 
 // Define the context management interface
-interface ContextManagerState {
+interface ChatContextManagerState {
   summaryContent: string;
   summarizedThread: Message[];
   isSummaryModalOpen: boolean;
@@ -11,30 +11,72 @@ interface ContextManagerState {
   errorLoadingSummary: boolean;
 }
 
-interface ContextManagerActions {
+interface ChatContextManagerActions {
   fetchSummary: (messages: Message[]) => Promise<void>;
   updateSummary: (newSummaryContent: string) => void;
   resetMessagesWithSummary: (
     messages: Message[],
-    setMessages: (messages: Message[]) => void
+    setMessages: (messages: Message[]) => void,
+    ancestorMessages: Message[],
+    setAncestorMessages: (messages: Message[]) => void,
+    summaryContent: string
   ) => void;
   openSummaryModal: () => void;
   closeSummaryModal: () => void;
   hasContextLengthExceededContent: (message: Message) => boolean;
+  handleContextLengthExceeded: (
+    messages: Message[],
+    chatId: string,
+    workingDir: string
+  ) => Promise<void>;
 }
 
 // Create the context
-const ContextManagerContext = createContext<
-  (ContextManagerState & ContextManagerActions) | undefined
+const ChatContextManagerContext = createContext<
+  (ChatContextManagerState & ChatContextManagerActions) | undefined
 >(undefined);
 
 // Create the provider component
-export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [summaryContent, setSummaryContent] = useState<string>('');
   const [summarizedThread, setSummarizedThread] = useState<Message[]>([]);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [errorLoadingSummary, setErrorLoadingSummary] = useState<boolean>(false);
+
+  const handleContextLengthExceeded = async (messages: Message[]): Promise<void> => {
+    setIsLoadingSummary(true);
+    setErrorLoadingSummary(false);
+
+    try {
+      // 2. Now get the summary from the backend
+      const summaryResponse = await manageContextFromBackend({
+        messages: messages,
+        manageAction: 'summarize',
+      });
+
+      // Convert API messages to frontend messages
+      const convertedMessages = summaryResponse.messages.map(
+        (apiMessage) => convertApiMessageToFrontendMessage(apiMessage, false, true) // do not show to user but send to llm
+      );
+
+      // Extract summary from the first message
+      const summaryMessage = convertedMessages[0].content[0];
+      if (summaryMessage.type === 'text') {
+        const summary = summaryMessage.text;
+        setSummaryContent(summary);
+        setSummarizedThread(convertedMessages);
+      }
+
+      setIsLoadingSummary(false);
+    } catch (err) {
+      console.error('Error handling context length exceeded:', err);
+      setErrorLoadingSummary(true);
+      setIsLoadingSummary(false);
+    }
+  };
 
   const fetchSummary = async (messages: Message[]) => {
     setIsLoadingSummary(true);
@@ -47,8 +89,8 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       });
 
       // Convert API messages to frontend messages
-      const convertedMessages = response.messages.map((apiMessage) =>
-        convertApiMessageToFrontendMessage(apiMessage)
+      const convertedMessages = response.messages.map(
+        (apiMessage) => convertApiMessageToFrontendMessage(apiMessage, false, true) // do not show to user but send to llm
       );
 
       // Extract the summary text from the first message
@@ -101,27 +143,69 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const resetMessagesWithSummary = (
     messages: Message[],
-    setMessages: (messages: Message[]) => void
+    setMessages: (messages: Message[]) => void,
+    ancestorMessages: Message[],
+    setAncestorMessages: (messages: Message[]) => void,
+    summaryContent: string
   ) => {
-    // Update summarizedThread with metadata
-    const updatedSummarizedThread = summarizedThread.map((msg) => ({
-      ...msg,
-      display: false,
-      sendToLLM: true,
-    }));
+    // Create a copy of the summarized thread
+    const updatedSummarizedThread = [...summarizedThread];
 
-    // Update list of messages with other metadata
-    const updatedMessages = messages.map((msg) => ({
-      ...msg,
-      display: true,
-      sendToLLM: false,
-    }));
+    // Make sure there's at least one message in the summarized thread
+    if (updatedSummarizedThread.length > 0) {
+      // Get the first message
+      const firstMessage = { ...updatedSummarizedThread[0] };
 
-    // Make a copy that combines both
-    const newMessages = [...updatedMessages, ...updatedSummarizedThread];
+      // Make a copy of the content array
+      const contentCopy = [...firstMessage.content];
+
+      // Assuming the first content item is of type TextContent
+      if (contentCopy.length > 0 && 'text' in contentCopy[0]) {
+        // Update the text with the new summary content
+        contentCopy[0] = {
+          ...contentCopy[0],
+          text: summaryContent,
+        };
+
+        // Update the first message with the new content
+        firstMessage.content = contentCopy;
+
+        // Update the first message in the thread
+        updatedSummarizedThread[0] = firstMessage;
+      }
+    }
+
+    // Update metadata for the summarized thread
+    const finalUpdatedThread = updatedSummarizedThread.map((msg, index) => ({
+      ...msg,
+      display: index === 0, // First message has display: true, others false
+      sendToLLM: true, // All messages have sendToLLM: true
+    }));
 
     // Update the messages state
-    setMessages(newMessages);
+    setMessages(finalUpdatedThread);
+
+    // If ancestorMessages already has items, extend it instead of replacing it
+    if (ancestorMessages.length > 0) {
+      // Convert current messages to ancestor format
+      const newAncestorMessages = messages.map((msg) => ({
+        ...msg,
+        display: true,
+        sendToLLM: false,
+      }));
+
+      // Append new ancestor messages to existing ones
+      setAncestorMessages([...ancestorMessages, ...newAncestorMessages]);
+    } else {
+      // Initial set of ancestor messages
+      const newAncestorMessages = messages.map((msg) => ({
+        ...msg,
+        display: true,
+        sendToLLM: false,
+      }));
+
+      setAncestorMessages(newAncestorMessages);
+    }
 
     // Clear the summarized thread and content
     setSummarizedThread([]);
@@ -155,14 +239,19 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     openSummaryModal,
     closeSummaryModal,
     hasContextLengthExceededContent,
+    handleContextLengthExceeded,
   };
 
-  return <ContextManagerContext.Provider value={value}>{children}</ContextManagerContext.Provider>;
+  return (
+    <ChatContextManagerContext.Provider value={value}>
+      {children}
+    </ChatContextManagerContext.Provider>
+  );
 };
 
 // Create a hook to use the context
 export const useChatContextManager = () => {
-  const context = useContext(ContextManagerContext);
+  const context = useContext(ChatContextManagerContext);
   if (context === undefined) {
     throw new Error('useContextManager must be used within a ContextManagerProvider');
   }
