@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Result};
-use dirs::home_dir;
+use anyhow::{anyhow, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::github_recipe::{download_github_recipe, GOOSE_RECIPE_GITHUB_HTTP_URL};
+use super::github_recipe::retrieve_recipe_from_github;
 
 // use crate::recipes::github_recipe::download_github_recipe;
 
@@ -16,66 +15,51 @@ use super::github_recipe::{download_github_recipe, GOOSE_RECIPE_GITHUB_HTTP_URL}
 /// # Returns
 ///
 /// The path to the recipe file if found
-pub fn find_recipe_file(recipe_name: &str) -> Result<PathBuf> {
+pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
     // If recipe_name ends with yaml or json, treat it as a direct path
     if recipe_name.ends_with(".yaml") || recipe_name.ends_with(".json") {
         let path = PathBuf::from(recipe_name);
-        if path.exists() {
-            return Ok(path);
-        } else {
-            return Err(anyhow!("Recipe file not found: {}", path.display()));
-        }
+        return read_recipe_file(path);
     }
+
     // First check current directory
     let current_dir = std::env::current_dir()?;
-    if let Some(path) = check_recipe_in_dir(&current_dir, recipe_name) {
-        return Ok(path);
-    }
-    // Get home directory, return error if not found
-    let home = home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-    // Check ~/.goose/recipes directory
-    let recipes_dir = home.join(".goose").join("recipes");
-
-    // Create recipes directory if it doesn't exist
-    if !recipes_dir.exists() {
-        fs::create_dir_all(&recipes_dir)?;
-    }
-    if let Some(path) = check_recipe_in_dir(&recipes_dir, recipe_name) {
-        return Ok(path);
-    }
-
-    let error_message = format!(
-        "No {}.yaml, or {}.json file found in current directory, {} directory",
-        recipe_name,
-        recipe_name,
-        recipes_dir.display()
-    );
-    if !is_block_internal()? {
-        return Err(anyhow!(error_message.clone()));
-    }
-    // Try to download from GitHub as a fallback
-    match download_github_recipe(recipe_name, &recipes_dir) {
-        Ok(download_path) => Ok(download_path),
-        Err(_) => {
-            let github_directory = format!("{}/{}", GOOSE_RECIPE_GITHUB_HTTP_URL, recipe_name);
-            Err(anyhow!(
-                "{}\n  No recipe.yaml or recipe.json file found in github directory {}",
-                error_message,
-                github_directory
-            ))
+    match read_recipe_in_dir(&current_dir, recipe_name) {
+        Ok(content_with_file_extension) => return Ok(content_with_file_extension),
+        Err(e) => {
+            if !is_block_internal()? {
+                return Err(e);
+            }
         }
+    }
+    let recipe_repo_full_name = "squareup/goose-recipes";
+    // Try to retrieve from GitHub as a fallback
+    retrieve_recipe_from_github(recipe_name, recipe_repo_full_name)
+}
+
+fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<String> {
+    let path = recipe_path.as_ref();
+
+    if path.exists() {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read recipe file: {}", path.display()))?;
+        Ok(content)
+    } else {
+        Err(anyhow!("Recipe file not found: {}", path.display()))
     }
 }
 
-/// Checks if a recipe exists in the given directory with either yaml or json extension
-fn check_recipe_in_dir(dir: &Path, recipe_name: &str) -> Option<PathBuf> {
+fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<String> {
     for ext in &["yaml", "json"] {
         let recipe_path = dir.join(format!("{}.{}", recipe_name, ext));
-        if recipe_path.exists() {
-            return Some(recipe_path);
+        match read_recipe_file(recipe_path) {
+            Ok(content) => return Ok(content),
+            Err(_) => continue,
         }
     }
-    None
+    Err(anyhow!(
+        "No recipe.yaml or recipe.json file found in current directory."
+    ))
 }
 
 fn is_block_internal() -> Result<bool> {
