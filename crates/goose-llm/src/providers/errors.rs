@@ -49,8 +49,9 @@ fn code_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    use serde::de::{self, Visitor};
     use std::fmt;
+
+    use serde::de::{self, Visitor};
 
     struct CodeVisitor;
 

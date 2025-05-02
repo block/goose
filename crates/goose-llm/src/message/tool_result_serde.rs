@@ -1,6 +1,6 @@
-use crate::{ToolError, ToolResult};
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
+
+use crate::types::core::{ToolError, ToolResult};
 
 pub fn serialize<T, S>(value: &ToolResult<T>, serializer: S) -> Result<S::Ok, S::Error>
 where

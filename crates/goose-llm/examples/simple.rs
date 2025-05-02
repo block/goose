@@ -1,9 +1,12 @@
 use std::vec;
 
 use anyhow::Result;
-use goose_llm::Message;
-use goose_llm::ModelConfig;
-use goose_llm::{completion, CompletionResponse, Extension, Tool};
+use goose_llm::{
+    Message, ModelConfig, completion,
+    types::completion::{
+        CompletionResponse, ExtensionConfig, ExtensionType, ToolApprovalMode, ToolConfig,
+    },
+};
 use serde_json::json;
 
 #[tokio::main]
@@ -12,7 +15,7 @@ async fn main() -> Result<()> {
     let model_name = "goose-claude-3-5-sonnet";
     let model_config = ModelConfig::new(model_name.to_string());
 
-    let calculator_tool = Tool::new(
+    let calculator_tool = ToolConfig::new(
         "calculator",
         "Perform basic arithmetic operations",
         json!({
@@ -31,9 +34,10 @@ async fn main() -> Result<()> {
                 }
             }
         }),
+        ToolApprovalMode::Auto,
     );
 
-    let bash_tool = Tool::new(
+    let bash_tool = ToolConfig::new(
         "bash_shell",
         "Run a shell command",
         json!({
@@ -46,18 +50,21 @@ async fn main() -> Result<()> {
                 }
             }
         }),
+        ToolApprovalMode::Manual,
     );
 
     let extensions = vec![
-        Extension::new(
+        ExtensionConfig::new(
             "calculator_extension".to_string(),
             Some("This extension provides a calculator tool.".to_string()),
             vec![calculator_tool],
+            ExtensionType::McpHttp,
         ),
-        Extension::new(
+        ExtensionConfig::new(
             "bash_extension".to_string(),
             Some("This extension provides a bash shell tool.".to_string()),
             vec![bash_tool],
+            ExtensionType::Frontend,
         ),
     ];
 

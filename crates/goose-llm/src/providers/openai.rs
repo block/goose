@@ -1,19 +1,21 @@
+use std::{collections::HashMap, time::Duration};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
-use std::collections::HashMap;
-use std::time::Duration;
 
-use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::utils::{
-    emit_debug_trace, get_env, get_model, handle_response_openai_compat, ImageFormat,
+use super::{
+    errors::ProviderError,
+    formats::openai::{create_request, get_usage, response_to_message},
+    utils::{ImageFormat, emit_debug_trace, get_env, get_model, handle_response_openai_compat},
 };
-use crate::message::Message;
-use crate::model::ModelConfig;
-use crate::providers::{Provider, ProviderCompleteResponse, Usage};
-use crate::Tool;
+use crate::{
+    message::Message,
+    model::ModelConfig,
+    providers::{Provider, ProviderCompleteResponse, Usage},
+    types::core::Tool,
+};
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const _OPEN_AI_KNOWN_MODELS: &[&str] = &[

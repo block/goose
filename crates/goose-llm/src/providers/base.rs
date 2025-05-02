@@ -1,10 +1,9 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
-use crate::message::Message;
-use crate::Tool;
-use async_trait::async_trait;
+use crate::{message::Message, types::core::Tool};
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Usage {

@@ -1,19 +1,23 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::time::Duration;
-
-use super::errors::ProviderError;
-use super::formats::databricks::{create_request, get_usage, response_to_message};
-use super::utils::{get_env, get_model, ImageFormat};
-use crate::message::Message;
-use crate::model::ModelConfig;
 use url::Url;
 
-use crate::providers::{Provider, ProviderCompleteResponse, Usage};
-use crate::Tool;
+use super::{
+    errors::ProviderError,
+    formats::databricks::{create_request, get_usage, response_to_message},
+    utils::{ImageFormat, get_env, get_model},
+};
+use crate::{
+    message::Message,
+    model::ModelConfig,
+    providers::{Provider, ProviderCompleteResponse, Usage},
+    types::core::Tool,
+};
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
 // Databricks can passthrough to a wide range of models, we only provide the default
@@ -96,15 +100,22 @@ impl DatabricksProvider {
         let payload: Option<Value> = response.json().await.ok();
 
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => payload.ok_or_else(|| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
+                Err(ProviderError::Authentication(format!(
+                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                    Status: {}. Response: {:?}",
+                    status, payload
+                )))
             }
             StatusCode::BAD_REQUEST => {
                 // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
                 // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                let payload_str = serde_json::to_string(&payload).unwrap_or_default().to_lowercase();
+                let payload_str = serde_json::to_string(&payload)
+                    .unwrap_or_default()
+                    .to_lowercase();
                 let check_phrases = [
                     "too long",
                     "context length",
@@ -124,17 +135,26 @@ impl DatabricksProvider {
                         .get("message")
                         .and_then(|m| m.as_str())
                         .or_else(|| {
-                            payload.get("external_model_message")
+                            payload
+                                .get("external_model_message")
                                 .and_then(|ext| ext.get("message"))
                                 .and_then(|m| m.as_str())
                         })
-                        .unwrap_or("Unknown error").to_string();
+                        .unwrap_or("Unknown error")
+                        .to_string();
                 }
 
                 tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}. Message: {}",
+                    status, error_msg
+                )))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -144,9 +164,16 @@ impl DatabricksProvider {
             }
             _ => {
                 tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}",
+                    status
+                )))
             }
         }
     }

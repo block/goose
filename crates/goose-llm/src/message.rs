@@ -1,9 +1,5 @@
 use std::collections::HashSet;
 
-use crate::Role;
-use crate::ToolCall;
-use crate::ToolResult;
-use crate::{Content, ImageContent, TextContent};
 /// Messages which represent the content sent back and forth to LLM provider
 ///
 /// We use these messages in the agent code, and interfaces which interact with
@@ -14,6 +10,8 @@ use crate::{Content, ImageContent, TextContent};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::types::core::{Content, ImageContent, Role, TextContent, ToolCall, ToolResult};
 
 mod tool_result_serde;
 
@@ -407,9 +405,10 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::{Value, json};
+
     use super::*;
-    use crate::ToolError;
-    use serde_json::{json, Value};
+    use crate::types::core::ToolError;
 
     #[test]
     fn test_message_serialization() {

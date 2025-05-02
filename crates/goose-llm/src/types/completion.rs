@@ -1,0 +1,123 @@
+// This file defines types for completion interfaces, including the request and response structures.
+// Many of these are adapted based on the Goose Service API:
+// https://docs.google.com/document/d/1r5vjSK3nBQU1cIRf0WKysDigqMlzzrzl_bxEE4msOiw/edit?tab=t.0
+
+use serde::{Deserialize, Serialize};
+
+use crate::{message::Message, providers::Usage};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionResponse {
+    pub message: Message,
+    pub model: String,
+    pub usage: Usage,
+    pub runtime_metrics: RuntimeMetrics,
+}
+
+impl CompletionResponse {
+    pub fn new(
+        message: Message,
+        model: String,
+        usage: Usage,
+        runtime_metrics: RuntimeMetrics,
+    ) -> Self {
+        Self {
+            message,
+            model,
+            usage,
+            runtime_metrics,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeMetrics {
+    pub total_time_ms: u128,
+    pub total_time_ms_provider: u128,
+    pub tokens_per_second: Option<f64>,
+}
+
+impl RuntimeMetrics {
+    pub fn new(
+        total_time_ms: u128,
+        total_time_ms_provider: u128,
+        tokens_per_second: Option<f64>,
+    ) -> Self {
+        Self {
+            total_time_ms,
+            total_time_ms_provider,
+            tokens_per_second,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum ToolApprovalMode {
+    Auto,
+    Manual,
+    Smart,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolConfig {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+    pub approval_mode: ToolApprovalMode,
+}
+
+impl ToolConfig {
+    pub fn new(
+        name: &str,
+        description: &str,
+        input_schema: serde_json::Value,
+        approval_mode: ToolApprovalMode,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            description: description.to_string(),
+            input_schema,
+            approval_mode,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum ExtensionType {
+    McpHttp,
+    Frontend,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExtensionConfig {
+    name: String,
+    instructions: Option<String>,
+    tools: Vec<ToolConfig>,
+    extension_type: ExtensionType,
+}
+
+impl ExtensionConfig {
+    pub fn new(
+        name: String,
+        instructions: Option<String>,
+        tools: Vec<ToolConfig>,
+        extension_type: ExtensionType,
+    ) -> Self {
+        Self {
+            name,
+            instructions,
+            tools,
+            extension_type,
+        }
+    }
+
+    pub fn get_prefixed_tools(&self) -> Vec<super::core::Tool> {
+        self.tools
+            .iter()
+            .map(|tool| {
+                let name = format!("{}__{}", self.name, tool.name);
+                super::core::Tool::new(name, tool.description.clone(), tool.input_schema.clone())
+            })
+            .collect()
+    }
+}

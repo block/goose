@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use anyhow::Result;
+
 use super::{base::Provider, databricks::DatabricksProvider, openai::OpenAiProvider};
 use crate::model::ModelConfig;
-use anyhow::Result;
 
 pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     // We use Arc instead of Box to be able to clone for multiple async tasks

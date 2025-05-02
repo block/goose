@@ -1,17 +1,16 @@
+use std::{collections::HashMap, time::Instant};
+
 use anyhow::Result;
 use chrono::Utc;
 use serde_json::Value;
-use std::collections::HashMap;
 
-use crate::message::Message;
-use crate::model::ModelConfig;
-use crate::providers::create;
-use crate::providers::errors::ProviderError;
-
-use std::time::Instant;
-
-use crate::prompt_template;
-use crate::{CompletionResponse, Extension, RuntimeMetrics};
+use crate::{
+    message::Message,
+    model::ModelConfig,
+    prompt_template,
+    providers::{create, errors::ProviderError},
+    types::completion::{CompletionResponse, ExtensionConfig, RuntimeMetrics},
+};
 
 /// Public API for the Goose LLM completion function
 pub async fn completion(
@@ -19,7 +18,7 @@ pub async fn completion(
     model_config: ModelConfig,
     system_preamble: &str,
     messages: &[Message],
-    extensions: &[Extension],
+    extensions: &[ExtensionConfig],
 ) -> Result<CompletionResponse, ProviderError> {
     let start_total = Instant::now();
     let provider = create(provider, model_config).unwrap();
@@ -55,7 +54,7 @@ pub async fn completion(
     ))
 }
 
-fn construct_system_prompt(system_preamble: &str, extensions: &[Extension]) -> String {
+fn construct_system_prompt(system_preamble: &str, extensions: &[ExtensionConfig]) -> String {
     let mut context: HashMap<&str, Value> = HashMap::new();
 
     context.insert(
