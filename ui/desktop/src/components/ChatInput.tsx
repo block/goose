@@ -3,39 +3,39 @@ import { Button } from './ui/button';
 import Stop from './ui/Stop';
 import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
 
-interface InputProps {
+interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
-  commandHistory?: string[];
+  commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
   droppedFiles?: string[];
 }
 
-export default function Input({
+export default function ChatInput({
   handleSubmit,
   isLoading = false,
   onStop,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
-}: InputProps) {
+}: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
 
   // Update internal value when initialValue changes
   useEffect(() => {
-    if (initialValue) {
-      setValue(initialValue);
-      setDisplayValue(initialValue);
-    }
+    setValue(initialValue);
+    setDisplayValue(initialValue);
   }, [initialValue]);
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
+  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
@@ -110,49 +110,105 @@ export default function Input({
   };
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isUp = evt.key === 'ArrowUp';
+    const isDown = evt.key === 'ArrowDown';
+
+    // Only handle up/down keys with Cmd/Ctrl modifier
+    if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
+      return;
+    }
+
     evt.preventDefault();
+
+    // Get global history once to avoid multiple calls
+    const globalHistory = LocalMessageStorage.getRecentMessages();
+    console.log('Global history:', globalHistory); // Debug log
+    console.log('Chat history:', commandHistory); // Debug log
+    console.log('Current index:', historyIndex); // Debug log
+    console.log('Is in global:', isInGlobalHistory); // Debug log
 
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue);
+      setIsInGlobalHistory(commandHistory.length === 0);
     }
 
-    // Calculate new history index
+    // Calculate new history index and determine which history to use
     let newIndex = historyIndex;
-    if (evt.key === 'ArrowUp') {
-      // Move backwards through history
-      if (historyIndex < commandHistory.length - 1) {
+    let newValue = '';
+    let useGlobalHistory = isInGlobalHistory;
+
+    // If we're in a new chat, always use global history
+    if (commandHistory.length === 0) {
+      useGlobalHistory = true;
+      if (isUp && newIndex < globalHistory.length - 1) {
         newIndex = historyIndex + 1;
-      }
-    } else {
-      // Move forwards through history
-      if (historyIndex > -1) {
+        newValue = globalHistory[newIndex];
+      } else if (isDown && newIndex > -1) {
         newIndex = historyIndex - 1;
+        newValue = newIndex === -1 ? savedInput : globalHistory[newIndex];
+      }
+    } else {
+      // In an existing chat with messages
+      if (isUp) {
+        if (!useGlobalHistory && newIndex < commandHistory.length - 1) {
+          // Still in chat history
+          newIndex = historyIndex + 1;
+          newValue = commandHistory[newIndex];
+        } else if (!useGlobalHistory) {
+          // Transition to global history
+          useGlobalHistory = true;
+          newIndex = 0;
+          newValue = globalHistory[newIndex];
+        } else if (newIndex < globalHistory.length - 1) {
+          // In global history
+          newIndex = historyIndex + 1;
+          newValue = globalHistory[newIndex];
+        }
+      } else {
+        // Moving down
+        if (useGlobalHistory && newIndex > 0) {
+          // Still in global history
+          newIndex = historyIndex - 1;
+          newValue = globalHistory[newIndex];
+        } else if (useGlobalHistory) {
+          // Transition back to chat history
+          useGlobalHistory = false;
+          newIndex = commandHistory.length - 1;
+          newValue = commandHistory[newIndex];
+        } else if (newIndex > 0) {
+          // In chat history
+          newIndex = historyIndex - 1;
+          newValue = commandHistory[newIndex];
+        } else {
+          // Return to original input
+          newIndex = -1;
+          newValue = savedInput;
+        }
       }
     }
 
-    if (newIndex === historyIndex) {
-      return;
-    }
+    console.log('New index:', newIndex); // Debug log
+    console.log('New value:', newValue); // Debug log
+    console.log('Using global:', useGlobalHistory); // Debug log
 
-    // Update index and value
-    setHistoryIndex(newIndex);
-    if (newIndex === -1) {
-      // Restore saved input when going past the end of history
-      setDisplayValue(savedInput);
-      setValue(savedInput);
-    } else {
-      setDisplayValue(commandHistory[newIndex] || '');
-      setValue(commandHistory[newIndex] || '');
+    // Update state if we found a new value or changed history type
+    if (newIndex !== historyIndex || useGlobalHistory !== isInGlobalHistory) {
+      setHistoryIndex(newIndex);
+      setIsInGlobalHistory(useGlobalHistory);
+      if (newIndex === -1) {
+        setDisplayValue(savedInput);
+        setValue(savedInput);
+      } else {
+        setDisplayValue(newValue);
+        setValue(newValue);
+      }
     }
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle command history navigation
-    if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
-      handleHistoryNavigation(evt);
-      return;
-    }
+    // Handle history navigation first
+    handleHistoryNavigation(evt);
 
     if (evt.key === 'Enter') {
       // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
@@ -173,11 +229,15 @@ export default function Input({
 
       // Only submit if not loading and has content
       if (!isLoading && displayValue.trim()) {
+        // Always add to global chat storage before submitting
+        LocalMessageStorage.addMessage(displayValue);
+
         handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
         setDisplayValue('');
         setValue('');
         setHistoryIndex(-1);
         setSavedInput('');
+        setIsInGlobalHistory(false);
       }
     }
   };
@@ -185,11 +245,15 @@ export default function Input({
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (displayValue.trim() && !isLoading) {
+      // Always add to global chat storage before submitting
+      LocalMessageStorage.addMessage(displayValue);
+
       handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
       setDisplayValue('');
       setValue('');
       setHistoryIndex(-1);
       setSavedInput('');
+      setIsInGlobalHistory(false);
     }
   };
 
@@ -226,7 +290,7 @@ export default function Input({
           maxHeight: `${maxHeight}px`,
           overflowY: 'auto',
         }}
-        className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
+        className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard placeholder:text-textPlaceholder placeholder:opacity-50"
       />
       <Button
         type="button"

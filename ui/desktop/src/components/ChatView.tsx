@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { getApiUrl } from '../config';
 import BottomMenu from './bottom_menu/BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
-import Input from './Input';
+import ChatInput from './ChatInput';
 import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -22,6 +22,7 @@ import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import { Recipe } from '../recipe';
 import { ContextManagerProvider, useChatContextManager } from './context_management/ContextManager';
 import { ContextLengthExceededHandler } from './context_management/ContextLengthExceededHandler';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
   createUserMessage,
@@ -30,13 +31,12 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
+  getTextContent,
 } from '../types/message';
 
 export interface ChatType {
   id: string;
   title: string;
-  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
-  // anything before this index should not render any buttons, but anything after should
   messageHistoryIndex: number;
   messages: Message[];
 }
@@ -86,8 +86,6 @@ function ChatContent({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  // Disabled askAi calls to save costs
-  // const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
@@ -118,9 +116,19 @@ function ChatContent({
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
+  // Store message in global history when it's added
+  const storeMessageInHistory = useCallback((message: Message) => {
+    if (isUserMessage(message)) {
+      const text = getTextContent(message);
+      if (text) {
+        LocalMessageStorage.addMessage(text);
+      }
+    }
+  }, []);
+
   const {
     messages,
-    append,
+    append: originalAppend,
     stop,
     isLoading,
     error,
@@ -142,11 +150,6 @@ function ChatContent({
         }
       }, 300);
 
-      // Disabled askAi calls to save costs
-      // const messageText = getTextContent(message);
-      // const fetchResponses = await askAi(messageText);
-      // setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
-
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) {
@@ -158,6 +161,17 @@ function ChatContent({
       }
     },
   });
+
+  // Wrap append to store messages in global history
+  const append = useCallback(
+    (messageOrString: Message | string) => {
+      const message =
+        typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
+      storeMessageInHistory(message);
+      return originalAppend(message);
+    },
+    [originalAppend, storeMessageInHistory]
+  );
 
   // Listen for make-agent-from-chat event
   useEffect(() => {
@@ -213,8 +227,6 @@ function ChatContent({
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
   }, [messages]);
-  // do we need append here?
-  // }, [append, chat.messages]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
@@ -448,7 +460,7 @@ function ChatContent({
         )}
         {messages.length === 0 ? (
           <Splash
-            append={(text) => append(createUserMessage(text))}
+            append={append}
             activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
             title={recipeConfig?.title}
           />
@@ -476,7 +488,7 @@ function ChatContent({
                           messageHistoryIndex={chat?.messageHistoryIndex}
                           message={message}
                           messages={messages}
-                          append={(text) => append(createUserMessage(text))}
+                          append={append}
                           appendMessage={(newMessage) => {
                             const updatedMessages = [...messages, newMessage];
                             setMessages(updatedMessages);
@@ -516,7 +528,7 @@ function ChatContent({
 
         <div className="relative">
           {isLoading && <LoadingGoose />}
-          <Input
+          <ChatInput
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             onStop={onStopGoose}
