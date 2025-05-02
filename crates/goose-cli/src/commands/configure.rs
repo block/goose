@@ -1127,8 +1127,10 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-    let mut recipe_repo_input =
-        cliclack::input("Enter the Goose Recipe Github Repo:").required(false);
+    let mut recipe_repo_input = cliclack::input(
+        "Enter the Goose Recipe Github Repo in the format of owner/repo: eg squareup/goose-recipes",
+    )
+    .required(false);
     if let Some(recipe_repo) = default_recipe_repo {
         recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
     }

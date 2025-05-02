@@ -18,7 +18,7 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
         return Ok(content);
     }
     match read_recipe_in_dir(&current_dir, recipe_name) {
-        Ok(content) => return Ok(content),
+        Ok(content) => Ok(content),
         Err(e) => {
             if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
                 retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
