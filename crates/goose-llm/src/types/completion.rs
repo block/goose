@@ -80,6 +80,16 @@ impl ToolConfig {
             approval_mode,
         }
     }
+
+    /// Convert the tool config to a core tool
+    pub fn to_core_tool(&self, name: Option<&str>) -> super::core::Tool {
+        let tool_name = name.unwrap_or(&self.name);
+        super::core::Tool::new(
+            tool_name,
+            self.description.clone(),
+            self.input_schema.clone(),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -111,12 +121,13 @@ impl ExtensionConfig {
         }
     }
 
+    /// Convert the tools to core tools with the extension name as a prefix
     pub fn get_prefixed_tools(&self) -> Vec<super::core::Tool> {
         self.tools
             .iter()
             .map(|tool| {
                 let name = format!("{}__{}", self.name, tool.name);
-                super::core::Tool::new(name, tool.description.clone(), tool.input_schema.clone())
+                tool.to_core_tool(Some(&name))
             })
             .collect()
     }

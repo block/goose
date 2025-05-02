@@ -95,6 +95,8 @@ pub struct ToolCall {
     pub name: String,
     /// The parameters for the execution
     pub arguments: serde_json::Value,
+    /// Whether the tool call needs approval before execution. Default is false.
+    pub needs_approval: bool
 }
 
 impl ToolCall {
@@ -103,7 +105,14 @@ impl ToolCall {
         Self {
             name: name.into(),
             arguments,
+            needs_approval: false,
         }
+    }
+
+    /// Set needs_approval field
+    pub fn with_needs_approval(mut self, needs_approval: bool) -> Self {
+        self.needs_approval = needs_approval;
+        self
     }
 }
 
