@@ -112,17 +112,18 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
     }
   };
 
-  // function getValueByKey(key: string) {
-  //   const mode = all_goose_modes.find((mode) => mode.key === key);
-  //   return mode ? mode.label : 'auto';
-  // }
+  function getValueByKey(key: string) {
+    const mode = all_goose_modes.find((mode) => mode.key === key);
+    return mode ? mode.label : 'auto';
+  }
 
   return (
     <div className="relative flex items-center" ref={gooseModeDropdownRef}>
       <button
-        className="flex items-center justify-center text-textSubtle hover:text-textStandard w-6 h-6 [&_svg]:size-4"
+        className="flex items-center justify-center text-textSubtle hover:text-textStandard h-6 [&_svg]:size-4"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
+        <span className="pr-1.5">{getValueByKey(gooseMode).toLowerCase()}</span>
         <Orbit />
         {/*<span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px]">*/}
         {/*  Goose Mode: {getValueByKey(gooseMode)}*/}
