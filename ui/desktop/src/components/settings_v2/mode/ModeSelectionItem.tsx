@@ -82,7 +82,7 @@ export function ModeSelectionItem({
                 });
               }}
             >
-              <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
+              <Gear className="w-4 h-4 text-textSubtle hover:text-textStandard" />
             </button>
           )}
           <input

@@ -90,17 +90,14 @@ export function ModeSelectionItem({
 
   return (
     <div>
-      <div
-        className="flex hover:cursor-pointer items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
-        onClick={() => handleModeChange(mode.key)}
-      >
-        <div className="">
-          <h3 className="text-sm font-light text-textStandard dark:text-gray-200">{mode.label}</h3>
-          {showDescription && (
-            <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
-              {mode.description}
-            </p>
-          )}
+      <div className="group hover:cursor-pointer" onClick={() => handleModeChange(mode.key)}>
+        <div className="flex items-center justify-between text-textStandard mb-4">
+          <div className="flex">
+            <h3 className="text-textStandard">{mode.label}</h3>
+            {showDescription && (
+              <p className="text-xs text-textSubtle mt-[2px]">{mode.description}</p>
+            )}
+          </div>
         </div>
         <div className="relative flex items-center gap-3">
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (

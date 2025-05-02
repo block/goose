@@ -97,7 +97,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
         {isModelMenuOpen && (
           <div className="absolute bottom-[24px] right-[-55px] w-[300px] bg-bgApp rounded-lg border border-borderSubtle">
             <div className="">
-              <div className="text-sm text-textProminent mt-3 ml-2">Current:</div>
+              <div className="text-sm text-textProminent mt-2 ml-2">Current:</div>
               <div className="flex items-center justify-between text-sm ml-2">
                 {model} -- {provider}
               </div>
@@ -110,7 +110,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                 }}
               >
                 <span className="text-sm">Change Model</span>
-                <Sliders className="w-5 h-5 ml-2 rotate-90" />
+                <Sliders className="w-4 h-4 ml-2 rotate-90" />
               </div>
             </div>
           </div>

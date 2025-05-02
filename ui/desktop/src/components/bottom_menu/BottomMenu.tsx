@@ -205,7 +205,7 @@ export default function BottomMenu({
                     }}
                   >
                     <span className="text-sm">Tools and Settings</span>
-                    <Sliders className="w-5 h-5 ml-2 rotate-90" />
+                    <Sliders className="w-4 h-4 ml-2 rotate-90" />
                   </div>
                 </div>
               </div>
