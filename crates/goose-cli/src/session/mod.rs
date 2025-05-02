@@ -5,7 +5,7 @@ mod output;
 mod prompt;
 mod thinking;
 
-pub use builder::{build_session, SessionBuilderConfig};
+pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;

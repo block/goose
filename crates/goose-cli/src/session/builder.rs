@@ -31,22 +31,41 @@ pub struct SessionBuilderConfig {
     pub extensions_override: Option<Vec<ExtensionConfig>>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
+    /// Settings to override the global Goose settings
+    pub settings: Option<SessionSettings>,
     /// Enable debug printing
     pub debug: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SessionSettings {
+    pub goose_model: Option<String>,
+    pub goose_provider: Option<String>,
+    pub temperature: Option<f32>,
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Load config and get provider/model
     let config = Config::global();
 
-    let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
+    let provider_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_provider.clone())
+        .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
         .expect("No provider configured. Run 'goose configure' first");
 
-    let model: String = config
-        .get_param("GOOSE_MODEL")
+    let model_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_model.clone())
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
         .expect("No model configured. Run 'goose configure' first");
-    let model_config = goose::model::ModelConfig::new(model.clone());
+
+    let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+
+    let model_config =
+        goose::model::ModelConfig::new(model_name.clone()).with_temperature(temperature);
 
     // Create the agent
     let agent: Agent = Agent::new();
@@ -182,6 +201,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session.agent.override_system_prompt(override_prompt).await;
     }
 
-    output::display_session_info(session_config.resume, &provider_name, &model, &session_file);
+    output::display_session_info(
+        session_config.resume,
+        &provider_name,
+        &model_name,
+        &session_file,
+    );
     session
 }

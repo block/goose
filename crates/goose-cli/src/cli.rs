@@ -12,7 +12,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipe::load_recipe;
 use crate::session;
-use crate::session::{build_session, SessionBuilderConfig};
+use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -386,6 +386,7 @@ enum CliProviderVariant {
     Ollama,
 }
 
+#[derive(Debug)]
 struct InputConfig {
     contents: Option<String>,
     extensions_override: Option<Vec<ExtensionConfig>>,
@@ -439,6 +440,7 @@ pub async fn cli() -> Result<()> {
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
+                        settings: None,
                         debug,
                     })
                     .await;
@@ -464,18 +466,21 @@ pub async fn cli() -> Result<()> {
             builtins,
             params,
         }) => {
-            let input_config = match (instructions, input_text, recipe) {
+            let (input_config, session_settings) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
 
-                    InputConfig {
-                        contents: Some(input),
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                    }
+                    (
+                        InputConfig {
+                            contents: Some(input),
+                            extensions_override: None,
+                            additional_system_prompt: None,
+                        },
+                        None,
+                    )
                 }
                 (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
@@ -485,27 +490,40 @@ pub async fn cli() -> Result<()> {
                         );
                         std::process::exit(1);
                     });
+                    (
+                        InputConfig {
+                            contents: Some(contents),
+                            extensions_override: None,
+                            additional_system_prompt: None,
+                        },
+                        None,
+                    )
+                }
+                (_, Some(text), _) => (
                     InputConfig {
-                        contents: Some(contents),
+                        contents: Some(text),
                         extensions_override: None,
                         additional_system_prompt: None,
-                    }
-                }
-                (_, Some(text), _) => InputConfig {
-                    contents: Some(text),
-                    extensions_override: None,
-                    additional_system_prompt: None,
-                },
+                    },
+                    None,
+                ),
                 (_, _, Some(file)) => {
                     let recipe = load_recipe(&file, true, Some(params)).unwrap_or_else(|err| {
                         eprintln!("{}: {}", console::style("Error").red().bold(), err);
                         std::process::exit(1);
                     });
-                    InputConfig {
-                        contents: recipe.prompt,
-                        extensions_override: recipe.extensions,
-                        additional_system_prompt: Some(recipe.instructions),
-                    }
+                    (
+                        InputConfig {
+                            contents: recipe.prompt,
+                            extensions_override: recipe.extensions,
+                            additional_system_prompt: Some(recipe.instructions),
+                        },
+                        recipe.settings.map(|s| SessionSettings {
+                            goose_provider: s.goose_provider,
+                            goose_model: s.goose_model,
+                            temperature: s.temperature,
+                        }),
+                    )
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -521,6 +539,7 @@ pub async fn cli() -> Result<()> {
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
+                settings: session_settings,
                 debug,
             })
             .await;
