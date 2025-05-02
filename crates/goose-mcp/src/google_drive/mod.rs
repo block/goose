@@ -545,39 +545,14 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let create_comment_tool = Tool::new(
-            "create_comment".to_string(),
+        let manage_comment_tool = Tool::new(
+            "manage_comment".to_string(),
             indoc! {r#"
-                Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
-            "#}
-            .to_string(),
-            json!({
-              "type": "object",
-              "properties": {
-                "fileId": {
-                    "type": "string",
-                    "description": "Id of the file to comment on.",
-                },
-                "comment": {
-                    "type": "string",
-                    "description": "Content of the comment.",
-                }
-              },
-              "required": ["fileId", "comment"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Create file comment".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
-
-        let reply_tool = Tool::new(
-            "reply".to_string(),
-            indoc! {r#"
-                Add a reply to a comment thread, or resolve a comment.
+                Manage comment for a Google Drive file.
+                
+                Supports the operations:
+                - create: Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
+                - reply: Add a reply to a comment thread, or resolve a comment.
             "#}
             .to_string(),
             json!({
@@ -587,23 +562,28 @@ impl GoogleDriveRouter {
                     "type": "string",
                     "description": "Id of the file.",
                 },
-                "commentId": {
+                "operation": {
                     "type": "string",
-                    "description": "Id of the comment to which you'd like to reply.",
+                    "description": "Desired comment management operation.",
+                    "enum": ["create", "reply"],
                 },
                 "content": {
                     "type": "string",
-                    "description": "Content of the reply.",
+                    "description": "Content of the comment to create or reply.",
+                },
+                "commentId": {
+                    "type": "string",
+                    "description": "Id of the comment to which you'd like to reply. ",
                 },
                 "resolveComment": {
                     "type": "boolean",
-                    "description": "Whether to resolve the comment. Defaults to false.",
+                    "description": "Whether to resolve the comment in reply. Defaults to false.",
                 }
               },
-              "required": ["fileId", "commentId", "content"],
+              "required": ["fileId", "operation", "content"],
             }),
             Some(ToolAnnotations {
-                title: Some("Reply to a comment".to_string()),
+                title: Some("Manage file comment".to_string()),
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -729,12 +709,11 @@ impl GoogleDriveRouter {
             5. get_permissions - List the permissions of a file or folder
             6. sharing - Share a file or folder with others
             7. get_comments - List a file or folder's comments
-            8. create_comment - Create a comment on a file or folder
-            9. reply - Reply to a comment on a file or folder
-            10. create_file - Create a new file
-            11. update_file - Update a existing file
-            12. sheets_tool - Work with Google Sheets data using various operations
-            13. docs_tool - Work with Google Docs data using various operations
+            8. manage_comment - Manage comment for a Google Drive file.
+            9. create_file - Create a new file
+            10. update_file - Update a existing file
+            11. sheets_tool - Work with Google Sheets data using various operations
+            12. docs_tool - Work with Google Docs data using various operations
 
             ## Available Tools
 
@@ -794,15 +773,10 @@ impl GoogleDriveRouter {
             ### 7. Get Comments Tool
             Lists the comments for a Google Workspace file.
 
-            ### 8. Create Comment Tool
-            Create a new comment on a Google Workspace file. The Google Drive
-            API only allows "unanchored" comments, which are comments not
-            attache to a specific location or region in the document.
-
-            ### 9. Reply Tool
-            Reply to an existing comment.
-
-            ### 10. Create File Tool
+            ### 8. Manage Comment Tool
+            Create or reply comment for a Google Drive file.
+            
+            ### 9. Create File Tool
             Create any kind of file, including Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
             - For Google Docs: Converts Markdown text to a Google Document
             - For Google Sheets: Converts CSV text to a Google Spreadsheet
@@ -813,14 +787,14 @@ impl GoogleDriveRouter {
             content provided. To modify specific parts of the document, you must
             include the changes as part of the entire document.
 
-            ### 11. Update File Tool
+            ### 10. Update File Tool
             Replace the entire contents of an existing file with new content, including Google Workspace files (Docs, Sheets, or Slides).
             - For Google Docs: Updates with new Markdown text
             - For Google Sheets: Updates with new CSV text
             - For Google Slides: Updates with a new PowerPoint file (requires a path to the powerpoint file)
             - Other: No file conversion.
 
-            ### 12. Sheets Tool
+            ### 11. Sheets Tool
             Work with Google Sheets data using various operations:
             - list_sheets: List all sheets in a spreadsheet
             - get_columns: Get column headers from a specific sheet
@@ -847,7 +821,7 @@ impl GoogleDriveRouter {
             - title: Title for the new sheet (required for add_sheet operation)
             - valueInputOption: How input data should be interpreted (RAW or USER_ENTERED)
 
-            ### 13. Docs Tool
+            ### 12. Docs Tool
             Work with Google Docs data using various operations:
             - get_document: Get the full document content
             - insert_text: Insert text at a specific location
@@ -898,8 +872,7 @@ impl GoogleDriveRouter {
                 sheets_tool,
                 docs_tool,
                 get_comments_tool,
-                create_comment_tool,
-                reply_tool,
+                manage_comment_tool,
                 list_drives_tool,
                 get_permissions_tool,
                 sharing_tool,
@@ -2177,7 +2150,7 @@ impl GoogleDriveRouter {
         Ok(vec![Content::text(results.join("\n"))])
     }
 
-    async fn create_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn manage_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
                 .get("fileId")
@@ -2185,54 +2158,8 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The fileId param is required".to_string(),
                 ))?;
-        let comment =
-            params
-                .get("comment")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The comment param is required".to_string(),
-                ))?;
-
-        let req = Comment {
-            content: Some(comment.to_string()),
-            ..Default::default()
-        };
-        let result = self
-            .drive
-            .comments()
-            .create(req, file_id)
-            .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .param("fields", "*")
-            // .param("fields", "action, author, content, createdTime, id")
-            .doit()
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to add comment for google drive file {}, {}.",
-                file_id, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "Author: {:?} Content: {} Created: {} uri: {} quoted_content: {:?}",
-                r.1.author.unwrap_or_default(),
-                r.1.content.unwrap_or_default(),
-                r.1.created_time.unwrap_or_default(),
-                r.1.id.unwrap_or_default(),
-                r.1.quoted_file_content.unwrap_or_default()
-            ))]),
-        }
-    }
-
-    async fn reply(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let file_id =
-            params
-                .get("fileId")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The fileId param is required".to_string(),
-                ))?;
-        let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
-            ToolError::InvalidParameters("The commentId param is required".to_string()),
+        let operation = params.get("operation").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The operation is required".to_string()),
         )?;
         let content =
             params
@@ -2241,41 +2168,86 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The content param is required if the action is create".to_string(),
                 ))?;
-        let resolve_comment = params
-            .get("resolveComment")
-            .and_then(|q| q.as_bool())
-            .unwrap_or(false);
 
-        let mut req = Reply {
-            content: Some(content.to_string()),
-            ..Default::default()
-        };
+        match operation {
+            "create" => {
+                let req = Comment {
+                    content: Some(content.to_string()),
+                    ..Default::default()
+                };
+                let result = self
+                    .drive
+                    .comments()
+                    .create(req, file_id)
+                    .clear_scopes() // Scope::MeetReadonly is the default, remove it
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .param("fields", "*")
+                    // .param("fields", "action, author, content, createdTime, id")
+                    .doit()
+                    .await;
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to add comment for google drive file {}, {}.",
+                        file_id, e
+                    ))),
+                    Ok(r) => Ok(vec![Content::text(format!(
+                        "Author: {:?} Content: {} Created: {} uri: {} quoted_content: {:?}",
+                        r.1.author.unwrap_or_default(),
+                        r.1.content.unwrap_or_default(),
+                        r.1.created_time.unwrap_or_default(),
+                        r.1.id.unwrap_or_default(),
+                        r.1.quoted_file_content.unwrap_or_default()
+                    ))]),
+                }
+            }
+            "reply" => {
+                let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
+                        "The commentId param is required for reply".to_string(),
+                    ),
+                )?;
 
-        if resolve_comment {
-            req.action = Some("resolve".to_string());
-        }
-        let result = self
-            .drive
-            .replies()
-            .create(req, file_id, comment_id)
-            .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .param("fields", "action, author, content, createdTime, id")
-            .doit()
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to manage reply to comment {} for google drive file {}, {}.",
-                comment_id, file_id, e
+                let resolve_comment = params
+                    .get("resolveComment")
+                    .and_then(|q| q.as_bool())
+                    .unwrap_or(false);
+
+                let mut req = Reply {
+                    content: Some(content.to_string()),
+                    ..Default::default()
+                };
+
+                if resolve_comment {
+                    req.action = Some("resolve".to_string());
+                }
+                let result = self
+                    .drive
+                    .replies()
+                    .create(req, file_id, comment_id)
+                    .clear_scopes() // Scope::MeetReadonly is the default, remove it
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .param("fields", "action, author, content, createdTime, id")
+                    .doit()
+                    .await;
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to manage reply to comment {} for google drive file {}, {}.",
+                        comment_id, file_id, e
+                    ))),
+                    Ok(r) => Ok(vec![Content::text(format!(
+                        "Action: {} Author: {:?} Content: {} Created: {} uri: {}",
+                        r.1.action.unwrap_or_default(),
+                        r.1.author.unwrap_or_default(),
+                        r.1.content.unwrap_or_default(),
+                        r.1.created_time.unwrap_or_default(),
+                        r.1.id.unwrap_or_default()
+                    ))]),
+                }
+            }
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid operation: {}. Supported operations are: create, reply",
+                operation
             ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "Action: {} Author: {:?} Content: {} Created: {} uri: {}",
-                r.1.action.unwrap_or_default(),
-                r.1.author.unwrap_or_default(),
-                r.1.content.unwrap_or_default(),
-                r.1.created_time.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
         }
     }
 
@@ -2966,9 +2938,8 @@ impl Router for GoogleDriveRouter {
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "docs_tool" => this.docs_tool(arguments).await,
-                "create_comment" => this.create_comment(arguments).await,
+                "manage_comment" => this.manage_comment(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
-                "reply" => this.reply(arguments).await,
                 "list_drives" => this.list_drives(arguments).await,
                 "get_permissions" => this.get_permissions(arguments).await,
                 "sharing" => this.sharing(arguments).await,

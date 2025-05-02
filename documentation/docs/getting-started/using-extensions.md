@@ -30,8 +30,13 @@ Here are the built-in extensions:
 #### Toggling Built-in Extensions
 
 <Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the top right corner of the Goose Desktop.
+  2. Select `Advanced Settings` from the menu.
+  3. Under `Extensions`, you can toggle the built-in extensions on or off.
+  </TabItem>
 
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="Goose CLI">
     
     If you know the exact name of the extension you'd like to add, run:
 
@@ -46,7 +51,7 @@ Here are the built-in extensions:
     goose configure
     ```
     2. Select `Add Extension` from the menu.
-    3. Choose the type of extension you’d like to add:
+    3. Choose the type of extension you'd like to add:
         - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
         - `Command-Line Extension`: Add a local command or script to run as an extension.
         - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
@@ -78,11 +83,6 @@ Here are the built-in extensions:
     └  Enabled jetbrains extension    
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
-  3. Under `Extensions`, you can toggle the built-in extensions on or off.
-  </TabItem>
 </Tabs>
 
 
@@ -112,7 +112,25 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+ 
+  1. Click `...` in the top right corner of the Goose Desktop.
+  2. Select `Advanced Settings` from the menu.
+  3. Under `Extensions`, click `Add custom extension`.
+  4. On the `Add custom extension` modal, enter the necessary details
+     - If adding an environment variable, click `Add` button to the right of the variable
+     - The `Timeout` field lets you set how long Goose should wait for a tool call from this extension to complete
+  5. Click `Add` button
+  
+  #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
+    * **Type**: `Standard IO`
+    * **ID**: `kgm-mcp` (_set this to whatever you want_)
+    * **Name**: `Knowledge Graph Memory` (_set this to whatever you want_)
+    * **Description**: `maps and stores complex relationships between concepts` (_set this to whatever you want_)
+    * **Command**: `npx -y @modelcontextprotocol/server-memory`
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
   
   1. Run the following command: 
 
@@ -226,23 +244,6 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
   </Tabs>
 
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
- 
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
-  3. Under `Extensions`, click `Add custom extension`.
-  4. On the `Add custom extension` modal, enter the necessary details
-     - If adding an environment variable, click `Add` button to the right of the variable
-     - The `Timeout` field lets you set how long Goose should wait for a tool call from this extension to complete
-  5. Click `Add` button
-  
-  #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
-    * **Type**: `Standard IO`
-    * **ID**: `kgm-mcp` (_set this to whatever you want_)
-    * **Name**: `Knowledge Graph Memory` (_set this to whatever you want_)
-    * **Description**: `maps and stores complex relationships between concepts` (_set this to whatever you want_)
-    * **Command**: `npx -y @modelcontextprotocol/server-memory`
-  </TabItem>
 </Tabs>
 
 ### Config Entry
@@ -266,7 +267,14 @@ extensions:
 You can enable or disable installed extensions based on your workflow needs.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click the three dots in the top-right corner of the application.
+  2. Select `Advanced Settings` from the menu, scroll down to the `Extensions` section.
+  2. Use the toggle switch next to each extension to enable or disable it.
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
     1. Run the following command to open up Goose's configurations:
     ```sh
     goose configure
@@ -289,12 +297,6 @@ You can enable or disable installed extensions based on your workflow needs.
     └   
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click the three dots in the top-right corner of the application.
-  2. Select `Advanced Settings` from the menu, scroll down to the `Extensions` section.
-  2. Use the toggle switch next to each extension to enable or disable it.
-
-  </TabItem>
 </Tabs>
 
 
@@ -303,7 +305,16 @@ You can enable or disable installed extensions based on your workflow needs.
 You can remove installed extensions. 
 
 <Tabs groupId="interface">
-<TabItem value="cli" label="Config file" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+  1. Click `...` in the top right corner of the Goose Desktop.
+  2. Select `Advanced Settings` from the menu.
+  3. Under `Extensions`, find the extension you'd like to remove and click on the settings icon beside it.
+  4. In the dialog that appears, click `Remove Extension`.
+
+  </TabItem>
+
+  <TabItem value="cli" label="Config file">
   :::info
   To remove an extension, you must [disable](#enablingdisabling-extensions) it first.
   :::
@@ -326,14 +337,6 @@ You can remove installed extensions.
     └  
     ```
     5. Press Enter to save
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
-  3. Under `Extensions`, find the extension you'd like to remove and click on the settings icon beside it.
-  4. In the dialog that appears, click `Remove Extension`.
-
   </TabItem>
 </Tabs>
 

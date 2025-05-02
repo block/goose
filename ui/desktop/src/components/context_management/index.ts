@@ -1,37 +1,119 @@
-import { Message } from '../../types/message';
-import { getApiUrl, getSecretKey } from '../../config';
+import {
+  Message as FrontendMessage,
+  Content as FrontendContent,
+  MessageContent as FrontendMessageContent,
+  ToolCallResult,
+  ToolCall,
+} from '../../types/message';
+import {
+  ContextManageRequest,
+  ContextManageResponse,
+  manageContext,
+  Message as ApiMessage,
+  MessageContent as ApiMessageContent,
+} from '../../api';
+import { generateId } from 'ai';
 
-export async function manageContext({
+export async function manageContextFromBackend({
   messages,
   manageAction,
 }: {
-  messages: Message[];
-  manageAction: 'trunction' | 'summarize';
-}) {
-  const response = await fetch(getApiUrl('/context/manage'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': getSecretKey(),
-    },
-    body: JSON.stringify({
-      messages,
-      manageAction,
-    }),
-  });
-  if (!response.ok) {
-    if (!response.ok) {
-      // Get the status text or a default message
-      const errorText = await response.text().catch(() => 'Unknown error');
-      // log error with status and details
-      console.error(
-        `Context management failed: ${response.status} ${response.statusText} - ${errorText}`
-      );
-      throw new Error(
-        `Context management failed: ${response.status} ${response.statusText} - ${errorText}\n\nStart a new session.`
-      );
+  messages: FrontendMessage[];
+  manageAction: 'truncation' | 'summarize';
+}): Promise<ContextManageResponse> {
+  try {
+    const contextManagementRequest = { manageAction, messages };
+
+    // Cast to the API-expected type
+    const result = await manageContext({
+      body: contextManagementRequest as unknown as ContextManageRequest,
+    });
+
+    // Check for errors in the result
+    if (result.error) {
+      throw new Error(`Context management failed: ${result.error}`);
     }
+
+    // Extract the actual data from the result
+    if (!result.data) {
+      throw new Error('Context management returned no data');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error(`Context management failed: ${error || 'Unknown error'}`);
+    throw new Error(
+      `Context management failed: ${error || 'Unknown error'}\n\nStart a new session.`
+    );
   }
-  const data = await response.json();
-  return data;
+}
+
+// Function to convert API Message to frontend Message
+export function convertApiMessageToFrontendMessage(apiMessage: ApiMessage): FrontendMessage {
+  return {
+    display: false,
+    sendToLLM: false,
+    id: generateId(),
+    role: apiMessage.role,
+    created: apiMessage.created,
+    content: apiMessage.content
+      .map((apiContent) => mapApiContentToFrontendMessageContent(apiContent))
+      .filter((content): content is FrontendMessageContent => content !== null),
+  };
+}
+
+// Function to convert API MessageContent to frontend MessageContent
+function mapApiContentToFrontendMessageContent(
+  apiContent: ApiMessageContent
+): FrontendMessageContent | null {
+  // Handle each content type specifically based on its "type" property
+  if (apiContent.type === 'text') {
+    return {
+      type: 'text',
+      text: apiContent.text,
+      annotations: apiContent.annotations as Record<string, unknown> | undefined,
+    };
+  } else if (apiContent.type === 'image') {
+    return {
+      type: 'image',
+      data: apiContent.data,
+      mimeType: apiContent.mimeType,
+      annotations: apiContent.annotations as Record<string, unknown> | undefined,
+    };
+  } else if (apiContent.type === 'toolRequest') {
+    // Ensure the toolCall has the correct type structure
+    const toolCall = apiContent.toolCall as unknown as ToolCallResult<ToolCall>;
+
+    return {
+      type: 'toolRequest',
+      id: apiContent.id,
+      toolCall: toolCall,
+    };
+  } else if (apiContent.type === 'toolResponse') {
+    // Ensure the toolResult has the correct type structure
+    const toolResult = apiContent.toolResult as unknown as ToolCallResult<FrontendContent[]>;
+
+    return {
+      type: 'toolResponse',
+      id: apiContent.id,
+      toolResult: toolResult,
+    };
+  } else if (apiContent.type === 'toolConfirmationRequest') {
+    return {
+      type: 'toolConfirmationRequest',
+      id: apiContent.id,
+      toolName: apiContent.toolName,
+      arguments: apiContent.arguments as Record<string, unknown>,
+      prompt: apiContent.prompt === null ? undefined : apiContent.prompt,
+    };
+  } else if (apiContent.type === 'contextLengthExceeded') {
+    return {
+      type: 'contextLengthExceeded',
+      msg: apiContent.msg,
+    };
+  }
+
+  // For types that exist in API but not in frontend, either skip or convert
+  console.warn(`Skipping unsupported content type: ${apiContent.type}`);
+  return null;
 }

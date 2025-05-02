@@ -29,7 +29,11 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
 ### Add Pieces MCP Server
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?url=http%3A%2F%2Flocalhost%3A39300%2Fmodel_context_protocol%2F2024-11-05%2Fsse&id=pieces&name=Pieces%20for%20Developers&description=Provides%20access%20to%20your%20Pieces%20Long-Term%20Memory.%20You%20need%20to%20have%20Pieces%20installed%20to%20use%20this.)
+  2. Press `Yes` to confirm the installation
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
 
       ```sh
@@ -139,10 +143,12 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │
         ◇  Please set the timeout for this tool (in secs):
         │  300
+        │
         // highlight-start
         ◆  Would you like to add a description?
         │  ○ Yes  / ● No 
         // highlight-end
+        │
         └ 
       ```
 
@@ -165,6 +171,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │
         ◇  Please set the timeout for this tool (in secs):
         │  300
+        │
         ◇  Would you like to add a description?
         │  No 
         │
@@ -175,10 +182,6 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         └ 
       ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?url=http%3A%2F%2Flocalhost%3A39300%2Fmodel_context_protocol%2F2024-11-05%2Fsse&id=pieces&name=Pieces%20for%20Developers&description=Provides%20access%20to%20your%20Pieces%20Long-Term%20Memory.%20You%20need%20to%20have%20Pieces%20installed%20to%20use%20this.)
-  2. Press `Yes` to confirm the installation
   </TabItem>
 </Tabs>
 

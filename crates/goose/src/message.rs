@@ -16,14 +16,17 @@ use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 mod tool_result_serde;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_call: ToolResult<ToolCall>,
 }
 
@@ -45,14 +48,17 @@ impl ToolRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_result: ToolResult<Vec<Content>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
@@ -60,31 +66,33 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_call: ToolResult<ToolCall>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextLengthExceeded {
     pub msg: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -273,7 +281,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {

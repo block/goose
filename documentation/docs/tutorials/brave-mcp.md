@@ -5,7 +5,9 @@ description: Add Brave Search API as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kD2YA61NTLU" />
 
 This tutorial will get you started with the [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
 
@@ -30,7 +32,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
+  2. Press `Yes` to confirm the installation
+  3. Get your [Brave Search API Key](https://api-dashboard.search.brave.com/app/keys) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -182,13 +191,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added brave-search extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
-  2. Press `Yes` to confirm the installation
-  3. Get your [Brave Search API Key](https://api-dashboard.search.brave.com/app/keys) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
