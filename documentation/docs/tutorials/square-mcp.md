@@ -7,7 +7,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-This tutorial will get you started with the [official Square MCP Server](https://github.com/square/square-mcp-server) as a Goose extension to enable interactive work for your Square seller account!
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/ynoXx8aBP-4" />
+
+This tutorial will get you started with the [open-source Square MCP Server](https://github.com/square/square-mcp-server) as a Goose extension to enable interactive work for your Square seller account!
 
 
 :::tip TLDR
