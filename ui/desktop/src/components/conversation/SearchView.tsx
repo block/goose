@@ -1,5 +1,5 @@
 import React, { useState, useEffect, PropsWithChildren, useCallback } from 'react';
-import { SearchBar } from './SearchBar';
+import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { debounce } from 'lodash';
 import '../../styles/search.css';
@@ -10,6 +10,15 @@ import '../../styles/search.css';
 interface SearchViewProps {
   /** Optional CSS class name */
   className?: string;
+  /** Optional callback for search term changes */
+  onSearch?: (term: string, caseSensitive: boolean) => void;
+  /** Optional callback for navigating between search results */
+  onNavigate?: (direction: 'next' | 'prev') => void;
+  /** Current search results state */
+  searchResults?: {
+    count: number;
+    currentIndex: number;
+  } | null;
 }
 
 /**
@@ -20,9 +29,12 @@ interface SearchViewProps {
 export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   className = '',
   children,
+  onSearch,
+  onNavigate,
+  searchResults,
 }) => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [searchResults, setSearchResults] = useState<{
+  const [internalSearchResults, setInternalSearchResults] = useState<{
     currentIndex: number;
     count: number;
   } | null>(null);
@@ -43,13 +55,13 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           const count = highlights.length;
 
           if (count > 0) {
-            setSearchResults({
+            setInternalSearchResults({
               currentIndex: 1,
               count,
             });
             searchHighlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
           } else {
-            setSearchResults(null);
+            setInternalSearchResults(null);
           }
         },
         150
@@ -93,35 +105,45 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     // Store the latest search parameters
     lastSearchRef.current = { term, caseSensitive };
 
+    // Always clear internal results first
+    setInternalSearchResults(null);
+
+    // Always clear highlights first
+    if (highlighterRef.current) {
+      highlighterRef.current.clearHighlights();
+      highlighterRef.current.destroy();
+      highlighterRef.current = null;
+    }
+
+    // Call the onSearch callback if provided
+    onSearch?.(term, caseSensitive);
+
+    // If empty, we're done
     if (!term) {
-      setSearchResults(null);
-      if (highlighterRef.current) {
-        highlighterRef.current.clearHighlights();
-      }
+      // Ensure we clear any external search results
+      onSearch?.('', caseSensitive);
       return;
     }
 
     const container = containerRef.current;
     if (!container) return;
 
-    if (!highlighterRef.current) {
-      highlighterRef.current = new SearchHighlighter(container, (count) => {
-        // Only update if this is still the latest search
-        if (
-          lastSearchRef.current.term === term &&
-          lastSearchRef.current.caseSensitive === caseSensitive
-        ) {
-          if (count > 0) {
-            setSearchResults((prev) => ({
-              currentIndex: prev?.currentIndex || 1,
-              count,
-            }));
-          } else {
-            setSearchResults(null);
-          }
+    highlighterRef.current = new SearchHighlighter(container, (count) => {
+      // Only update if this is still the latest search
+      if (
+        lastSearchRef.current.term === term &&
+        lastSearchRef.current.caseSensitive === caseSensitive
+      ) {
+        if (count > 0) {
+          setInternalSearchResults({
+            currentIndex: 1,
+            count,
+          });
+        } else {
+          setInternalSearchResults(null);
         }
-      });
-    }
+      }
+    });
 
     // Debounce the highlight operation
     debouncedHighlight(term, caseSensitive, highlighterRef.current);
@@ -131,30 +153,32 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
    * Navigates between search results in the specified direction.
    * @param direction - Direction to navigate ('next' or 'prev')
    */
-  const navigateResults = (direction: 'next' | 'prev') => {
-    if (!searchResults || searchResults.count === 0 || !highlighterRef.current) return;
-
-    let newIndex: number;
-    const currentIdx = searchResults.currentIndex - 1; // Convert to 0-based
-
-    if (direction === 'next') {
-      newIndex = currentIdx + 1;
-      if (newIndex >= searchResults.count) {
-        newIndex = 0;
-      }
-    } else {
-      newIndex = currentIdx - 1;
-      if (newIndex < 0) {
-        newIndex = searchResults.count - 1;
-      }
+  const handleNavigate = (direction: 'next' | 'prev') => {
+    // If external navigation is provided, use that
+    if (onNavigate) {
+      onNavigate(direction);
+      return;
     }
 
-    setSearchResults({
-      ...searchResults,
-      currentIndex: newIndex + 1,
+    // Otherwise use internal navigation
+    if (!internalSearchResults || !highlighterRef.current) return;
+
+    let newIndex: number;
+    if (direction === 'next') {
+      newIndex = (internalSearchResults.currentIndex % internalSearchResults.count) + 1;
+    } else {
+      newIndex =
+        internalSearchResults.currentIndex === 1
+          ? internalSearchResults.count
+          : internalSearchResults.currentIndex - 1;
+    }
+
+    setInternalSearchResults({
+      ...internalSearchResults,
+      currentIndex: newIndex,
     });
 
-    highlighterRef.current.setCurrentMatch(newIndex, true); // Explicitly scroll when navigating
+    highlighterRef.current.setCurrentMatch(newIndex - 1, true);
   };
 
   /**
@@ -162,12 +186,20 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
    */
   const handleCloseSearch = () => {
     setIsSearchVisible(false);
-    setSearchResults(null);
+    setInternalSearchResults(null);
+    lastSearchRef.current = { term: '', caseSensitive: false };
+
     if (highlighterRef.current) {
       highlighterRef.current.clearHighlights();
+      highlighterRef.current.destroy();
+      highlighterRef.current = null;
     }
+
     // Cancel any pending highlight operations
     debouncedHighlight.cancel?.();
+
+    // Clear search when closing
+    onSearch?.('', false);
   };
 
   return (
@@ -176,8 +208,8 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
         <SearchBar
           onSearch={handleSearch}
           onClose={handleCloseSearch}
-          onNavigate={navigateResults}
-          searchResults={searchResults}
+          onNavigate={handleNavigate}
+          searchResults={searchResults || internalSearchResults}
         />
       )}
       {children}

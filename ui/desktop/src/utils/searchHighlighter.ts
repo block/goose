@@ -40,8 +40,13 @@ export class SearchHighlighter {
       z-index: 1;
     `;
 
-    // Find scroll container (usually the radix scroll area viewport)
-    this.scrollContainer = container.closest('[data-radix-scroll-area-viewport]');
+    // Find scroll container (look for our custom data attribute first, then fallback to radix)
+    this.scrollContainer =
+      container
+        .closest('[data-search-scroll-area]')
+        ?.querySelector('[data-radix-scroll-area-viewport]') ||
+      container.closest('[data-radix-scroll-area-viewport]');
+
     if (this.scrollContainer) {
       this.scrollContainer.style.position = 'relative';
       this.scrollContainer.appendChild(this.overlay);
@@ -85,7 +90,6 @@ export class SearchHighlighter {
 
           if (this.updatePending) {
             this.updatePending = false;
-            // Re-run the update
             requestAnimationFrame(() => this.updateHighlightPositions());
           }
         });
@@ -115,7 +119,6 @@ export class SearchHighlighter {
 
           if (this.updatePending) {
             this.updatePending = false;
-            // Re-run the update
             requestAnimationFrame(() => this.highlight(this.currentTerm, this.caseSensitive));
           }
         });
@@ -191,16 +194,20 @@ export class SearchHighlighter {
         const highlightRect = document.createElement('div');
         highlightRect.className = 'search-highlight';
 
-        const scrollTop = this.scrollContainer ? this.scrollContainer.scrollTop : window.scrollY;
-        const scrollLeft = this.scrollContainer ? this.scrollContainer.scrollLeft : window.scrollX;
-        const containerTop = this.scrollContainer?.getBoundingClientRect().top || 0;
-        const containerLeft = this.scrollContainer?.getBoundingClientRect().left || 0;
+        // Get the scroll container's position
+        const containerRect = this.scrollContainer?.getBoundingClientRect() || { top: 0, left: 0 };
+        const scrollTop = this.scrollContainer?.scrollTop || 0;
+        const scrollLeft = this.scrollContainer?.scrollLeft || 0;
+
+        // Calculate the highlight position relative to the scroll container
+        const top = rect.top + scrollTop - containerRect.top;
+        const left = rect.left + scrollLeft - containerRect.left;
 
         highlightRect.style.cssText = `
           position: absolute;
           pointer-events: none;
-          top: ${rect.top + scrollTop - containerTop}px;
-          left: ${rect.left + scrollLeft - containerLeft}px;
+          top: ${top}px;
+          left: ${left}px;
           width: ${rect.width}px;
           height: ${rect.height}px;
         `;
@@ -217,7 +224,7 @@ export class SearchHighlighter {
     // Restore current match if it was set
     if (currentIndex >= 0 && this.highlights.length > 0) {
       // Use the stored index, not this.currentMatchIndex which was reset in clearHighlights
-      this.setCurrentMatch(currentIndex, false); // Don't scroll when restoring highlight
+      this.setCurrentMatch(currentIndex, this.shouldScrollToMatch);
     }
 
     return this.highlights;
@@ -229,8 +236,14 @@ export class SearchHighlighter {
    * @param shouldScroll - Whether to scroll to the match (true for explicit navigation)
    */
   setCurrentMatch(index: number, shouldScroll = true) {
+    if (!this.highlights.length) return;
+
+    // Ensure index wraps around
+    const wrappedIndex =
+      ((index % this.highlights.length) + this.highlights.length) % this.highlights.length;
+
     // Store the current match index
-    this.currentMatchIndex = index;
+    this.currentMatchIndex = wrappedIndex;
 
     // Save the scroll flag
     this.shouldScrollToMatch = shouldScroll;
@@ -240,25 +253,17 @@ export class SearchHighlighter {
       el.classList.remove('current');
     });
 
-    // Add current class to the matched highlight
-    if (this.highlights.length > 0) {
-      // Ensure index wraps around
-      const wrappedIndex =
-        ((index % this.highlights.length) + this.highlights.length) % this.highlights.length;
+    // Find all highlight elements within the current highlight container
+    const highlightElements = this.highlights[wrappedIndex].querySelectorAll('.search-highlight');
 
-      // Find all highlight elements within the current highlight container
-      const highlightElements = this.highlights[wrappedIndex].querySelectorAll('.search-highlight');
+    // Add current class to all parts of the highlight
+    highlightElements.forEach((el) => {
+      el.classList.add('current');
+    });
 
-      // Add 'current' class to all parts of the highlight (for multi-line matches)
-      highlightElements.forEach((el) => {
-        el.classList.add('current');
-      });
-
-      // Only scroll if explicitly requested (e.g., when navigating)
-      if (shouldScroll) {
-        // Ensure we call scrollToMatch with the correct index
-        setTimeout(() => this.scrollToMatch(wrappedIndex), 0);
-      }
+    // Only scroll if explicitly requested (e.g., when navigating)
+    if (shouldScroll) {
+      requestAnimationFrame(() => this.scrollToMatch(wrappedIndex));
     }
   }
 
@@ -274,18 +279,23 @@ export class SearchHighlighter {
     ) as HTMLElement;
     if (!currentHighlight) return;
 
-    const rect = currentHighlight.getBoundingClientRect();
+    // Get all highlight parts for this match (in case it spans multiple lines)
+    const allHighlightParts = this.highlights[index].querySelectorAll('.search-highlight');
+    const firstPart = allHighlightParts[0] as HTMLElement;
+    const lastPart = allHighlightParts[allHighlightParts.length - 1] as HTMLElement;
+
     const containerRect = this.scrollContainer.getBoundingClientRect();
+    const firstRect = firstPart.getBoundingClientRect();
+    const lastRect = lastPart.getBoundingClientRect();
 
-    // Calculate how far the element is from the top of the viewport
-    const elementRelativeToViewport = rect.top - containerRect.top;
+    // Calculate the total height of the highlight (including multi-line)
+    const highlightHeight = lastRect.bottom - firstRect.top;
 
-    // Calculate the new scroll position that would center the element
-    const currentScrollTop = this.scrollContainer.scrollTop;
-    const targetPosition =
-      currentScrollTop + elementRelativeToViewport - (containerRect.height - rect.height) / 2;
+    // Calculate the position that would center the highlight
+    const elementTop = firstRect.top - containerRect.top + this.scrollContainer.scrollTop;
+    const targetPosition = elementTop - (containerRect.height - highlightHeight) / 2;
 
-    // Ensure we don't scroll past the bottom
+    // Ensure we don't scroll past the bounds
     const maxScroll = this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight;
     const finalPosition = Math.max(0, Math.min(targetPosition, maxScroll));
 
@@ -297,23 +307,19 @@ export class SearchHighlighter {
 
   /**
    * Updates the positions of all highlights after content changes.
-   * This preserves the current match selection but doesn't scroll.
    */
   private updateHighlightPositions() {
     if (this.currentTerm) {
-      // Store the current index for restoration
+      // Store the current index and scroll flag for restoration
       const currentIndex = this.currentMatchIndex;
+      const shouldScroll = this.shouldScrollToMatch;
 
       // Clear and recreate all highlights
-      this.overlay.innerHTML = '';
-      this.highlights = [];
-
-      // Re-highlight with the current term
       this.highlight(this.currentTerm, this.caseSensitive);
 
-      // Ensure the current match is still highlighted, but don't scroll
+      // Restore the current match and scroll state
       if (currentIndex >= 0 && this.highlights.length > 0) {
-        this.setCurrentMatch(currentIndex, false);
+        this.setCurrentMatch(currentIndex, shouldScroll);
       }
     }
   }

@@ -1,5 +1,5 @@
-import React, { useEffect, KeyboardEvent, useState, useCallback } from 'react';
-import { Search as SearchIcon } from 'lucide-react';
+import React, { useEffect, useState, useRef, useCallback, KeyboardEvent } from 'react';
+import { Search as SearchIcon, XCircle } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import { debounce } from 'lodash';
 
@@ -26,7 +26,7 @@ interface SearchBarProps {
  * - Case-sensitive search toggle
  * - Result count display
  * - Navigation between results with arrows
- * - Keyboard shortcuts (↑/↓ for navigation, Esc to close)
+ * - Keyboard shortcuts (↑/↓/Enter for navigation, Esc to close)
  * - Smooth animations for enter/exit
  * - Debounced search for better performance
  */
@@ -35,45 +35,83 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onClose,
   onNavigate,
   searchResults,
-}) => {
+}: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [displayTerm, setDisplayTerm] = useState(''); // For immediate visual feedback
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
 
   // Create debounced search function
-  const debouncedSearch = useCallback(
-    (term: string, isCaseSensitive: boolean) => {
-      debounce((searchTerm: string, caseSensitive: boolean) => {
-        onSearch(searchTerm, caseSensitive);
-      }, 150)(term, isCaseSensitive);
-    },
-    [onSearch]
-  );
+  useEffect(() => {
+    const debouncedFn = debounce((term: string, caseSensitive: boolean) => {
+      console.log('Debounced search executing:', { term, caseSensitive });
+      onSearch(term, caseSensitive);
+    }, 200);
+
+    debouncedSearchRef.current = debouncedFn;
+
+    return () => {
+      debouncedFn.cancel();
+    };
+  }, [onSearch]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Cleanup debounced function on unmount
+  const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(null);
+
+  // Sync external search results with local state
   useEffect(() => {
-    return () => {
-      debouncedSearch.cancel?.();
-    };
-  }, [debouncedSearch]);
+    // Only set results if we have a search term
+    if (!displayTerm) {
+      setLocalSearchResults(null);
+    } else {
+      setLocalSearchResults(searchResults);
+    }
+  }, [searchResults, searchTerm, displayTerm]);
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    setDisplayTerm(value); // Update display immediately
-    setSearchTerm(value); // Update actual term
-    debouncedSearch(value, caseSensitive);
+
+    // Always cancel pending searches first
+    if (debouncedSearchRef.current) {
+      debouncedSearchRef.current.cancel();
+    }
+
+    // If clearing or empty, handle immediately
+    if (!value || !value.trim()) {
+      console.log('Clearing search - empty value');
+      setDisplayTerm('');
+      setSearchTerm('');
+      setLocalSearchResults(null);
+      onSearch('', caseSensitive);
+      return;
+    }
+
+    setDisplayTerm(value);
+    setSearchTerm(value);
+    debouncedSearchRef.current?.(value, caseSensitive);
   };
+
+  const clearSearch = useCallback(() => {
+    console.log('Clearing search - clear button');
+    if (debouncedSearchRef.current) {
+      debouncedSearchRef.current.cancel();
+    }
+    setDisplayTerm('');
+    setSearchTerm('');
+    setLocalSearchResults(null);
+    onSearch('', caseSensitive);
+    inputRef.current?.focus();
+  }, [caseSensitive, onSearch]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowUp') {
       handleNavigate('prev', event);
-    } else if (event.key === 'ArrowDown') {
+    } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
       handleNavigate('next', event);
     } else if (event.key === 'Escape') {
       event.preventDefault();
@@ -83,21 +121,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const handleNavigate = (direction: 'next' | 'prev', e?: React.MouseEvent | KeyboardEvent) => {
     e?.preventDefault();
-    onNavigate?.(direction);
-    inputRef.current?.focus();
+    if (searchResults && searchResults.count > 0) {
+      inputRef.current?.focus();
+      onNavigate?.(direction);
+    }
   };
 
   const toggleCaseSensitive = () => {
     const newCaseSensitive = !caseSensitive;
     setCaseSensitive(newCaseSensitive);
     // Immediately trigger a new search with updated case sensitivity
-    debouncedSearch(searchTerm, newCaseSensitive);
+    if (searchTerm) {
+      debouncedSearchRef.current?.(searchTerm, newCaseSensitive);
+    }
     inputRef.current?.focus();
   };
 
   const handleClose = () => {
     setIsExiting(true);
-    debouncedSearch.cancel?.(); // Cancel any pending searches
+    debouncedSearchRef.current?.cancel(); // Cancel any pending searches
     setTimeout(() => {
       onClose();
     }, 150); // Match animation duration
@@ -121,14 +163,31 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
               placeholder="Search conversation..."
-              className="w-full text-sm pl-9 pr-10 py-3 bg-bgAppInverse
+              className="w-full text-sm pl-9 pr-24 py-3 bg-bgAppInverse
                       placeholder:text-textSubtleInverse focus:outline-none 
                        active:border-borderProminent"
             />
           </div>
 
-          <div className="absolute right-3 flex h-full items-center justify-center text-sm text-textStandardInverse">
-            {searchResults && searchResults.count}
+          <div className="absolute right-3 flex h-full items-center justify-end">
+            <div className="flex items-center gap-1">
+              {displayTerm && (
+                <button
+                  onClick={clearSearch}
+                  className="flex items-center text-textSubtleInverse hover:text-textStandardInverse"
+                  title="Clear search"
+                >
+                  <XCircle className="h-4 w-4 mt-[2px]" />
+                </button>
+              )}
+              <div className="w-16 text-right text-sm text-textStandardInverse flex items-center justify-end">
+                {(() => {
+                  return localSearchResults?.count > 0 && displayTerm
+                    ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
+                    : null;
+                })()}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -146,18 +205,32 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           </button>
 
           <button
-            onClick={(e) => handleNavigate('prev', e)}
-            className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
+            onClick={(e) => {
+              if (searchResults && searchResults.count > 0) {
+                handleNavigate('prev', e);
+              }
+            }}
+            className={`p-1 ${
+              !searchResults || searchResults.count === 0
+                ? 'text-textSubtleInverse/50 cursor-not-allowed'
+                : 'text-textSubtleInverse hover:text-textStandardInverse cursor-pointer'
+            }`}
             title="Previous (↑)"
-            disabled={!searchResults || searchResults.count === 0}
           >
             <ArrowUp className="h-5 w-5" />
           </button>
           <button
-            onClick={(e) => handleNavigate('next', e)}
-            className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
-            title="Next (↓)"
-            disabled={!searchResults || searchResults.count === 0}
+            onClick={(e) => {
+              if (searchResults && searchResults.count > 0) {
+                handleNavigate('next', e);
+              }
+            }}
+            className={`p-1 ${
+              !searchResults || searchResults.count === 0
+                ? 'text-textSubtleInverse/50 cursor-not-allowed'
+                : 'text-textSubtleInverse hover:text-textStandardInverse cursor-pointer'
+            }`}
+            title="Next (↓ or Enter)"
           >
             <ArrowDown className="h-5 w-5" />
           </button>
@@ -174,3 +247,5 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     </div>
   );
 };
+
+export default SearchBar;
