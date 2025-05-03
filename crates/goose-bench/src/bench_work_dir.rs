@@ -1,3 +1,4 @@
+use anyhow::Context;
 use chrono::Local;
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
@@ -53,15 +54,35 @@ impl BenchmarkWorkDir {
         }
     }
 
-    pub fn init_experiment() {
+    pub fn init_experiment(output_dir: PathBuf) -> anyhow::Result<()> {
+        if !output_dir.is_absolute() {
+            anyhow::bail!(
+                "Internal Error: init_experiment received a non-absolute path: {}",
+                output_dir.display()
+            );
+        }
+
         // create experiment folder
         let current_time = Local::now().format("%H:%M:%S").to_string();
         let current_date = Local::now().format("%Y-%m-%d").to_string();
-        let exp_name = format!("{}-{}", &current_date, current_time);
-        let base_path = PathBuf::from(format!("./benchmark-{}", exp_name));
-        fs::create_dir_all(&base_path).unwrap();
-        std::env::set_current_dir(&base_path).unwrap();
+        let exp_folder_name = format!("benchmark-{}-{}", &current_date, &current_time);
+        let base_path = output_dir.join(exp_folder_name);
+
+        fs::create_dir_all(&base_path).with_context(|| {
+            format!(
+                "Failed to create benchmark directory: {}",
+                base_path.display()
+            )
+        })?;
+        std::env::set_current_dir(&base_path).with_context(|| {
+            format!(
+                "Failed to change working directory to: {}",
+                base_path.display()
+            )
+        })?;
+        Ok(())
     }
+
     pub fn canonical_dirs(include_dirs: Vec<PathBuf>) -> Vec<PathBuf> {
         include_dirs
             .iter()

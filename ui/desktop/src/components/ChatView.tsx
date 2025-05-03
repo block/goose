@@ -15,12 +15,16 @@ import { SearchView } from './conversation/SearchView';
 import { createRecipe } from '../recipe';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
-import { fetchSessionDetails } from '../sessions';
-// import { configureRecipeExtensions } from '../utils/recipeExtensions';
+import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import { Recipe } from '../recipe';
+import {
+  ChatContextManagerProvider,
+  useChatContextManager,
+} from './context_management/ContextManager';
+import { ContextLengthExceededHandler } from './context_management/ContextLengthExceededHandler';
 import {
   Message,
   createUserMessage,
@@ -30,7 +34,6 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
 } from '../types/message';
-import { manageContext } from './context_management';
 
 export interface ChatType {
   id: string;
@@ -63,6 +66,29 @@ export default function ChatView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
+  return (
+    <ChatContextManagerProvider>
+      <ChatContent
+        chat={chat}
+        setChat={setChat}
+        setView={setView}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      />
+    </ChatContextManagerProvider>
+  );
+}
+
+function ChatContent({
+  chat,
+  setChat,
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+}) {
   // Disabled askAi calls to save costs
   // const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
@@ -70,17 +96,28 @@ export default function ChatView({
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
+  const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
+  const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
-  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-  const [summaryContent, setSummaryContent] = useState('');
-  const [summarizedThread, setSummarizedThread] = useState<Message[]>([]);
+  const {
+    summaryContent,
+    summarizedThread,
+    isSummaryModalOpen,
+    resetMessagesWithSummary,
+    closeSummaryModal,
+    updateSummary,
+    hasContextLengthExceededContent,
+  } = useChatContextManager();
 
-  // Add this function to handle opening the summary modal with content
-  const handleViewSummary = (summary: string) => {
-    setSummaryContent(summary);
-    setIsSummaryModalOpen(true);
-  };
+  useEffect(() => {
+    // Log all messages when the component first mounts
+    window.electron.logInfo(
+      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array means this runs once on mount;
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
@@ -96,12 +133,19 @@ export default function ChatView({
     setInput: _setInput,
     handleInputChange: _handleInputChange,
     handleSubmit: _submitMessage,
+    updateMessageStreamBody,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
+
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 300);
 
       // Disabled askAi calls to save costs
       // const messageText = getTextContent(message);
@@ -118,12 +162,37 @@ export default function ChatView({
         });
       }
     },
-    onToolCall: (toolCall: string) => {
-      // Handle tool calls if needed
-      console.log('Tool call received:', toolCall);
-      // Implement tool call handling logic here
-    },
   });
+
+  // for CLE events -- create a new session id for the next set of messages
+  useEffect(() => {
+    // If we're in a continuation session, update the chat ID
+    if (summarizedThread.length > 0) {
+      const newSessionId = generateSessionId();
+
+      // Update the session ID in the chat object
+      setChat({
+        ...chat,
+        id: newSessionId!,
+        title: `Continued from ${chat.id}`,
+        messageHistoryIndex: summarizedThread.length,
+      });
+
+      // Update the body used by useMessageStream to send future messages to the new session
+      if (summarizedThread.length > 0 && updateMessageStreamBody) {
+        updateMessageStreamBody({
+          session_id: newSessionId,
+          session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+        });
+      }
+    }
+
+    // only update if summarizedThread length changes from 0 -> 1+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    summarizedThread.length > 0,
+  ]);
 
   // Listen for make-agent-from-chat event
   useEffect(() => {
@@ -167,7 +236,8 @@ export default function ChatView({
         window.electron.logInfo('Opening recipe editor window');
       } catch (error) {
         window.electron.logInfo('Failed to create recipe:');
-        window.electron.logInfo(error.message);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        window.electron.logInfo(errorMessage);
       } finally {
         setIsGeneratingRecipe(false);
       }
@@ -199,13 +269,37 @@ export default function ChatView({
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
-    const customEvent = e as CustomEvent;
+    const customEvent = e as unknown as CustomEvent;
     const content = customEvent.detail?.value || '';
+
     if (content.trim()) {
       setLastInteractionTime(Date.now());
-      append(createUserMessage(content));
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
+
+      if (summarizedThread.length > 0) {
+        // move current `messages` to `ancestorMessages` and `messages` to `summarizedThread`
+        resetMessagesWithSummary(
+          messages,
+          setMessages,
+          ancestorMessages,
+          setAncestorMessages,
+          summaryContent
+        );
+
+        // update the chat with new sessionId
+
+        // now call the llm
+        setTimeout(() => {
+          append(createUserMessage(content));
+          if (scrollRef.current?.scrollToBottom) {
+            scrollRef.current.scrollToBottom();
+          }
+        }, 150);
+      } else {
+        // Normal flow (existing code)
+        append(createUserMessage(content));
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
       }
     }
   };
@@ -274,6 +368,8 @@ export default function ChatView({
         // Create tool responses for all interrupted tool requests
 
         let responseMessage: Message = {
+          display: true,
+          sendToLLM: true,
           role: 'user',
           created: Date.now(),
           content: [],
@@ -300,55 +396,12 @@ export default function ChatView({
     }
   };
 
-  // Add this function to ChatView.tsx to detect if a message contains ContextLengthExceededContent
-  const hasContextLengthExceededContent = (message: Message): boolean => {
-    return message.content.some((content) => content.type === 'contextLengthExceeded');
-  };
-
-  const handleContextLengthExceeded = async () => {
-    // If we already have a summary, use that
-    if (summaryContent) {
-      return summaryContent;
-    }
-
-    // Otherwise, generate a summary
-    const response = await manageContext({ messages: messages, manageAction: 'summarize' });
-    setSummarizedThread(response.messages);
-    return response.messages[0].text;
-  };
-
-  const SummarizedNotification = ({
-    onViewSummary,
-  }: {
-    onViewSummary: (summaryContent: string) => void;
-  }) => {
-    const handleViewSummary = async () => {
-      // Await the result to get a string
-      const summary = summaryContent || (await handleContextLengthExceeded());
-      onViewSummary(summary); // Now always passing a string
-    };
-
-    return (
-      <div className="flex flex-col items-start mt-1 pl-4">
-        <span className="text-xs text-gray-400 italic">Session summarized</span>
-        <button
-          onClick={handleViewSummary}
-          className="text-xs text-textStandard cursor-pointer hover:text-textSubtle transition-colors mt-1"
-        >
-          View or edit summary
-        </button>
-      </div>
-    );
-  };
-
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
-  const filteredMessages = messages.filter((message) => {
-    // TODO: use this summarized thread in the chat window
-    if (summarizedThread.length > 0) {
-      // we have a summarized thread
-      console.log('summarized thread has been created --', summarizedThread);
-    }
+  const filteredMessages = [...ancestorMessages, ...messages].filter((message) => {
+    // Only filter out when display is explicitly false
+    if (message.display === false) return false;
+
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
 
@@ -396,6 +449,22 @@ export default function ChatView({
     }
   }, [chat.id, messages]);
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        paths.push(window.electron.getPathForFile(files[i]));
+      }
+      setDroppedFiles(paths);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
@@ -404,7 +473,11 @@ export default function ChatView({
         <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
 
-      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+      <Card
+        className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
         {recipeConfig?.title && messages.length > 0 && (
           <AgentHeader
             title={recipeConfig.title}
@@ -439,9 +512,14 @@ export default function ChatView({
                   ) : (
                     <>
                       {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
-                      {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
-                        // Render the summarized notification for CLE messages only in alpha mode
-                        <SummarizedNotification onViewSummary={handleViewSummary} />
+                      {process.env.NODE_ENV === 'development' &&
+                      hasContextLengthExceededContent(message) ? (
+                        <ContextLengthExceededHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                        />
                       ) : (
                         <GooseMessage
                           messageHistoryIndex={chat?.messageHistoryIndex}
@@ -493,20 +571,20 @@ export default function ChatView({
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={_input}
+            droppedFiles={droppedFiles}
           />
           <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={sessionTokenCount} />
         </div>
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-      {process.env.ALPHA && (
+      {process.env.NODE_ENV === 'development' && (
         <SessionSummaryModal
           isOpen={isSummaryModalOpen}
-          onClose={() => setIsSummaryModalOpen(false)}
+          onClose={closeSummaryModal}
           onSave={(editedContent) => {
-            console.log('Saving summary...');
-            setSummaryContent(editedContent);
-            setIsSummaryModalOpen(false);
+            updateSummary(editedContent);
+            closeSummaryModal();
           }}
           summaryContent={summaryContent}
         />

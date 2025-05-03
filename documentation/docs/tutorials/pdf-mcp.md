@@ -28,7 +28,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  4. Scroll to the top and click `Exit` from the upper left corner
+</TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -115,8 +121,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 └
 ```
 
-6. Choose No when asked to add environment variables
-
+6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
 ```sh
 ┌   goose-configure
 │
@@ -136,6 +141,37 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 │  300
 │
 // highlight-start
+◇  Would you like to add a description?
+│  No
+// highlight-end
+│
+└
+```
+
+7. Choose No when asked to add environment variables
+
+```sh
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Add Extension
+│
+◇  What type of extension would you like to add?
+│  Command-line Extension
+│
+◇  What would you like to call this extension?
+│  pdf
+│
+◇  What command should be run?
+│  uvx mcp-read-pdf
+│
+◇  Please set the timeout for this tool (in secs):
+│  300
+│
+◇  Would you like to add a description?
+│  No
+│
+// highlight-start
 ◆  Would you like to add environment variables?
 │  No
 │
@@ -143,12 +179,6 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 └  Added pdf extension
 ```
 
-</TabItem>
-<TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
 </TabItem>
    </Tabs>
 

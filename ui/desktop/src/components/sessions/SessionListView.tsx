@@ -35,8 +35,8 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetchSessions();
-      setSessions(response.sessions);
+      const sessions = await fetchSessions();
+      setSessions(sessions);
     } catch (err) {
       console.error('Failed to load sessions:', err);
       setError('Failed to load sessions. Please try again later.');
