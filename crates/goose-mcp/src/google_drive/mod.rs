@@ -166,7 +166,7 @@ impl GoogleDriveRouter {
         // Read the OAuth credentials from the keyfile
         match fs::read_to_string(keyfile_path) {
             Ok(_) => {
-                // Create the PKCE OAuth2 clien
+                // Create the PKCE OAuth2 client
                 let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
                     .expect("Failed to create OAuth2 client");
 
@@ -2972,10 +2972,6 @@ impl GoogleDriveRouter {
             .drive_labels
             .labels()
             .list()
-            // .clear_scopes()
-            // .add_scope("https://www.googleapis.com/auth/drive.labels.readonly")
-            // .add_scope(google_labels::Scope::DriveLabelsReadonly)
-            // TODO: Used in working google API docs example
             .param("view", "LABEL_VIEW_FULL");
 
         let result = builder.doit().await;
@@ -2984,8 +2980,27 @@ impl GoogleDriveRouter {
                 "Failed to list labels for Google Drive {}",
                 e
             ))),
-            // Ok(r) => Ok(vec![Content::text(self.output_permission(r.1))]),
-            Ok(r) => Ok(vec![Content::text(format!("{:#?}", r.1))]),
+            Ok(r) => {
+                let content =
+                    r.1.labels
+                        .map(|labels| {
+                            labels.into_iter().map(|l| {
+                                format!(
+                                    "name: {} label_type: {} properties: {:?} uri: {} fields: {:?}",
+                                    l.name.unwrap_or_default(),
+                                    l.label_type.unwrap_or_default(),
+                                    l.properties.unwrap_or_default(),
+                                    l.id.unwrap_or_default(),
+                                    l.fields.unwrap_or_default()
+                                )
+                            })
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                Ok(vec![Content::text(content.to_string()).with_priority(0.3)])
+            }
         }
     }
 }

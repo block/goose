@@ -1,6 +1,4 @@
-#![allow(clippy::ptr_arg)]
-// TODO: Used in the generated APIs
-#![allow(unused_imports, unused_mut, dead_code)]
+#![allow(clippy::ptr_arg, dead_code, clippy::enum_variant_names)]
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -64,8 +62,7 @@ impl<'a, C> DriveLabelsHub<C> {
         DriveLabelsHub {
             client,
             auth: Box::new(auth),
-            // _user_agent: "google-api-rust-client/6.0.0".to_string(),
-            _user_agent: "(gzip)".to_string(),
+            _user_agent: "google-api-rust-client/6.0.0".to_string(),
             _base_url: "https://drivelabels.googleapis.com/".to_string(),
         }
     }
@@ -121,10 +118,71 @@ pub struct Label {
     pub disable_time: Option<String>,
     #[serde(rename = "customer")]
     pub customer: Option<String>,
-    // TODO: The rest of the label fields
+    pub properties: Option<LabelProperty>,
+    pub fields: Option<Vec<Field>>,
+    // We ignore the remaining fields.
 }
 
+impl common::Part for Label {}
+
 impl common::ResponseResult for Label {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct LabelProperty {
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
+impl common::Part for LabelProperty {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Field {
+    id: Option<String>,
+    #[serde(rename = "queryKey")]
+    query_key: Option<String>,
+    properties: Option<FieldProperty>,
+    #[serde(rename = "selectionOptions")]
+    selection_options: Option<Vec<Choice>>,
+}
+
+impl common::Part for Field {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct FieldProperty {
+    #[serde(rename = "displayName")]
+    pub display_name: Option<String>,
+    pub required: Option<bool>,
+}
+
+impl common::Part for FieldProperty {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Choice {
+    id: Option<String>,
+    properties: Option<ChoiceProperties>,
+    // We ignore the remaining fields.
+}
+
+impl common::Part for Choice {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ChoiceProperties {
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    description: Option<String>,
+}
+
+impl common::Part for ChoiceProperties {}
 
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde_with::serde_as]
@@ -172,10 +230,10 @@ where
     hub: &'a DriveLabelsHub<C>,
 }
 
-impl<'a, C> common::MethodsBuilder for LabelMethods<'a, C> {}
+impl<C> common::MethodsBuilder for LabelMethods<'_, C> {}
 
 impl<'a, C> LabelMethods<'a, C> {
-    /// Create a builder to help you perform the following task:
+    /// Create a builder to help you perform the following tasks:
     ///
     /// List labels
     pub fn list(&self) -> LabelListCall<'a, C> {
@@ -188,7 +246,49 @@ impl<'a, C> LabelMethods<'a, C> {
     }
 }
 
-/// TODO: Documentation
+/// Lists the workspace's labels.
+///
+/// A builder for the *list* method supported by a *label* resource.
+/// It is not used directly, but through a [`LabelMethods`] instance.
+///
+/// # Example
+///
+/// Instantiate a resource method builder
+///
+/// ```test_harness,no_run
+/// # extern crate hyper;
+/// # extern crate hyper_rustls;
+/// # extern crate google_drive3 as drive3;
+/// # extern crate google_labels as labels;
+/// # async fn dox() {
+/// # use drive3::{DriveHub, FieldMask, hyper_rustls, hyper_util, yup_oauth2};
+/// # use labels::DriveLabelsHub
+///
+/// # let secret: yup_oauth2::ApplicationSecret = Default::default();
+/// # let auth = yup_oauth2::InstalledFlowAuthenticator::builder(
+/// #     secret,
+/// #     yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+/// # ).build().await.unwrap();
+///
+/// # let client = hyper_util::client::legacy::Client::builder(
+/// #     hyper_util::rt::TokioExecutor::new()
+/// # )
+/// # .build(
+/// #     hyper_rustls::HttpsConnectorBuilder::new()
+/// #         .with_native_roots()
+/// #         .unwrap()
+/// #         .https_or_http()
+/// #         .enable_http1()
+/// #         .build()
+/// # );
+/// # let mut hub = DriveLabelsHub::new(client, auth);
+/// // You can configure optional parameters by calling the respective setters at will, and
+/// // execute the final call using `doit()`.
+/// // Values shown here are possibly random and not representative !
+/// let result = hub.labels().list()
+///              .doit().await;
+/// # }
+/// ```
 pub struct LabelListCall<'a, C>
 where
     C: 'a,
@@ -199,7 +299,7 @@ where
     _scopes: BTreeSet<String>,
 }
 
-impl<'a, C> common::CallBuilder for LabelListCall<'a, C> {}
+impl<C> common::CallBuilder for LabelListCall<'_, C> {}
 
 impl<'a, C> LabelListCall<'a, C>
 where
@@ -207,14 +307,11 @@ where
 {
     /// Perform the operation you have built so far.
     pub async fn doit(mut self) -> common::Result<(common::Response, LabelList)> {
-        use std::borrow::Cow;
-        use std::io::{Read, Seek};
-
-        use common::{url::Params, ToParts};
-        use hyper::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, USER_AGENT};
+        use common::url::Params;
+        use hyper::header::{AUTHORIZATION, CONTENT_LENGTH, USER_AGENT};
 
         let mut dd = common::DefaultDelegate;
-        let mut dlg: &mut dyn common::Delegate = self._delegate.unwrap_or(&mut dd);
+        let dlg: &mut dyn common::Delegate = self._delegate.unwrap_or(&mut dd);
         dlg.begin(common::MethodInfo {
             id: "drivelabels.labels.list",
             http_method: hyper::Method::GET,
@@ -243,9 +340,6 @@ where
         let url = params.parse_with_url(&url);
 
         loop {
-            // return Err(common::Error::BadRequest(
-            //     format!("Scopes: {:?}", &self._scopes).into(),
-            // ));
             let token = match self
                 .hub
                 .auth
@@ -272,10 +366,6 @@ where
                 if let Some(token) = token.as_ref() {
                     req_builder = req_builder.header(AUTHORIZATION, format!("Bearer {}", token));
                 }
-                // TODO: Matching example python code
-                // let mut req_builder = req_builder
-                // .header("accept", "application/json")
-                // .header("accept-encoding", "gzip, deflate");
 
                 let request = req_builder
                     .header(CONTENT_LENGTH, 0_u64)
