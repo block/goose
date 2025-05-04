@@ -631,6 +631,8 @@ impl Session {
                                     .item("clear", "Clear Session", "Removes all messages from Goose's memory")
                                     .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
                                     .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                    .item("summarize_bullet", "Bullet Point Summary", "Summarize with key bullet points")
+                                    .item("summarize_concise", "Concise Summary", "Create a short, clear summary")
                                     .interact()?;
 
                                 match selected {
@@ -652,6 +654,20 @@ impl Session {
                                         // Summarize messages to fit within context length
                                         let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
                                         let msg = format!("Context maxed out\n{}\nGoose summarized messages for you.", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = summarized_messages;
+                                    }
+                                    "summarize_bullet" => {
+                                        // Bullet point summarization
+                                        let (summarized_messages, _) = self.agent.summarize_context_bullet_points(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages in bullet point format.", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = summarized_messages;
+                                    }
+                                    "summarize_concise" => {
+                                        // Concise summarization
+                                        let (summarized_messages, _) = self.agent.summarize_context_concise(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose created a concise summary of your conversation.", "-".repeat(50));
                                         output::render_text(&msg, Some(Color::Yellow), true);
                                         self.messages = summarized_messages;
                                     }
