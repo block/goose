@@ -79,7 +79,7 @@ impl PromptManager {
 
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
-        let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let current_date_time = Utc::now().format("%Y-%m-%d %H").to_string();
         context.insert("current_date_time", Value::String(current_date_time));
 
         // Add the suggestion about disabling extensions if flag is true
