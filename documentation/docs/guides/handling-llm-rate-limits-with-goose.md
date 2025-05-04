@@ -20,7 +20,15 @@ OpenRouter provides a unified interface for LLMs that allows you to select and s
 2. Once verified, create your [API key](https://openrouter.ai/settings/keys).
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+    1. Click on the three dots in the top-right corner.
+    2. Select `Advanced Settings` from the menu.
+    3. Click on "Browse" in the `Models` section.
+    4. Click on `Configure`
+    5. Select `OpenRouter` from the list of available providers.
+    6. Enter your OpenRouter API key in the dialog that appears.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     1. Run the Goose configuration command:
     ```sh
     goose configure
@@ -28,17 +36,7 @@ OpenRouter provides a unified interface for LLMs that allows you to select and s
     2. Select `Configure Providers` from the menu.
     3. Follow the prompts to choose OpenRouter as your provider and enter your OpenRouter API key when prompted.
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-    1. Click on the three dots in the top-right corner.
-    2. Select `Settings` from the menu.
-    3. Click on "Browse" in the `Models` section.
-    4. Click on `Configure`
-    5. Select `OpenRouter` from the list of available providers.
-    6. Enter your OpenRouter API key in the dialog that appears.
-  </TabItem>
 </Tabs>
 
 
 Now Goose will send your requests through OpenRouter which will automatically switch models when necessary to avoid interruptions due to rate limiting.
-

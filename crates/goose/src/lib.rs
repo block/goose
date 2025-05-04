@@ -1,6 +1,6 @@
 pub mod agents;
 pub mod config;
-pub mod memory_condense;
+pub mod context_mgmt;
 pub mod message;
 pub mod model;
 pub mod permission;
@@ -10,4 +10,3 @@ pub mod recipe;
 pub mod session;
 pub mod token_counter;
 pub mod tracing;
-pub mod truncate;

@@ -1,5 +1,5 @@
 use bat::WrappingMode;
-use console::style;
+use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use mcp_core::prompt::PromptArgument;
@@ -141,6 +141,19 @@ pub fn render_message(message: &Message, debug: bool) {
         }
     }
     println!();
+}
+
+pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
+    let mut styled_text = style(text);
+    if dim {
+        styled_text = styled_text.dim();
+    }
+    if let Some(color) = color {
+        styled_text = styled_text.fg(color);
+    } else {
+        styled_text = styled_text.green();
+    }
+    println!("\n{}\n", styled_text);
 }
 
 pub fn render_enter_plan_mode() {

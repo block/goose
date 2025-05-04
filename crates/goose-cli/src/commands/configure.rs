@@ -3,8 +3,7 @@ use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -984,11 +983,11 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    let provider =
-        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = Agent::new(provider);
+    let agent = Agent::new();
+    let new_provider = create(&provider_name, model_config)?;
+    agent.update_provider(new_provider).await?;
     if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())
@@ -1015,8 +1014,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .await
         .into_iter()
         .filter(|tool| {
-            tool.name != PLATFORM_ENABLE_EXTENSION_TOOL_NAME
-                && tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
+            tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
                 && tool.name != PLATFORM_READ_RESOURCE_TOOL_NAME
         })
         .map(|tool| {

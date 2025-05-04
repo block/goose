@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::message::Message;
 use goose::recipe::Recipe;
@@ -34,17 +36,17 @@ pub struct CreateRecipeResponse {
 
 /// Create a Recipe configuration from the current state of an agent
 async fn create_recipe(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
 ) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
-    let agent = state.agent.read().await;
-    let agent = agent.as_ref().ok_or_else(|| {
-        let error_response = CreateRecipeResponse {
-            recipe: None,
-            error: Some("Agent not initialized".to_string()),
-        };
-        (StatusCode::PRECONDITION_REQUIRED, Json(error_response))
-    })?;
+    let error_response = CreateRecipeResponse {
+        recipe: None,
+        error: Some("Missing agent".to_string()),
+    };
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent.create_recipe(request.messages).await;
@@ -82,7 +84,7 @@ async fn create_recipe(
     }
 }
 
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipe/create", post(create_recipe))
         .with_state(state)

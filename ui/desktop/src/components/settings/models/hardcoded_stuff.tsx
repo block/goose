@@ -64,7 +64,6 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': [
-    'AZURE_OPENAI_API_KEY',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
     'AZURE_OPENAI_API_VERSION',

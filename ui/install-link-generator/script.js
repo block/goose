@@ -109,6 +109,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return `goose://extension?${queryParams}`;
         }
 
+        // Handle the case where the command is a URL
+        if (server.url) {
+            const queryParams = [
+            `url=${encodeURIComponent(server.url)}`,
+            `id=${encodeURIComponent(server.id)}`,
+            `name=${encodeURIComponent(server.name)}`,
+            `description=${encodeURIComponent(server.description)}`,
+            ...server.environmentVariables
+                .filter((env) => env.required)
+                .map(
+                (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
+                ),
+            ].join("&");
+        
+            return `goose://extension?${queryParams}`;
+        }
+
         const parts = server.command.split(" ");
         const baseCmd = parts[0];
         const args = parts.slice(1);

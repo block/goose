@@ -10,6 +10,7 @@ import {
   powerSaveBlocker,
   Tray,
   App,
+  globalShortcut,
 } from 'electron';
 import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
@@ -361,6 +362,43 @@ const createChat = async (
     },
   });
 
+  // Enable spellcheck / right and ctrl + click on mispelled word
+  //
+  // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
+  // all languages in the list of spell checked words, but it diminishes the times you
+  // get red squigglies back for mispelled english words. Given the rest of Goose only
+  // renders in english right now, this feels like the correct set of language codes
+  // for the moment.
+  //
+  // TODO: Load language codes from a setting if we ever have i18n/l10n
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add each spelling suggestion
+    for (const suggestion of params.dictionarySuggestions) {
+      menu.append(
+        new MenuItem({
+          label: suggestion,
+          click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+        })
+      );
+    }
+
+    // Allow users to add the misspelled word to the dictionary
+    if (params.misspelledWord) {
+      menu.append(
+        new MenuItem({
+          label: 'Add to dictionary',
+          click: () =>
+            mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        })
+      );
+    }
+
+    menu.popup();
+  });
+
   // Store config in localStorage for future windows
   const windowConfig = {
     ...appConfig,
@@ -683,7 +721,48 @@ ipcMain.handle('get-allowed-extensions', async () => {
   }
 });
 
+const createNewWindow = async (app: App, dir?: string | null) => {
+  const recentDirs = loadRecentDirs();
+  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  createChat(app, undefined, openDir);
+};
+
+const focusWindow = () => {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows.forEach((win) => {
+      win.show();
+    });
+    windows[windows.length - 1].webContents.send('focus-input');
+  } else {
+    createNewWindow(app);
+  }
+};
+
+const registerGlobalHotkey = (accelerator: string) => {
+  // Unregister any existing shortcuts first
+  globalShortcut.unregisterAll();
+
+  try {
+    const ret = globalShortcut.register(accelerator, () => {
+      focusWindow();
+    });
+
+    if (!ret) {
+      console.error('Failed to register global hotkey');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('Error registering global hotkey:', e);
+    return false;
+  }
+};
+
 app.whenReady().then(async () => {
+  // Register the default global hotkey
+  registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
@@ -702,9 +781,7 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
 
   createTray();
-  const recentDirs = loadRecentDirs();
-  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
-  createChat(app, undefined, openDir);
+  createNewWindow(app, dirPath);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -777,6 +854,17 @@ app.whenReady().then(async () => {
         accelerator: 'CmdOrCtrl+N',
         click() {
           ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    // Add menu item for hotkey
+    fileMenu?.submenu.append(
+      new MenuItem({
+        label: 'Focus Goose Window',
+        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        click() {
+          focusWindow();
         },
       })
     );
@@ -940,6 +1028,11 @@ async function getAllowList(): Promise<string[]> {
     throw error;
   }
 }
+
+app.on('will-quit', () => {
+  // Unregister all shortcuts when quitting
+  globalShortcut.unregisterAll();
+});
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {

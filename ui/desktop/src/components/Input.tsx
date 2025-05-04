@@ -10,6 +10,7 @@ interface InputProps {
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
+  droppedFiles?: string[];
 }
 
 export default function Input({
@@ -18,6 +19,7 @@ export default function Input({
   onStop,
   commandHistory = [],
   initialValue = '',
+  droppedFiles = [],
 }: InputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -35,6 +37,7 @@ export default function Input({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -44,6 +47,19 @@ export default function Input({
 
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
+
+  // If we have dropped files, add them to the input and update our state.
+  if (processedFilePaths !== droppedFiles) {
+    // Append file paths that aren't in displayValue.
+    let joinedPaths =
+      displayValue.trim() +
+      ' ' +
+      droppedFiles.filter((path) => !displayValue.includes(path)).join(' ');
+    setDisplayValue(joinedPaths);
+    setValue(joinedPaths);
+    textAreaRef.current?.focus();
+    setProcessedFilePaths(droppedFiles);
+  }
 
   // Debounced function to update actual value
   const debouncedSetValue = useCallback((val: string) => {

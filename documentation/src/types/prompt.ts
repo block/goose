@@ -6,7 +6,8 @@ export type EnvironmentVariable = {
 
 export type Extension = {
   name: string;
-  command: string;
+  command?: string;
+  url?: string;
   is_builtin: boolean;
   link?: string;
   installation_notes?: string;

@@ -1,9 +1,8 @@
-import { initializeSystem } from '../../../utils/providerUtils';
+import { initializeAgent } from '../../../agent';
 import { toastError, toastSuccess } from '../../../toasts';
 import { ProviderDetails } from '@/src/api';
 import Model, { getProviderMetadata } from './modelInterface';
 import { ProviderMetadata } from '../../../api';
-import type { ExtensionConfig, FixedExtensionEntry } from '../../ConfigContext';
 
 // titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
@@ -22,23 +21,16 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface changeModelProps {
   model: Model;
   writeToConfig: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
-  getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
-  addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
 }
 
 // TODO: error handling
-export async function changeModel({
-  model,
-  writeToConfig,
-  getExtensions,
-  addExtension,
-}: changeModelProps) {
+export async function changeModel({ model, writeToConfig }: changeModelProps) {
   const modelName = model.name;
   const providerName = model.provider;
   try {
-    await initializeSystem(providerName, modelName, {
-      getExtensions,
-      addExtension,
+    await initializeAgent({
+      model: model.name,
+      provider: model.provider,
     });
   } catch (error) {
     console.error(`Failed to change model at agent step -- ${modelName} ${providerName}`);

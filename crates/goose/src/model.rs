@@ -78,9 +78,15 @@ impl ModelConfig {
             name if name.contains("o1-mini") || name.contains("o1-preview") => Some(128_000),
             name if name.contains("o1") => Some(200_000),
             name if name.contains("o3-mini") => Some(200_000),
+            name if name.contains("gpt-4.1") => Some(1_000_000),
+            name if name.contains("gpt-4-1") => Some(1_000_000),
 
             // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
             name if name.contains("claude-3") => Some(200_000),
+
+            // Google models, https://ai.google/get-started/our-models/
+            name if name.contains("gemini-2.5") => Some(1_000_000),
+            name if name.contains("gemini-2-5") => Some(1_000_000),
 
             // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
             name if name.contains("llama3.2") => Some(128_000),

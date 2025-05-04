@@ -16,7 +16,7 @@ use crate::recipe::load_recipe;
 /// Result indicating success or failure
 pub fn handle_validate<P: AsRef<Path>>(file_path: P) -> Result<()> {
     // Load and validate the recipe file
-    match load_recipe(&file_path, false) {
+    match load_recipe(&file_path, false, None) {
         Ok(_) => {
             println!("{} recipe file is valid", style("✓").green().bold());
             Ok(())
@@ -39,7 +39,7 @@ pub fn handle_validate<P: AsRef<Path>>(file_path: P) -> Result<()> {
 /// Result indicating success or failure
 pub fn handle_deeplink<P: AsRef<Path>>(file_path: P) -> Result<()> {
     // Load the recipe file first to validate it
-    match load_recipe(&file_path, false) {
+    match load_recipe(&file_path, false, None) {
         Ok(recipe) => {
             if let Ok(recipe_json) = serde_json::to_string(&recipe) {
                 let deeplink = base64::engine::general_purpose::STANDARD.encode(recipe_json);
