@@ -1,6 +1,6 @@
 ---
 title: Smart Extension Recommendation
-sidebar_position: 7
+sidebar_position: 21
 sidebar_label: Dynamic Extension Loading
 ---
 
