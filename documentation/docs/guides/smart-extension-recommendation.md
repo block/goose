@@ -1,7 +1,7 @@
 ---
 title: Smart Extension Recommendation
 sidebar_position: 21
-sidebar_label: Dynamic Extension
+sidebar_label: Using Dynamic Extensions
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,7 +11,7 @@ The Smart Extension Recommendation system in Goose automatically identifies and 
 
 When you request a task, Goose checks its enabled extensions and their tools to determine if it can fulfill the request. If not, it suggests or enables additional extensions as needed. You can also request specific extensions by name.
 
-## Triggering Dynamic Extensions
+## Using Dynamic Extensions
 
 :::warning
 Any extensions enabled this way will be lost when you close Goose. To keep extensions enabled between sessions, follow the [Using Extensions](/docs/getting-started/using-extensions) guide.
