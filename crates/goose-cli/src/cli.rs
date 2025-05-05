@@ -266,6 +266,16 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Additional system prompt to customize agent behavior
+        #[arg(
+            long = "system",
+            value_name = "TEXT",
+            help = "Additional system prompt to customize agent behavior",
+            long_help = "Provide additional system instructions to customize the agent's behavior",
+            conflicts_with = "recipe"
+        )]
+        system: Option<String>,
+
         /// Path to recipe.yaml file
         #[arg(
             short = None,
@@ -455,6 +465,7 @@ pub async fn cli() -> Result<()> {
             instructions,
             input_text,
             recipe,
+            system,
             interactive,
             identifier,
             resume,
@@ -474,7 +485,7 @@ pub async fn cli() -> Result<()> {
                     InputConfig {
                         contents: Some(input),
                         extensions_override: None,
-                        additional_system_prompt: None,
+                        additional_system_prompt: system,
                     }
                 }
                 (Some(file), _, _) => {
@@ -488,13 +499,13 @@ pub async fn cli() -> Result<()> {
                     InputConfig {
                         contents: Some(contents),
                         extensions_override: None,
-                        additional_system_prompt: None,
+                        additional_system_prompt: system,
                     }
                 }
                 (_, Some(text), _) => InputConfig {
                     contents: Some(text),
                     extensions_override: None,
-                    additional_system_prompt: None,
+                    additional_system_prompt: system,
                 },
                 (_, _, Some(file)) => {
                     let recipe = load_recipe(&file, true, Some(params)).unwrap_or_else(|err| {
