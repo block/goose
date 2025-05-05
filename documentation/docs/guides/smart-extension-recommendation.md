@@ -1,7 +1,7 @@
 ---
 title: Smart Extension Recommendation
 sidebar_position: 21
-sidebar_label: Dynamic Extension Loading
+sidebar_label: Dynamic Extension
 ---
 
 import Tabs from '@theme/Tabs';
