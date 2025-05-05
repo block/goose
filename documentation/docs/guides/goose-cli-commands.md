@@ -163,7 +163,9 @@ goose session remove -r "project-.*"
 goose session remove -r ".*migration.*"
 ```
 
-Goose will show which sessions will be removed and ask for confirmation before deleting.
+:::caution
+Session removal is permanent and cannot be undone. Goose will show which sessions will be removed and ask for confirmation before deleting.
+::: 
 
 ---
 

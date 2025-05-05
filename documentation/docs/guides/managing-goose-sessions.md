@@ -162,35 +162,7 @@ You can resume a CLI session in Desktop and vice versa.
 
 ## Remove Sessions
 
-You can remove one or more sessions using the CLI commands. Goose will show you which sessions will be removed and ask for confirmation before deleting.
-
-<Tabs>
-    <TabItem value="ui" label="Goose Desktop" default>
-        Session removal is currently only available through the CLI interface.
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        To remove a specific session by its ID:
-        ```bash
-        goose session remove -i 20250305_113223
-        ```
-
-        To remove multiple sessions matching a pattern:
-        ```bash
-        # Remove all sessions starting with "project-"
-        goose session remove -r "project-.*"
-
-        # Remove all sessions containing "migration"
-        goose session remove -r ".*migration.*"
-
-        # Remove all sessions from March 5th, 2025
-        goose session remove -r "20250305.*"
-        ```
-
-        :::caution
-        Session removal is permanent and cannot be undone. Make sure to confirm the sessions you want to remove when prompted.
-        :::
-    </TabItem>
-</Tabs>
+You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
 
 ## Search Within Sessions
 
