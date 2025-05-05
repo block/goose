@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
+import type { View } from '../App';
 import Stop from './ui/Stop';
 import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
+import BottomMenu from './bottom_menu/BottomMenu';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -11,6 +13,8 @@ interface InputProps {
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: string[];
+  setView: (view: View) => void;
+  numTokens?: number;
 }
 
 export default function Input({
@@ -19,10 +23,13 @@ export default function Input({
   onStop,
   commandHistory = [],
   initialValue = '',
+  setView,
+  numTokens,
   droppedFiles = [],
 }: InputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  const [isFocused, setIsFocused] = useState(false);
 
   // Update internal value when initialValue changes
   useEffect(() => {
@@ -205,65 +212,82 @@ export default function Input({
   };
 
   return (
-    <form
-      onSubmit={onFormSubmit}
-      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle"
+    <div
+      className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
+        isFocused
+          ? 'border-borderProminent hover:border-borderProminent'
+          : 'border-borderSubtle hover:border-borderStandard'
+      } bg-bgApp z-10`}
     >
-      <textarea
-        data-testid="chat-input"
-        autoFocus
-        id="dynamic-textarea"
-        placeholder="What can goose help with?   ⌘↑/⌘↓"
-        value={displayValue}
-        onChange={handleChange}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onKeyDown={handleKeyDown}
-        ref={textAreaRef}
-        rows={1}
-        style={{
-          minHeight: `${minHeight}px`,
-          maxHeight: `${maxHeight}px`,
-          overflowY: 'auto',
-        }}
-        className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
-      />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        onClick={handleFileSelect}
-        className="absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard"
-      >
-        <Attach />
-      </Button>
-      {isLoading ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onStop?.();
+      <form onSubmit={onFormSubmit}>
+        <textarea
+          data-testid="chat-input"
+          autoFocus
+          id="dynamic-textarea"
+          placeholder="What can goose help with?   ⌘↑/⌘↓"
+          value={displayValue}
+          onChange={handleChange}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          ref={textAreaRef}
+          rows={1}
+          style={{
+            minHeight: `${minHeight}px`,
+            maxHeight: `${maxHeight}px`,
+            overflowY: 'auto',
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
-        >
-          <Stop size={24} />
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          size="icon"
-          variant="ghost"
-          disabled={!displayValue.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-            !displayValue.trim() ? 'text-textSubtle cursor-not-allowed' : ''
-          }`}
-        >
-          <Send />
-        </Button>
-      )}
-    </form>
+          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard"
+        />
+
+        {isLoading ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onStop?.();
+            }}
+            className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+          >
+            <Stop size={24} />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="icon"
+            variant="ghost"
+            disabled={!displayValue.trim()}
+            className={`absolute right-3 top-2 transition-colors rounded-full hover:cursor w-7 h-7 [&_svg]:size-4 ${
+              !displayValue.trim()
+                ? 'text-textSubtle cursor-not-allowed'
+                : 'bg-bgAppInverse text-white'
+            }`}
+          >
+            <Send />
+          </Button>
+        )}
+      </form>
+
+      <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
+        <div className="gap-1 flex items-center justify-between w-full">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={handleFileSelect}
+            className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+          >
+            <Attach />
+          </Button>
+
+          <BottomMenu setView={setView} numTokens={numTokens} />
+        </div>
+      </div>
+    </div>
   );
 }

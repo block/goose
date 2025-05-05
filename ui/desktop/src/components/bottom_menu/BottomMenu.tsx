@@ -5,25 +5,22 @@ import { AlertType, useAlerts } from '../alerts';
 import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import { ModelRadioList } from '../settings/models/ModelRadioList';
-import { Document, ChevronUp, ChevronDown } from '../icons';
+import { ChevronUp, ChevronDown } from '../icons';
 import type { View, ViewOptions } from '../../App';
 import { settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
 import { getCurrentModelAndProvider } from '../settings_v2/models';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 export default function BottomMenu({
-  hasMessages,
   setView,
   numTokens = 0,
 }: {
-  hasMessages: boolean;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
 }) {
@@ -34,10 +31,6 @@ export default function BottomMenu({
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
-  const [isDirTruncated, setIsDirTruncated] = useState(false);
-  // eslint-disable-next-line no-undef
-  const dirRef = useRef<HTMLSpanElement>(null);
-  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
@@ -142,62 +135,12 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
-  useEffect(() => {
-    const checkTruncation = () => {
-      if (dirRef.current) {
-        setIsDirTruncated(dirRef.current.scrollWidth > dirRef.current.clientWidth);
-      }
-    };
-    checkTruncation();
-    window.addEventListener('resize', checkTruncation);
-    return () => window.removeEventListener('resize', checkTruncation);
-  }, []);
-
-  useEffect(() => {
-    setIsTooltipOpen(false);
-  }, [isDirTruncated]);
-
   return (
-    <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
-      {/* Directory Chooser - Always visible */}
-      <span
-        className="cursor-pointer flex items-center [&>svg]:size-4"
-        onClick={async () => {
-          if (hasMessages) {
-            window.electron.directoryChooser();
-          } else {
-            window.electron.directoryChooser(true);
-          }
-        }}
-      >
-        <Document className="mr-1" />
-        <TooltipProvider>
-          <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
-            <TooltipTrigger asChild>
-              <span
-                ref={dirRef}
-                className="max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 block overflow-hidden text-ellipsis whitespace-nowrap [direction:rtl] text-left"
-              >
-                {window.appConfig.get('GOOSE_WORKING_DIR') as string}
-              </span>
-            </TooltipTrigger>
-            {isDirTruncated && (
-              <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-                {window.appConfig.get('GOOSE_WORKING_DIR') as string}
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-        <ChevronUp className="ml-1" />
-      </span>
-
-      {/* Goose Mode Selector Dropdown */}
-      <BottomMenuModeSelection setView={setView} />
-
-      {/* Right-side section with ToolCount and Model Selector together */}
-      <div className="flex items-center mr-4 space-x-1">
+    <div className="flex justify-between items-center transition-colors text-textSubtle relative text-xs align-middle">
+      <div className="flex items-center pl-2">
         {/* Tool and Token count */}
         {<BottomMenuAlertPopover alerts={alerts} />}
+
         {/* Model Selector Dropdown */}
         {settingsV2Enabled ? (
           <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
@@ -262,13 +205,19 @@ export default function BottomMenu({
                     }}
                   >
                     <span className="text-sm">Tools and Settings</span>
-                    <Sliders className="w-5 h-5 ml-2 rotate-90" />
+                    <Sliders className="w-4 h-4 ml-2 rotate-90" />
                   </div>
                 </div>
               </div>
             )}
           </div>
         )}
+
+        {/* Separator */}
+        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+
+        {/* Goose Mode Selector Dropdown */}
+        <BottomMenuModeSelection setView={setView} />
       </div>
     </div>
   );

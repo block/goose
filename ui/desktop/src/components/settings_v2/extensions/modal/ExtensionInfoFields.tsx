@@ -1,6 +1,5 @@
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
-import React from 'react';
 
 interface ExtensionInfoFieldsProps {
   name: string;
