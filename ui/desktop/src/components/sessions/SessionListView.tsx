@@ -36,7 +36,6 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<{
     count: number;
     currentIndex: number;
@@ -78,30 +77,45 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     };
   }, [filteredSessions.length]);
 
-  // Filter sessions when search term changes
-  useEffect(() => {
-    if (!searchTerm) {
+  // Filter sessions when search term or case sensitivity changes
+  const handleSearch = (term: string, caseSensitive: boolean) => {
+    if (!term) {
       setFilteredSessions(sessions);
       setSearchResults(null);
       return;
     }
 
-    const lowerSearchTerm = searchTerm.toLowerCase();
+    const searchTerm = caseSensitive ? term : term.toLowerCase();
     const filtered = sessions.filter((session) => {
-      const description = (session.metadata.description || session.id).toLowerCase();
-      const path = session.path.toLowerCase();
-      const workingDir = session.metadata.working_dir.toLowerCase();
+      const description = session.metadata.description || session.id;
+      const path = session.path;
+      const workingDir = session.metadata.working_dir;
 
-      return (
-        description.includes(lowerSearchTerm) ||
-        path.includes(lowerSearchTerm) ||
-        workingDir.includes(lowerSearchTerm)
-      );
+      if (caseSensitive) {
+        return (
+          description.includes(searchTerm) ||
+          path.includes(searchTerm) ||
+          workingDir.includes(searchTerm)
+        );
+      } else {
+        return (
+          description.toLowerCase().includes(searchTerm) ||
+          path.toLowerCase().includes(searchTerm) ||
+          workingDir.toLowerCase().includes(searchTerm)
+        );
+      }
     });
 
     setFilteredSessions(filtered);
     setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
-  }, [searchTerm, sessions]);
+
+    // Reset scroll position when search changes
+    const viewportEl = containerRef.current?.closest('[data-radix-scroll-area-viewport]');
+    if (viewportEl) {
+      viewportEl.scrollTop = 0;
+    }
+    setVisibleRange({ start: 0, end: 20 });
+  };
 
   const loadSessions = async () => {
     setIsLoading(true);
@@ -138,18 +152,8 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     const searchContainer =
       containerRef.current?.querySelector<SearchContainerElement>('.search-container');
     if (searchContainer?._searchHighlighter) {
-      // Update the current match in the highlighter (convert to 0-based index)
-      searchContainer._searchHighlighter.setCurrentMatch(newIndex - 1, false);
-    }
-
-    // Calculate the target item's position and scroll to it
-    const targetPosition = (newIndex - 1) * ITEM_HEIGHT;
-    const viewportEl = containerRef.current?.closest('[data-radix-scroll-area-viewport]');
-    if (viewportEl) {
-      viewportEl.scrollTo({
-        top: targetPosition - viewportEl.clientHeight / 2 + ITEM_HEIGHT / 2,
-        behavior: 'smooth',
-      });
+      // Update the current match in the highlighter
+      searchContainer._searchHighlighter.setCurrentMatch(newIndex - 1, true);
     }
   };
 
@@ -225,7 +229,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     }
 
     if (filteredSessions.length === 0) {
-      if (searchTerm) {
+      if (searchResults === null && sessions.length > 0) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-textSubtle mt-4">
             <MessageSquareText className="h-12 w-12 mb-4" />
@@ -262,20 +266,9 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     );
   };
 
-  // Custom search handler to update filtered results
-  const handleSearch = (term: string, _caseSensitive: boolean) => {
-    setSearchTerm(term);
-    // Reset scroll position when search changes
-    const viewportEl = containerRef.current?.closest('[data-radix-scroll-area-viewport]');
-    if (viewportEl) {
-      viewportEl.scrollTop = 0;
-    }
-    setVisibleRange({ start: 0, end: 20 });
-  };
-
   return (
     <div className="h-screen w-full flex flex-col">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <MoreMenuLayout showMenu={false} />
 
       <div className="flex-1 flex flex-col min-h-0">
         <div className="px-8 pt-6 pb-4">
@@ -292,7 +285,6 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
         <div className="flex-1 min-h-0 relative">
           <ScrollArea className="h-full" data-search-scroll-area>
-            <MoreMenuLayout showMenu={false} />
             <div ref={containerRef} className="h-full relative">
               <SearchView
                 onSearch={handleSearch}

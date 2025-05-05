@@ -55,23 +55,37 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   // Create debounced highlight function
   const debouncedHighlight = useCallback(
     (term: string, caseSensitive: boolean, highlighter: SearchHighlighter) => {
-      debounce(
-        (searchTerm: string, isCaseSensitive: boolean, searchHighlighter: SearchHighlighter) => {
-          const highlights = searchHighlighter.highlight(searchTerm, isCaseSensitive);
-          const count = highlights.length;
+      const performHighlight = () => {
+        const highlights = highlighter.highlight(term, caseSensitive);
+        const count = highlights.length;
 
-          if (count > 0) {
-            setInternalSearchResults({
-              currentIndex: 1,
-              count,
-            });
-            searchHighlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
-          } else {
-            setInternalSearchResults(null);
-          }
-        },
-        150
-      )(term, caseSensitive, highlighter);
+        if (count > 0) {
+          setInternalSearchResults({
+            currentIndex: 1,
+            count,
+          });
+          highlighter.setCurrentMatch(0, true);
+        } else {
+          setInternalSearchResults(null);
+        }
+      };
+
+      // If this is a case sensitivity change (same term, different case setting),
+      // execute immediately
+      if (
+        term === lastSearchRef.current.term &&
+        caseSensitive !== lastSearchRef.current.caseSensitive
+      ) {
+        performHighlight();
+        return;
+      }
+
+      // Create a debounced version of performHighlight
+      const debouncedFn = debounce(performHighlight, 150);
+      debouncedFn();
+
+      // Store the debounced function for potential cancellation
+      return debouncedFn;
     },
     []
   );
@@ -85,30 +99,38 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   const handleSearch = useCallback(
     (term: string, caseSensitive: boolean) => {
       // Store the latest search parameters
+      const isCaseChange =
+        term === lastSearchRef.current.term &&
+        caseSensitive !== lastSearchRef.current.caseSensitive;
+
       lastSearchRef.current = { term, caseSensitive };
-
-      // Always clear internal results first
-      setInternalSearchResults(null);
-
-      // Always clear highlights first
-      if (highlighterRef.current) {
-        highlighterRef.current.clearHighlights();
-        highlighterRef.current.destroy();
-        highlighterRef.current = null;
-      }
 
       // Call the onSearch callback if provided
       onSearch?.(term, caseSensitive);
 
-      // If empty, we're done
+      // If empty, clear everything and return
       if (!term) {
-        // Ensure we clear any external search results
-        onSearch?.('', caseSensitive);
+        setInternalSearchResults(null);
+        if (highlighterRef.current) {
+          highlighterRef.current.clearHighlights();
+        }
         return;
       }
 
       const container = containerRef.current;
       if (!container) return;
+
+      // For case sensitivity changes, reuse existing highlighter
+      if (isCaseChange && highlighterRef.current) {
+        debouncedHighlight(term, caseSensitive, highlighterRef.current);
+        return;
+      }
+
+      // Otherwise create new highlighter
+      if (highlighterRef.current) {
+        highlighterRef.current.clearHighlights();
+        highlighterRef.current.destroy();
+      }
 
       highlighterRef.current = new SearchHighlighter(container, (count) => {
         // Only update if this is still the latest search
@@ -127,7 +149,6 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
         }
       });
 
-      // Debounce the highlight operation
       debouncedHighlight(term, caseSensitive, highlighterRef.current);
     },
     [debouncedHighlight, onSearch]
