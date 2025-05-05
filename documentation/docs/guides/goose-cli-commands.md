@@ -310,4 +310,4 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
-- **Up/Down arrows** - Navigate through command history
+- **`Cmd+Up/Down arrows`** - Navigate through command history
