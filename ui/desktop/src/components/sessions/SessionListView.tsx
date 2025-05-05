@@ -15,6 +15,7 @@ import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
+import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -35,8 +36,8 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetchSessions();
-      setSessions(response.sessions);
+      const sessions = await fetchSessions();
+      setSessions(sessions);
     } catch (err) {
       console.error('Failed to load sessions:', err);
       setError('Failed to load sessions. Please try again later.');
@@ -48,7 +49,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <MoreMenuLayout showMenu={false} />
 
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">

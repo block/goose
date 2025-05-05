@@ -504,7 +504,7 @@ pub async fn cli() -> Result<()> {
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,
-                        additional_system_prompt: Some(recipe.instructions),
+                        additional_system_prompt: recipe.instructions,
                     }
                 }
                 (None, None, None) => {

@@ -1,3 +1,6 @@
 mod completion;
 mod prompt_template;
-pub use completion::{completion, CompletionResponse, Extension};
+mod types;
+
+pub use completion::completion;
+pub use types::{CompletionResponse, Extension, RuntimeMetrics};

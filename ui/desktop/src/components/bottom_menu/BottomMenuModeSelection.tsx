@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { getApiUrl, getSecretKey } from '../../config';
-import { ChevronDown, ChevronUp } from '../icons';
 import { all_goose_modes, ModeSelectionItem } from '../settings_v2/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
-import { View, ViewOptions } from '../App';
+import { View, ViewOptions } from '../../App';
+import { Orbit } from 'lucide-react';
 
 interface BottomMenuModeSelectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -119,23 +119,25 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
 
   return (
     <div className="relative flex items-center" ref={gooseModeDropdownRef}>
-      <div
-        className="flex items-center cursor-pointer"
+      <button
+        className="flex items-center justify-center text-textSubtle hover:text-textStandard h-6 [&_svg]:size-4"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
-        <span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px]">
-          Goose Mode: {getValueByKey(gooseMode)}
-        </span>
-        {isGooseModeMenuOpen ? (
-          <ChevronDown className="w-4 h-4 ml-1" />
-        ) : (
-          <ChevronUp className="w-4 h-4 ml-1" />
-        )}
-      </div>
+        <span className="pr-1.5">{getValueByKey(gooseMode).toLowerCase()}</span>
+        <Orbit />
+        {/*<span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px]">*/}
+        {/*  Goose Mode: {getValueByKey(gooseMode)}*/}
+        {/*</span>*/}
+        {/*{isGooseModeMenuOpen ? (*/}
+        {/*  <ChevronDown className="w-4 h-4 ml-1" />*/}
+        {/*) : (*/}
+        {/*  <ChevronUp className="w-4 h-4 ml-1" />*/}
+        {/*)}*/}
+      </button>
 
       {/* Dropdown Menu */}
       {isGooseModeMenuOpen && (
-        <div className="absolute bottom-[24px] pl-4 pt-2 right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
+        <div className="absolute bottom-[24px] right-0 w-[240px] py-2 bg-bgApp rounded-lg border border-borderSubtle">
           <div>
             {all_goose_modes.map((mode) => (
               <ModeSelectionItem

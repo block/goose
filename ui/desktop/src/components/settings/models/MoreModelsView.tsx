@@ -6,6 +6,7 @@ import { SearchBar } from './Search';
 import { AddModelInline } from './AddModelInline';
 import { ScrollArea } from '../../ui/scroll-area';
 import type { View } from '../../../App';
+import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 export default function MoreModelsView({
   onClose,
@@ -16,7 +17,7 @@ export default function MoreModelsView({
 }) {
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <MoreMenuLayout showMenu={false} />
 
       <ScrollArea className="h-full w-full">
         <div className="px-8 pt-6 pb-4">

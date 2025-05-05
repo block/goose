@@ -452,6 +452,82 @@
           }
         ]
       }
+    },
+    "/sessions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "description": "List of available sessions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_history",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionHistoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1371,6 +1447,129 @@
           "user",
           "assistant"
         ]
+      },
+      "SessionHistoryResponse": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "metadata",
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "List of messages in the session conversation"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/SessionMetadata"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "Unique identifier for the session"
+          }
+        }
+      },
+      "SessionInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "modified",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/SessionMetadata"
+          },
+          "modified": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionListResponse": {
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionInfo"
+            },
+            "description": "List of available session information objects"
+          }
+        }
+      },
+      "SessionMetadata": {
+        "type": "object",
+        "description": "Metadata for a session, stored as the first line in the session file",
+        "required": [
+          "working_dir",
+          "description",
+          "message_count"
+        ],
+        "properties": {
+          "accumulated_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of input tokens used in the session. Accumulated across all messages.",
+            "nullable": true
+          },
+          "accumulated_output_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of output tokens used in the session. Accumulated across all messages.",
+            "nullable": true
+          },
+          "accumulated_total_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "A short description of the session, typically 3 words or less"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of input tokens used in the session. Retrieved from the provider's last usage.",
+            "nullable": true
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Number of messages in the session",
+            "minimum": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
+            "nullable": true
+          },
+          "total_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The total number of tokens used in the session. Retrieved from the provider's last usage.",
+            "nullable": true
+          },
+          "working_dir": {
+            "type": "string",
+            "description": "Working directory for the session",
+            "example": "/home/user/sessions/session1"
+          }
+        }
       },
       "TextContent": {
         "type": "object",
