@@ -107,7 +107,7 @@ The PostgreSQL extension is now ready to use. What would you like to do with it?
 </TabItem>
 <TabItem value="cli" label="Goose CLI">
 
-### Goose Prompt
+#### Goose Prompt
 
 ```sh
 Use the PostgreSQL extension
