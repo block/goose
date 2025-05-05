@@ -1116,25 +1116,18 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
     let key_name = "GOOSE_RECIPE_GITHUB_REPO";
     let config = Config::global();
-    let mut default_recipe_repo = None;
-    match std::env::var(key_name) {
-        Ok(recipe_repo) => {
-            default_recipe_repo = Some(recipe_repo);
-        }
-        _ => {
-            if let Ok(Some(recipe_repo)) = config.get_param(key_name) {
-                default_recipe_repo = Some(recipe_repo);
-            }
-        }
-    }
+    let default_recipe_repo = std::env::var(key_name)
+        .ok()
+        .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter the Goose Recipe Github Repo in the format of owner/repo: eg squareup/goose-recipes",
+        "Enter the Goose Recipe Github repo (owner/repo): eg: squareup/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {
         recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
     }
     let input_value: String = recipe_repo_input.interact()?;
+    // if input is blank, it clears the recipe github repo settings in the config file
     if input_value.clone().trim().is_empty() {
         config.delete(key_name)?;
     } else {

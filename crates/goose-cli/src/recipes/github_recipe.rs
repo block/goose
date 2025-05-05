@@ -4,8 +4,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-// const GOOSE_RECIPE_REPO_FULL_NAME: &str = "squareup/goose-recipes";
-
 pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
@@ -69,20 +67,19 @@ fn ensure_gh_authenticated() -> Result<()> {
         .expect("failed to run `gh auth status`");
 
     if status.success() {
-        Ok(())
-    } else {
-        println!("GitHub CLI is not authenticated. Launching `gh auth login`...");
-        // Run `gh auth login` interactively
-        let login_status = Command::new("gh")
-            .args(["auth", "login"])
-            .status()
-            .expect("failed to run `gh auth login`");
+        return Ok(());
+    }
+    println!("GitHub CLI is not authenticated. Launching `gh auth login`...");
+    // Run `gh auth login` interactively
+    let login_status = Command::new("gh")
+        .args(["auth", "login"])
+        .status()
+        .expect("failed to run `gh auth login`");
 
-        if !login_status.success() {
-            Err(anyhow::anyhow!("Failed to authenticate using GitHub CLI."))
-        } else {
-            Ok(())
-        }
+    if !login_status.success() {
+        Err(anyhow::anyhow!("Failed to authenticate using GitHub CLI."))
+    } else {
+        Ok(())
     }
 }
 

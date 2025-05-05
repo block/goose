@@ -17,16 +17,13 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
     if let Ok(content) = read_recipe_in_dir(&current_dir, recipe_name) {
         return Ok(content);
     }
-    match read_recipe_in_dir(&current_dir, recipe_name) {
-        Ok(content) => Ok(content),
-        Err(e) => {
-            if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
-                retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
-            } else {
-                Err(e)
-            }
+    read_recipe_in_dir(&current_dir, recipe_name).or_else(|e| {
+        if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
+            retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
+        } else {
+            Err(e)
         }
-    }
+    })
 }
 
 fn configured_github_recipe_repo() -> Option<String> {
