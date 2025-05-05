@@ -17,6 +17,8 @@ import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 
 interface GooseMessageProps {
+  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
+  // anything before this index should not render any buttons, but anything after should
   messageHistoryIndex: number;
   message: Message;
   messages: Message[];

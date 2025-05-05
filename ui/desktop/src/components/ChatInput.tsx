@@ -5,19 +5,20 @@ import Stop from './ui/Stop';
 import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
 
-interface InputProps {
+interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
-  commandHistory?: string[];
+  commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
 }
 
-export default function Input({
+export default function ChatInput({
   handleSubmit,
   isLoading = false,
   onStop,
@@ -26,23 +27,25 @@ export default function Input({
   setView,
   numTokens,
   droppedFiles = [],
-}: InputProps) {
+}: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
 
   // Update internal value when initialValue changes
   useEffect(() => {
-    if (initialValue) {
-      setValue(initialValue);
-      setDisplayValue(initialValue);
-    }
+    setValue(initialValue);
+    setDisplayValue(initialValue);
+    // Reset history index when input is cleared
+    setHistoryIndex(-1);
+    setIsInGlobalHistory(false);
   }, [initialValue]);
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
+  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
@@ -56,17 +59,20 @@ export default function Input({
   const maxHeight = 10 * 24;
 
   // If we have dropped files, add them to the input and update our state.
-  if (processedFilePaths !== droppedFiles) {
-    // Append file paths that aren't in displayValue.
-    let joinedPaths =
-      displayValue.trim() +
-      ' ' +
-      droppedFiles.filter((path) => !displayValue.includes(path)).join(' ');
-    setDisplayValue(joinedPaths);
-    setValue(joinedPaths);
-    textAreaRef.current?.focus();
-    setProcessedFilePaths(droppedFiles);
-  }
+  useEffect(() => {
+    if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
+      // Append file paths that aren't in displayValue.
+      const currentText = displayValue || '';
+      const joinedPaths = currentText.trim()
+        ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
+        : droppedFiles.join(' ');
+
+      setDisplayValue(joinedPaths);
+      setValue(joinedPaths);
+      textAreaRef.current?.focus();
+      setProcessedFilePaths(droppedFiles);
+    }
+  }, [droppedFiles, processedFilePaths, displayValue]);
 
   // Debounced function to update actual value
   const debouncedSetValue = useCallback((val: string) => {
@@ -117,49 +123,77 @@ export default function Input({
   };
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    evt.preventDefault();
+    const isUp = evt.key === 'ArrowUp';
+    const isDown = evt.key === 'ArrowDown';
 
-    // Save current input if we're just starting to navigate history
-    if (historyIndex === -1) {
-      setSavedInput(displayValue);
-    }
-
-    // Calculate new history index
-    let newIndex = historyIndex;
-    if (evt.key === 'ArrowUp') {
-      // Move backwards through history
-      if (historyIndex < commandHistory.length - 1) {
-        newIndex = historyIndex + 1;
-      }
-    } else {
-      // Move forwards through history
-      if (historyIndex > -1) {
-        newIndex = historyIndex - 1;
-      }
-    }
-
-    if (newIndex === historyIndex) {
+    // Only handle up/down keys with Cmd/Ctrl modifier
+    if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
       return;
     }
 
-    // Update index and value
-    setHistoryIndex(newIndex);
-    if (newIndex === -1) {
-      // Restore saved input when going past the end of history
-      setDisplayValue(savedInput);
-      setValue(savedInput);
+    evt.preventDefault();
+
+    // Get global history once to avoid multiple calls
+    const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+
+    // Save current input if we're just starting to navigate history
+    if (historyIndex === -1) {
+      setSavedInput(displayValue || '');
+      setIsInGlobalHistory(commandHistory.length === 0);
+    }
+
+    // Determine which history we're using
+    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
+    let newIndex = historyIndex;
+    let newValue = '';
+
+    // Handle navigation
+    if (isUp) {
+      // Moving up through history
+      if (newIndex < currentHistory.length - 1) {
+        // Still have items in current history
+        newIndex = historyIndex + 1;
+        newValue = currentHistory[newIndex];
+      } else if (!isInGlobalHistory && globalHistory.length > 0) {
+        // Switch to global history
+        setIsInGlobalHistory(true);
+        newIndex = 0;
+        newValue = globalHistory[newIndex];
+      }
     } else {
-      setDisplayValue(commandHistory[newIndex] || '');
-      setValue(commandHistory[newIndex] || '');
+      // Moving down through history
+      if (newIndex > 0) {
+        // Still have items in current history
+        newIndex = historyIndex - 1;
+        newValue = currentHistory[newIndex];
+      } else if (isInGlobalHistory && commandHistory.length > 0) {
+        // Switch to chat history
+        setIsInGlobalHistory(false);
+        newIndex = commandHistory.length - 1;
+        newValue = commandHistory[newIndex];
+      } else {
+        // Return to original input
+        newIndex = -1;
+        newValue = savedInput;
+      }
+    }
+
+    // Update display if we have a new value
+    if (newIndex !== historyIndex) {
+      setHistoryIndex(newIndex);
+      if (newIndex === -1) {
+        setDisplayValue(savedInput || '');
+        setValue(savedInput || '');
+      } else {
+        setDisplayValue(newValue || '');
+        setValue(newValue || '');
+      }
     }
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle command history navigation
-    if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
-      handleHistoryNavigation(evt);
-      return;
-    }
+    // Handle history navigation first
+    handleHistoryNavigation(evt);
 
     if (evt.key === 'Enter') {
       // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
@@ -180,11 +214,15 @@ export default function Input({
 
       // Only submit if not loading and has content
       if (!isLoading && displayValue.trim()) {
+        // Always add to global chat storage before submitting
+        LocalMessageStorage.addMessage(displayValue);
+
         handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
         setDisplayValue('');
         setValue('');
         setHistoryIndex(-1);
         setSavedInput('');
+        setIsInGlobalHistory(false);
       }
     }
   };
@@ -192,11 +230,15 @@ export default function Input({
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (displayValue.trim() && !isLoading) {
+      // Always add to global chat storage before submitting
+      LocalMessageStorage.addMessage(displayValue);
+
       handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
       setDisplayValue('');
       setValue('');
       setHistoryIndex(-1);
       setSavedInput('');
+      setIsInGlobalHistory(false);
     }
   };
 
@@ -239,7 +281,7 @@ export default function Input({
             maxHeight: `${maxHeight}px`,
             overflowY: 'auto',
           }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard"
+          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder placeholder:opacity-50"
         />
 
         {isLoading ? (
