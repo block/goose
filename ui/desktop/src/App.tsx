@@ -425,7 +425,8 @@ export default function App() {
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
+      const isMac = window.electron.platform === 'darwin';
+      if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
           const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');

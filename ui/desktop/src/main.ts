@@ -805,6 +805,59 @@ app.whenReady().then(async () => {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
+  // Add Find submenu to Edit menu
+  const editMenu = menu?.items.find((item) => item.label === 'Edit');
+  if (editMenu?.submenu) {
+    // Find the index of Select All to insert after it
+    const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
+
+    // Create Find submenu
+    const findSubmenu = Menu.buildFromTemplate([
+      {
+        label: 'Find…',
+        accelerator: process.platform === 'darwin' ? 'Command+F' : 'Control+F',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-command');
+        },
+      },
+      {
+        label: 'Find Next',
+        accelerator: process.platform === 'darwin' ? 'Command+G' : 'Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-next');
+        },
+      },
+      {
+        label: 'Find Previous',
+        accelerator: process.platform === 'darwin' ? 'Shift+Command+G' : 'Shift+Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-previous');
+        },
+      },
+      {
+        label: 'Use Selection for Find',
+        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
+        },
+        visible: process.platform === 'darwin', // Only show on Mac
+      },
+    ]);
+
+    // Add Find submenu to Edit menu
+    editMenu.submenu.insert(
+      selectAllIndex + 1,
+      new MenuItem({
+        label: 'Find',
+        submenu: findSubmenu,
+      })
+    );
+  }
+
   // Add Environment menu items to View menu
   const viewMenu = menu?.items.find((item) => item.label === 'View');
   if (viewMenu?.submenu) {
@@ -826,8 +879,20 @@ app.whenReady().then(async () => {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    // open goose to specific dir and set that as its working space
-    fileMenu.submenu.append(
+    fileMenu.submenu.insert(
+      0,
+      new MenuItem({
+        label: 'New Chat Window',
+        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
+        click() {
+          ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    // Open goose to specific dir and set that as its working space
+    fileMenu.submenu.insert(
+      1,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -838,8 +903,8 @@ app.whenReady().then(async () => {
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      fileMenu.submenu.append(
+      fileMenu.submenu.insert(
+        2,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -847,19 +912,12 @@ app.whenReady().then(async () => {
       );
     }
 
-    // Add menu items to File menu
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'New Chat Window',
-        accelerator: 'CmdOrCtrl+N',
-        click() {
-          ipcMain.emit('create-chat-window');
-        },
-      })
-    );
+    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
 
-    // Add menu item for hotkey
-    fileMenu?.submenu.append(
+    // The Close Window item is here.
+
+    // Add menu item to tell the user about the keyboard shortcut
+    fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
         accelerator: 'CmdOrCtrl+Alt+Shift+G',
@@ -977,12 +1035,12 @@ app.whenReady().then(async () => {
 
 /**
  * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
- * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink 
- * doesn't match a command from the list. 
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink
+ * doesn't match a command from the list.
  * If it fails to load, then it will return an empty list.
  * If the format is incorrect, it will return an empty list.
  * Format of yaml is:
- *  
+ *
  ```yaml:
  extensions:
   - id: slack
@@ -990,7 +1048,7 @@ app.whenReady().then(async () => {
   - id: knowledge_graph_memory
     command: npx -y @modelcontextprotocol/server-memory
   ```
- * 
+ *
  * @returns A promise that resolves to an array of extension commands that are allowed.
  */
 async function getAllowList(): Promise<string[]> {
