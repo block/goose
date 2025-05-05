@@ -16,6 +16,11 @@ import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
+import { SearchHighlighter } from '../../utils/searchHighlighter';
+
+interface SearchContainerElement extends HTMLDivElement {
+  _searchHighlighter: SearchHighlighter | null;
+}
 
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -127,6 +132,14 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     }
 
     setSearchResults({ ...searchResults, currentIndex: newIndex });
+
+    // Find the SearchView's container element
+    const searchContainer =
+      containerRef.current?.querySelector<SearchContainerElement>('.search-container');
+    if (searchContainer?._searchHighlighter) {
+      // Update the current match in the highlighter (convert to 0-based index)
+      searchContainer._searchHighlighter.setCurrentMatch(newIndex - 1, false);
+    }
 
     // Calculate the target item's position and scroll to it
     const targetPosition = (newIndex - 1) * ITEM_HEIGHT;

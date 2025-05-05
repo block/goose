@@ -21,6 +21,10 @@ interface SearchViewProps {
   } | null;
 }
 
+interface SearchContainerElement extends HTMLDivElement {
+  _searchHighlighter: SearchHighlighter | null;
+}
+
 /**
  * SearchView wraps content in a searchable container with a search bar that appears
  * when Cmd/Ctrl+F is pressed. Supports case-sensitive search and result navigation.
@@ -40,7 +44,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   } | null>(null);
 
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const containerRef = React.useRef<SearchContainerElement | null>(null);
   const lastSearchRef = React.useRef<{ term: string; caseSensitive: boolean }>({
     term: '',
     caseSensitive: false,
@@ -203,7 +207,16 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   };
 
   return (
-    <div ref={containerRef} className={`search-container ${className}`}>
+    <div
+      ref={(el) => {
+        if (el) {
+          containerRef.current = el;
+          // Expose the highlighter instance
+          containerRef.current._searchHighlighter = highlighterRef.current;
+        }
+      }}
+      className={`search-container ${className}`}
+    >
       {isSearchVisible && (
         <SearchBar
           onSearch={handleSearch}
