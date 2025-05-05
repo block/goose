@@ -1122,7 +1122,7 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter your Goose Recipe Github repo (owner/repo): eg: squareup/goose-recipes",
+        "Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {
