@@ -18,6 +18,10 @@ interface SearchBarProps {
     count: number;
     currentIndex: number;
   };
+  /** Optional ref for the search input element */
+  inputRef?: React.RefObject<HTMLInputElement>;
+  /** Initial search term */
+  initialSearchTerm?: string;
 }
 
 /**
@@ -35,12 +39,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onClose,
   onNavigate,
   searchResults,
+  inputRef: externalInputRef,
+  initialSearchTerm = '',
 }: SearchBarProps) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [displayTerm, setDisplayTerm] = useState(''); // For immediate visual feedback
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [displayTerm, setDisplayTerm] = useState(initialSearchTerm); // For immediate visual feedback
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef || internalInputRef;
   const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
 
   // Create debounced search function
@@ -59,7 +66,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [inputRef]);
+
+  // Handle changes to initialSearchTerm
+  useEffect(() => {
+    if (initialSearchTerm) {
+      setSearchTerm(initialSearchTerm);
+      setDisplayTerm(initialSearchTerm);
+      debouncedSearchRef.current?.(initialSearchTerm, caseSensitive);
+    }
+  }, [initialSearchTerm, caseSensitive, debouncedSearchRef]);
 
   const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(null);
 
@@ -106,7 +122,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     setLocalSearchResults(null);
     onSearch('', caseSensitive);
     inputRef.current?.focus();
-  }, [caseSensitive, onSearch]);
+  }, [caseSensitive, inputRef, onSearch]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowUp') {

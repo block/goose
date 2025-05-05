@@ -121,6 +121,9 @@ export interface UseMessageStreamHelpers {
 
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
+
+  /** Modify body (session id and/or work dir mid-stream) **/
+  updateMessageStreamBody?: (newBody: object) => void;
 }
 
 /**
@@ -147,6 +150,14 @@ export function useMessageStream({
   const { data: messages, mutate } = useSWR<Message[]>([chatKey, 'messages'], null, {
     fallbackData: initialMessages,
   });
+
+  // expose a way to update the body so we can update the session id when CLE occurs
+  const updateMessageStreamBody = useCallback((newBody: object) => {
+    extraMetadataRef.current.body = {
+      ...extraMetadataRef.current.body,
+      ...newBody,
+    };
+  }, []);
 
   // Keep the latest messages in a ref
   const messagesRef = useRef<Message[]>(messages || []);
@@ -505,5 +516,6 @@ export function useMessageStream({
     handleSubmit,
     isLoading: isLoading || false,
     addToolResult,
+    updateMessageStreamBody,
   };
 }

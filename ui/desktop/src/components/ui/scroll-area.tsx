@@ -97,12 +97,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         data-scrolled={isScrolled}
         {...props}
       >
-        <div
-          className={cn(
-            'absolute top-0 left-0 right-0 z-10 transition-all duration-200',
-            isScrolled ? 'border-t border-borderSubtle' : 'border-t border-transparent'
-          )}
-        />
+        <div className={cn('absolute top-0 left-0 right-0 z-10 transition-all duration-200')} />
         <ScrollAreaPrimitive.Viewport
           ref={viewportRef}
           className="h-full w-full rounded-[inherit] [&>div]:!block"

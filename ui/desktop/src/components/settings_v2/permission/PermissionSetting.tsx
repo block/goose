@@ -4,6 +4,7 @@ import BackButton from '../../ui/BackButton';
 import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
+import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,7 +77,7 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
 
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <MoreMenuLayout showMenu={false} />
 
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">

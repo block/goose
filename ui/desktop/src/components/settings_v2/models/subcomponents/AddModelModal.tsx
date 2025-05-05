@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ArrowLeftRight, ExternalLink } from 'lucide-react';
 
 import Modal from '../../../Modal';

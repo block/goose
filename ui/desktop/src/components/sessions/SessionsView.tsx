@@ -47,6 +47,8 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleResumeSession = () => {
     if (selectedSession) {
+      console.log('Selected session object:', JSON.stringify(selectedSession, null, 2));
+
       // Get the working directory from the session metadata
       const workingDir = selectedSession.metadata.working_dir;
 

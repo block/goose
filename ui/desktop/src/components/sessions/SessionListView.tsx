@@ -15,6 +15,7 @@ import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
+import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 
@@ -106,9 +107,9 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetchSessions();
-      setSessions(response.sessions);
-      setFilteredSessions(response.sessions);
+      const sessions = await fetchSessions();
+      setSessions(sessions);
+      setFilteredSessions(sessions);
     } catch (err) {
       console.error('Failed to load sessions:', err);
       setError('Failed to load sessions. Please try again later.');
@@ -291,6 +292,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
         <div className="flex-1 min-h-0 relative">
           <ScrollArea className="h-full" data-search-scroll-area>
+            <MoreMenuLayout showMenu={false} />
             <div ref={containerRef} className="h-full relative">
               <SearchView
                 onSearch={handleSearch}

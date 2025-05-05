@@ -12,17 +12,17 @@ export interface GooseMode {
 export const all_goose_modes: GooseMode[] = [
   {
     key: 'auto',
-    label: 'Completely autonomous',
+    label: 'Autonomous',
     description: 'Full file modification capabilities, edit, create, and delete files freely.',
   },
   {
     key: 'approve',
-    label: 'Manual approval',
+    label: 'Manual',
     description: 'All tools, extensions and file modifications will require human approval',
   },
   {
     key: 'smart_approve',
-    label: 'Smart approval',
+    label: 'Smart',
     description: 'Intelligently determine which actions need approval based on risk level ',
   },
   {
@@ -61,21 +61,19 @@ export function ModeSelectionItem({
   return (
     <div className="group hover:cursor-pointer">
       <div
-        className="flex items-center justify-between text-textStandard mb-4"
+        className="flex items-center justify-between text-textStandard py-2 px-4 hover:bg-bgSubtle"
         onClick={() => handleModeChange(mode.key)}
       >
         <div className="flex">
           <div>
-            <h3 className="text-textStandard dark:text-gray-200">{mode.label}</h3>
+            <h3 className="text-textStandard">{mode.label}</h3>
             {showDescription && (
-              <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
-                {mode.description}
-              </p>
+              <p className="text-xs text-textSubtle mt-[2px]">{mode.description}</p>
             )}
           </div>
         </div>
 
-        <div className="relative flex items-center gap-3 mr-4">
+        <div className="relative flex items-center gap-2">
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
@@ -84,7 +82,7 @@ export function ModeSelectionItem({
                 });
               }}
             >
-              <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
+              <Gear className="w-4 h-4 text-textSubtle hover:text-textStandard" />
             </button>
           )}
           <input
