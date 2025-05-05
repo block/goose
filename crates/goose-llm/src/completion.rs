@@ -61,7 +61,7 @@ fn construct_system_prompt(system_preamble: &str, extensions: &[Extension]) -> S
     );
     context.insert("extensions", serde_json::to_value(extensions).unwrap());
 
-    let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let current_date_time = Utc::now().format("%Y-%m-%d").to_string();
     context.insert("current_date_time", Value::String(current_date_time));
 
     prompt_template::render_global_file("system.md", &context).expect("Prompt should render")
