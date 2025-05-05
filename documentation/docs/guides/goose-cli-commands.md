@@ -149,9 +149,6 @@ Remove one or more saved sessions.
 **Options:**
 - **`-i, --id <id>`**: Remove a specific session by its ID
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
-  - `"project-.*"` matches any session starting with "project-"
-  - `".*migration.*"` matches any session containing "migration"
-  - `"20250305.*"` matches any session from March 5th, 2025
 
 **Usage:**
 
