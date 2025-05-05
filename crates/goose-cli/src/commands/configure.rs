@@ -21,6 +21,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
+use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
+
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
@@ -1114,13 +1116,13 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
-    let key_name = "GOOSE_RECIPE_GITHUB_REPO";
+    let key_name = GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
     let config = Config::global();
     let default_recipe_repo = std::env::var(key_name)
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter the Goose Recipe Github repo (owner/repo): eg: squareup/goose-recipes",
+        "Enter your Goose Recipe Github repo (owner/repo): eg: squareup/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {

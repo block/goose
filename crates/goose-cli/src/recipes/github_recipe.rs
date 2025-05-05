@@ -4,6 +4,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
+pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
@@ -64,7 +65,9 @@ fn ensure_gh_authenticated() -> Result<()> {
     let status = Command::new("gh")
         .args(["auth", "status"])
         .status()
-        .expect("failed to run `gh auth status`");
+        .map_err(|_| {
+            anyhow::anyhow!("Failed to run `gh auth status`. Make sure you have `gh` installed.")
+        })?;
 
     if status.success() {
         return Ok(());
@@ -74,7 +77,7 @@ fn ensure_gh_authenticated() -> Result<()> {
     let login_status = Command::new("gh")
         .args(["auth", "login"])
         .status()
-        .expect("failed to run `gh auth login`");
+        .map_err(|_| anyhow::anyhow!("Failed to run `gh auth login`"))?;
 
     if !login_status.success() {
         Err(anyhow::anyhow!("Failed to authenticate using GitHub CLI."))

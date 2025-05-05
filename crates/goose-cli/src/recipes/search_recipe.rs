@@ -3,7 +3,7 @@ use goose::config::Config;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::github_recipe::retrieve_recipe_from_github;
+use super::github_recipe::{retrieve_recipe_from_github, GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY};
 
 pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
     // If recipe_name ends with yaml or json, treat it as a direct path
@@ -28,7 +28,7 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<String> {
 
 fn configured_github_recipe_repo() -> Option<String> {
     let config = Config::global();
-    match config.get_param("GOOSE_RECIPE_GITHUB_REPO") {
+    match config.get_param(GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY) {
         Ok(Some(recipe_repo_full_name)) => Some(recipe_repo_full_name),
         _ => None,
     }
