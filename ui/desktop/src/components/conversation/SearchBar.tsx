@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback, KeyboardEvent } from 'react';
-import { Search as SearchIcon, XCircle } from 'lucide-react';
+import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
+import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import { debounce } from 'lodash';
 
@@ -26,13 +26,6 @@ interface SearchBarProps {
 
 /**
  * SearchBar provides a search input with case-sensitive toggle and result navigation.
- * Features:
- * - Case-sensitive search toggle
- * - Result count display
- * - Navigation between results with arrows
- * - Keyboard shortcuts (↑/↓/Enter for navigation, Esc to close)
- * - Smooth animations for enter/exit
- * - Debounced search for better performance
  */
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
@@ -43,7 +36,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   initialSearchTerm = '',
 }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
-  const [displayTerm, setDisplayTerm] = useState(initialSearchTerm); // For immediate visual feedback
+  const [displayTerm, setDisplayTerm] = useState(initialSearchTerm);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
@@ -53,7 +46,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   // Create debounced search function
   useEffect(() => {
     const debouncedFn = debounce((term: string, caseSensitive: boolean) => {
-      console.log('Debounced search executing:', { term, caseSensitive });
       onSearch(term, caseSensitive);
     }, 200);
 
@@ -73,7 +65,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     if (initialSearchTerm) {
       setSearchTerm(initialSearchTerm);
       setDisplayTerm(initialSearchTerm);
-      debouncedSearchRef.current?.(initialSearchTerm, caseSensitive);
+      if (initialSearchTerm.length >= 2) {
+        debouncedSearchRef.current?.(initialSearchTerm, caseSensitive);
+      }
     }
   }, [initialSearchTerm, caseSensitive, debouncedSearchRef]);
 
@@ -97,32 +91,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       debouncedSearchRef.current.cancel();
     }
 
-    // If clearing or empty, handle immediately
-    if (!value || !value.trim()) {
-      console.log('Clearing search - empty value');
-      setDisplayTerm('');
-      setSearchTerm('');
-      setLocalSearchResults(null);
-      onSearch('', caseSensitive);
-      return;
-    }
-
+    // Update display term immediately for UI feedback
     setDisplayTerm(value);
     setSearchTerm(value);
-    debouncedSearchRef.current?.(value, caseSensitive);
-  };
 
-  const clearSearch = useCallback(() => {
-    console.log('Clearing search - clear button');
-    if (debouncedSearchRef.current) {
-      debouncedSearchRef.current.cancel();
+    // Only trigger search if we have 2 or more characters
+    if (value.length >= 2) {
+      debouncedSearchRef.current?.(value, caseSensitive);
+    } else {
+      // Clear results if less than 2 characters
+      onSearch('', caseSensitive);
     }
-    setDisplayTerm('');
-    setSearchTerm('');
-    setLocalSearchResults(null);
-    onSearch('', caseSensitive);
-    inputRef.current?.focus();
-  }, [caseSensitive, inputRef, onSearch]);
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowUp') {
@@ -161,6 +141,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }, 150); // Match animation duration
   };
 
+  const hasResults = searchResults && searchResults.count > 0;
+
   return (
     <div
       className={`sticky top-0 bg-bgAppInverse text-textProminentInverse z-50 ${
@@ -187,15 +169,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
           <div className="absolute right-3 flex h-full items-center justify-end">
             <div className="flex items-center gap-1">
-              {displayTerm && (
-                <button
-                  onClick={clearSearch}
-                  className="flex items-center text-textSubtleInverse hover:text-textStandardInverse"
-                  title="Clear search"
-                >
-                  <XCircle className="h-4 w-4 mt-[2px]" />
-                </button>
-              )}
               <div className="w-16 text-right text-sm text-textStandardInverse flex items-center justify-end">
                 {(() => {
                   return localSearchResults?.count > 0 && displayTerm
@@ -210,53 +183,43 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         <div className="flex items-center justify-center h-auto px-4 gap-2">
           <button
             onClick={toggleCaseSensitive}
-            className={`flex items-center justify-center case-sensitive-btn px-2 ${
+            className={`flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 ${
               caseSensitive
-                ? 'text-textStandardInverse bg-bgHover'
-                : 'text-textSubtleInverse hover:text-textStandardInverse'
+                ? 'bg-white/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]'
+                : 'text-textSubtleInverse hover:text-textStandardInverse hover:bg-white/5'
             }`}
             title="Case Sensitive"
           >
-            <span className="text-md font-medium">Aa</span>
+            <span className="text-md font-normal">Aa</span>
           </button>
 
-          <button
-            onClick={(e) => {
-              if (searchResults && searchResults.count > 0) {
-                handleNavigate('prev', e);
-              }
-            }}
-            className={`p-1 ${
-              !searchResults || searchResults.count === 0
-                ? 'text-textSubtleInverse/50 cursor-not-allowed'
-                : 'text-textSubtleInverse hover:text-textStandardInverse cursor-pointer'
-            }`}
-            title="Previous (↑)"
-          >
-            <ArrowUp className="h-5 w-5" />
-          </button>
-          <button
-            onClick={(e) => {
-              if (searchResults && searchResults.count > 0) {
-                handleNavigate('next', e);
-              }
-            }}
-            className={`p-1 ${
-              !searchResults || searchResults.count === 0
-                ? 'text-textSubtleInverse/50 cursor-not-allowed'
-                : 'text-textSubtleInverse hover:text-textStandardInverse cursor-pointer'
-            }`}
-            title="Next (↓ or Enter)"
-          >
-            <ArrowDown className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={(e) => handleNavigate('prev', e)} className="p-1" title="Previous (↑)">
+              <ArrowUp
+                className={`h-5 w-5 transition-opacity ${
+                  !hasResults
+                    ? 'opacity-30'
+                    : 'text-textSubtleInverse hover:text-textStandardInverse'
+                }`}
+              />
+            </button>
+            <button
+              onClick={(e) => handleNavigate('next', e)}
+              className="p-1"
+              title="Next (↓ or Enter)"
+            >
+              <ArrowDown
+                className={`h-5 w-5 transition-opacity ${
+                  !hasResults
+                    ? 'opacity-30'
+                    : 'text-textSubtleInverse hover:text-textStandardInverse'
+                }`}
+              />
+            </button>
+          </div>
 
-          <button
-            onClick={handleClose}
-            className="p-1 text-textSubtleInverse hover:text-textStandardInverse"
-            title="Close (Esc)"
-          >
-            <Close className="h-5 w-5" />
+          <button onClick={handleClose} className="p-1" title="Close (Esc)">
+            <Close className="h-5 w-5 text-textSubtleInverse hover:text-textStandardInverse" />
           </button>
         </div>
       </div>
