@@ -28,6 +28,10 @@ pub enum ExtensionError {
     SetupError(String),
     #[error("Join error occurred during task execution: {0}")]
     TaskJoinError(#[from] tokio::task::JoinError),
+    #[error("Search index error: {0}")]
+    SearchIndex(#[from] tantivy::TantivyError),
+    #[error("Execution error: {0}")]
+    ExecutionError(String),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -54,7 +58,7 @@ impl Envs {
         "LD_AUDIT",         // Loads a monitoring library that can intercept execution
         "LD_DEBUG",         // Enables verbose linker logging (information disclosure risk)
         "LD_BIND_NOW",      // Forces immediate symbol resolution, affecting ASLR
-        "LD_ASSUME_KERNEL", // Tricks linker into thinking it’s running on an older kernel
+        "LD_ASSUME_KERNEL", // Tricks linker into thinking it's running on an older kernel
         // 🍎 macOS dynamic linker variables
         "DYLD_LIBRARY_PATH",     // Same as LD_LIBRARY_PATH but for macOS
         "DYLD_INSERT_LIBRARIES", // macOS equivalent of LD_PRELOAD
@@ -328,5 +332,11 @@ impl ToolInfo {
             parameters,
             permission,
         }
+    }
+}
+
+impl From<anyhow::Error> for ExtensionError {
+    fn from(error: anyhow::Error) -> Self {
+        ExtensionError::ExecutionError(error.to_string())
     }
 }

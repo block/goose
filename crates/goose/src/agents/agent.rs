@@ -24,14 +24,15 @@ use crate::agents::platform_tools::{
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
+use crate::agents::tool_router_v2::ToolRouterV2;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use super::platform_tools;
 use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::{extension, platform_tools};
 
 /// The main goose Agent
 pub struct Agent {
@@ -39,6 +40,7 @@ pub struct Agent {
     pub(super) extension_manager: Mutex<ExtensionManager>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
+    pub(super) tool_router: Mutex<ToolRouterV2>,
     pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
@@ -57,6 +59,7 @@ impl Agent {
             extension_manager: Mutex::new(ExtensionManager::new()),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
+            tool_router: Mutex::new(ToolRouterV2::new().unwrap()),
             prompt_manager: Mutex::new(PromptManager::new()),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
@@ -210,7 +213,7 @@ impl Agent {
         };
 
         let result = extension_manager
-            .add_extension(config)
+            .add_extension(config.clone())
             .await
             .map(|_| {
                 vec![Content::text(format!(
@@ -220,6 +223,15 @@ impl Agent {
             })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
+        if result.is_ok() {
+            let tool_router = self.tool_router.lock().await;
+            if let Err(e) = tool_router
+                .write_documents(&extension_manager, &config)
+                .await
+            {
+                return (request_id, Err(ToolError::ExecutionError(e.to_string())));
+            }
+        }
         (request_id, result)
     }
 
@@ -253,7 +265,12 @@ impl Agent {
             }
             _ => {
                 let mut extension_manager = self.extension_manager.lock().await;
-                extension_manager.add_extension(extension).await?;
+                extension_manager.add_extension(extension.clone()).await?;
+                let tool_router = self.tool_router.lock().await;
+                tool_router
+                    .write_documents(&extension_manager, &extension)
+                    .await?;
+                // tool_router.write_extension(&extension).await?;
             }
         };
 
@@ -288,6 +305,7 @@ impl Agent {
             .remove_extension(name)
             .await
             .expect("Failed to remove extension");
+        // TODO: remove extension from tool router
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
@@ -330,12 +348,28 @@ impl Agent {
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);
 
+        let mut router_tools = vec![];
+        // let mut router_tools: Vec<Tool> = tools.clone();
+        // In agent.rs
         if let Some(content) = messages
             .last()
             .and_then(|msg| msg.content.first())
             .and_then(|c| c.as_text())
         {
-            debug!("user_message" = &content);
+            let tool_router = self.tool_router.lock().await;
+            let matched_tools = tool_router.match_tools(&content, &tools, 10).await?;
+            if matched_tools.len() > 0 {
+                println!(
+                    "matched tools: {}",
+                    matched_tools
+                        .iter()
+                        .map(|t| t.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                router_tools = matched_tools;
+            }
+            debug!("router_tools: {:?}", &router_tools);
         }
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -345,7 +379,7 @@ impl Agent {
                     self.provider().await?,
                     &system_prompt,
                     &messages,
-                    &tools,
+                    &router_tools,
                     &toolshim_tools,
                 ).await {
                     Ok((response, usage)) => {
@@ -359,7 +393,6 @@ impl Agent {
                             remaining_requests,
                             filtered_response) =
                             self.categorize_tool_requests(&response).await;
-
 
                         // Yield the assistant's response with frontend tool requests filtered out
                         yield filtered_response.clone();
