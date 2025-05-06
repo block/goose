@@ -108,13 +108,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                         "Cannot switch to original working directory - {} no longer exists",
                         style(metadata.working_dir.display()).cyan()
                     ));
-                } else {
-                    if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
-                        output::render_error(&format!(
-                            "Failed to switch to original working directory: {}",
-                            e
-                        ));
-                    }
+                } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
+                    output::render_error(&format!(
+                        "Failed to switch to original working directory: {}",
+                        e
+                    ));
                 }
             }
         }
