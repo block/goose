@@ -82,7 +82,7 @@ pub struct Recipe {
     pub author: Option<Author>, // any additional author information
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Vec<Parameter>>, // any additional parameters for the recipe
+    pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -95,10 +95,18 @@ pub struct Author {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Parameter {
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterRequirement {
+    Required,
+    Optional,
+    UserPrompt,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipeParameter {
     pub key: String,
     pub input_type: String,
-    pub requirement: String,
+    pub requirement: RecipeParameterRequirement,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<String>,
@@ -118,7 +126,7 @@ pub struct RecipeBuilder {
     context: Option<Vec<String>>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
-    parameters: Option<Vec<Parameter>>,
+    parameters: Option<Vec<RecipeParameter>>,
 }
 
 impl Recipe {
@@ -207,7 +215,7 @@ impl RecipeBuilder {
     }
 
     /// Sets the parameters for the Recipe
-    pub fn parameters(mut self, parameters: Vec<Parameter>) -> Self {
+    pub fn parameters(mut self, parameters: Vec<RecipeParameter>) -> Self {
         self.parameters = Some(parameters);
         self
     }
