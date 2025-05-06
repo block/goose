@@ -72,7 +72,7 @@ Instead of mindlessly following orders, Linguini is equipped to orchestrate the 
 
 That's how it works with AI agents that follow the Model Context Protocol(MCP). MCP shifts the agent from passive executor to active orchestrator, making it less reliant on an LLM and more aware of the context in which it's operating.
 
-[Codename Goose](/) is a local, open source AI agent that follows the structure of MCP.
+[Goose](/) is a local, open source AI agent that follows the structure of MCP.
 
 MCP provides a standardized way for agents to interact with external data and services. It has three core components:
 
