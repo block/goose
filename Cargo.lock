@@ -2523,15 +2523,23 @@ name = "goose-llm"
 version = "1.0.22"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "base64 0.21.7",
  "chrono",
- "goose",
+ "criterion",
  "include_dir",
- "mcp-core",
  "minijinja",
  "once_cell",
+ "regex",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
+ "smallvec",
+ "tempfile",
+ "thiserror 1.0.69",
  "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -5561,6 +5569,9 @@ name = "smallvec"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smawk"
