@@ -536,15 +536,13 @@ export default function App() {
         let label = 'OK';
         let title = 'Confirm Extension Installation';
         let isBlocked = false;
-        let baseMessage = '';
+        let useDetailedMessage = false;
 
+        // For SSE extensions (with remoteUrl), always use detailed message
         if (remoteUrl) {
-          // This is an SSE extension (with URL)
-          baseMessage = `You are about to install the ${extName} extension which connects to:\n\n${remoteUrl}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
+          useDetailedMessage = true;
         } else {
-          // This is a command-based extension
-          baseMessage = `You are about to install the ${extName} extension which runs the command:\n\n${command}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
-
+          // For command-based extensions, check against allowlist
           try {
             const allowedCommands = await window.electron.getAllowedExtensions();
 
@@ -555,6 +553,8 @@ export default function App() {
               );
 
               if (!isCommandAllowed) {
+                // Not in allowlist - use detailed message and show warning/block
+                useDetailedMessage = true;
                 title = '⛔️ Untrusted Extension ⛔️';
 
                 if (STRICT_ALLOWLIST && !allowOverride) {
@@ -574,13 +574,30 @@ export default function App() {
                     'Please contact an admin if you are unsure or want to allow this extension.';
                 }
               }
+              // If in allowlist, use simple message (useDetailedMessage remains false)
             }
+            // If no allowlist, use simple message (useDetailedMessage remains false)
           } catch (error) {
             console.error('Error checking allowlist:', error);
           }
         }
 
-        setModalMessage(`${baseMessage}${warningMessage}`);
+        // Set the appropriate message based on the extension type and allowlist status
+        if (useDetailedMessage) {
+          // Detailed message for SSE extensions or non-allowlisted command extensions
+          const detailedMessage = remoteUrl
+            ? `You are about to install the ${extName} extension which connects to:\n\n${remoteUrl}\n\nThis extension will be able to access your conversations and provide additional functionality.`
+            : `You are about to install the ${extName} extension which runs the command:\n\n${command}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
+
+          setModalMessage(`${detailedMessage}${warningMessage}`);
+        } else {
+          // Simple message for allowlisted command extensions or when no allowlist exists
+          const messageDetails = `Command: ${command}`;
+          setModalMessage(
+            `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
+          );
+        }
+
         setExtensionConfirmLabel(label);
         setExtensionConfirmTitle(title);
 
