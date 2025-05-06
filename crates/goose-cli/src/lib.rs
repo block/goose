@@ -4,8 +4,8 @@ pub mod cli;
 pub mod commands;
 pub mod logging;
 pub mod recipe;
+pub mod recipes;
 pub mod session;
-
 // Re-export commonly used types
 pub use session::Session;
 

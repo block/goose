@@ -24,6 +24,7 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
   } = useChatContextManager();
 
   const [hasFetchStarted, setHasFetchStarted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Find the relevant message to check if it's the latest
   const isCurrentMessageLatest =
@@ -71,6 +72,11 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
   const handleRetry = () => {
     if (!shouldAllowSummaryInteraction) return;
 
+    // Only increment retry counter if there's an error
+    if (errorLoadingSummary) {
+      setRetryCount((prevCount) => prevCount + 1);
+    }
+
     // Reset states for retry
     setHasFetchStarted(false);
     fetchStartedRef.current = false;
@@ -79,7 +85,78 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
     triggerContextLengthExceeded();
   };
 
+  // Function to open a new goose window
+  const openNewSession = () => {
+    try {
+      // Use the workingDir from props directly without reassignment to avoid TypeScript error
+      const sessionWorkingDir = window.appConfig?.get('GOOSE_WORKING_DIR') || workingDir;
+      console.log(`Creating new chat window with working dir: ${sessionWorkingDir}`);
+      window.electron.createChatWindow(undefined, sessionWorkingDir as string);
+    } catch (error) {
+      console.error('Error creating new window:', error);
+      // Fallback to basic window.open if the electron API fails
+      window.open('/', '_blank');
+    }
+  };
+
   // Render the notification UI
+  const renderLoadingState = () => (
+    <div className="flex items-center text-xs text-gray-400">
+      <span className="mr-2">Preparing summary...</span>
+      <span className="animate-spin h-3 w-3 border-2 border-gray-400 rounded-full border-t-transparent"></span>
+    </div>
+  );
+
+  const renderFailedState = () => (
+    <>
+      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
+      <span className="text-xs text-gray-400">{`This conversation has too much information to continue. Extension data often takes up significant space.`}</span>
+      <button
+        onClick={openNewSession}
+        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+      >
+        Click here to start a new session
+      </button>
+    </>
+  );
+
+  const renderRetryState = () => (
+    <>
+      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
+      <button
+        onClick={handleRetry}
+        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+      >
+        Retry loading summary
+      </button>
+    </>
+  );
+
+  const renderSuccessState = () => (
+    <>
+      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity and a summary was prepared.`}</span>
+      <span className="text-xs text-gray-400">{`Messages above this line remain viewable but specific details are not included in active context.`}</span>
+      <button
+        onClick={openSummaryModal}
+        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+      >
+        View or edit summary (you may continue your conversation based on the summary)
+      </button>
+    </>
+  );
+
+  const renderContentState = () => {
+    if (!shouldAllowSummaryInteraction) {
+      return null;
+    }
+
+    if (errorLoadingSummary) {
+      return retryCount >= 2 ? renderFailedState() : renderRetryState();
+    }
+
+    return renderSuccessState();
+  };
+
   return (
     <div className="flex flex-col items-start mt-1 pl-4">
       {/* Horizontal line with text in the middle - shown regardless of loading state */}
@@ -88,30 +165,9 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
         <div className="flex-grow border-t border-gray-300"></div>
       </div>
 
-      {isLoadingSummary && shouldAllowSummaryInteraction ? (
-        // Show loading indicator during loading state
-        <div className="flex items-center text-xs text-gray-400">
-          <span className="mr-2">Preparing summary...</span>
-          <span className="animate-spin h-3 w-3 border-2 border-gray-400 rounded-full border-t-transparent"></span>
-        </div>
-      ) : (
-        // Show different UI based on whether it's already handled
-        <>
-          <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
-          <span className="text-xs text-gray-400">{`Messages above this line remain viewable but are not included in the active context`}</span>
-          {/* Only show the button if its last message */}
-          {shouldAllowSummaryInteraction && (
-            <button
-              onClick={() => (errorLoadingSummary ? handleRetry() : openSummaryModal())}
-              className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-            >
-              {errorLoadingSummary
-                ? 'Retry loading summary'
-                : 'View or edit summary (you may continue your conversation based on the summary)'}
-            </button>
-          )}
-        </>
-      )}
+      {isLoadingSummary && shouldAllowSummaryInteraction
+        ? renderLoadingState()
+        : renderContentState()}
     </div>
   );
 };

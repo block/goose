@@ -299,6 +299,9 @@ You can enable or disable installed extensions based on your workflow needs.
   </TabItem>
 </Tabs>
 
+:::tip
+Goose can automatically detect and suggest the right extensions for your tasks as you chat. Learn more about this smart feature in the [Smart Extension](/docs/guides/smart-extension-recommendation) guide.
+:::
 
 ## Removing Extensions
 

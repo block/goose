@@ -21,6 +21,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
+use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
+
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
@@ -193,7 +195,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item(
                 "settings",
                 "Goose Settings",
-                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment and more",
+                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more",
             )
             .interact()?;
 
@@ -808,6 +810,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Toggle Experiment",
             "Enable or disable an experiment feature",
         )
+        .item(
+            "recipe",
+            "Goose recipe github repo",
+            "Goose will pull recipes from this repo if not found locally.",
+        )
         .interact()?;
 
     match setting_type {
@@ -822,6 +829,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "experiment" => {
             toggle_experiments_dialog()?;
+        }
+        "recipe" => {
+            configure_recipe_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -1102,5 +1112,28 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         tool.name, permission_label
     ))?;
 
+    Ok(())
+}
+
+fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
+    let key_name = GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
+    let config = Config::global();
+    let default_recipe_repo = std::env::var(key_name)
+        .ok()
+        .or_else(|| config.get_param(key_name).unwrap_or(None));
+    let mut recipe_repo_input = cliclack::input(
+        "Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+    )
+    .required(false);
+    if let Some(recipe_repo) = default_recipe_repo {
+        recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
+    }
+    let input_value: String = recipe_repo_input.interact()?;
+    // if input is blank, it clears the recipe github repo settings in the config file
+    if input_value.clone().trim().is_empty() {
+        config.delete(key_name)?;
+    } else {
+        config.set_param(key_name, Value::String(input_value))?;
+    }
     Ok(())
 }
