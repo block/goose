@@ -74,8 +74,8 @@ fn construct_system_prompt(
     context.insert("system_preamble", Value::String(system_preamble.to_owned()));
     context.insert("extensions", serde_json::to_value(extensions)?);
     context.insert(
-        "current_date_time",
-        Value::String(Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()),
+        "current_date",
+        Value::String(Utc::now().format("%Y-%m-%d").to_string()),
     );
 
     Ok(prompt_template::render_global_file("system.md", &context)?)
