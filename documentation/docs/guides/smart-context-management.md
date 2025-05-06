@@ -1,13 +1,13 @@
 ---
-title: Managing Context Length
+title: Smart Context Management
 sidebar_position: 5
-sidebar_label: Managing Context
+sidebar_label: Smart Context Management
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Goose provides context management features in the CLI to help you maintain productive sessions even when reaching model context limits. This guide explains how context management works and how to use it effectively.
+Goose provides context management features to help you maintain productive sessions even when reaching model context limits. This guide explains how context management works and how to use it effectively.
 
 ## Understanding Context Management
 
@@ -16,10 +16,6 @@ Before diving into the features, let's understand the key concepts:
 - **Context Length** is the amount of conversation history the AI model can consider
 - **Context Limit** is the maximum number of tokens the model can process
 - **Context Management** is how Goose handles conversations when approaching these limits
-
-:::info
-Context management in the CLI helps you continue working in the same session instead of starting over when hitting context limits.
-:::
 
 ## Context Management Features
 
@@ -32,6 +28,8 @@ When a conversation reaches the context limit, Goose offers different ways to ha
 | **Clear** | Starts fresh while keeping session active | New direction in conversation | Loses all context |
 
 ## Using Context Management
+
+Goose has features that help you continue working in the same session instead of starting over when hitting context limits. This is particularly useful for maintaining flow during complex tasks or long conversations.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -70,47 +68,14 @@ After choosing an option and the context is managed, you can continue your conve
   </TabItem>
 </Tabs>
 
-## Benefits of Smart Context Management
+## Benefits
 
-### 1. Workflow Continuity
-- Continue working in the same session
-- Maintain conversation momentum
-- Avoid starting over
-
-### 2. Context Preservation
-- Keep important information accessible
-- Preserve tool interactions and their results
-- Access full history when needed
-
-### 3. Improved Productivity
-- Reduce disruptions from context limits
-- Maintain focus on your task
-- Seamless conversation flow
+- **Continue Working**: Stay in the same session without starting over
+- **Preserve Context**: Keep important information and tool interactions
+- **Maintain Flow**: Reduce disruptions from context limits
 
 ## Best Practices
 
-:::tip
-Consider summarizing proactively before hitting context limits if you're working on a long task.
-:::
-
-Here are some tips for effective context management:
-
-1. **Regular Checkpoints**
-   - Save important conclusions or decisions
-   - Break complex tasks into smaller segments
-   - Use summarization at natural break points
-
-2. **Summary Management**
-   - Review generated summaries for accuracy
-   - Edit summaries to highlight key points
-   - Include critical context for your current task
-
-3. **Context Awareness**
-   - Monitor conversation length
-   - Keep track of important information
-   - Consider task complexity when choosing management strategy
-
-
-:::warning
-While context management helps maintain longer sessions, it's still good practice to periodically start fresh sessions for complex tasks.
-:::
+- **Be Proactive**: Consider managing context before hitting limits on long tasks
+- **Review Summaries**: Ensure important information is preserved accurately
+- **Choose Wisely**: Pick the right management strategy for your task type
