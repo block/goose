@@ -8,34 +8,14 @@ use crate::{
     message::{Message, MessageContent},
     prompt_template,
     providers::create,
-    types::completion::{
-        CompletionError, CompletionRequest, CompletionResponse, ExtensionConfig, RuntimeMetrics,
-        ToolApprovalMode, ToolConfig,
+    types::{
+        completion::{
+            CompletionError, CompletionRequest, CompletionResponse, ExtensionConfig,
+            RuntimeMetrics, ToolApprovalMode, ToolConfig,
+        },
+        core::ToolCall,
     },
 };
-
-/// Set `needs_approval` on *every* tool call in the message based on approval mode.
-pub fn update_needs_approval_for_tool_calls(
-    message: &mut Message,
-    tool_configs: &HashMap<String, ToolConfig>,
-) {
-    for content in message.content.iter_mut() {
-        if let MessageContent::ToolRequest(req) = content {
-            if let Ok(call) = &mut req.tool_call {
-                let needs = match tool_configs.get(&call.name) {
-                    Some(cfg) => match cfg.approval_mode {
-                        ToolApprovalMode::Auto => false,
-                        ToolApprovalMode::Manual => true,
-                        ToolApprovalMode::Smart => true, // TODO: implement smart approval later
-                    },
-                    None => call.needs_approval, // unknown tool: leave flag unchanged
-                };
-
-                call.set_needs_approval(needs);
-            }
-        }
-    }
-}
 
 /// Public API for the Goose LLM completion function
 pub async fn completion(req: CompletionRequest<'_>) -> Result<CompletionResponse, CompletionError> {
@@ -55,7 +35,7 @@ pub async fn completion(req: CompletionRequest<'_>) -> Result<CompletionResponse
     let usage_tokens = response.usage.total_tokens;
 
     let tool_configs = collect_prefixed_tool_configs(req.extensions);
-    update_needs_approval_for_tool_calls(&mut response.message, &tool_configs);
+    update_needs_approval_for_tool_calls(&mut response.message, &tool_configs)?;
 
     Ok(CompletionResponse::new(
         response.message,
@@ -79,6 +59,42 @@ fn construct_system_prompt(
     );
 
     Ok(prompt_template::render_global_file("system.md", &context)?)
+}
+
+/// Determine if a tool call requires manual approval.
+fn determine_needs_approval(config: &ToolConfig, _call: &ToolCall) -> bool {
+    match config.approval_mode {
+        ToolApprovalMode::Auto => false,
+        ToolApprovalMode::Manual => true,
+        ToolApprovalMode::Smart => {
+            // TODO: Implement smart approval logic later
+            true
+        }
+    }
+}
+
+/// Set `needs_approval` on every tool call in the message.
+/// Returns a `ToolNotFound` error if the corresponding `ToolConfig` is missing.
+pub fn update_needs_approval_for_tool_calls(
+    message: &mut Message,
+    tool_configs: &HashMap<String, ToolConfig>,
+) -> Result<(), CompletionError> {
+    for content in &mut message.content.iter_mut() {
+        if let MessageContent::ToolRequest(req) = content {
+            if let Ok(call) = &mut req.tool_call {
+                // Provide a clear error message when the tool config is missing
+                let config = tool_configs.get(&call.name).ok_or_else(|| {
+                    CompletionError::ToolNotFound(format!(
+                        "could not find tool config for '{}'",
+                        call.name
+                    ))
+                })?;
+                let needs_approval = determine_needs_approval(config, call);
+                call.set_needs_approval(needs_approval);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Collect all `Tool` instances from the extensions.

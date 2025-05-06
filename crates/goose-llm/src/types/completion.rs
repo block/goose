@@ -49,6 +49,9 @@ pub enum CompletionError {
 
     #[error("json serialization error: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("tool not found error: {0}")]
+    ToolNotFound(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
