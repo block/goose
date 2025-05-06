@@ -37,29 +37,23 @@ pub fn update_needs_approval_for_tool_calls(
     }
 }
 
-/// Public API for the Goose LLM completion function.
-// #[instrument(skip(req))]
+/// Public API for the Goose LLM completion function
 pub async fn completion(req: CompletionRequest<'_>) -> Result<CompletionResponse, CompletionError> {
     let start_total = Instant::now();
 
-    // Initialize the provider
     let provider = create(req.provider_name, req.model_config)
         .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
 
-    // Render system prompt
     let system_prompt = construct_system_prompt(req.system_preamble, req.extensions)?;
-
-    // Gather tools from extensions
     let tools = collect_prefixed_tools(req.extensions);
 
-    // Call the LLM
+    // Call the LLM provider
     let start_provider = Instant::now();
     let mut response = provider
         .complete(&system_prompt, req.messages, &tools)
         .await?;
     let usage_tokens = response.usage.total_tokens;
 
-    // Update approval flags
     let tool_configs = collect_prefixed_tool_configs(req.extensions);
     update_needs_approval_for_tool_calls(&mut response.message, &tool_configs);
 
