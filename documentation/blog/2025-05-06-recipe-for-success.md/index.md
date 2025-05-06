@@ -33,7 +33,7 @@ Agentic systems work similarly. You have three core components:
 * An Agent  
 * Tools
 
-The LLM is like Remy; it is full of knowledge and reasoning, but has no hands-on access. The agent is like Linguini; it can take action, but doesn't know what to do unless guided.
+The LLM is like Remy; it is full of knowledge and reasoning, but has no hands-on access. The agent is like Linguini; it can take action, but needs guidance.
 
 If a user says, "Write some unit tests," the LLM analyzes the code and replies, 
 
