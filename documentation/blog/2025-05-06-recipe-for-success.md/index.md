@@ -66,9 +66,9 @@ Instead of blindly following orders, Linguini is equipped to orchestrate the ent
 
 ---
 
-## Model Context Protocol: Standardizing Agentic Workflows
+## Built Different
 
-That's how it works with AI agents that follow the MCP standard.
+That's how it works with AI agents that follow the Model Context Protocol(MCP). MCP shifts the agent from passive executor to active orchestrator—less reliant on an LLM and more aware of the context it’s operating in.
 
 [Codename Goose](/) is a local, open source AI agent that follows the structure of MCP.
 
