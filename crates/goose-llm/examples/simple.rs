@@ -2,10 +2,11 @@ use std::vec;
 
 use anyhow::Result;
 use goose_llm::{
-    Message, ModelConfig, completion,
+    completion,
     types::completion::{
         CompletionResponse, ExtensionConfig, ExtensionType, ToolApprovalMode, ToolConfig,
     },
+    Message, ModelConfig,
 };
 use serde_json::json;
 

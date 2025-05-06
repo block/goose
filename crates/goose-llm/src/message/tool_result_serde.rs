@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::types::core::{ToolError, ToolResult};
 

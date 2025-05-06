@@ -476,7 +476,7 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
 
     use super::*;
     use crate::types::core::ToolError;

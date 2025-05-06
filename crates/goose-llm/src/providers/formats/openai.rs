@@ -1,5 +1,5 @@
-use anyhow::{Error, anyhow};
-use serde_json::{Value, json};
+use anyhow::{anyhow, Error};
+use serde_json::{json, Value};
 
 use crate::{
     message::{Message, MessageContent},
@@ -8,8 +8,8 @@ use crate::{
         base::Usage,
         errors::ProviderError,
         utils::{
-            ImageFormat, convert_image, detect_image_path, is_valid_function_name, load_image_file,
-            sanitize_function_name,
+            convert_image, detect_image_path, is_valid_function_name, load_image_file,
+            sanitize_function_name, ImageFormat,
         },
     },
     types::core::{Content, Role, Tool, ToolCall, ToolError},
@@ -109,16 +109,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                     }
                                 }
                             }
-                            let tool_response_content: Value = json!(
-                                tool_content
-                                    .iter()
-                                    .map(|content| match content {
-                                        Content::Text(text) => text.text.clone(),
-                                        _ => String::new(),
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join(" ")
-                            );
+                            let tool_response_content: Value = json!(tool_content
+                                .iter()
+                                .map(|content| match content {
+                                    Content::Text(text) => text.text.clone(),
+                                    _ => String::new(),
+                                })
+                                .collect::<Vec<String>>()
+                                .join(" "));
 
                             // First add the tool response with all content
                             output.push(json!({
@@ -681,12 +679,10 @@ mod tests {
 
         let result = format_tools(&[tool1, tool2]);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Duplicate tool name")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Duplicate tool name"));
 
         Ok(())
     }
@@ -724,12 +720,10 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
         assert_eq!(content[1]["type"], "image_url");
-        assert!(
-            content[1]["image_url"]["url"]
-                .as_str()
-                .unwrap()
-                .starts_with("data:image/png;base64,")
-        );
+        assert!(content[1]["image_url"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
 
         Ok(())
     }

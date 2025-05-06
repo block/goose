@@ -5,7 +5,7 @@ use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, from_value, json};
+use serde_json::{from_value, json, Value};
 
 use super::base::Usage;
 use crate::{
@@ -320,12 +320,10 @@ mod tests {
         // Test loading fake PNG file
         let result = load_image_file(fake_png_path_str);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("not a valid image")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not a valid image"));
 
         // Test non-existent file
         let result = load_image_file("nonexistent.png");

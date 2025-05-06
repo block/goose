@@ -55,23 +55,20 @@ pub fn update_needs_approval_for_tool_calls(
 ) {
     for content in message.content.iter_mut() {
         // cover both assistant & frontend variants
-        match content {
-            MessageContent::ToolRequest(req) => {
-                if let Ok(call) = &mut req.tool_call {
-                    // Frontend tool calls (either by type or by config) are always manual.
-                    let needs = match tool_configs.get(&call.name) {
-                        Some(cfg) if matches!(cfg.extension_type, ExtensionType::Frontend) => true,
-                        Some(cfg) => match cfg.approval_mode {
-                            ToolApprovalMode::Auto => false,
-                            ToolApprovalMode::Manual | ToolApprovalMode::Smart => true,
-                        },
-                        None => call.needs_approval, // unknown tool: leave flag unchanged
-                    };
+        if let MessageContent::ToolRequest(req) = content {
+            if let Ok(call) = &mut req.tool_call {
+                // Frontend tool calls (either by type or by config) are always manual.
+                let needs = match tool_configs.get(&call.name) {
+                    Some(cfg) if matches!(cfg.extension_type, ExtensionType::Frontend) => true,
+                    Some(cfg) => match cfg.approval_mode {
+                        ToolApprovalMode::Auto => false,
+                        ToolApprovalMode::Manual | ToolApprovalMode::Smart => true,
+                    },
+                    None => call.needs_approval, // unknown tool: leave flag unchanged
+                };
 
-                    call.set_needs_approval(needs);
-                }
+                call.set_needs_approval(needs);
             }
-            _ => {}
         }
     }
 }
@@ -106,7 +103,7 @@ pub async fn completion(
     });
 
     let tool_configs: HashMap<String, ToolConfig> = extensions
-        .into_iter()
+        .iter()
         .flat_map(|ext| ext.get_prefixed_tool_configs().into_iter())
         .collect();
 

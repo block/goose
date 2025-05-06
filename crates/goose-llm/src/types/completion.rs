@@ -88,7 +88,7 @@ impl ToolConfig {
             description: description.to_string(),
             input_schema,
             approval_mode,
-            extension_type: extension_type,
+            extension_type,
         }
     }
 

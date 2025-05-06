@@ -10,7 +10,7 @@ use url::Url;
 use super::{
     errors::ProviderError,
     formats::databricks::{create_request, get_usage, response_to_message},
-    utils::{ImageFormat, get_env, get_model},
+    utils::{get_env, get_model, ImageFormat},
 };
 use crate::{
     message::Message,

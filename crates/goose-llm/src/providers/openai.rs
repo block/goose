@@ -8,7 +8,7 @@ use serde_json::Value;
 use super::{
     errors::ProviderError,
     formats::openai::{create_request, get_usage, response_to_message},
-    utils::{ImageFormat, emit_debug_trace, get_env, get_model, handle_response_openai_compat},
+    utils::{emit_debug_trace, get_env, get_model, handle_response_openai_compat, ImageFormat},
 };
 use crate::{
     message::Message,
