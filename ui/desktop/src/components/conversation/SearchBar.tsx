@@ -36,7 +36,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   initialSearchTerm = '',
 }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
-  const [displayTerm, setDisplayTerm] = useState(initialSearchTerm);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
@@ -64,7 +63,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   useEffect(() => {
     if (initialSearchTerm) {
       setSearchTerm(initialSearchTerm);
-      setDisplayTerm(initialSearchTerm);
       if (initialSearchTerm.length >= 2) {
         debouncedSearchRef.current?.(initialSearchTerm, caseSensitive);
       }
@@ -76,12 +74,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   // Sync external search results with local state
   useEffect(() => {
     // Only set results if we have a search term
-    if (!displayTerm) {
+    if (!searchTerm) {
       setLocalSearchResults(null);
     } else {
       setLocalSearchResults(searchResults);
     }
-  }, [searchResults, searchTerm, displayTerm]);
+  }, [searchResults, searchTerm]);
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -92,7 +90,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }
 
     // Update display term immediately for UI feedback
-    setDisplayTerm(value);
     setSearchTerm(value);
 
     // Only trigger search if we have 2 or more characters
@@ -157,7 +154,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               ref={inputRef}
               id="search-input"
               type="text"
-              value={displayTerm}
+              value={searchTerm}
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
               placeholder="Search conversation..."
@@ -171,7 +168,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <div className="flex items-center gap-1">
               <div className="w-16 text-right text-sm text-textStandardInverse flex items-center justify-end">
                 {(() => {
-                  return localSearchResults?.count > 0 && displayTerm
+                  return localSearchResults?.count > 0 && searchTerm
                     ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
                     : null;
                 })()}
