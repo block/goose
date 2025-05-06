@@ -499,7 +499,13 @@ export default function App() {
   }, [view]);
 
   // Configuration for extension security
-  const STRICT_ALLOWLIST = true; // Set to false to revert to warning-only mode
+  const config = window.electron.getConfig();
+  // If GOOSE_ALLOWLIST_WARNING is true, use warning-only mode (STRICT_ALLOWLIST=false)
+  // If GOOSE_ALLOWLIST_WARNING is not set or false, use strict blocking mode (STRICT_ALLOWLIST=true)
+  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
+  console.log(
+    `Extension security mode: ${STRICT_ALLOWLIST ? 'Strict' : 'Warning-only'} (GOOSE_ALLOWLIST_WARNING=${config.GOOSE_ALLOWLIST_WARNING})`
+  );
 
   useEffect(() => {
     console.log('Setting up extension handler');
