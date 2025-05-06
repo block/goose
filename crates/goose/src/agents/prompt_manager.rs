@@ -23,6 +23,7 @@ impl PromptManager {
         PromptManager {
             system_prompt_override: None,
             system_prompt_extras: Vec::new(),
+            // Use the fixed current date time so that prompt cache can be used.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
