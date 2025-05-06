@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Redesign for the Ridiculous</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #fefefe;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 0.5rem 1rem;
+      margin-top: 1rem;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 2rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎲 Redesign for the Ridiculous</h1>
+  <p>Click the button to get a random app + a weird audience!</p>
+  <button onclick="generateChallenge()">🎉 Pick My Combo</button>
+  <div id="result"></div>
+  <script>
+    const apps = [
+      "Spotify", "Instagram", "Slack", "Trello", "YouTube",
+      "Airbnb", "Notion", "Google Docs", "LinkedIn", "Amazon",
+      "Venmo", "Duolingo", "TikTok", "Gmail", "Uber",
+      "Zoom", "Pinterest", "Dropbox", "Calendly", "X (Twitter)",
+      "Reddit", "Cash App", "Discord", "Snapchat", "Figma"
+    ];
+    const audiences = [
+      "pirates", "birds", "time travelers", "dinosaurs", "grandmas",
+      "aliens", "vampires", "witches", "robots", "clowns",
+      "mermaids", "cats", "ghosts", "toddlers", "viking warriors",
+      "scientists", "astronauts", "barbarians", "cowboys", "elves",
+      "middle schoolers", "plants", "wizards", "celebrities", "minions"
+    ];
+    function getRandomItem(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+    function generateChallenge() {
+      const app = getRandomItem(apps);
+      const audience = getRandomItem(audiences);
+      document.getElementById("result").textContent = `${app} for ${audience}`;
+    }
+  </script>
+</body>
+</html>
