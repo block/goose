@@ -1,6 +1,6 @@
 ---
 title: Smart Context Management
-sidebar_position: 5
+sidebar_position: 22
 sidebar_label: Smart Context Management
 ---
 
