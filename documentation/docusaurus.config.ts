@@ -132,16 +132,10 @@ const config: Config = {
           position: "left",
         },
         {
-          to: "/extensions",
-          label: "Extensions",
-          position: "left",
-        },
-        {
           to: "/docs/category/getting-started",
           position: "left",
           label: "Docs",
         },
-        
         {
           to: "/docs/category/tutorials",
           position: "left",
@@ -150,7 +144,12 @@ const config: Config = {
         {
           to: "/prompt-library",
           position: "left",
-          label: "Prompt Library",
+          label: "Prompts",
+        },
+        {
+          to: "/extensions",
+          label: "Extensions",
+          position: "left",
         },
         { to: "/blog", label: "Blog", position: "left" },
 

@@ -13,11 +13,11 @@ function HomepageHeader() {
     <header className={styles.header}>
       <div className={styles.wrapper}>
         <div className={styles.textColumn}>
-          <div className={styles.logo}>
-            <img src="img/logo_codename_goose.png" />
+          <div className="hero--logo">
+            <GooseWordmark />
           </div>
           <p className={styles.subtitle}>{siteConfig.tagline}</p>
-          <Link className={styles.ctaButton} to="docs/getting-started/installation">
+          <Link className="button button--primary button--lg" to="docs/getting-started/installation">
             install goose
           </Link>
         </div>

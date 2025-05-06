@@ -5,8 +5,8 @@
 
 .header {
   padding: 4rem 2rem;
-  background: white;
 }
+
 
 .wrapper {
   max-width: 1200px;
@@ -20,12 +20,13 @@
 }
 
 .textColumn {
-  flex: 1 1 400px;
+  flex: 1 1 300px;
   max-width: 500px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-top: -40px;
 }
 
 .logo {
@@ -33,26 +34,10 @@
   align-items: center;
 }
 
-.logo img {
-  width: 500px;
-  height: auto;
-}
-
 .subtitle {
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
   max-width: 30ch;
-}
-
-.ctaButton {
-  display: inline-block;
-  padding: 0.75rem 1.5rem;
-  background-color: black;
-  color: white;
-  font-weight: bold;
-  border-radius: 999px;
-  text-decoration: none;
-  font-size: 0.9rem;
 }
 
 .videoColumn {
@@ -65,6 +50,14 @@
 .aspect-ratio{
   aspect-ratio: 16 / 9;
   width: 100%;
+}
+
+ 
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
 }
 
 @media screen and (max-width: 768px) {
@@ -82,13 +75,8 @@
   .textColumn {
     text-align: center;
     max-width: 100%;
-    flex: 1 1 250px;
-  }
-
-  .logo img {
-    width: 220px;
-    height: auto;
-    margin: 0 auto 1rem;
+    flex: 1 1 400px;
+    margin-top: 0;
   }
 
   .subtitle {
