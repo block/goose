@@ -928,6 +928,7 @@ app.whenReady().then(async () => {
     );
   }
 
+  // on macOS, the topbar is hidden
   if (menu && process.platform !== 'darwin') {
     let helpMenu = menu.items.find((item) => item.label === 'Help');
 
@@ -959,7 +960,7 @@ app.whenReady().then(async () => {
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
-            label: `Version ${app.getVersion()}`,
+            label: `Version ${gooseVersion || app.getVersion()}`,
             enabled: false,
           })
         );
