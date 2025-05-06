@@ -3,9 +3,7 @@ use std::vec;
 use anyhow::Result;
 use goose_llm::{
     completion,
-    types::completion::{
-        CompletionResponse, ExtensionConfig, ExtensionType, ToolApprovalMode, ToolConfig,
-    },
+    types::completion::{CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig},
     Message, ModelConfig,
 };
 use serde_json::json;
@@ -37,7 +35,6 @@ async fn main() -> Result<()> {
             }
         }),
         ToolApprovalMode::Auto,
-        ExtensionType::Frontend,
     );
 
     let bash_tool = ToolConfig::new(
@@ -54,7 +51,6 @@ async fn main() -> Result<()> {
             }
         }),
         ToolApprovalMode::Manual,
-        ExtensionType::McpHttp,
     );
 
     let list_dir_tool = ToolConfig::new(
@@ -71,7 +67,6 @@ async fn main() -> Result<()> {
             }
         }),
         ToolApprovalMode::Auto,
-        ExtensionType::McpHttp,
     );
 
     let extensions = vec![

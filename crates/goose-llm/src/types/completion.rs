@@ -60,19 +60,12 @@ pub enum ToolApprovalMode {
     Smart,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum ExtensionType {
-    McpHttp,
-    Frontend,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolConfig {
     pub name: String,
     pub description: String,
     pub input_schema: serde_json::Value,
     pub approval_mode: ToolApprovalMode,
-    pub extension_type: ExtensionType,
 }
 
 impl ToolConfig {
@@ -81,14 +74,12 @@ impl ToolConfig {
         description: &str,
         input_schema: serde_json::Value,
         approval_mode: ToolApprovalMode,
-        extension_type: ExtensionType,
     ) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             input_schema,
             approval_mode,
-            extension_type,
         }
     }
 

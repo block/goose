@@ -5,64 +5,28 @@ use chrono::Utc;
 use serde_json::Value;
 
 use crate::{
-    message::{FrontendToolRequest, Message, MessageContent},
+    message::{Message, MessageContent},
     model::ModelConfig,
     prompt_template,
     providers::{create, errors::ProviderError},
     types::completion::{
-        CompletionResponse, ExtensionConfig, ExtensionType, RuntimeMetrics, ToolApprovalMode,
-        ToolConfig,
+        CompletionResponse, ExtensionConfig, RuntimeMetrics, ToolApprovalMode, ToolConfig,
     },
 };
 
-/// Convert assistant tool-requests into frontend tool-requests when
-/// `extension_type == Frontend`, and mark them as `needs_approval = true`.
-pub fn update_tool_request_type(message: &mut Message, tool_configs: &HashMap<String, ToolConfig>) {
-    for content in message.content.iter_mut() {
-        // Only assistant-initiated tool calls can turn into frontend calls
-        if let MessageContent::ToolRequest(req) = content {
-            if let Ok(tool_call) = req.tool_call.as_mut() {
-                // `as_mut()` gives us `&mut ToolCall`
-                if matches!(
-                    tool_configs.get(&tool_call.name).map(|c| &c.extension_type),
-                    Some(ExtensionType::Frontend)
-                ) {
-                    // 1️⃣ flip the flag in-place
-                    tool_call.set_needs_approval(true);
-
-                    // 2️⃣ rewrite the enum variant
-                    let replacement = FrontendToolRequest {
-                        id: req.id.clone(),
-                        tool_call: req.tool_call.clone(), // clone *after* the mutation
-                    };
-                    *content = MessageContent::FrontendToolRequest(replacement);
-                }
-            }
-        }
-    }
-}
-
-/// Set `needs_approval` on *every* tool call in the message.
-///
-/// Rules  
-/// • Manual  → true  
-/// • Auto    → false  
-/// • Smart   → true (current spec)  
-/// • Any Frontend-type tool call  → true always
+/// Set `needs_approval` on *every* tool call in the message based on approval mode.
 pub fn update_needs_approval_for_tool_calls(
     message: &mut Message,
     tool_configs: &HashMap<String, ToolConfig>,
 ) {
     for content in message.content.iter_mut() {
-        // cover both assistant & frontend variants
         if let MessageContent::ToolRequest(req) = content {
             if let Ok(call) = &mut req.tool_call {
-                // Frontend tool calls (either by type or by config) are always manual.
                 let needs = match tool_configs.get(&call.name) {
-                    Some(cfg) if matches!(cfg.extension_type, ExtensionType::Frontend) => true,
                     Some(cfg) => match cfg.approval_mode {
                         ToolApprovalMode::Auto => false,
-                        ToolApprovalMode::Manual | ToolApprovalMode::Smart => true,
+                        ToolApprovalMode::Manual => true,
+                        ToolApprovalMode::Smart => true, // TODO: implement smart approval later
                     },
                     None => call.needs_approval, // unknown tool: leave flag unchanged
                 };
@@ -107,10 +71,6 @@ pub async fn completion(
         .flat_map(|ext| ext.get_prefixed_tool_configs().into_iter())
         .collect();
 
-    // Update tool requests to frontend tool requests based on extension config
-    update_tool_request_type(&mut response.message, &tool_configs);
-
-    // Update the `needs_approval` field in the response message
     update_needs_approval_for_tool_calls(&mut response.message, &tool_configs);
 
     let total_time_ms = start_total.elapsed().as_millis();

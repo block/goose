@@ -9,7 +9,6 @@ use std::{collections::HashSet, iter::FromIterator, ops::Deref};
 /// when interacting with MCP servers.
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use smallvec::SmallVec;
 
 use crate::types::core::{Content, ImageContent, Role, TextContent, ToolCall, ToolResult};
@@ -49,15 +48,6 @@ pub struct ToolResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ToolConfirmationRequest {
-    pub id: String,
-    pub tool_name: String,
-    pub arguments: Value,
-    pub prompt: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
@@ -69,19 +59,6 @@ pub struct RedactedThinkingContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FrontendToolRequest {
-    pub id: String,
-    #[serde(with = "tool_result_serde")]
-    pub tool_call: ToolResult<ToolCall>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ContextLengthExceeded {
-    pub msg: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -89,11 +66,8 @@ pub enum MessageContent {
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
-    ToolConfirmationRequest(ToolConfirmationRequest),
-    FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
-    ContextLengthExceeded(ContextLengthExceeded),
 }
 
 impl MessageContent {
@@ -122,20 +96,6 @@ impl MessageContent {
         })
     }
 
-    pub fn tool_confirmation_request<S: Into<String>>(
-        id: S,
-        tool_name: String,
-        arguments: Value,
-        prompt: Option<String>,
-    ) -> Self {
-        MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
-            id: id.into(),
-            tool_name,
-            arguments,
-            prompt,
-        })
-    }
-
     pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
         MessageContent::Thinking(ThinkingContent {
             thinking: thinking.into(),
@@ -145,17 +105,6 @@ impl MessageContent {
 
     pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
         MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
-    }
-
-    pub fn frontend_tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
-        MessageContent::FrontendToolRequest(FrontendToolRequest {
-            id: id.into(),
-            tool_call,
-        })
-    }
-
-    pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
-        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
@@ -169,14 +118,6 @@ impl MessageContent {
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
         if let MessageContent::ToolResponse(ref tool_response) = self {
             Some(tool_response)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
-        if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
-            Some(tool_confirmation_request)
         } else {
             None
         }
@@ -394,27 +335,6 @@ impl Message {
         self.with_content(MessageContent::tool_response(id, result))
     }
 
-    /// Add a tool confirmation request to the message
-    pub fn with_tool_confirmation_request<S: Into<String>>(
-        self,
-        id: S,
-        tool_name: String,
-        arguments: Value,
-        prompt: Option<String>,
-    ) -> Self {
-        self.with_content(MessageContent::tool_confirmation_request(
-            id, tool_name, arguments, prompt,
-        ))
-    }
-
-    pub fn with_frontend_tool_request<S: Into<String>>(
-        self,
-        id: S,
-        tool_call: ToolResult<ToolCall>,
-    ) -> Self {
-        self.with_content(MessageContent::frontend_tool_request(id, tool_call))
-    }
-
     /// Add thinking content to the message
     pub fn with_thinking<S1: Into<String>, S2: Into<String>>(
         self,
@@ -427,11 +347,6 @@ impl Message {
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
         self.with_content(MessageContent::redacted_thinking(data))
-    }
-
-    /// Add context length exceeded content to the message
-    pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
-        self.with_content(MessageContent::context_length_exceeded(msg))
     }
 
     /// Check if the message is a tool call
