@@ -7,17 +7,13 @@ sidebar_label: Smart Context Management
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Goose provides context management features to help you maintain productive sessions even when reaching model context limits. This guide explains how context management works and how to use it effectively.
+When working with [Large Language Models (LLMs)](/docs/getting-started/providers), there are limits to how much conversation history they can process at once. Goose provides smart context management features to help you maintain productive sessions even when reaching these limits. Here are the key concepts:
 
-## Understanding Context Management
+- **Context Length**: The amount of conversation history the LLM can consider
+- **Context Limit**: The maximum number of tokens the model can process
+- **Context Management**: How Goose handles conversations approaching these limits
 
-Before diving into the features, let's understand the key concepts:
-
-- **Context Length** is the amount of conversation history the AI model can consider
-- **Context Limit** is the maximum number of tokens the model can process
-- **Context Management** is how Goose handles conversations when approaching these limits
-
-## Context Management Features
+## Smart Context Management Features
 
 When a conversation reaches the context limit, Goose offers different ways to handle it:
 
@@ -27,9 +23,7 @@ When a conversation reaches the context limit, Goose offers different ways to ha
 | **Truncation** | Removes oldest messages to make room | Simple, linear conversations | Loses old context |
 | **Clear** | Starts fresh while keeping session active | New direction in conversation | Loses all context |
 
-## Using Context Management
-
-Goose has features that help you continue working in the same session instead of starting over when hitting context limits. This is particularly useful for maintaining flow during complex tasks or long conversations.
+## Using Smart Context Management
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -40,7 +34,9 @@ When you reach the context limit in Goose Desktop:
 2. You'll need to start a new session to continue your conversation
 
 :::tip
-You can use the Previous Sessions feature to reference information from your earlier session.
+You can access previous context by:
+- Reference information from your previous sessions
+- Using the [Memory extension](/docs/tutorials/memory-mcp) to maintain context across sessions and reference information from previous conversations
 :::
 
   </TabItem>
@@ -67,15 +63,3 @@ After choosing an option and the context is managed, you can continue your conve
 
   </TabItem>
 </Tabs>
-
-## Benefits
-
-- **Continue Working**: Stay in the same session without starting over
-- **Preserve Context**: Keep important information and tool interactions
-- **Maintain Flow**: Reduce disruptions from context limits
-
-## Best Practices
-
-- **Be Proactive**: Consider managing context before hitting limits on long tasks
-- **Review Summaries**: Ensure important information is preserved accurately
-- **Choose Wisely**: Pick the right management strategy for your task type
