@@ -146,7 +146,6 @@ function Quote({ name, github, role, testimonial }: FeatureQuote) {
           alignItems: "left",
         }}
       >
-        <p>{testimonial}</p>
         <div className="avatar">
           <img
             className="avatar__photo"
@@ -158,6 +157,7 @@ function Quote({ name, github, role, testimonial }: FeatureQuote) {
             <small className="avatar__subtitle">{role}</small>
           </div>
         </div>
+        <p>{testimonial}</p>
       </div>
     </div>
   );
@@ -168,54 +168,12 @@ export default function HomepageFeatures(): ReactNode {
     <section className={styles.features}>
       <div className="container">
         <div className="row">
-          <div className={styles.videoContainer}>
-            <video className={`${styles.video} hide-in-dark`} autoPlay loop muted playsInline>
-              <source src={require("@site/static/videos/hero_light.mp4").default} type="video/mp4" />
-            </video>
-            <video className={`${styles.video} hide-in-light`} autoPlay loop muted playsInline>
-              <source src={require("@site/static/videos/hero_dark.mp4").default} type="video/mp4" />
-            </video>
-          </div>
+
 
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
 
-          {/* YouTube Video Section */}
-          <div style={{ width: "100%", textAlign: "center", padding: "2rem 0" }}>
-            <h2 style={{ fontSize: "3rem", marginBottom: "1rem", fontWeight: "bold" }}>
-              Meet Codename Goose
-            </h2>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-              <div
-                style={{
-                  position: "relative",
-                  width: "66vw", 
-                  height: "37.125vw",
-                  maxWidth: "1100px",
-                  borderRadius: "12px", 
-                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)", 
-                  overflow: "hidden",
-                }}
-              >
-                <iframe
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    borderRadius: "12px", 
-                  }}
-                  src="https://www.youtube.com/embed/tZCNOe4TTkM"
-                  title="Goose Introduction"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                ></iframe>
-              </div>
-            </div>
-          </div>
           {/* Testimonials Section */}
           <div style={{ display: "flex", flexDirection: "column", marginTop: "60px" }}>
             <h3 style={{ textAlign: "center", marginBottom: "40px" }}>Loved by engineers</h3>
