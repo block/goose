@@ -1,24 +1,110 @@
 /**
- * CSS files with the .module.css suffix will be treated as CSS modules
- * and scoped locally.
- */
+* CSS files with the .module.css suffix will be treated as CSS modules
+* and scoped locally.
+*/
 
-.heroBanner {
-  padding: 4rem 0;
+.header {
+  padding: 4rem 2rem;
+  background: white;
+}
+
+.wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.textColumn {
+  flex: 1 1 400px;
+  max-width: 500px;
   text-align: center;
-  position: relative;
-  overflow: hidden;
-  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-@media screen and (max-width: 996px) {
-  .heroBanner {
-    padding: 2rem;
-  }
-}
-
-.buttons {
+.logo {
   display: flex;
   align-items: center;
-  justify-content: center;
+}
+
+.logo img {
+  width: 500px;
+  height: auto;
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  max-width: 30ch;
+}
+
+.ctaButton {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background-color: black;
+  color: white;
+  font-weight: bold;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.videoColumn {
+  flex: 1 1 400px;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 640px;
+}
+
+.aspect-ratio{
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+@media screen and (max-width: 768px) {
+  .header {
+    padding: 1rem 1rem;
+  }
+
+  .wrapper {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+    padding: 1rem 1rem;
+  }
+
+  .textColumn {
+    text-align: center;
+    max-width: 100%;
+    flex: 1 1 250px;
+  }
+
+  .logo img {
+    width: 220px;
+    height: auto;
+    margin: 0 auto 1rem;
+  }
+
+  .subtitle {
+    font-size: 1.1rem;
+    line-height: 1.5;
+    margin: 0 auto 1.5rem;
+  }
+
+  .ctaButton {
+    font-size: 1rem;
+    width: auto;
+  }
+
+  .videoColumn {
+    flex: 1 1 180px;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+  }
 }
