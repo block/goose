@@ -499,6 +499,27 @@ export default function App() {
   }, [view]);
 
   // TODO: modify
+  // State to track if the secret key combo has been pressed
+  const [allowOverride, setAllowOverride] = useState(false);
+
+  // Configuration for extension security
+  const STRICT_ALLOWLIST = true; // Set to false to revert to warning-only mode
+
+  useEffect(() => {
+    // Secret key combo handler (Alt+Shift+O for "Override")
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.shiftKey && event.key === 'O') {
+        console.log('Secret override key combo detected');
+        setAllowOverride(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   useEffect(() => {
     console.log('Setting up extension handler');
     const handleAddExtension = async (_event: IpcRendererEvent, link: string) => {
@@ -510,37 +531,70 @@ export default function App() {
         window.electron.logInfo(`Adding extension from deep link ${link}`);
         setPendingLink(link);
 
-        // Fetch the allowlist and check if the command is allowed
+        // Default values for confirmation dialog
         let warningMessage = '';
         let label = 'OK';
         let title = 'Confirm Extension Installation';
-        try {
-          const allowedCommands = await window.electron.getAllowedExtensions();
+        let isBlocked = false;
+        let baseMessage = '';
 
-          // Only check and show warning if we have a non-empty allowlist
-          if (allowedCommands && allowedCommands.length > 0) {
-            const isCommandAllowed = allowedCommands.some((allowedCmd) =>
-              command.startsWith(allowedCmd)
-            );
+        if (remoteUrl) {
+          // This is an SSE extension (with URL)
+          baseMessage = `You are about to install the ${extName} extension which connects to:\n\n${remoteUrl}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
+        } else {
+          // This is a command-based extension
+          baseMessage = `You are about to install the ${extName} extension which runs the command:\n\n${command}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
 
-            if (!isCommandAllowed) {
-              title = '⛔️ Untrusted Extension ⛔️';
-              label = 'Override and install';
-              warningMessage =
-                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact and admin if you are unsusure or want to allow this extension.';
+          try {
+            const allowedCommands = await window.electron.getAllowedExtensions();
+
+            // Only check and show warning if we have a non-empty allowlist
+            if (allowedCommands && allowedCommands.length > 0) {
+              const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+                command.startsWith(allowedCmd)
+              );
+
+              if (!isCommandAllowed) {
+                title = '⛔️ Untrusted Extension ⛔️';
+
+                if (STRICT_ALLOWLIST && !allowOverride) {
+                  // Block installation completely unless override is active
+                  isBlocked = true;
+                  label = 'Extension Blocked';
+                  warningMessage =
+                    '\n\n⛔️ BLOCKED: This extension command is not in the allowed list. ' +
+                    'Installation is blocked by your administrator. ' +
+                    'Please contact your administrator if you need this extension.';
+                } else {
+                  // Allow override (either because STRICT_ALLOWLIST is false or secret key combo was used)
+                  label = 'Override and install';
+                  warningMessage =
+                    '\n\n⚠️ WARNING: This extension command is not in the allowed list. ' +
+                    'Installing extensions from untrusted sources may pose security risks. ' +
+                    'Please contact an admin if you are unsure or want to allow this extension.';
+                }
+              }
             }
+          } catch (error) {
+            console.error('Error checking allowlist:', error);
           }
-        } catch (error) {
-          console.error('Error checking allowlist:', error);
         }
 
-        const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
-        setModalMessage(
-          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}${warningMessage}`
-        );
+        setModalMessage(`${baseMessage}${warningMessage}`);
         setExtensionConfirmLabel(label);
         setExtensionConfirmTitle(title);
+
+        // If blocked, disable the confirmation button functionality by setting a special flag
+        if (isBlocked) {
+          setPendingLink(null); // Clear the pending link so confirmation does nothing
+        }
+
         setModalVisible(true);
+
+        // Reset override after showing the dialog
+        if (allowOverride) {
+          setAllowOverride(false);
+        }
       } catch (error) {
         console.error('Error handling add-extension event:', error);
       }
@@ -550,7 +604,7 @@ export default function App() {
     return () => {
       window.electron.off('add-extension', handleAddExtension);
     };
-  }, []);
+  }, [STRICT_ALLOWLIST, allowOverride]);
 
   // Focus the first found input field
   useEffect(() => {
@@ -584,6 +638,10 @@ export default function App() {
       } finally {
         setPendingLink(null);
       }
+    } else {
+      // This case happens when pendingLink was cleared due to blocking
+      console.log('Extension installation blocked by allowlist restrictions');
+      setModalVisible(false);
     }
   };
 
