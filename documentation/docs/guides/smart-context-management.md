@@ -35,7 +35,7 @@ When you reach the context limit in Goose Desktop:
 
 :::tip
 You can access previous context by:
-- Reference information from your previous sessions
+- Referencing information from your previous sessions
 - Using the [Memory extension](/docs/tutorials/memory-mcp) to maintain context across sessions and reference information from previous conversations
 :::
 
