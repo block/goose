@@ -17,7 +17,8 @@ Ratatouille isn't just a heartwarming (and slightly unhygienic) film about a rat
 
 If you haven't seen the movie, here's the gist: Remy is an incredible chef with all the know-how, but he's a rat, so no kitchen access. Linguini is a kitchen worker with full access but little cooking skill. Together, they form a symbiotic relationship: Remy hides under Linguini's hat and guides him on what tools to use and when. 
 
-If a customer orders fries, Linguini might freeze but Remy scopes out the kitchen, sees what's available, and gives step-by-step instructions: 
+If a customer orders fries, Linguini might freeze, but Remy scopes out the kitchen, sees what's available, and gives step-by-step instructions: 
+
 > _"Grab a knife and a cutting board. Now slice the potato."_ 
 
 Then, Linguini executes the plan.
@@ -32,9 +33,10 @@ Agentic systems work similarly. You have three core components:
 * An Agent  
 * Tools
 
-The LLM is like Remy, full of knowledge and reasoning, but no hands-on access. The agent is like Linguini; it can take action but doesn't know what to do unless guided.
+The LLM is like Remy; it is full of knowledge and reasoning, but has no hands-on access. The agent is like Linguini; it can take action, but doesn't know what to do unless guided.
 
 If a user says, "Write some unit tests," the LLM analyzes the code and replies, 
+
 > _"Looks like JavaScript. Use Jest, create a test file, and import the module."_ 
 
 The agent follows the plan and uses tools like `file.write()` to get it done.
@@ -43,18 +45,18 @@ The agent follows the plan and uses tools like `file.write()` to get it done.
 
 ## Linguini's Evolution
 
-But Linguini's story doesn't stop there. Even with Remy's guidance, he's still clumsy, unsure how to move through the kitchen with confidence. His boss, Chef Skinner, notices something's off. To help him improve, Linguini is paired with Colette, a seasoned cook who shows him how the kitchen works:
+But Linguini's story doesn't stop there. Even with Remy's guidance, he's still clumsy, unsure how to confidently move through the kitchen. His boss, Chef Skinner, notices something's off. To help him improve, Linguini is paired with Colette, a seasoned cook who shows him how the kitchen works:
 
 * Where tools live
 * How stations are organized
 * How to move efficiently through space
 * When to pivot if something's missing
 
-With Colette's guidance, Linguini learns to understand the kitchen as a system. When a customer orders spaghetti, Remy quickly forms a plan: 
+With Colette's guidance, Linguini understands the kitchen as a system. When a customer orders spaghetti, Remy quickly forms a plan: 
 
 > _"Boil the pasta, sauté the garlic and tomatoes, plate it with basil."_
 
-Instead of blindly following orders, Linguini is equipped to orchestrate the entire operation by:
+Instead of mindlessly following orders, Linguini is equipped to orchestrate the entire operation by:
 
 * Heading to the pasta station to get water boiling
 * Checking the sauté station for clean pans and fresh garlic
@@ -68,7 +70,7 @@ Instead of blindly following orders, Linguini is equipped to orchestrate the ent
 
 ## Built Different
 
-That's how it works with AI agents that follow the Model Context Protocol(MCP). MCP shifts the agent from passive executor to active orchestrator—less reliant on an LLM and more aware of the context it’s operating in.
+That's how it works with AI agents that follow the Model Context Protocol(MCP). MCP shifts the agent from passive executor to active orchestrator, making it less reliant on an LLM and more aware of the context in which it's operating.
 
 [Codename Goose](/) is a local, open source AI agent that follows the structure of MCP.
 
@@ -84,7 +86,7 @@ This architecture allows Goose to discover tools dynamically, understand how to 
 
 ## Goose as an Orchestrator
 
-When a user prompts Goose to "Gather all discussions about the authentication bug from last week,” Goose orchestrates the operation. It coordinates tools, manages execution, and adapts on the fly by:
+When a user prompts Goose to "Gather all discussions about the authentication bug from last week," Goose orchestrates the operation. It coordinates tools, manages execution, and adapts on the fly by:
 
 * Identifying the right MCP servers: Slack, GitHub, PostgreSQL  
 * Understanding when a tool isn't working as expected  
@@ -99,7 +101,7 @@ When something breaks, Goose doesn't panic; it pivots. For example, Goose might 
 
 ## Scaling Agentic Workflows with Recipes 
 
-It’s been 18 years since the movie came out, and I’d like to imagine that Linguini has surpassed his cooking era and stepped into his mentor era. Instead of inefficiently training every new cook, he’s documenting his favorite dishes to make his knowledge shareable and scalable.
+It's been 18 years since the movie came out, and I'd like to imagine that Linguini has surpassed his cooking era and stepped into his mentor era. Instead of training every new cook inefficiently, he's documenting his favorite dishes to make his knowledge shareable and scalable.
 
 Similarly, Goose is a forward-looking AI agent with a solution for scaling knowledge through [recipes](/docs/guides/session-recipes). Recipes are complete orchestrations you can rerun, remix, or share, passing on knowledge to anyone who needs it.
 
@@ -180,12 +182,12 @@ Instead, hand them a recipe. With preloaded context and the right tools, it can 
 
 ### Hosting a Workshop
 
-Workshops are always a gamble: different machines, different setups, different distractions.  
-Skip the chaos. Drop a Recipe link and let every attendee spin up the same environment, same tools, same goals, and same examples. You get more time to teach, and spend less time troubleshooting.
+Workshops are always a gamble: different machines, setups, and distractions.  
+Skip the chaos. Drop a Recipe link and let every attendee spin up the same environment, same tools, same goals, and same examples. You get more time to teach and spend less time troubleshooting.
 
 ### Accelerating Your Team
 
-Your team is full of problem solvers. One teammate built a slick internal dashboard. Another nailed support ticket triage. Someone else automated changelog generation. Then there’s the question: how do we make it easy for the entire team to use? Recipes turn your team’s creations into reusable workflows that anyone can pick up. Build a shared library of Goose-powered processes and multiply your team's impact.
+Your team is full of problem solvers. One teammate built a slick internal dashboard. Another nailed support ticket triage. Someone else automated changelog generation. Then there's the question: how do we make it easy for the entire team to use? Recipes turn your team's creations into reusable workflows that anyone can pick up. Build a shared library of Goose-powered processes and multiply your team's impact.
 
  Grab [Goose](/docs/getting-started/installation) and start cooking up some [recipes](/docs/guides/session-recipes) of your own. Your future self (and team) will thank you!
 
