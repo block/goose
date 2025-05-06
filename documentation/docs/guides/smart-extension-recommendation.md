@@ -1,7 +1,8 @@
 ---
 title: Smart Extension Recommendation
 sidebar_position: 21
-sidebar_label: Using Dynamic Extensions
+sidebar_label: Smart Extension Recommendation
+description: Learn how Goose dynamically discovers and manages extensions
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,13 +12,12 @@ The Smart Extension Recommendation system in Goose automatically identifies and 
 
 When you request a task, Goose checks its enabled extensions and their tools to determine if it can fulfill the request. If not, it suggests or enables additional extensions as needed. You can also request specific extensions by name.
 
-## Using Dynamic Extensions
 
 :::warning
-Any extensions enabled this way will be lost when you close Goose. To keep extensions enabled between sessions, follow the [Using Extensions](/docs/getting-started/using-extensions) guide.
+Any extensions enabled dynamically are only enabled for the current session. To keep extensions enabled between sessions, follow the [Using Extensions](/docs/getting-started/using-extensions) guide.
 :::
 
-### Automatic Detection
+## Automatic Detection
 
 Goose automatically detects when an extension is needed based on your task requirements. Here's an example of how Goose identifies and enables a needed extension during a conversation:
 
@@ -77,7 +77,7 @@ extension_name: postgresql
 </TabItem>
 </Tabs>
 
-### Direct Request
+## Direct Request
 
 Goose responds to explicit requests for extensions, allowing users to manually enable specific tools they need. Here's an example of how Goose handles a direct request to enable an extension:
 
