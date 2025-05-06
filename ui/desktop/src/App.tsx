@@ -498,27 +498,8 @@ export default function App() {
     }
   }, [view]);
 
-  // TODO: modify
-  // State to track if the secret key combo has been pressed
-  const [allowOverride, setAllowOverride] = useState(false);
-
   // Configuration for extension security
   const STRICT_ALLOWLIST = true; // Set to false to revert to warning-only mode
-
-  useEffect(() => {
-    // Secret key combo handler (Alt+Shift+O for "Override")
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.altKey && event.shiftKey && event.key === 'O') {
-        console.log('Secret override key combo detected');
-        setAllowOverride(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
 
   useEffect(() => {
     console.log('Setting up extension handler');
@@ -557,7 +538,7 @@ export default function App() {
                 useDetailedMessage = true;
                 title = '⛔️ Untrusted Extension ⛔️';
 
-                if (STRICT_ALLOWLIST && !allowOverride) {
+                if (STRICT_ALLOWLIST) {
                   // Block installation completely unless override is active
                   isBlocked = true;
                   label = 'Extension Blocked';
@@ -607,11 +588,6 @@ export default function App() {
         }
 
         setModalVisible(true);
-
-        // Reset override after showing the dialog
-        if (allowOverride) {
-          setAllowOverride(false);
-        }
       } catch (error) {
         console.error('Error handling add-extension event:', error);
       }
@@ -621,7 +597,7 @@ export default function App() {
     return () => {
       window.electron.off('add-extension', handleAddExtension);
     };
-  }, [STRICT_ALLOWLIST, allowOverride]);
+  }, [STRICT_ALLOWLIST]);
 
   // Focus the first found input field
   useEffect(() => {
