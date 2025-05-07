@@ -509,9 +509,8 @@ impl Session {
                     save_history(&mut editor);
 
                     let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
-                    let should_summarize = cliclack::confirm(prompt)
-                        .initial_value(true)
-                        .interact()?;
+                    let should_summarize =
+                        cliclack::confirm(prompt).initial_value(true).interact()?;
 
                     if should_summarize {
                         println!("{}", console::style("Summarizing conversation...").yellow());
@@ -521,17 +520,32 @@ impl Session {
                         let provider = self.agent.provider().await?;
 
                         // Call the summarize_context method which uses the summarize_messages function
-                        let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
+                        let (summarized_messages, _) =
+                            self.agent.summarize_context(&self.messages).await?;
 
                         // Update the session messages with the summarized ones
                         self.messages = summarized_messages;
 
                         // Persist the summarized messages
-                        session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+                        session::persist_messages(
+                            &self.session_file,
+                            &self.messages,
+                            Some(provider),
+                        )
+                        .await?;
 
                         output::hide_thinking();
-                        println!("{}", console::style("Conversation has been summarized.").green());
-                        println!("{}", console::style("Key information has been preserved while reducing context length.").green());
+                        println!(
+                            "{}",
+                            console::style("Conversation has been summarized.").green()
+                        );
+                        println!(
+                            "{}",
+                            console::style(
+                                "Key information has been preserved while reducing context length."
+                            )
+                            .green()
+                        );
                     } else {
                         println!("{}", console::style("Summarization cancelled.").yellow());
                     }
