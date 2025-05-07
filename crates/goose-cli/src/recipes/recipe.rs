@@ -77,22 +77,34 @@ fn validate_parameters_in_template(recipe: &Recipe) -> Result<&Vec<RecipeParamet
         .map(|p| p.key.clone())
         .collect();
 
-    let missing_keys: HashSet<_> = template_variables.difference(&param_keys).collect();
-    let extra_keys: HashSet<_> = param_keys.difference(&template_variables).collect();
+    let missing_keys = template_variables
+        .difference(&param_keys)
+        .collect::<Vec<_>>();
+    let extra_keys = param_keys
+        .difference(&template_variables)
+        .collect::<Vec<_>>();
     if missing_keys.is_empty() && extra_keys.is_empty() {
         return Ok(recipe.parameters.as_ref().unwrap());
     }
     let mut message = String::new();
     if !missing_keys.is_empty() {
         message.push_str(&format!(
-            "Missing definitions for parameters: {:?} in the recipe file\n",
+            "Missing definitions for parameters in the recipe file: {}.",
             missing_keys
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     if !extra_keys.is_empty() {
         message.push_str(&format!(
-            "Unnecessary parameter definitions: {:?} in the recipe file\n",
+            "\nUnnecessary parameter definitions: {}.",
             extra_keys
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     Err(anyhow::anyhow!("{}", message.trim_end()))
@@ -113,7 +125,7 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
     if optional_params_without_default_values.is_empty() {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Optional parameters with no default value: {:?} in the recipe file. Please provide a default value for these parameters.", optional_params_without_default_values))
+        Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
     }
 }
 
@@ -151,8 +163,12 @@ fn apply_values_to_parameters(
             match (&param.default, &param.requirement) {
                 (Some(default), _) => param_map.insert(param.key.clone(), default.clone()),
                 (None, RecipeParameterRequirement::UserPrompt) => {
-                    let value = cliclack::input(format!("Enter {}", param.key)).interact()?;
-                    param_map.insert(param.key.clone(), value)
+                    let input_value = cliclack::input(format!(
+                        "Please enter {} ({})",
+                        param.key, param.description
+                    ))
+                    .interact()?;
+                    param_map.insert(param.key.clone(), input_value)
                 }
                 _ => {
                     missing_params.push(param.key.clone());
@@ -163,7 +179,19 @@ fn apply_values_to_parameters(
     }
     match missing_params.is_empty() {
         true => Ok(param_map),
-        false => Err(anyhow::anyhow!("Missing parameters: {:?}", missing_params)),
+        false => {
+            let formatted = missing_params
+                .iter()
+                .enumerate()
+                .map(|(i, key)| format!("--params {}=value{}", key, i + 1))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            Err(anyhow::anyhow!(
+                "Please provide the following parameters in the command line: {}",
+                formatted
+            ))
+        }
     }
 }
 
@@ -292,12 +320,13 @@ mod tests {
         let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
+        println!("{}", err.to_string());
         assert!(err
             .to_string()
-            .contains("Unnecessary parameter definitions: {\"wrong_param_key\"}"));
+            .contains("Unnecessary parameter definitions: wrong_param_key."));
         assert!(err
             .to_string()
-            .contains("Missing definitions for parameters:"));
+            .contains("Missing definitions for parameters in the recipe file:"));
         assert!(err.to_string().contains("expected_param1"));
         assert!(err.to_string().contains("expected_param2"));
     }
@@ -353,7 +382,7 @@ mod tests {
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
         assert!(err.to_string().contains(
-            "Optional parameters with no default value: [\"optional_param\"] in the recipe file"
+            "Optional parameters missing default values in the recipe: optional_param. Please provide defaults."
         ));
     }
 
