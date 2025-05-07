@@ -397,6 +397,11 @@ struct InputConfig {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Track the current directory in projects.json
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        eprintln!("Warning: Failed to update project tracker: {}", e);
+    }
+
     match cli.command {
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
