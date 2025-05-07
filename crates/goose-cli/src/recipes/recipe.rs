@@ -64,6 +64,7 @@ pub fn load_recipe(
 }
 
 fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
+    validate_optional_parameters(recipe)?;
     let template_variables = extract_template_variables(recipe.instructions.as_ref().unwrap())?;
     let param_keys: HashSet<String> = recipe
         .parameters
@@ -87,11 +88,30 @@ fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParamet
     }
     if !extra_keys.is_empty() {
         message.push_str(&format!(
-            "Unexpected parameter definitions: {:?} in the recipe file\n",
+            "Unnecessary parameter definitions: {:?} in the recipe file\n",
             extra_keys
         ));
     }
     Err(anyhow::anyhow!("{}", message.trim_end()))
+}
+
+fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
+    let optional_params_without_default_values: Vec<String> = recipe
+        .parameters
+        .as_ref()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter(|p| {
+            matches!(   p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
+        })
+        .map(|p| p.key.clone())
+        .collect();
+
+    if optional_params_without_default_values.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Optional parameters with no default value: {:?} in the recipe file. Please provide a default value for these parameters.", optional_params_without_default_values))
+    }
 }
 
 fn parse_recipe_content(content: &str) -> Result<Recipe> {
@@ -270,10 +290,9 @@ mod tests {
         let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, Some(params));
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
-        println!("{}", err.to_string());
         assert!(err
             .to_string()
-            .contains("Unexpected parameter definitions: {\"wrong_param_key\"}"));
+            .contains("Unnecessary parameter definitions: {\"wrong_param_key\"}"));
         assert!(err
             .to_string()
             .contains("Missing definitions for parameters:"));
@@ -321,5 +340,36 @@ mod tests {
             recipe.instructions.unwrap(),
             "Test instructions with my_default_value value1"
         );
+    }
+
+    #[test]
+    fn test_load_recipe_optional_parameters_without_default_values() {
+        // Mock retrieve_recipe_file by creating a test recipe file
+        let recipe_content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions with {{ optional_param }}",
+            "parameters": [
+                {
+                    "key": "optional_param",
+                    "input_type": "string",
+                    "requirement": "optional",
+                    "description": "A test parameter"
+                }
+            ]
+        }"#;
+
+        // Create a temporary file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let recipe_path = temp_dir.path().join("test_recipe.json");
+        std::fs::write(&recipe_path, recipe_content).unwrap();
+
+        // Test loading recipe with parameters
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
+        assert!(load_recipe_result.is_err());
+        let err = load_recipe_result.unwrap_err();
+        println!("{}", err.to_string());
+        assert!(err.to_string().contains("Optional parameters with no default value: [\"optional_param\"] in the recipe file"));
     }
 }
