@@ -32,17 +32,17 @@ pub fn load_recipe(
     log: bool,
     params: Option<Vec<(String, String)>>,
 ) -> Result<Recipe> {
-    let content = retrieve_recipe_file(recipe_name)?;
-    let recipe_from_recipe_file: Recipe = parse_recipe_content(&content)?;
+    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
+    let recipe_from_recipe_file: Recipe = parse_recipe_content(&recipe_file_content)?;
 
     let recipe_parameters: &Vec<RecipeParameter> =
         validate_recipe_file_parameters(&recipe_from_recipe_file)?;
 
     let rendered_content = match params {
-        None => content,
+        None => recipe_file_content,
         Some(user_params) => {
             let params_for_template = apply_values_to_parameters(&user_params, recipe_parameters)?;
-            render_content_with_params(&content, &params_for_template)?
+            render_content_with_params(&recipe_file_content, &params_for_template)?
         }
     };
 
@@ -161,10 +161,9 @@ fn apply_values_to_parameters(
             };
         }
     }
-    if !missing_params.is_empty() {
-        Err(anyhow::anyhow!("Missing parameters: {:?}", missing_params))
-    } else {
-        Ok(param_map)
+    match missing_params.is_empty() {
+        true => Ok(param_map),
+        false => Err(anyhow::anyhow!("Missing parameters: {:?}", missing_params)),
     }
 }
 
