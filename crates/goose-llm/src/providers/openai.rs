@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use super::{
     errors::ProviderError,
@@ -13,20 +13,12 @@ use super::{
 use crate::{
     message::Message,
     model::ModelConfig,
-    providers::{Provider, ProviderCompleteResponse, Usage},
+    providers::{Provider, ProviderCompleteResponse, ProviderExtractResponse, Usage},
     types::core::Tool,
 };
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
-pub const _OPEN_AI_KNOWN_MODELS: &[&str] = &[
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo",
-    "o1",
-    "o3",
-    "o4-mini",
-];
+pub const _OPEN_AI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4.1", "o1", "o3", "o4-mini"];
 
 #[derive(Debug)]
 pub struct OpenAiProvider {
@@ -145,6 +137,65 @@ impl Provider for OpenAiProvider {
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok(ProviderCompleteResponse::new(message, model, usage))
+    }
+
+    async fn extract(
+        &self,
+        system: &str,
+        messages: &[Message],
+        schema: &Value,
+    ) -> Result<ProviderExtractResponse, ProviderError> {
+        // 1. Build base payload (no tools)
+        let mut payload = create_request(&self.model, system, messages, &[], &ImageFormat::OpenAi)?;
+
+        // 2. Inject strict JSON‐Schema wrapper
+        payload
+            .as_object_mut()
+            .expect("payload must be an object")
+            .insert(
+                "response_format".to_string(),
+                json!({
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "extraction",
+                        "schema": schema,
+                        "strict": true
+                    }
+                }),
+            );
+
+        // 3. Call OpenAI
+        let response = self.post(payload.clone()).await?;
+
+        // 4. Extract the assistant’s `content` and parse it into JSON
+        let msg = &response["choices"][0]["message"];
+        let raw = msg.get("content").cloned().ok_or_else(|| {
+            ProviderError::ResponseParseError("Missing content in extract response".into())
+        })?;
+        let data = match raw {
+            Value::String(s) => serde_json::from_str(&s)
+                .map_err(|e| ProviderError::ResponseParseError(format!("Invalid JSON: {}", e)))?,
+            Value::Object(_) | Value::Array(_) => raw,
+            other => {
+                return Err(ProviderError::ResponseParseError(format!(
+                    "Unexpected content type: {:?}",
+                    other
+                )))
+            }
+        };
+
+        // 5. Gather usage & model info
+        let usage = match get_usage(&response) {
+            Ok(u) => u,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage in extract: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+
+        Ok(ProviderExtractResponse::new(data, model, usage))
     }
 }
 

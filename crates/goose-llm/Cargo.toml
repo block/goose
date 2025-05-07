@@ -39,6 +39,9 @@ smallvec = { version = "1.13", features = ["serde"] }
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.15.0"
+dotenv = "0.15"
+lazy_static = "1.5"
+ctor = "0.2.7"
 
 
 [[example]]

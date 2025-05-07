@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use url::Url;
 
 use super::{
@@ -15,17 +15,15 @@ use super::{
 use crate::{
     message::Message,
     model::ModelConfig,
-    providers::{Provider, ProviderCompleteResponse, Usage},
+    providers::{Provider, ProviderCompleteResponse, ProviderExtractResponse, Usage},
     types::core::Tool,
 };
 
-pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
 // Databricks can passthrough to a wide range of models, we only provide the default
 pub const _DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
-    "databricks-meta-llama-3-1-405b-instruct",
-    "databricks-dbrx-instruct",
-    "databricks-mixtral-8x7b-instruct",
+    "databricks-claude-3-7-sonnet",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,5 +212,64 @@ impl Provider for DatabricksProvider {
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok(ProviderCompleteResponse::new(message, model, usage))
+    }
+
+    async fn extract(
+        &self,
+        system: &str,
+        messages: &[Message],
+        schema: &Value,
+    ) -> Result<ProviderExtractResponse, ProviderError> {
+        // 1. Build base payload (no tools)
+        let mut payload = create_request(&self.model, system, messages, &[], &ImageFormat::OpenAi)?;
+
+        // 2. Inject strict JSON‐Schema wrapper
+        payload
+            .as_object_mut()
+            .expect("payload must be an object")
+            .insert(
+                "response_format".to_string(),
+                json!({
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "extraction",
+                        "schema": schema,
+                        "strict": true
+                    }
+                }),
+            );
+
+        // 3. Call OpenAI
+        let response = self.post(payload.clone()).await?;
+
+        // 4. Extract the assistant’s `content` and parse it into JSON
+        let msg = &response["choices"][0]["message"];
+        let raw = msg.get("content").cloned().ok_or_else(|| {
+            ProviderError::ResponseParseError("Missing content in extract response".into())
+        })?;
+        let data = match raw {
+            Value::String(s) => serde_json::from_str(&s)
+                .map_err(|e| ProviderError::ResponseParseError(format!("Invalid JSON: {}", e)))?,
+            Value::Object(_) | Value::Array(_) => raw,
+            other => {
+                return Err(ProviderError::ResponseParseError(format!(
+                    "Unexpected content type: {:?}",
+                    other
+                )))
+            }
+        };
+
+        // 5. Gather usage & model info
+        let usage = match get_usage(&response) {
+            Ok(u) => u,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage in extract: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+
+        Ok(ProviderExtractResponse::new(data, model, usage))
     }
 }
