@@ -6,15 +6,50 @@ use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
 use anyhow::Result;
 use serde_json::{json, Value};
+use indoc::indoc;
+
+const SESSION_DESC_EXAMPLES: &[&str] = &[
+    "Research Synthesis",
+    "Sentiment Analysis",
+    "Performance Report",
+    "Feedback Collector",
+    "Accessibility Check",
+    "Design Reminder",
+    "Project Reminder",
+    "Launch Checklist",
+    "Metrics Monitor",
+    "Incident Response",
+    "Deploy Cabinet App",
+    "Design Reminder Alert",
+    "Generate Monthly Expense Report",
+    "Automate Incident Response Workflow",
+    "Analyze Brand Sentiment Trends",
+    "Monitor Device Health Issues",
+    "Collect UI Feedback Summary",
+    "Schedule Project Deadline Reminders",
+];
+
+fn build_system_prompt() -> String {
+    let examples = SESSION_DESC_EXAMPLES
+        .iter()
+        .map(|e| format!("- {}", e))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    indoc! {r#"
+    You are an assistant that crafts a concise session title.
+    Given the first couple user messages in the conversation so far, 
+    reply with only a short name (up to 4 words) that best describes 
+    this session’s goal.
+
+    Examples:
+    "#}
+    .to_string()
+    + &examples
+}
 
 /// Generates a short (≤4 words) description of the session using Databricks “goose-gpt-4-1”.
 pub async fn generate_session_description(messages: &[Message]) -> Result<String, ProviderError> {
-    // Build the instruction prompt
-    let system_prompt =
-        "Based on the user messages in the conversation so far, provide a concise description \
-         of this session in four words or less."
-            .to_string();
-
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages
         .iter()
@@ -36,8 +71,9 @@ pub async fn generate_session_description(messages: &[Message]) -> Result<String
         ));
     }
 
+    let system_prompt = build_system_prompt();
     let user_msg_text = format!(
-        "Here are the first few user messages:\n{}",
+        "Here are the user messages:\n{}",
         context.join("\n")
     );
 
