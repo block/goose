@@ -35,8 +35,7 @@ pub fn load_recipe(
     let recipe_file_content = retrieve_recipe_file(recipe_name)?;
     let recipe_from_recipe_file: Recipe = parse_recipe_content(&recipe_file_content)?;
 
-    let recipe_parameters: &Vec<RecipeParameter> =
-        validate_recipe_file_parameters(&recipe_from_recipe_file)?;
+    let recipe_parameters = validate_recipe_file_parameters(&recipe_from_recipe_file)?;
 
     let rendered_content = match params {
         None => recipe_file_content,
@@ -62,12 +61,12 @@ pub fn load_recipe(
     Ok(recipe)
 }
 
-fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
+fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&[RecipeParameter]> {
     validate_optional_parameters(recipe)?;
     validate_parameters_in_template(recipe)
 }
 
-fn validate_parameters_in_template(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
+fn validate_parameters_in_template(recipe: &Recipe) -> Result<&[RecipeParameter]> {
     let template_variables = extract_template_variables(recipe.instructions.as_ref().unwrap())?;
     let param_keys: HashSet<String> = recipe
         .parameters
@@ -84,7 +83,7 @@ fn validate_parameters_in_template(recipe: &Recipe) -> Result<&Vec<RecipeParamet
         .difference(&template_variables)
         .collect::<Vec<_>>();
     if missing_keys.is_empty() && extra_keys.is_empty() {
-        return Ok(recipe.parameters.as_ref().unwrap());
+        return Ok(recipe.parameters.as_deref().unwrap_or(&[]));
     }
     let mut message = String::new();
     if !missing_keys.is_empty() {
@@ -154,7 +153,7 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 
 fn apply_values_to_parameters(
     user_params: &[(String, String)],
-    recipe_parameters: &Vec<RecipeParameter>,
+    recipe_parameters: &[RecipeParameter],
 ) -> Result<HashMap<String, String>> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     let mut missing_params: Vec<String> = Vec::new();
@@ -405,5 +404,19 @@ mod tests {
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         assert!(err.to_string().contains("unknown variant `some_invalid_type`, expected one of `string`, `number`, `date`, `file`"));
+    }
+
+    #[test]
+    fn test_load_recipe_success_without_parameters() {
+        let instructions_and_parameters = r#"
+            "instructions": "Test instructions"
+            "#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
+
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
+        assert!(load_recipe_result.is_ok());
+        let recipe = load_recipe_result.unwrap();
+        assert_eq!(recipe.instructions.unwrap(), "Test instructions");
+        assert!(recipe.parameters.is_none());
     }
 }
