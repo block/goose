@@ -37,11 +37,13 @@ pub fn load_recipe(
 
     let recipe_parameters = validate_recipe_file_parameters(&recipe_from_recipe_file)?;
 
+    let mut params_for_template: Option<HashMap<String, String>> = None;
     let rendered_content = match params {
         None => recipe_file_content,
         Some(user_params) => {
-            let params_for_template = apply_values_to_parameters(&user_params, recipe_parameters)?;
-            render_content_with_params(&recipe_file_content, &params_for_template)?
+            params_for_template =
+                Some(apply_values_to_parameters(&user_params, recipe_parameters)?);
+            render_content_with_params(&recipe_file_content, params_for_template.as_ref().unwrap())?
         }
     };
 
@@ -54,6 +56,15 @@ pub fn load_recipe(
             style(&recipe.title).green()
         );
         println!("{} {}", style("Description:").dim(), &recipe.description);
+
+        if let Some(params) = params_for_template {
+            if !params.is_empty() {
+                println!("{}", style("Parameters:").dim());
+                for (key, value) in params {
+                    println!("{}: {}", key, value);
+                }
+            }
+        }
 
         println!(); // Add a blank line for spacing
     }
