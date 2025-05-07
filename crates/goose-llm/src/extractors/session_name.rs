@@ -8,7 +8,7 @@ use anyhow::Result;
 use indoc::indoc;
 use serde_json::{json, Value};
 
-const SESSION_DESC_EXAMPLES: &[&str] = &[
+const SESSION_NAME_EXAMPLES: &[&str] = &[
     "Research Synthesis",
     "Sentiment Analysis",
     "Performance Report",
@@ -30,7 +30,7 @@ const SESSION_DESC_EXAMPLES: &[&str] = &[
 ];
 
 fn build_system_prompt() -> String {
-    let examples = SESSION_DESC_EXAMPLES
+    let examples = SESSION_NAME_EXAMPLES
         .iter()
         .map(|e| format!("- {}", e))
         .collect::<Vec<_>>()
@@ -48,8 +48,8 @@ fn build_system_prompt() -> String {
         + &examples
 }
 
-/// Generates a short (≤4 words) description of the session using Databricks “goose-gpt-4-1”.
-pub async fn generate_session_description(messages: &[Message]) -> Result<String, ProviderError> {
+/// Generates a short (≤4 words) session name
+pub async fn generate_session_name(messages: &[Message]) -> Result<String, ProviderError> {
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages
         .iter()
@@ -67,7 +67,7 @@ pub async fn generate_session_description(messages: &[Message]) -> Result<String
 
     if context.is_empty() {
         return Err(ProviderError::ExecutionError(
-            "No user messages found to generate a description.".to_string(),
+            "No user messages found to generate a session name.".to_string(),
         ));
     }
 
@@ -82,9 +82,9 @@ pub async fn generate_session_description(messages: &[Message]) -> Result<String
     let schema = json!({
         "type": "object",
         "properties": {
-            "description": { "type": "string" }
+            "name": { "type": "string" }
         },
-        "required": ["description"],
+        "required": ["name"],
         "additionalProperties": false
     });
     let user_msg = Message::user().with_text(&user_msg_text);
@@ -97,13 +97,11 @@ pub async fn generate_session_description(messages: &[Message]) -> Result<String
         .as_object()
         .ok_or_else(|| ProviderError::ResponseParseError("Expected object".into()))?;
 
-    let description = obj
-        .get("description")
+    let name = obj
+        .get("name")
         .and_then(Value::as_str)
-        .ok_or_else(|| {
-            ProviderError::ResponseParseError("Missing or non-string description".into())
-        })?
+        .ok_or_else(|| ProviderError::ResponseParseError("Missing or non-string name".into()))?
         .to_string();
 
-    Ok(description)
+    Ok(name)
 }
