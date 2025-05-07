@@ -33,9 +33,8 @@ pub fn load_recipe(
     params: Option<Vec<(String, String)>>,
 ) -> Result<Recipe> {
     let recipe_file_content = retrieve_recipe_file(recipe_name)?;
-    let recipe_from_recipe_file: Recipe = parse_recipe_content(&recipe_file_content)?;
 
-    let recipe_parameters = validate_recipe_file_parameters(&recipe_from_recipe_file)?;
+    let recipe_parameters = validate_recipe_file_parameters(&recipe_file_content)?;
 
     let mut params_for_template: Option<HashMap<String, String>> = None;
     let rendered_content = match params {
@@ -72,13 +71,17 @@ pub fn load_recipe(
     Ok(recipe)
 }
 
-fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&[RecipeParameter]> {
-    validate_optional_parameters(recipe)?;
-    validate_parameters_in_template(recipe)
+fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Vec<RecipeParameter>> {
+    let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
+    validate_optional_parameters(&recipe_from_recipe_file)?;
+    validate_parameters_in_template(recipe_from_recipe_file, recipe_file_content)
 }
 
-fn validate_parameters_in_template(recipe: &Recipe) -> Result<&[RecipeParameter]> {
-    let template_variables = extract_template_variables(recipe.instructions.as_ref().unwrap())?;
+fn validate_parameters_in_template(
+    recipe: Recipe,
+    recipe_file_content: &str,
+) -> Result<Vec<RecipeParameter>> {
+    let template_variables = extract_template_variables(recipe_file_content)?;
     let param_keys: HashSet<String> = recipe
         .parameters
         .as_ref()
@@ -94,7 +97,7 @@ fn validate_parameters_in_template(recipe: &Recipe) -> Result<&[RecipeParameter]
         .difference(&template_variables)
         .collect::<Vec<_>>();
     if missing_keys.is_empty() && extra_keys.is_empty() {
-        return Ok(recipe.parameters.as_deref().unwrap_or(&[]));
+        return Ok(recipe.parameters.unwrap_or_default());
     }
     let mut message = String::new();
     if !missing_keys.is_empty() {
@@ -164,7 +167,7 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 
 fn apply_values_to_parameters(
     user_params: &[(String, String)],
-    recipe_parameters: &[RecipeParameter],
+    recipe_parameters: Vec<RecipeParameter>,
 ) -> Result<HashMap<String, String>> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     let mut missing_params: Vec<String> = Vec::new();
@@ -302,6 +305,39 @@ mod tests {
         assert_eq!(recipe.instructions.unwrap(), "Test instructions with value");
         // Verify parameters match recipe definition
         assert_eq!(recipe.parameters.as_ref().unwrap().len(), 1);
+        let param = &recipe.parameters.as_ref().unwrap()[0];
+        assert_eq!(param.key, "my_name");
+        assert!(matches!(param.input_type, RecipeParameterInputType::String));
+        assert!(matches!(
+            param.requirement,
+            RecipeParameterRequirement::Required
+        ));
+        assert_eq!(param.description, "A test parameter");
+    }
+
+    #[test]
+    fn test_load_recipe_success_variable_in_prompt() {
+        let instructions_and_parameters = r#"
+            "instructions": "Test instructions",
+            "prompt": "My prompt {{ my_name }}",
+            "parameters": [
+                {
+                    "key": "my_name",
+                    "input_type": "string",
+                    "requirement": "required",
+                    "description": "A test parameter"
+                }
+            ]"#;
+
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
+
+        let params = vec![("my_name".to_string(), "value".to_string())];
+        let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
+
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions.unwrap(), "Test instructions");
+        assert_eq!(recipe.prompt.unwrap(), "My prompt value");
         let param = &recipe.parameters.as_ref().unwrap()[0];
         assert_eq!(param.key, "my_name");
         assert!(matches!(param.input_type, RecipeParameterInputType::String));
