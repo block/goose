@@ -2406,7 +2406,7 @@ dependencies = [
  "fs2",
  "futures",
  "include_dir",
- "indoc",
+ "indoc 2.0.6",
  "jsonwebtoken",
  "keyring",
  "lazy_static",
@@ -2527,7 +2527,11 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "criterion",
+ "ctor",
+ "dotenv",
  "include_dir",
+ "indoc 1.0.9",
+ "lazy_static",
  "minijinja",
  "once_cell",
  "regex",
@@ -2559,7 +2563,7 @@ dependencies = [
  "ignore",
  "image 0.24.9",
  "include_dir",
- "indoc",
+ "indoc 2.0.6",
  "keyring",
  "kill_tree",
  "lazy_static",
@@ -3262,6 +3266,12 @@ dependencies = [
  "unicode-width 0.2.0",
  "web-time",
 ]
+
+[[package]]
+name = "indoc"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
 
 [[package]]
 name = "indoc"

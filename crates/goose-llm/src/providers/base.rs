@@ -43,6 +43,23 @@ impl ProviderCompleteResponse {
     }
 }
 
+/// Response from a structured‐extraction call
+#[derive(Debug, Clone)]
+pub struct ProviderExtractResponse {
+    /// The extracted JSON object
+    pub data: serde_json::Value,
+    /// Which model produced it
+    pub model: String,
+    /// Token usage stats
+    pub usage: Usage,
+}
+
+impl ProviderExtractResponse {
+    pub fn new(data: serde_json::Value, model: String, usage: Usage) -> Self {
+        Self { data, model, usage }
+    }
+}
+
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -65,6 +82,27 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<ProviderCompleteResponse, ProviderError>;
+
+    /// Structured extraction: always JSON‐Schema
+    ///
+    /// # Arguments
+    /// * `system`   – system prompt guiding the extraction task  
+    /// * `messages` – conversation history  
+    /// * `schema`   – a JSON‐Schema for the expected output.
+    ///                 Will set strict=true for OpenAI & Databricks.
+    ///
+    /// # Returns
+    /// A `ProviderExtractResponse` whose `data` is a JSON object matching `schema`.  
+    ///
+    /// # Errors
+    /// * `ProviderError::ContextLengthExceeded` if the prompt is too large  
+    /// * other `ProviderError` variants for API/network failures
+    async fn extract(
+        &self,
+        system: &str,
+        messages: &[Message],
+        schema: &serde_json::Value,
+    ) -> Result<ProviderExtractResponse, ProviderError>;
 }
 
 #[cfg(test)]

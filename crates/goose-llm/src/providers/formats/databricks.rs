@@ -200,6 +200,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 }
 
 /// Convert internal Tool format to OpenAI's API tool specification
+/// https://docs.databricks.com/aws/en/machine-learning/foundation-model-apis/api-reference#functionobject
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();

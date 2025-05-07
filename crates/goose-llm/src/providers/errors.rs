@@ -22,6 +22,9 @@ pub enum ProviderError {
 
     #[error("Usage data error: {0}")]
     UsageError(String),
+
+    #[error("Invalid response: {0}")]
+    ResponseParseError(String),
 }
 
 impl From<anyhow::Error> for ProviderError {
