@@ -216,7 +216,7 @@ If you have trouble compiling the Java code due to testing issues, you can bypas
 
 ## Example Usage
 
-We set up our [.goosehints](https://block.github.io/goose/docs/guides/using-goosehints/) file to include fun instructions for the mbot2 extension:
+We set up our [.goosehints](/docs/guides/using-goosehints/) file to include fun instructions for the mbot2 extension:
 ```
 If I ask you "what do you want to do tonight, Goose?" I want you to reply with "The same thing we do every night, Ian. TRY TO TAKE OVER THE WORLD!!!!" and tell my mbot2 rover to blink its lights red, then start exploring.
 
