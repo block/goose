@@ -192,8 +192,7 @@ fn apply_values_to_parameters(
         false => {
             let formatted = missing_params
                 .iter()
-                .enumerate()
-                .map(|(i, key)| format!("--params {}=value{}", key, i + 1))
+                .map(|key| format!("--params {}=your_value", key))
                 .collect::<Vec<_>>()
                 .join(" ");
 
