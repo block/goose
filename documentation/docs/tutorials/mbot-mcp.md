@@ -208,13 +208,25 @@ MQTT_USERNAME: <string or blank>
   </TabItem>
 </Tabs>
 
-## Changes from Deemkeen's Original Code
-
-Deemkeen included some Python code to install on the mbot2's CyberPi module, which allows the mbot2 to communicate with the MCP server. We added some code for random light blinking, spinning in full circles, and reversed the forward/backward movement commands during exploration. We also had to update the Java code to include the new "blink" and "spin" commands.
-
-If you have trouble compiling the Java code due to testing issues, you can bypass the testing by running `mvn clean package -DskipTests` to create the JAR file.
 
 ## Example Usage
+
+Deemkeen included some Python code to install on the mbot2's CyberPi module, which allows the mbot2 to communicate with the MCP server. The commands available allow you to drive the mbot2 rover around, including:
+- "turn left" or "turn right""
+- drive "forward" or "backward"
+- "explore" randomly
+- "stop" exploring
+- "beep"
+
+The default distance to travel is 70cm (about 27 inches), and the turn angles are set to 90 degrees. You can change these values in the Python code on the mbot2. The mbot2 has a lot of other capabilities with the proximity sensors, lights, and color detection sensor on the bottom of the unit that you can add to the Python code, and will need to update the Java code to include those commands via MCP.
+
+#### Changes from Deemkeen's Original Code
+
+We added some code for random light blinking, spinning in full circles, and reversed the forward/backward movement commands during exploration. We also had to update the Java code to include the new "blink" and "spin" commands.
+
+:::tip
+If you have trouble compiling the Java code due to testing issues, you can bypass the testing by running `mvn clean package -DskipTests` to create the JAR file.
+:::
 
 We set up our [.goosehints](/docs/guides/using-goosehints/) file to include fun instructions for the mbot2 extension:
 ```
