@@ -64,7 +64,7 @@ pub fn load_recipe(
 }
 
 fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
-    let template_variables = extract_template_variables(&recipe.instructions.as_ref().unwrap())?;
+    let template_variables = extract_template_variables(recipe.instructions.as_ref().unwrap())?;
     let param_keys: HashSet<String> = recipe
         .parameters
         .as_ref()
