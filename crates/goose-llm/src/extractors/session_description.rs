@@ -5,8 +5,8 @@ use crate::providers::databricks::DatabricksProvider;
 use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
 use anyhow::Result;
-use serde_json::{json, Value};
 use indoc::indoc;
+use serde_json::{json, Value};
 
 const SESSION_DESC_EXAMPLES: &[&str] = &[
     "Research Synthesis",
@@ -45,7 +45,7 @@ fn build_system_prompt() -> String {
     Examples:
     "#}
     .to_string()
-    + &examples
+        + &examples
 }
 
 /// Generates a short (≤4 words) description of the session using Databricks “goose-gpt-4-1”.
@@ -72,10 +72,7 @@ pub async fn generate_session_description(messages: &[Message]) -> Result<String
     }
 
     let system_prompt = build_system_prompt();
-    let user_msg_text = format!(
-        "Here are the user messages:\n{}",
-        context.join("\n")
-    );
+    let user_msg_text = format!("Here are the user messages:\n{}", context.join("\n"));
 
     // Instantiate DatabricksProvider with goose-gpt-4-1
     let model_cfg = ModelConfig::new("goose-gpt-4-1".to_string()).with_temperature(Some(0.0));
