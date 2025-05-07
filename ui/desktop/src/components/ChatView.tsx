@@ -106,6 +106,7 @@ function ChatContent({
     closeSummaryModal,
     updateSummary,
     hasContextLengthExceededContent,
+      preparingManualSummary,
   } = useChatContextManager();
 
   useEffect(() => {
@@ -606,3 +607,14 @@ function ChatContent({
     </div>
   );
 }
+
+export const SummaryPreparationIndicator: React.FC = () => {
+  return (
+      <div className="flex items-center justify-center p-4">
+        <div className="flex items-center text-sm text-gray-400 bg-bgSubtle p-3 rounded-lg">
+          <span className="mr-2">Preparing conversation summary...</span>
+          <span className="animate-spin h-4 w-4 border-2 border-gray-400 rounded-full border-t-transparent"></span>
+        </div>
+      </div>
+  );
+};
