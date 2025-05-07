@@ -1,4 +1,5 @@
 mod completion;
+pub mod extractors;
 pub mod message;
 mod model;
 mod prompt_template;
