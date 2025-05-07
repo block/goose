@@ -9,10 +9,9 @@ interface SplashPillProps {
   content: string;
   append: (text: string) => void;
   className?: string;
-  longForm?: string;
 }
 
-function SplashPill({ content, append, className = '', longForm = '' }: SplashPillProps) {
+function SplashPill({ content, append, className = '' }: SplashPillProps) {
   const displayText = truncateText(content);
 
   return (
@@ -20,7 +19,7 @@ function SplashPill({ content, append, className = '', longForm = '' }: SplashPi
       className={`px-4 py-2 text-sm text-center text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
       onClick={async () => {
         // Always use the full text (longForm or original content) when clicked
-        await append(longForm || content);
+        await append(content);
       }}
       title={content.length > 100 ? content : undefined} // Show full text on hover if truncated
     >
