@@ -194,7 +194,7 @@ Your team is full of problem solvers. One teammate built a slick internal dashbo
 <head>
   <meta property="og:title" content="A Recipe for Success: Cooking Up Repeatable Agentic Workflows" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/06/recipe-for-success.md" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/06/recipe-for-success" />
   <meta property="og:description" content="A fresh look at AI agents, orchestration, and repeatability told through the metaphor of a rat who can cook." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/cookingwithgoose-9114cf03cec76df4792fc58361ebe20b.png" />
   <meta name="twitter:card" content="summary_large_image" />
