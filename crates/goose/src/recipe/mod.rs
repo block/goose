@@ -103,9 +103,18 @@ pub enum RecipeParameterRequirement {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterInputType {
+    String,
+    Number,
+    Date,
+    File,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RecipeParameter {
     pub key: String,
-    pub input_type: String,
+    pub input_type: RecipeParameterInputType,
     pub requirement: RecipeParameterRequirement,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]

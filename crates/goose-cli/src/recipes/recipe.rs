@@ -1,13 +1,12 @@
 use anyhow::Result;
 use console::style;
 
+use crate::recipes::search_recipe::retrieve_recipe_file;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
-
-use crate::recipes::search_recipe::retrieve_recipe_file;
 
 /// Loads and validates a recipe from a YAML or JSON file
 ///
@@ -65,6 +64,10 @@ pub fn load_recipe(
 
 fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
     validate_optional_parameters(recipe)?;
+    validate_parameters_in_template(recipe)
+}
+
+fn validate_parameters_in_template(recipe: &Recipe) -> Result<&Vec<RecipeParameter>> {
     let template_variables = extract_template_variables(recipe.instructions.as_ref().unwrap())?;
     let param_keys: HashSet<String> = recipe
         .parameters
@@ -102,7 +105,7 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
         .unwrap_or(&vec![])
         .iter()
         .filter(|p| {
-            matches!(   p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
+            matches!(p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
         })
         .map(|p| p.key.clone())
         .collect();
@@ -182,9 +185,29 @@ fn render_content_with_params(content: &str, params: &HashMap<String, String>) -
 
 #[cfg(test)]
 mod tests {
-    use goose::recipe::RecipeParameterRequirement;
+    use std::path::PathBuf;
+
+    use goose::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
+    use tempfile::TempDir;
 
     use super::*;
+
+    fn setup_recipe_file(instructions_and_parameters: &str) -> (TempDir, PathBuf) {
+        let recipe_content = format!(
+            r#"{{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            {}
+        }}"#,
+            instructions_and_parameters
+        );
+        // Create a temporary file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.json");
+        std::fs::write(&recipe_path, recipe_content).unwrap();
+        (temp_dir, recipe_path)
+    }
 
     #[test]
     fn test_render_content_with_params() {
@@ -222,11 +245,7 @@ mod tests {
 
     #[test]
     fn test_load_recipe_success() {
-        // Mock retrieve_recipe_file by creating a test recipe file
-        let recipe_content = r#"{
-            "version": "1.0.0",
-            "title": "Test Recipe",
-            "description": "A test recipe",
+        let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ my_name }}",
             "parameters": [
                 {
@@ -235,15 +254,10 @@ mod tests {
                     "requirement": "required",
                     "description": "A test parameter"
                 }
-            ]
-        }"#;
+            ]"#;
 
-        // Create a temporary file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path = temp_dir.path().join("test_recipe.json");
-        std::fs::write(&recipe_path, recipe_content).unwrap();
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        // Test loading recipe with parameters
         let params = vec![("my_name".to_string(), "value".to_string())];
         let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
 
@@ -254,7 +268,7 @@ mod tests {
         assert_eq!(recipe.parameters.as_ref().unwrap().len(), 1);
         let param = &recipe.parameters.as_ref().unwrap()[0];
         assert_eq!(param.key, "my_name");
-        assert_eq!(param.input_type, "string");
+        assert!(matches!(param.input_type, RecipeParameterInputType::String));
         assert!(matches!(
             param.requirement,
             RecipeParameterRequirement::Required
@@ -263,12 +277,8 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_wrong_parameters() {
-        // Mock retrieve_recipe_file by creating a test recipe file
-        let recipe_content = r#"{
-            "version": "1.0.0",
-            "title": "Test Recipe",
-            "description": "A test recipe",
+    fn test_load_recipe_wrong_parameters_in_recipe_file() {
+        let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ expected_param1 }} {{ expected_param2 }}",
             "parameters": [
                 {
@@ -277,17 +287,10 @@ mod tests {
                     "requirement": "required",
                     "description": "A test parameter"
                 }
-            ]
-        }"#;
+            ]"#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        // Create a temporary file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path = temp_dir.path().join("test_recipe.json");
-        std::fs::write(&recipe_path, recipe_content).unwrap();
-
-        // Test loading recipe with parameters
-        let params = vec![("my_name".to_string(), "value".to_string())];
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, Some(params));
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         assert!(err
@@ -301,12 +304,8 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_with_default_values() {
-        // Mock retrieve_recipe_file by creating a test recipe file
-        let recipe_content = r#"{
-            "version": "1.0.0",
-            "title": "Test Recipe",
-            "description": "A test recipe",
+    fn test_load_recipe_with_default_values_in_recipe_file() {
+        let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ param_with_default }} {{ param_without_default }}",
             "parameters": [
                 {
@@ -322,16 +321,10 @@ mod tests {
                     "requirement": "required",
                     "description": "A test parameter"
                 }
-            ]
-        }"#;
-
-        // Create a temporary file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path = temp_dir.path().join("test_recipe.json");
-        std::fs::write(&recipe_path, recipe_content).unwrap();
-
-        // Test loading recipe with parameters
+            ]"#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
         let params = vec![("param_without_default".to_string(), "value1".to_string())];
+
         let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
@@ -343,12 +336,8 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_optional_parameters_without_default_values() {
-        // Mock retrieve_recipe_file by creating a test recipe file
-        let recipe_content = r#"{
-            "version": "1.0.0",
-            "title": "Test Recipe",
-            "description": "A test recipe",
+    fn test_load_recipe_optional_parameters_without_default_values_in_recipe_file() {
+        let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ optional_param }}",
             "parameters": [
                 {
@@ -357,19 +346,36 @@ mod tests {
                     "requirement": "optional",
                     "description": "A test parameter"
                 }
-            ]
-        }"#;
+            ]"#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        // Create a temporary file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path = temp_dir.path().join("test_recipe.json");
-        std::fs::write(&recipe_path, recipe_content).unwrap();
-
-        // Test loading recipe with parameters
         let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
-        assert!(err.to_string().contains("Optional parameters with no default value: [\"optional_param\"] in the recipe file"));
+        assert!(err.to_string().contains(
+            "Optional parameters with no default value: [\"optional_param\"] in the recipe file"
+        ));
+    }
+
+    #[test]
+    fn test_load_recipe_wrong_input_type_in_recipe_file() {
+        let instructions_and_parameters = r#"
+            "instructions": "Test instructions with {{ param }}",
+            "parameters": [
+                {
+                    "key": "param",
+                    "input_type": "some_invalid_type",
+                    "requirement": "required",
+                    "description": "A test parameter"
+                }
+            ]"#;
+        let params = vec![("param".to_string(), "value".to_string())];
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
+
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, Some(params));
+        assert!(load_recipe_result.is_err());
+        let err = load_recipe_result.unwrap_err();
+        assert!(err.to_string().contains("unknown variant `some_invalid_type`, expected one of `string`, `number`, `date`, `file`"));
     }
 }
