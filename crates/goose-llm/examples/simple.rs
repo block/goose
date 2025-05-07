@@ -3,7 +3,9 @@ use std::vec;
 use anyhow::Result;
 use goose_llm::{
     completion,
-    types::completion::{CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig},
+    types::completion::{
+        CompletionRequest, CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig,
+    },
     Message, ModelConfig,
 };
 use serde_json::json;
@@ -91,13 +93,13 @@ async fn main() -> Result<()> {
         println!("\n---------------\n");
         println!("User Input: {text}");
         let messages = vec![Message::user().with_text(text)];
-        let completion_response: CompletionResponse = completion(
+        let completion_response: CompletionResponse = completion(CompletionRequest::new(
             provider,
             model_config.clone(),
             system_preamble,
             &messages,
             &extensions,
-        )
+        ))
         .await?;
         // Print the response
         println!("\nCompletion Response:");

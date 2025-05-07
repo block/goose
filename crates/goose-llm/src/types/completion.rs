@@ -3,10 +3,56 @@
 // https://docs.google.com/document/d/1r5vjSK3nBQU1cIRf0WKysDigqMlzzrzl_bxEE4msOiw/edit?tab=t.0
 
 use std::collections::HashMap;
+use thiserror::Error;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{message::Message, providers::Usage};
+use crate::{model::ModelConfig, providers::errors::ProviderError};
+
+pub struct CompletionRequest<'a> {
+    pub provider_name: &'a str,
+    pub model_config: ModelConfig,
+    pub system_preamble: &'a str,
+    pub messages: &'a [Message],
+    pub extensions: &'a [ExtensionConfig],
+}
+
+impl<'a> CompletionRequest<'a> {
+    pub fn new(
+        provider_name: &'a str,
+        model_config: ModelConfig,
+        system_preamble: &'a str,
+        messages: &'a [Message],
+        extensions: &'a [ExtensionConfig],
+    ) -> Self {
+        Self {
+            provider_name,
+            model_config,
+            system_preamble,
+            messages,
+            extensions,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CompletionError {
+    #[error("failed to create provider: {0}")]
+    UnknownProvider(String),
+
+    #[error("provider error: {0}")]
+    Provider(#[from] ProviderError),
+
+    #[error("template rendering error: {0}")]
+    Template(#[from] minijinja::Error),
+
+    #[error("json serialization error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("tool not found error: {0}")]
+    ToolNotFound(String),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionResponse {
