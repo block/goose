@@ -504,6 +504,7 @@ pub async fn cli() -> Result<()> {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
+                    // let input_value: String= cliclack::input("enter something").interact()?;
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,

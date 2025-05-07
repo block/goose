@@ -1,7 +1,7 @@
 use anyhow::Result;
 use console::style;
 
-use goose::recipe::{Recipe, RecipeParameter};
+use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
@@ -42,8 +42,8 @@ pub fn load_recipe(
     let rendered_content = match params {
         None => content,
         Some(user_params) => {
-            let user_params_with_defaults = apply_default_values(&user_params, recipe_parameters);
-            render_content_with_params(&content, &user_params_with_defaults)?
+            let params_for_template = apply_values_to_parameters(&user_params, recipe_parameters)?;
+            render_content_with_params(&content, &params_for_template)?
         }
     };
 
@@ -68,7 +68,7 @@ fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParamet
     let param_keys: HashSet<String> = recipe
         .parameters
         .as_ref()
-        .unwrap()
+        .unwrap_or(&vec![])
         .iter()
         .map(|p| p.key.clone())
         .collect();
@@ -81,13 +81,13 @@ fn validate_recipe_file_parameters(recipe: &Recipe) -> Result<&Vec<RecipeParamet
     let mut message = String::new();
     if !missing_keys.is_empty() {
         message.push_str(&format!(
-            "Missing definitions for parameters: {:?}\n",
+            "Missing definitions for parameters: {:?} in the recipe file\n",
             missing_keys
         ));
     }
     if !extra_keys.is_empty() {
         message.push_str(&format!(
-            "Unexpected parameter definitions: {:?}\n",
+            "Unexpected parameter definitions: {:?} in the recipe file\n",
             extra_keys
         ));
     }
@@ -117,17 +117,32 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
     Ok(template.undeclared_variables(true))
 }
 
-fn apply_default_values(
+fn apply_values_to_parameters(
     user_params: &[(String, String)],
     recipe_parameters: &Vec<RecipeParameter>,
-) -> HashMap<String, String> {
+) -> Result<HashMap<String, String>> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
+    let mut missing_params: Vec<String> = Vec::new();
     for param in recipe_parameters {
-        if let (false, Some(default)) = (param_map.contains_key(&param.key), &param.default) {
-            param_map.insert(param.key.clone(), default.clone());
+        if !param_map.contains_key(&param.key) {
+            match (&param.default, &param.requirement) {
+                (Some(default), _) => param_map.insert(param.key.clone(), default.clone()),
+                (None, RecipeParameterRequirement::UserPrompt) => {
+                    let value = cliclack::input(format!("Enter {}", param.key)).interact()?;
+                    param_map.insert(param.key.clone(), value)
+                }
+                _ => {
+                    missing_params.push(param.key.clone());
+                    None
+                }
+            };
         }
     }
-    param_map
+    if !missing_params.is_empty() {
+        Err(anyhow::anyhow!("Missing parameters: {:?}", missing_params))
+    } else {
+        Ok(param_map)
+    }
 }
 
 fn render_content_with_params(content: &str, params: &HashMap<String, String>) -> Result<String> {
