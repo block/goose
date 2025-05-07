@@ -211,7 +211,8 @@ MQTT_USERNAME: <string or blank>
 
 ## Example Usage
 
-Deemkeen included some Python code to install on the mbot2's CyberPi module, which allows the mbot2 to communicate with the MCP server. The commands available allow you to drive the mbot2 rover around, including:
+The available commands allow you to drive the mbot2 rover around, including:
+
 - "turn left" or "turn right""
 - drive "forward" or "backward"
 - "explore" randomly
