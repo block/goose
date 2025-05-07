@@ -35,10 +35,14 @@ base64 = "0.21"
 regex = "1.11.1"
 tracing = "0.1"
 smallvec = { version = "1.13", features = ["serde"] }
+indoc = "1.0"
 
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.15.0"
+dotenv = "0.15"
+lazy_static = "1.5"
+ctor = "0.2.7"
 
 
 [[example]]

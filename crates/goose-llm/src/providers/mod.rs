@@ -6,5 +6,5 @@ pub mod formats;
 pub mod openai;
 pub mod utils;
 
-pub use base::{Provider, ProviderCompleteResponse, Usage};
+pub use base::{Provider, ProviderCompleteResponse, ProviderExtractResponse, Usage};
 pub use factory::create;

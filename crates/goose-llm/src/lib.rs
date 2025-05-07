@@ -1,8 +1,9 @@
 mod completion;
-mod message;
+pub mod extractors;
+pub mod message;
 mod model;
 mod prompt_template;
-mod providers;
+pub mod providers;
 pub mod types;
 
 pub use completion::completion;
