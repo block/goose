@@ -272,6 +272,8 @@ let appConfig = {
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
+  // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
+  GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
   secretKey: generateSecretKey(),
 };
 
@@ -926,6 +928,48 @@ app.whenReady().then(async () => {
         },
       })
     );
+  }
+
+  // on macOS, the topbar is hidden
+  if (menu && process.platform !== 'darwin') {
+    let helpMenu = menu.items.find((item) => item.label === 'Help');
+
+    // If Help menu doesn't exist, create it and add it to the menu
+    if (!helpMenu) {
+      helpMenu = new MenuItem({
+        label: 'Help',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
+      });
+      // Find a reasonable place to insert the Help menu, usually near the end
+      const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
+      menu.items.splice(insertIndex, 0, helpMenu);
+    }
+
+    // Ensure the Help menu has a submenu before appending
+    if (helpMenu.submenu) {
+      // Add a separator before the About item if the submenu is not empty
+      if (helpMenu.submenu.items.length > 0) {
+        helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      }
+
+      // Create the About Goose menu item with a submenu
+      const aboutGooseMenuItem = new MenuItem({
+        label: 'About Goose',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
+      });
+
+      // Add the Version menu item (display only) to the About Goose submenu
+      if (aboutGooseMenuItem.submenu) {
+        aboutGooseMenuItem.submenu.append(
+          new MenuItem({
+            label: `Version ${gooseVersion || app.getVersion()}`,
+            enabled: false,
+          })
+        );
+      }
+
+      helpMenu.submenu.append(aboutGooseMenuItem);
+    }
   }
 
   if (menu) {

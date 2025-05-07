@@ -105,13 +105,13 @@ export default function GooseMessage({
       <div className="flex flex-col w-full">
         {textContent && (
           <div className="flex flex-col group">
-            <div className={`goose-message-content py-2`}>
+            <div className={`goose-message-content pt-2`}>
               <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
-            <div className="relative flex justify-end z-[-1]">
+            <div className="relative flex justify-start z-[-1]">
               {toolRequests.length === 0 && (
-                <div className="absolute left-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                   {timestamp}
                 </div>
               )}
@@ -126,20 +126,22 @@ export default function GooseMessage({
 
         {toolRequests.length > 0 && (
           <div className="relative flex flex-col w-full">
-            <div className={`goose-message-tool bg-bgSubtle rounded px-2 py-2 mt-2`}>
-              {toolRequests.map((toolRequest) => (
+            {toolRequests.map((toolRequest) => (
+              <div
+                className={`goose-message-tool bg-bgSubtle rounded px-2 py-2 mb-2`}
+                key={toolRequest.id}
+              >
                 <ToolCallWithResponse
                   // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
                   isCancelledMessage={
                     messageIndex < messageHistoryIndex &&
                     toolResponsesMap.get(toolRequest.id) == undefined
                   }
-                  key={toolRequest.id}
                   toolRequest={toolRequest}
                   toolResponse={toolResponsesMap.get(toolRequest.id)}
                 />
-              ))}
-            </div>
+              </div>
+            ))}
             <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
