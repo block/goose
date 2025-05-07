@@ -203,6 +203,14 @@ enum Command {
         )]
         resume: bool,
 
+        /// Show message history when resuming
+        #[arg(
+            long,
+            help = "Show previous messages when resuming a session",
+            requires = "resume"
+        )]
+        history: bool,
+
         /// Enable debug output mode
         #[arg(
             long,
@@ -413,6 +421,7 @@ pub async fn cli() -> Result<()> {
             command,
             identifier,
             resume,
+            history,
             debug,
             extensions,
             remote_extensions,
@@ -448,6 +457,12 @@ pub async fn cli() -> Result<()> {
                         session.session_file().file_stem().and_then(|s| s.to_str()),
                         None,
                     )?;
+
+                    // Render previous messages if resuming a session and history flag is set
+                    if resume && history {
+                        session.render_message_history();
+                    }
+
                     let _ = session.interactive(None).await;
                     Ok(())
                 }
