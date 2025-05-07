@@ -1,6 +1,7 @@
 ---
 title: "A Recipe for Success: Cooking Up Repeatable Agentic Workflows"
 description: A fresh look at AI agents, orchestration, and repeatability told through the metaphor of a rat who can cook.
+authors: 
     - rizel
 ---
 ![blog cover](cookingwithgoose.png)
