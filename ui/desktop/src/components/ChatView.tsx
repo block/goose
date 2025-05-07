@@ -587,6 +587,7 @@ function ChatContent({
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}
             droppedFiles={droppedFiles}
+            messages={messages}
           />
         </div>
       </Card>
