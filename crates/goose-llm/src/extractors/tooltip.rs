@@ -59,7 +59,7 @@ pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderEr
 
         let role = match m.role {
             Role::User => "User",
-            Role::Assistant => "Assistant"
+            Role::Assistant => "Assistant",
         };
 
         format!("{}: {}", role, parts.join("; "))
