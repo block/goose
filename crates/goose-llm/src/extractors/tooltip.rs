@@ -5,7 +5,95 @@ use crate::providers::databricks::DatabricksProvider;
 use crate::providers::errors::ProviderError;
 use crate::types::core::{Content, Role};
 use anyhow::Result;
+use indoc::indoc;
 use serde_json::{json, Value};
+
+const TOOLTIP_EXAMPLES: &[&str] = &[
+    "analyzing KPIs",
+    "analyzing changes in GitHub",
+    "analyzing data",
+    "analyzing for anomalies",
+    "analyzing results",
+    "analyzing sentiment",
+    "analyzing trends",
+    "building artifacts in Buildkite",
+    "categorizing expenses",
+    "categorizing issues",
+    "categorizing severity in Google Sheets",
+    "checking asset status",
+    "checking checklist items",
+    "checking conflicts",
+    "checking deadlines",
+    "checking dependencies",
+    "collecting data from LaunchDarkly",
+    "collecting feedback",
+    "collecting mentions",
+    "collecting receipts",
+    "collecting transaction data",
+    "creating slides",
+    "deploying changes in AWS",
+    "detecting anomalies",
+    "detecting incident",
+    "drafting report in Google Docs",
+    "emailing summary",
+    "extracting action items",
+    "extracting key points",
+    "generating alerts",
+    "generating feedback",
+    "generating insights",
+    "generating report",
+    "generating report in Google Docs",
+    "generating summary",
+    "identifying patterns",
+    "logging issues",
+    "logging issues in Jira",
+    "logging results",
+    "logging SEO issues",
+    "monitoring tickets in Zendesk",
+    "notifying design team",
+    "notifying dev team",
+    "notifying marketing team",
+    "notifying responders",
+    "notifying support team",
+    "notifying team",
+    "posting to Slack #support-analysis",
+    "running integration tests",
+    "running tests",
+    "running tests in GitHub Actions",
+    "scanning pages",
+    "scanning projects in Linear",
+    "scanning threads in Figma",
+    "sending reminders",
+    "sending reminders in Gmail",
+    "sending surveys",
+    "sharing with stakeholders",
+    "suggesting responses",
+    "summarizing findings",
+    "synthesizing findings",
+    "transcribing meeting",
+    "tracking resolution",
+    "updating status",
+    "updating status in Linear",
+    "updating status in Slack",
+];
+
+fn build_system_prompt() -> String {
+    let examples = TOOLTIP_EXAMPLES
+        .iter()
+        .map(|e| format!("- {}", e))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    indoc! {r#"
+    You are an assistant that summarizes the recent conversation into a tooltip.
+    Given the last two messages, reply with only a short tooltip (up to 4 words)
+    describing what is happening now.
+
+    Examples:
+    "#}
+    .to_string()
+        + &examples
+}
 
 /// Generates a tooltip summarizing the last two messages in the session,
 /// including any tool calls or results.
@@ -76,11 +164,7 @@ pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderEr
         .rev()
         .collect();
 
-    let system_prompt =
-        "You are an assistant that can summarize recent conversation into a tooltip. \
-         Based on the following two messages, reply ONLY with a short tooltip (1–2 phrases) \
-         describing what is happening now."
-            .to_string();
+    let system_prompt = build_system_prompt();
 
     let user_msg_text = format!(
         "Here are the last two messages:\n{}\n\nTooltip:",

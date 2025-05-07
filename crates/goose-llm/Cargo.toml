@@ -35,6 +35,7 @@ base64 = "0.21"
 regex = "1.11.1"
 tracing = "0.1"
 smallvec = { version = "1.13", features = ["serde"] }
+indoc = "1.0"
 
 [dev-dependencies]
 criterion = "0.5"
