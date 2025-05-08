@@ -899,6 +899,31 @@ impl Session {
         self.messages.clone()
     }
 
+    /// Render all past messages from the session history
+    pub fn render_message_history(&self) {
+        if self.messages.is_empty() {
+            return;
+        }
+
+        // Print session restored message
+        println!(
+            "\n{} {} messages loaded into context.",
+            console::style("Session restored:").green().bold(),
+            console::style(self.messages.len()).green()
+        );
+
+        // Render each message
+        for message in &self.messages {
+            output::render_message(message, self.debug);
+        }
+
+        // Add a visual separator after restored messages
+        println!(
+            "\n{}\n",
+            console::style("──────── New Messages ────────").dim()
+        );
+    }
+
     /// Get the session metadata
     pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
         if !self.session_file.exists() {

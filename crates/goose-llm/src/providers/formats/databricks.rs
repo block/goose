@@ -324,7 +324,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
 
     Ok(Message {
         role: Role::Assistant,
-        created: chrono::Utc::now().timestamp(),
+        created: chrono::Utc::now().timestamp_millis(),
         content: content.into(),
     })
 }

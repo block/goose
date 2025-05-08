@@ -111,7 +111,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -127,7 +127,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -144,7 +144,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -164,7 +164,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -187,7 +187,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -214,7 +214,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
