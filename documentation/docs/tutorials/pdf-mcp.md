@@ -12,13 +12,17 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a Goose extension, enabling Goose to read and extract text from protected and unprotected PDFs.
 
 :::tip TLDR
-
-**Command**
-
-```sh
-uvx mcp-read-pdf
-```
-
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx mcp-read-pdf
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration

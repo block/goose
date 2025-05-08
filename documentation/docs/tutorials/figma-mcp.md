@@ -12,18 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Figma MCP Server](https://github.com/hapins/figma-mcp) as a Goose extension to enable interaction with Figma files, designs, and components.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx @hapins/figma-mcp
-```
-
-**Environment Variable**
-```
-FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx @hapins/figma-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
+  ```
 :::
 
 ## Configuration
@@ -34,7 +38,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  1. [Launch the installer](goose://extension?cmd=npx&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
   2. Press `Yes` to confirm the installation
   3. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in
   4. Click `Save Configuration`

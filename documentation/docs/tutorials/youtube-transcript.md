@@ -12,13 +12,17 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a Goose extension to enable fetching and working with YouTube video transcripts.
 
 :::tip TLDR
-
-**Command**
-```sh
-npx @jkawamoto/mcp-youtube-transcript
-```
-
-No environment variables are required for this extension.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx @jkawamoto/mcp-youtube-transcript
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration

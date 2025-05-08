@@ -12,25 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
-
 :::tip TLDR
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  {goose_url}
+  [Launch the installer]({goose_url})
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
   {command}
   ```
-
-  **Environment Variable**
-  ```
-  {env_var}: <YOUR_TOKEN>
-  ```
   </TabItem>
 </Tabs>
+  **Environment Variable**
+  ```
+  {env_var}: <ENV_VALUE>
+  ```
 :::
 
 ## Configuration

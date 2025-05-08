@@ -12,13 +12,18 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Repomix MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable automated repository packing, codebase analysis, architecture summaries, test generation, and code exploration, all while compressing the codebase to minimize token usage and stay within your LLM's context limits.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx -y repomix --mcp
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=repomix&arg=--mcp&id=repomix&name=Repomix&description=Pack%20repositories%20into%20AI-friendly%20formats%20for%20Goose)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y repomix --mcp
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -26,7 +31,6 @@ npx -y repomix --mcp
 :::info
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
-
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>

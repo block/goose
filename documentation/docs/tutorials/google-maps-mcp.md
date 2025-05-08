@@ -10,18 +10,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Google Maps MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps) as a Goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-google-maps
-```
-
-**Environment Variable**
-```
-GOOGLE_MAPS_API_KEY: <YOUR_TOKEN>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-google-maps&id=google-maps&name=Google%20Maps&description=Google%20Maps%20API%20integration&env=GOOGLE_MAPS_API_KEY%3DGoogle%20Maps%20API%20key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-google-maps
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  GOOGLE_MAPS_API_KEY: <YOUR_TOKEN>
+  ```
 :::
 
 ## Configuration
