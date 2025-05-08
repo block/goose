@@ -152,7 +152,6 @@ impl Provider for OpenAiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
-        println!("payload to string: {:#?}", payload.clone().to_string());
         // Make request
         let response = self.post(payload.clone()).await?;
 

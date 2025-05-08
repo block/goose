@@ -1,12 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::oauth;
@@ -23,13 +22,12 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 // https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "snowflake-llama-3.3-70b";
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-5-sonnet";
 // Snowflake can passthrough to a wide range of models, we only provide the default
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] =
-    &["snowflake-llama-3.3-70b", "snowflake-llama-3.1-405b"];
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-5-sonnet", "snowflake-llama-3.1-405b"];
 
 pub const SNOWFLAKE_DOC_URL: &str =
-    "https://docs.snowflake.com/en/generative-ai/external-models/index.html";
+    "https://docs.snowflake.com/en/user-guide/snowflake-cortex/llm-functions#choosing-a-model";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SnowflakeAuth {
@@ -72,59 +70,6 @@ impl Default for SnowflakeProvider {
         let model = ModelConfig::new(SnowflakeProvider::metadata().default_model);
         SnowflakeProvider::from_env(model).expect("Failed to initialize Snowflake provider")
     }
-}
-
-async fn parse_response(payload_text: String) -> HashMap<String, Value> {
-    let mut text = String::new();
-    let mut tool = String::new();
-    let mut tool_use = json!({});
-
-    for line in payload_text.lines() {
-        if let Some(line) = line.trim().strip_prefix("data: ") {
-            print!("line: {:?}", line);
-            if let Ok(chunk) = serde_json::from_str::<Value>(line) {
-                // Extract choice information
-                if let Some(choice) = chunk["choices"][0]["delta"].as_object() {
-                    match choice.get("type").and_then(|v| v.as_str()) {
-                        Some("text") => {
-                            if let Some(content_list) = choice["content_list"].as_array() {
-                                text += content_list[0]["text"].as_str().unwrap_or("");
-                            }
-                        },
-                        Some("tool_use") => {
-                            if choice.get("tool_use_id").is_some() {
-                                if let Some(content_list) = choice["content_list"].as_array() {
-                                    tool_use = content_list[0].clone();
-                                }
-                            } else {
-                                if let Some(input) = choice.get("input").and_then(|v| v.as_str()) {
-                                    tool += input;
-                                }
-                            }
-                        },
-                        _ => {},
-                    }
-                }
-            }
-        }
-    }
-
-    // Construct the output hashmap
-    let mut result = HashMap::new();
-    result.insert("role".to_string(), Value::String("assistant".to_string()));
-    result.insert("content".to_string(), Value::String(text));
-    result.insert("content_list".to_string(), json!([
-        {
-            "type": "tool_use",
-            "tool_use": tool_use.as_object().map(|obj| obj.clone()).unwrap_or_else(|| {
-                let mut tool_use_map = HashMap::new();
-                tool_use_map.insert("input".to_string(), Value::String(tool));
-                serde_json::Map::from_iter(tool_use_map)
-            })
-        }
-    ]));
-
-    result
 }
 
 impl SnowflakeProvider {
@@ -243,23 +188,62 @@ impl SnowflakeProvider {
 
         let payload_text: String = response.text().await.ok().unwrap_or_default();
 
-        let payload_lines = payload_text.lines();
-        for line in payload_lines {
-            if line.starts_with("data: ") {
-                let clean_line = line[6..].trim();
-                match serde_json::from_str::<Value>(clean_line) {
-                    Ok(json_line) => {
-                        if let Some(choices) = json_line.get("choices") {
-                            println!("choices: {:?}", choices[0]["delta"]);
-                        }
-                    },
-                    Err(e) => {
-                        println!("Failed to parse line as JSON: {}", e);
-                    }
+        if status == StatusCode::OK {
+            if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
+                if payload.get("code").is_some() {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "{} - {}",
+                        payload.get("code").unwrap(),
+                        payload.get("message").unwrap()
+                    )));
                 }
             }
         }
-        let answer_payload = serde_json::json!({"choices": [{"message": payload_text}]});
+
+        let lines = payload_text.lines().collect::<Vec<_>>();
+
+        let mut text = String::new();
+        let mut tool_name = String::new();
+        let mut tool_input = String::new();
+        let mut tool_use_id = String::new();
+        for line in lines.iter() {
+            if line.is_empty() {
+                continue;
+            }
+            let json_line: Value =
+                serde_json::from_str(line.strip_prefix("data: ").unwrap()).unwrap();
+            let choices = json_line.get("choices").unwrap();
+            let choice = choices.get(0).unwrap();
+            let delta = choice.get("delta").unwrap();
+            let content_list = delta.get("content_list").unwrap();
+            let content = content_list.get(0).unwrap();
+            if delta.get("type").unwrap() == "text" {
+                text.push_str(content.get("text").unwrap().as_str().unwrap());
+            } else if delta.get("type").unwrap() == "tool_use" {
+                if content.get("tool_use_id").is_some() {
+                    tool_name.push_str(content.get("name").unwrap().as_str().unwrap());
+                    tool_use_id.push_str(content.get("tool_use_id").unwrap().as_str().unwrap());
+                }
+                if content.get("input").is_some() {
+                    tool_input.push_str(content.get("input").unwrap().as_str().unwrap());
+                }
+            }
+        }
+
+        let answer_payload = json!(
+            {
+                "role": "assistant",
+                "content": text,
+                "content_list": [
+                    {
+                        "type": "tool_use",
+                        "tool_use_id": tool_use_id,
+                        "name": tool_name,
+                        "input": tool_input
+                    }
+                ]
+            }
+        );
 
         match status {
             StatusCode::OK => Ok(answer_payload),
@@ -283,10 +267,8 @@ impl SnowflakeProvider {
                     return Err(ProviderError::ContextLengthExceeded(payload_str));
                 }
 
-                let mut error_msg = "Unknown error".to_string();
-                if let payload = &payload {
-                    // try to convert message to string, if that fails use external_model_message
-                    error_msg = payload
+                // try to convert message to string, if that fails use external_model_message
+                let error_msg = payload
                         .get("message")
                         .and_then(|m| m.as_str())
                         .or_else(|| {
@@ -295,8 +277,6 @@ impl SnowflakeProvider {
                                 .and_then(|m| m.as_str())
                         })
                         .unwrap_or("Unknown error").to_string();
-                }
-
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
@@ -326,10 +306,7 @@ impl Provider for SnowflakeProvider {
             "Snowflake",
             "Access several models using Snowflake Cortex services.",
             SNOWFLAKE_DEFAULT_MODEL,
-            SNOWFLAKE_KNOWN_MODELS
-                .iter()
-                .map(|&s| s.to_string())
-                .collect(),
+            SNOWFLAKE_KNOWN_MODELS.to_vec(),
             SNOWFLAKE_DOC_URL,
             vec![
                 ConfigKey::new("SNOWFLAKE_HOST", true, false, None),

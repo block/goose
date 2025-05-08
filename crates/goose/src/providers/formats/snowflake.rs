@@ -2,13 +2,10 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use crate::providers::formats::snowflake;
 use anyhow::{anyhow, Result};
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
-// Ensure TextContent is imported from the correct module
-use mcp_core::content::TextContent;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -28,6 +25,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             match msg_content {
                 MessageContent::Text(text) => {
                     content.push(json!({
+                        "type": "text",
                         "content": text.text
                     }));
                 }
@@ -62,8 +60,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::EnableExtensionRequest(_enable_extension_request) => {
-                    // Skip enable extension requests
+                MessageContent::ContextLengthExceeded(_) => {
+                    // Skip
                 }
                 MessageContent::Thinking(thinking) => {
                     content.push(json!({
@@ -96,7 +94,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         if !content.is_empty() {
             snowflake_messages.push(json!({
                 "role": role,
-                "content": content
+                "content": content.get(0).and_then(|value| value.get("content")).and_then(|v| v.as_str())
             }));
         }
     }
@@ -105,10 +103,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     if snowflake_messages.is_empty() {
         snowflake_messages.push(json!({
             "role": "user",
-            "content": [{
-                "type": "text",
-                "text": "Ignore"
-            }]
+            "content": "Ignore"
         }));
     }
 
@@ -121,34 +116,83 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     let mut tool_specs = Vec::new();
 
     for tool in tools {
-        if tool.name == "developer__shell" {
-            if unique_tools.insert(tool.name.clone()) {
-                tool_specs.push(json!({
-                    "tool_spec": json!({
-                        "type": "generic",
-                        "name": tool.name,
-                        "input_schema": tool.input_schema,
-                    }),
-                }));
-            }
+        if unique_tools.insert(tool.name.clone()) {
+            tool_specs.push(json!({"tool_spec": {
+                "type": "generic",
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.input_schema}
+            }));
         }
     }
 
     tool_specs
 }
 
-/// Convert Snowflake's API response to internal Message format
-pub fn response_to_message(response: Value) -> Result<Message> {
-    let content_blocks = response
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .ok_or_else(|| anyhow!("Invalid response format: missing content array"))?;
-
-    let message = Message::assistant().with_text(content_blocks[0].to_string());
-
-    Ok(message)
+/// Convert system message to Snowflake's API system specification
+pub fn format_system(system: &str) -> Value {
+    json!({
+        "role": "system",
+        "content": system,
+    })
 }
 
+/// Convert Snowflake's API response to internal Message format
+pub fn response_to_message(response: Value) -> Result<Message> {
+    let mut message = Message::assistant();
+
+    let content = response.get("content_list").unwrap().get(0).unwrap();
+
+    match content.get("type").and_then(|t| t.as_str()) {
+        Some("text") => {
+            println!("Text response: {:?}", response);
+            if let Some(text) = response.get("text").and_then(|t| t.as_str()) {
+                message = message.with_text(text.to_string());
+            }
+        }
+        Some("tool_use") => {
+            println!("Tool use response: {:?}", response);
+            let id = content
+                .get("tool_use_id")
+                .and_then(|i| i.as_str())
+                .ok_or_else(|| anyhow!("Missing tool_use id"))?;
+            let name = content
+                .get("name")
+                .and_then(|n| n.as_str())
+                .ok_or_else(|| anyhow!("Missing tool_use name"))?;
+
+            let input = content.get("input");
+            let input_str = input.unwrap().as_str().unwrap();
+            let input_json: serde_json::Value = serde_json::from_str(input_str).unwrap();
+
+            let tool_call = ToolCall::new(name, input_json);
+            message = message.with_tool_request(id, Ok(tool_call));
+        }
+        Some("thinking") => {
+            println!("Thinking response: {:?}", response);
+            let thinking = response
+                .get("thinking")
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| anyhow!("Missing thinking content"))?;
+            let signature = response
+                .get("signature")
+                .and_then(|s| s.as_str())
+                .ok_or_else(|| anyhow!("Missing thinking signature"))?;
+            message = message.with_thinking(thinking, signature);
+        }
+        Some("redacted_thinking") => {
+            println!("Redacted thinking response: {:?}", response);
+            let data = response
+                .get("data")
+                .and_then(|d| d.as_str())
+                .ok_or_else(|| anyhow!("Missing redacted_thinking data"))?;
+            message = message.with_redacted_thinking(data);
+        }
+        _ => {}
+    }
+    println!("Parsed message: {:?}", message);
+    Ok(message)
+}
 /// Extract usage information from Snowflake's API response
 pub fn get_usage(data: &Value) -> Result<Usage> {
     // Extract usage data if available
@@ -197,39 +241,23 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let snowflake_messages = format_messages(messages);
+    let mut snowflake_messages = format_messages(messages);
     let tool_specs = format_tools(tools);
+    let system_spec = format_system(system);
 
-    let system_message = json!({
-        "role": "system",
-        "content": system,
-    });
+    // Add system message to the beginning of the messages
+    snowflake_messages.insert(0, system_spec);
 
     // Check if we have any messages to send
     if snowflake_messages.is_empty() {
         return Err(anyhow!("No valid messages to send to Snowflake API"));
     }
 
-    // Dang, hardcoding
+    let max_tokens = model_config.max_tokens.unwrap_or(4096);
     let mut payload = json!({
-        "messages": [
-            system_message,
-            {"content": "List files in the current directory.", "role": "user"},
-        ],
         "model": model_config.model_name,
-        "tools": [
-            {
-                "tool_spec": {
-                    "type": "generic",
-                    "name": "developer__shell",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {"command": {"type": "string"}},
-                        "required": ["command"],
-                    },
-                },
-            }
-        ],
+        "messages": snowflake_messages,
+        "max_tokens": max_tokens,
     });
 
     // Add tools if present
@@ -238,40 +266,6 @@ pub fn create_request(
             .as_object_mut()
             .unwrap()
             .insert("tools".to_string(), json!(tool_specs));
-    }
-
-    // Add temperature if specified and not using extended thinking model
-    if let Some(temp) = model_config.temperature {
-        // Claude 3.7 models with thinking enabled don't support temperature
-        if !model_config.model_name.starts_with("claude-3-7-sonnet-") {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("temperature".to_string(), json!(temp));
-        }
-    }
-
-    // Add thinking parameters for claude-3-7-sonnet model
-    let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
-    if model_config.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
-        // Minimum budget_tokens is 1024
-        let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
-            .unwrap_or_else(|_| "16000".to_string())
-            .parse()
-            .unwrap_or(16000);
-
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("max_tokens".to_string(), json!(budget_tokens));
-
-        payload.as_object_mut().unwrap().insert(
-            "thinking".to_string(),
-            json!({
-                "type": "enabled",
-                "budget_tokens": budget_tokens
-            }),
-        );
     }
 
     Ok(payload)
@@ -499,6 +493,19 @@ mod tests {
 
         // Verify cache control is added to last tool
         assert!(spec[1].get("cache_control").is_some());
+    }
+
+    #[test]
+    fn test_system_to_snowflake_spec() {
+        let system = "You are a helpful assistant.";
+        let spec = format_system(system);
+
+        assert!(spec.is_array());
+        let spec_array = spec.as_array().unwrap();
+        assert_eq!(spec_array.len(), 1);
+        assert_eq!(spec_array[0]["type"], "text");
+        assert_eq!(spec_array[0]["text"], system);
+        assert!(spec_array[0].get("cache_control").is_some());
     }
 
     #[test]

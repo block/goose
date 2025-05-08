@@ -47,7 +47,7 @@ export const default_models = {
   azure_openai: 'gpt-4o',
   gcp_vertex_ai: 'gemini-2.0-flash-001',
   aws_bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-  snowflake: 'snowflake-llama-3.3-70b',
+  snowflake: 'claude-3-5-sonnet',
 };
 
 export function getDefaultModel(key: string): string | undefined {
