@@ -286,7 +286,7 @@ impl Message {
     pub fn new(role: Role) -> Self {
         Self {
             role,
-            created: Utc::now().timestamp(),
+            created: Utc::now().timestamp_millis(),
             content: Contents::default(),
         }
     }
