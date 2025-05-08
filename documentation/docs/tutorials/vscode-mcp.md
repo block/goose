@@ -24,7 +24,7 @@ Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?i
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx vscode-mcp-server
+  npx -y vscode-mcp-server
   ```
   </TabItem>
 </Tabs>
@@ -100,7 +100,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx vscode-mcp-server
+    │  npx -y vscode-mcp-server
     // highlight-end
     └ 
   ```  
@@ -119,7 +119,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  vscode-mcp
     │
     ◇  What command should be run?
-    │  npx vscode-mcp-server install
+    │  npx -y vscode-mcp-server install
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -143,7 +143,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  vscode-mcp
     │
     ◇  What command should be run?
-    │  npx vscode-mcp-server install
+    │  npx -y vscode-mcp-server install
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300

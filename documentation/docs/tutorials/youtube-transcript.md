@@ -19,7 +19,7 @@ This tutorial covers how to add the [YouTube Transcript MCP Server](https://gith
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx @jkawamoto/mcp-youtube-transcript
+  npx -y @jkawamoto/mcp-youtube-transcript
   ```
   </TabItem>
 </Tabs>
@@ -92,7 +92,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     // highlight-end
     └ 
   ```  
@@ -111,7 +111,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -162,7 +162,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300

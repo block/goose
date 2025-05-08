@@ -14,12 +14,12 @@ This tutorial covers how to add the [Filesystem MCP server](https://github.com/m
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
+  npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
   ```
   </TabItem>
 </Tabs>
@@ -34,7 +34,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. [Launch the installer](goose://extension?cmd=npx&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
+    1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
     2. Press `Yes` to confirm the installation
     3. Add additional allowed directories if desired, separated by a space.
     4. Click `Save Configuration`

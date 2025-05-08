@@ -14,12 +14,12 @@ This tutorial will get you started with the [Brave Search MCP Server](https://gi
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx @modelcontextprotocol/server-brave-search
+  npx -y @modelcontextprotocol/server-brave-search
   ```
   </TabItem>
 </Tabs>
@@ -37,7 +37,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
   2. Press `Yes` to confirm the installation
   3. Get your [Brave Search API Key](https://api-dashboard.search.brave.com/app/keys) and paste it in
   4. Click `Save Configuration`
@@ -97,7 +97,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     // highlight-end
     └ 
   ```  
@@ -116,7 +116,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -140,7 +140,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -171,7 +171,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300

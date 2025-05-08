@@ -19,7 +19,7 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/model
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx @modelcontextprotocol/server-github
+  npx -y @modelcontextprotocol/server-github
   ```
   </TabItem>
 </Tabs>
