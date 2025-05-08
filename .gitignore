@@ -1,3 +1,4 @@
+*.jar
 run_cli.sh
 tokenizer_files/
 .DS_Store
