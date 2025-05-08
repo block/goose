@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
 
 use crate::{
-    message::{Message, MessageContent, ToolRequestToolCall},
+    message::{Message, MessageContent},
     model::ModelConfig,
     providers::{
         base::Usage,

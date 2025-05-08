@@ -2,22 +2,65 @@ import kotlinx.coroutines.runBlocking
 import uniffi.goose_llm.*
 
 fun main() = runBlocking {
+    val now = System.currentTimeMillis() / 1000
     val msgs = listOf(
+        // 1) User sends a plain-text prompt
         Message(
             role    = Role.USER,
-            created = System.currentTimeMillis() / 1000,
-            content = listOf(MessageContent.Text(TextContent("Hello, how are you?")))
+            created = now,
+            content = listOf(
+                MessageContent.Text(
+                    TextContent("What is 7 x 6?")
+                )
+            )
         ),
+
+        // 2) Assistant makes a tool request (ToolReq) to calculate 7×6
         Message(
             role    = Role.ASSISTANT,
-            created = System.currentTimeMillis() / 1000,
-            content = listOf(MessageContent.Text(TextContent("I’m fine, thanks! How can I help?")))
-        ), 
+            created = now + 2,
+            content = listOf(
+                MessageContent.ToolReq(
+                    ToolRequest(
+                        id = "calc1",
+                        toolCall = """
+                            {
+                              "status": "success",
+                              "value": {
+                                "name": "calculator_extension__toolname",
+                                "arguments": {
+                                  "operation": "multiply",
+                                  "numbers": [7, 6]
+                                }, 
+                                "needsApproval": false
+                              }                              
+                            }
+                        """.trimIndent()
+                    )
+                )
+            )
+        ),
+
+        // 3) User (on behalf of the tool) responds with the tool result (ToolResp)
         Message(
             role    = Role.USER,
-            created = System.currentTimeMillis() / 1000,
-            content = listOf(MessageContent.Text(TextContent("Why is the sky blue? Tell me in less than 20 words.")))
-        ),
+            created = now + 3,
+            content = listOf(
+                MessageContent.ToolResp(
+                    ToolResponse(
+                        id = "calc1",
+                        toolResult = """
+                            {
+                              "status": "success",
+                              "value": [
+                                {"type": "text", "text": "42"}
+                              ]                        
+                            }
+                        """.trimIndent()
+                    )
+                )
+            )
+        ), 
     )
 
     printMessages(msgs)
@@ -39,52 +82,46 @@ fun main() = runBlocking {
         200      // Int
     )
 
-    val calculatorToolJson = """
-    {
-        "name": "calculator",
-        "description": "Perform basic arithmetic operations",
-        "input_schema": {
-            "type": "object",
-            "required": ["operation", "numbers"],
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": ["add", "subtract", "multiply", "divide"],
-                    "description": "The arithmetic operation to perform"
-                },
-                "numbers": {
-                    "type": "array",
-                    "items": { "type": "number" },
-                    "description": "List of numbers to operate on in order"
+    val calculatorTool = createToolConfig(
+        name = "calculator",
+        description = "Perform basic arithmetic operations",
+        inputSchema = """
+            {
+                "type": "object",
+                "required": ["operation", "numbers"],
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": ["add", "subtract", "multiply", "divide"],
+                        "description": "The arithmetic operation to perform"
+                    },
+                    "numbers": {
+                        "type": "array",
+                        "items": { "type": "number" },
+                        "description": "List of numbers to operate on in order"
+                    }
                 }
             }
-        },
-        "approval_mode": "Auto"
-    }
-    """.trimIndent()
-
-    val extension = ExtensionConfig(
-        "calculator_extension",
-        "This extension provides a calculator tool.",
-        listOf(calculatorToolJson)
+        """.trimIndent(),
+        approvalMode = ToolApprovalMode.AUTO
     )
 
+    val calculator_extension = ExtensionConfig(
+        name = "calculator_extension",
+        instructions = "This extension provides a calculator tool.",
+        tools = listOf(calculatorTool)
+    )
+
+    val extensions = listOf(calculator_extension)
     val systemPreamble = "You are a helpful assistant."
 
-    val messages = listOf(
-        Message(
-            role = Role.USER,
-            created = System.currentTimeMillis() / 1000,
-            content = listOf(MessageContent.Text(TextContent("Add 10037 + 23123 using calculator")))
-        )
-    )
 
     val req = CompletionRequest(
         provider,
         modelConfig,
         systemPreamble,
-        messages,
-        listOf(extension)
+        msgs,
+        extensions
     )
 
     val response = completion(req)

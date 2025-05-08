@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
-use serde_json::de::Deserializer;
-use serde_json::ser::Serializer;
 
 use crate::message::tool_result_serde;
 use crate::types::core::{Content, ImageContent, TextContent, ToolCall, ToolResult};
@@ -10,7 +8,8 @@ use crate::types::core::{Content, ImageContent, TextContent, ToolCall, ToolResul
 // We need these because we can’t implement UniFFI’s FfiConverter directly on a type alias.
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ToolRequestToolCall(pub ToolResult<ToolCall>);
+pub struct ToolRequestToolCall(#[serde(with = "tool_result_serde")] pub ToolResult<ToolCall>);
+
 impl ToolRequestToolCall {
     pub fn as_result(&self) -> &ToolResult<ToolCall> {
         &self.0
@@ -29,7 +28,10 @@ impl From<Result<ToolCall, crate::types::core::ToolError>> for ToolRequestToolCa
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ToolResponseToolResult(pub ToolResult<Vec<Content>>);
+pub struct ToolResponseToolResult(
+    #[serde(with = "tool_result_serde")] pub ToolResult<Vec<Content>>,
+);
+
 impl ToolResponseToolResult {
     pub fn as_result(&self) -> &ToolResult<Vec<Content>> {
         &self.0
@@ -52,39 +54,20 @@ impl From<Result<Vec<Content>, crate::types::core::ToolError>> for ToolResponseT
 // through our `tool_result_serde` to preserve the same success/error schema on both sides.
 
 uniffi::custom_type!(ToolRequestToolCall, String, {
-    lower: |wrapper: &ToolRequestToolCall| {
-        let mut buf = Vec::new();
-        {
-            let mut ser = Serializer::new(&mut buf);
-            // note the borrow on wrapper.0
-            tool_result_serde::serialize(&wrapper.0, &mut ser)
-                .expect("ToolRequestToolCall serialization failed");
-        }
-        String::from_utf8(buf).expect("ToolRequestToolCall produced invalid UTF-8")
+    lower: |obj| {
+        serde_json::to_string(&obj.0).unwrap()
     },
-    try_lift: |s: String| {
-        let mut de = Deserializer::from_str(&s);
-        let result = tool_result_serde::deserialize(&mut de)
-            .map_err(anyhow::Error::new)?;
-        Ok(ToolRequestToolCall(result))
+    try_lift: |val| {
+        Ok(serde_json::from_str(&val).unwrap() )
     },
 });
 
 uniffi::custom_type!(ToolResponseToolResult, String, {
-    lower: |wrapper: &ToolResponseToolResult| {
-        let mut buf = Vec::new();
-        {
-            let mut ser = Serializer::new(&mut buf);
-            tool_result_serde::serialize(&wrapper.0, &mut ser)
-                .expect("ToolResponseToolResult serialization failed");
-        }
-        String::from_utf8(buf).expect("ToolResponseToolResult produced invalid UTF-8")
+    lower: |obj| {
+        serde_json::to_string(&obj.0).unwrap()
     },
-    try_lift: |s: String| {
-        let mut de = Deserializer::from_str(&s);
-        let result = tool_result_serde::deserialize(&mut de)
-            .map_err(anyhow::Error::new)?;
-        Ok(ToolResponseToolResult(result))
+    try_lift: |val| {
+        Ok(serde_json::from_str(&val).unwrap() )
     },
 });
 

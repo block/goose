@@ -7,6 +7,7 @@ use thiserror::Error;
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::json_value_ffi::JsonValueFfi;
 use crate::{message::Message, providers::Usage};
 use crate::{model::ModelConfig, providers::errors::ProviderError};
 
@@ -125,6 +126,16 @@ impl ToolConfig {
             self.input_schema.clone(),
         )
     }
+}
+
+#[uniffi::export]
+pub fn create_tool_config(
+    name: &str,
+    description: &str,
+    input_schema: JsonValueFfi,
+    approval_mode: ToolApprovalMode,
+) -> ToolConfig {
+    ToolConfig::new(name, description, input_schema.into(), approval_mode)
 }
 
 uniffi::custom_type!(ToolConfig, String, {
