@@ -4,6 +4,7 @@
 @file:Suppress("NAME_SHADOWING")
 
 package uniffi.goose_llm
+import kotlinx.coroutines.*
 
 // Common helper code.
 //
@@ -30,6 +31,13 @@ import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
 // A rust-owned buffer is represented by its capacity, its current length, and a
@@ -713,6 +721,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -728,7 +738,9 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 // when the library is loaded.
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
-    fun uniffi_goose_llm_checksum_func_print_messages(
+    fun uniffi_goose_llm_checksum_func_completion(
+): Short
+fun uniffi_goose_llm_checksum_func_print_messages(
 ): Short
 fun ffi_goose_llm_uniffi_contract_version(
 ): Int
@@ -775,7 +787,9 @@ internal interface UniffiLib : Library {
     }
 
     // FFI functions
-    fun uniffi_goose_llm_fn_func_print_messages(`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_goose_llm_fn_func_completion(`req`: RustBuffer.ByValue,
+): Long
+fun uniffi_goose_llm_fn_func_print_messages(`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun ffi_goose_llm_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -903,6 +917,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_goose_llm_checksum_func_completion() != 55281.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_goose_llm_checksum_func_print_messages() != 30278.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -916,6 +933,46 @@ public fun uniffiEnsureInitialized() {
 }
 
 // Async support
+// Async return type handlers
+
+internal const val UNIFFI_RUST_FUTURE_POLL_READY = 0.toByte()
+internal const val UNIFFI_RUST_FUTURE_POLL_MAYBE_READY = 1.toByte()
+
+internal val uniffiContinuationHandleMap = UniffiHandleMap<CancellableContinuation<Byte>>()
+
+// FFI type for Rust future continuations
+internal object uniffiRustFutureContinuationCallbackImpl: UniffiRustFutureContinuationCallback {
+    override fun callback(data: Long, pollResult: Byte) {
+        uniffiContinuationHandleMap.remove(data).resume(pollResult)
+    }
+}
+
+internal suspend fun<T, F, E: kotlin.Exception> uniffiRustCallAsync(
+    rustFuture: Long,
+    pollFunc: (Long, UniffiRustFutureContinuationCallback, Long) -> Unit,
+    completeFunc: (Long, UniffiRustCallStatus) -> F,
+    freeFunc: (Long) -> Unit,
+    liftFunc: (F) -> T,
+    errorHandler: UniffiRustCallStatusErrorHandler<E>
+): T {
+    try {
+        do {
+            val pollResult = suspendCancellableCoroutine<Byte> { continuation ->
+                pollFunc(
+                    rustFuture,
+                    uniffiRustFutureContinuationCallbackImpl,
+                    uniffiContinuationHandleMap.insert(continuation)
+                )
+            }
+        } while (pollResult != UNIFFI_RUST_FUTURE_POLL_READY);
+
+        return liftFunc(
+            uniffiRustCallWithError(errorHandler, { status -> completeFunc(rustFuture, status) })
+        )
+    } finally {
+        freeFunc(rustFuture)
+    }
+}
 
 // Public interface members begin here.
 
@@ -1080,6 +1137,29 @@ public object FfiConverterFloat: FfiConverter<Float, Float> {
 /**
  * @suppress
  */
+public object FfiConverterDouble: FfiConverter<Double, Double> {
+    override fun lift(value: Double): Double {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Double {
+        return buf.getDouble()
+    }
+
+    override fun lower(value: Double): Double {
+        return value
+    }
+
+    override fun allocationSize(value: Double) = 8UL
+
+    override fun write(value: Double, buf: ByteBuffer) {
+        buf.putDouble(value)
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
@@ -1175,6 +1255,46 @@ public object FfiConverterTypeCompletionRequest: FfiConverterRustBuffer<Completi
             FfiConverterString.write(value.`systemPreamble`, buf)
             FfiConverterSequenceTypeMessage.write(value.`messages`, buf)
             FfiConverterSequenceTypeExtensionConfig.write(value.`extensions`, buf)
+    }
+}
+
+
+
+data class CompletionResponse (
+    var `message`: Message, 
+    var `model`: kotlin.String, 
+    var `usage`: Usage, 
+    var `runtimeMetrics`: RuntimeMetrics
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCompletionResponse: FfiConverterRustBuffer<CompletionResponse> {
+    override fun read(buf: ByteBuffer): CompletionResponse {
+        return CompletionResponse(
+            FfiConverterTypeMessage.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeUsage.read(buf),
+            FfiConverterTypeRuntimeMetrics.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: CompletionResponse) = (
+            FfiConverterTypeMessage.allocationSize(value.`message`) +
+            FfiConverterString.allocationSize(value.`model`) +
+            FfiConverterTypeUsage.allocationSize(value.`usage`) +
+            FfiConverterTypeRuntimeMetrics.allocationSize(value.`runtimeMetrics`)
+    )
+
+    override fun write(value: CompletionResponse, buf: ByteBuffer) {
+            FfiConverterTypeMessage.write(value.`message`, buf)
+            FfiConverterString.write(value.`model`, buf)
+            FfiConverterTypeUsage.write(value.`usage`, buf)
+            FfiConverterTypeRuntimeMetrics.write(value.`runtimeMetrics`, buf)
     }
 }
 
@@ -1370,6 +1490,42 @@ public object FfiConverterTypeRedactedThinkingContent: FfiConverterRustBuffer<Re
 
 
 
+data class RuntimeMetrics (
+    var `totalTimeSec`: kotlin.Float, 
+    var `totalTimeSecProvider`: kotlin.Float, 
+    var `tokensPerSecond`: kotlin.Double?
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRuntimeMetrics: FfiConverterRustBuffer<RuntimeMetrics> {
+    override fun read(buf: ByteBuffer): RuntimeMetrics {
+        return RuntimeMetrics(
+            FfiConverterFloat.read(buf),
+            FfiConverterFloat.read(buf),
+            FfiConverterOptionalDouble.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RuntimeMetrics) = (
+            FfiConverterFloat.allocationSize(value.`totalTimeSec`) +
+            FfiConverterFloat.allocationSize(value.`totalTimeSecProvider`) +
+            FfiConverterOptionalDouble.allocationSize(value.`tokensPerSecond`)
+    )
+
+    override fun write(value: RuntimeMetrics, buf: ByteBuffer) {
+            FfiConverterFloat.write(value.`totalTimeSec`, buf)
+            FfiConverterFloat.write(value.`totalTimeSecProvider`, buf)
+            FfiConverterOptionalDouble.write(value.`tokensPerSecond`, buf)
+    }
+}
+
+
+
 data class TextContent (
     var `text`: kotlin.String
 ) {
@@ -1490,6 +1646,112 @@ public object FfiConverterTypeToolResponse: FfiConverterRustBuffer<ToolResponse>
             FfiConverterString.write(value.`id`, buf)
             FfiConverterTypeToolResponseToolResult.write(value.`toolResult`, buf)
     }
+}
+
+
+
+data class Usage (
+    var `inputTokens`: kotlin.Int?, 
+    var `outputTokens`: kotlin.Int?, 
+    var `totalTokens`: kotlin.Int?
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeUsage: FfiConverterRustBuffer<Usage> {
+    override fun read(buf: ByteBuffer): Usage {
+        return Usage(
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Usage) = (
+            FfiConverterOptionalInt.allocationSize(value.`inputTokens`) +
+            FfiConverterOptionalInt.allocationSize(value.`outputTokens`) +
+            FfiConverterOptionalInt.allocationSize(value.`totalTokens`)
+    )
+
+    override fun write(value: Usage, buf: ByteBuffer) {
+            FfiConverterOptionalInt.write(value.`inputTokens`, buf)
+            FfiConverterOptionalInt.write(value.`outputTokens`, buf)
+            FfiConverterOptionalInt.write(value.`totalTokens`, buf)
+    }
+}
+
+
+
+
+
+sealed class CompletionException(message: String): kotlin.Exception(message) {
+        
+        class UnknownProvider(message: String) : CompletionException(message)
+        
+        class Provider(message: String) : CompletionException(message)
+        
+        class Template(message: String) : CompletionException(message)
+        
+        class Json(message: String) : CompletionException(message)
+        
+        class ToolNotFound(message: String) : CompletionException(message)
+        
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<CompletionException> {
+        override fun lift(error_buf: RustBuffer.ByValue): CompletionException = FfiConverterTypeCompletionError.lift(error_buf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCompletionError : FfiConverterRustBuffer<CompletionException> {
+    override fun read(buf: ByteBuffer): CompletionException {
+        
+            return when(buf.getInt()) {
+            1 -> CompletionException.UnknownProvider(FfiConverterString.read(buf))
+            2 -> CompletionException.Provider(FfiConverterString.read(buf))
+            3 -> CompletionException.Template(FfiConverterString.read(buf))
+            4 -> CompletionException.Json(FfiConverterString.read(buf))
+            5 -> CompletionException.ToolNotFound(FfiConverterString.read(buf))
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+        
+    }
+
+    override fun allocationSize(value: CompletionException): ULong {
+        return 4UL
+    }
+
+    override fun write(value: CompletionException, buf: ByteBuffer) {
+        when(value) {
+            is CompletionException.UnknownProvider -> {
+                buf.putInt(1)
+                Unit
+            }
+            is CompletionException.Provider -> {
+                buf.putInt(2)
+                Unit
+            }
+            is CompletionException.Template -> {
+                buf.putInt(3)
+                Unit
+            }
+            is CompletionException.Json -> {
+                buf.putInt(4)
+                Unit
+            }
+            is CompletionException.ToolNotFound -> {
+                buf.putInt(5)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
 }
 
 
@@ -1714,6 +1976,212 @@ public object FfiConverterTypeMessageContent : FfiConverterRustBuffer<MessageCon
 }
 
 
+
+
+
+
+
+sealed class ProviderException: kotlin.Exception() {
+    
+    class Authentication(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ContextLengthExceeded(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class RateLimitExceeded(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ServerException(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class RequestFailed(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ExecutionException(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class UsageException(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ResponseParseException(
+        
+        val v1: kotlin.String
+        ) : ProviderException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<ProviderException> {
+        override fun lift(error_buf: RustBuffer.ByValue): ProviderException = FfiConverterTypeProviderError.lift(error_buf)
+    }
+
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProviderError : FfiConverterRustBuffer<ProviderException> {
+    override fun read(buf: ByteBuffer): ProviderException {
+        
+
+        return when(buf.getInt()) {
+            1 -> ProviderException.Authentication(
+                FfiConverterString.read(buf),
+                )
+            2 -> ProviderException.ContextLengthExceeded(
+                FfiConverterString.read(buf),
+                )
+            3 -> ProviderException.RateLimitExceeded(
+                FfiConverterString.read(buf),
+                )
+            4 -> ProviderException.ServerException(
+                FfiConverterString.read(buf),
+                )
+            5 -> ProviderException.RequestFailed(
+                FfiConverterString.read(buf),
+                )
+            6 -> ProviderException.ExecutionException(
+                FfiConverterString.read(buf),
+                )
+            7 -> ProviderException.UsageException(
+                FfiConverterString.read(buf),
+                )
+            8 -> ProviderException.ResponseParseException(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ProviderException): ULong {
+        return when(value) {
+            is ProviderException.Authentication -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.ContextLengthExceeded -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.RateLimitExceeded -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.ServerException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.RequestFailed -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.ExecutionException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.UsageException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is ProviderException.ResponseParseException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: ProviderException, buf: ByteBuffer) {
+        when(value) {
+            is ProviderException.Authentication -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.ContextLengthExceeded -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.RateLimitExceeded -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.ServerException -> {
+                buf.putInt(4)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.RequestFailed -> {
+                buf.putInt(5)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.ExecutionException -> {
+                buf.putInt(6)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.UsageException -> {
+                buf.putInt(7)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProviderException.ResponseParseException -> {
+                buf.putInt(8)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
+}
 
 
 
@@ -2000,6 +2468,38 @@ public object FfiConverterOptionalFloat: FfiConverterRustBuffer<kotlin.Float?> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
+    override fun read(buf: ByteBuffer): kotlin.Double? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterDouble.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Double?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterDouble.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterDouble.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
     override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
@@ -2176,7 +2676,33 @@ public typealias FfiConverterTypeToolRequestToolCall = FfiConverterString
  * It's also what we have an external type that references a custom type.
  */
 public typealias ToolResponseToolResult = kotlin.String
-public typealias FfiConverterTypeToolResponseToolResult = FfiConverterString fun `printMessages`(`messages`: List<Message>)
+public typealias FfiConverterTypeToolResponseToolResult = FfiConverterString
+
+
+
+
+
+
+
+
+        /**
+         * Public API for the Goose LLM completion function
+         */
+    @Throws(CompletionException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `completion`(`req`: CompletionRequest) : CompletionResponse {
+        return uniffiRustCallAsync(
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_completion(FfiConverterTypeCompletionRequest.lower(`req`),),
+        { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeCompletionResponse.lift(it) },
+        // Error FFI converter
+        CompletionException.ErrorHandler,
+    )
+    }
+ fun `printMessages`(`messages`: List<Message>)
         = 
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_print_messages(

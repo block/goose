@@ -21,7 +21,9 @@ pub struct CompletionRequest {
     pub extensions: Vec<ExtensionConfig>,
 }
 
-#[derive(Debug, Error)]
+// https://mozilla.github.io/uniffi-rs/latest/proc_macro/errors.html
+#[derive(Debug, Error, uniffi::Error)]
+#[uniffi(flat_error)]
 pub enum CompletionError {
     #[error("failed to create provider: {0}")]
     UnknownProvider(String),
@@ -39,7 +41,7 @@ pub enum CompletionError {
     ToolNotFound(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
 pub struct CompletionResponse {
     pub message: Message,
     pub model: String,
@@ -63,22 +65,22 @@ impl CompletionResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
 pub struct RuntimeMetrics {
-    pub total_time_ms: u128,
-    pub total_time_ms_provider: u128,
+    pub total_time_sec: f32,
+    pub total_time_sec_provider: f32,
     pub tokens_per_second: Option<f64>,
 }
 
 impl RuntimeMetrics {
     pub fn new(
-        total_time_ms: u128,
-        total_time_ms_provider: u128,
+        total_time_sec: f32,
+        total_time_sec_provider: f32,
         tokens_per_second: Option<f64>,
     ) -> Self {
         Self {
-            total_time_ms,
-            total_time_ms_provider,
+            total_time_sec,
+            total_time_sec_provider,
             tokens_per_second,
         }
     }
