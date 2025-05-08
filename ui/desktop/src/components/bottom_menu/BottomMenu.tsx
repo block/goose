@@ -32,6 +32,41 @@ export default function BottomMenu({
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
 
+  // Model-specific token limits that match the backend implementation
+  const MODEL_SPECIFIC_LIMITS: { [key: string]: number } = {
+    // OpenAI models
+    'gpt-4o': 128_000,
+    'gpt-4-turbo': 128_000,
+    'o1-mini': 128_000,
+    'o1-preview': 128_000,
+    o1: 200_000,
+    'o3-mini': 200_000,
+    'gpt-4.1': 1_000_000,
+    'gpt-4-1': 1_000_000,
+
+    // Anthropic models
+    'claude-3': 200_000,
+
+    // Google models
+    'gemini-2.5': 1_000_000,
+    'gemini-2-5': 1_000_000,
+
+    // Meta Llama models
+    'llama3.2': 128_000,
+    'llama3.3': 128_000,
+  };
+
+  // Helper function to replicate Rust's get_model_specific_limit logic
+  function getModelSpecificLimit(modelName: string): number | null {
+    // Check each pattern against the model name
+    for (const [pattern, limit] of Object.entries(MODEL_SPECIFIC_LIMITS)) {
+      if (modelName.toLowerCase().includes(pattern.toLowerCase())) {
+        return limit;
+      }
+    }
+    return null;
+  }
+
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
@@ -51,10 +86,24 @@ export default function BottomMenu({
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
           setTokenLimit(modelConfig.context_limit);
+          return;
         }
       }
+
+      // Fallback: Use the pattern matching logic if no exact match was found
+      const fallbackLimit = getModelSpecificLimit(model);
+      if (fallbackLimit !== null) {
+        console.log(`Using fallback token limit for model ${model}: ${fallbackLimit}`);
+        setTokenLimit(fallbackLimit);
+        return;
+      }
+
+      // If no match found, use the default
+      setTokenLimit(TOKEN_LIMIT_DEFAULT);
     } catch (err) {
       console.error('Error loading providers or token limit:', err);
+      // Set default limit on error
+      setTokenLimit(TOKEN_LIMIT_DEFAULT);
     }
   };
 
