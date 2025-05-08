@@ -49,7 +49,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -65,7 +65,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -82,7 +82,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -102,7 +102,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -126,7 +126,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -153,7 +153,7 @@ MQTT_USERNAME: <string or blank>
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
