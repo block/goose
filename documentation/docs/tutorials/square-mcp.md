@@ -191,29 +191,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   <TabItem value="local" label="Square Local MCP">
   :::tip TLDR
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-    [goose://extension?cmd=npx&arg=square-mcp-server%20start&id=square-mcp&name=Square%20MCP%20Server&description=Square%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue](goose://extension?cmd=npx&arg=square-mcp-server%20start&id=square-mcp&name=Square%20MCP%20Server&description=Square%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
+    [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server%20start&id=square-mcp&name=Square%20MCP%20Server&description=Square%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
     **Command**
