@@ -159,26 +159,47 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           ? `Messages above this line remain viewable but specific details are not included in active context.`
           : `This summary includes key points from your conversation.`}
       </span>
-      <button
-        onClick={openSummaryModal}
-        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-      >
-        View or edit summary{' '}
-        {isContextLengthExceeded ? '(you may continue your conversation based on the summary)' : ''}
-      </button>
+      {shouldAllowSummaryInteraction && (
+        <button
+          onClick={openSummaryModal}
+          className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+        >
+          View or edit summary{' '}
+          {isContextLengthExceeded
+            ? '(you may continue your conversation based on the summary)'
+            : ''}
+        </button>
+      )}
     </>
   );
 
+  // Render persistent summarized notification when we shouldn't show interaction options
+  const renderPersistentMarker = () => (
+    <span className="text-xs text-gray-400">
+      Session summarized — messages above this line are not included in the conversation
+    </span>
+  );
+
   const renderContentState = () => {
-    if (!shouldAllowSummaryInteraction) {
-      return null;
+    // If this is not the latest context event message but we have a valid summary,
+    // show the persistent marker
+    if (!shouldAllowSummaryInteraction && summaryContent) {
+      return renderPersistentMarker();
     }
 
-    if (errorLoadingSummary) {
-      return retryCount >= 2 ? renderFailedState() : renderRetryState();
+    // For the latest message with the context event
+    if (shouldAllowSummaryInteraction) {
+      if (errorLoadingSummary) {
+        return retryCount >= 2 ? renderFailedState() : renderRetryState();
+      }
+
+      if (summaryContent) {
+        return renderSuccessState();
+      }
     }
 
-    return renderSuccessState();
+    // Fallback to showing at least the persistent marker
+    return renderPersistentMarker();
   };
 
   return (

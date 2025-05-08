@@ -138,8 +138,6 @@ export function createSummarizationRequestMessage(
   // Determine the next role (opposite of the last message)
   const nextRole: Role = lastMessage.role === 'user' ? 'assistant' : 'user';
 
-  console.log(nextRole);
-
   // Create the new message with SummarizationRequestedContent
   return {
     id: generateId(),
