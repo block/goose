@@ -7,6 +7,7 @@ use super::{
     bedrock::BedrockProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
+    githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     ollama::OllamaProvider,
@@ -23,6 +24,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         BedrockProvider::metadata(),
         DatabricksProvider::metadata(),
         GcpVertexAIProvider::metadata(),
+        GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
@@ -44,6 +46,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
         "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
+        "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
