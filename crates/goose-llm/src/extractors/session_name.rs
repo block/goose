@@ -49,6 +49,7 @@ fn build_system_prompt() -> String {
 }
 
 /// Generates a short (≤4 words) session name
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn generate_session_name(messages: &[Message]) -> Result<String, ProviderError> {
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages

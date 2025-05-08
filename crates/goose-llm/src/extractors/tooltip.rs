@@ -53,6 +53,7 @@ fn build_system_prompt() -> String {
 
 /// Generates a tooltip summarizing the last two messages in the session,
 /// including any tool calls or results.
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderError> {
     // Need at least two messages to summarize
     if messages.len() < 2 {

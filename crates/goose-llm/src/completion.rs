@@ -25,7 +25,7 @@ pub fn print_messages(messages: Vec<Message>) {
 }
 
 /// Public API for the Goose LLM completion function
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, CompletionError> {
     let start_total = Instant::now();
 

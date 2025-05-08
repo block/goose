@@ -26,7 +26,7 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderCompleteResponse {
     pub message: Message,
     pub model: String,

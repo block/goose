@@ -4,7 +4,6 @@
 @file:Suppress("NAME_SHADOWING")
 
 package uniffi.goose_llm
-import kotlinx.coroutines.*
 
 // Common helper code.
 //
@@ -723,6 +722,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -739,6 +742,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
     fun uniffi_goose_llm_checksum_func_completion(
+): Short
+fun uniffi_goose_llm_checksum_func_generate_session_name(
+): Short
+fun uniffi_goose_llm_checksum_func_generate_tooltip(
 ): Short
 fun uniffi_goose_llm_checksum_func_print_messages(
 ): Short
@@ -788,6 +795,10 @@ internal interface UniffiLib : Library {
 
     // FFI functions
     fun uniffi_goose_llm_fn_func_completion(`req`: RustBuffer.ByValue,
+): Long
+fun uniffi_goose_llm_fn_func_generate_session_name(`messages`: RustBuffer.ByValue,
+): Long
+fun uniffi_goose_llm_fn_func_generate_tooltip(`messages`: RustBuffer.ByValue,
 ): Long
 fun uniffi_goose_llm_fn_func_print_messages(`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -918,6 +929,12 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_goose_llm_checksum_func_completion() != 55281.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 61290.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 7529.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_print_messages() != 30278.toShort()) {
@@ -1457,6 +1474,42 @@ public object FfiConverterTypeModelConfig: FfiConverterRustBuffer<ModelConfig> {
             FfiConverterOptionalUInt.write(value.`contextLimit`, buf)
             FfiConverterOptionalFloat.write(value.`temperature`, buf)
             FfiConverterOptionalInt.write(value.`maxTokens`, buf)
+    }
+}
+
+
+
+data class ProviderCompleteResponse (
+    var `message`: Message, 
+    var `model`: kotlin.String, 
+    var `usage`: Usage
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProviderCompleteResponse: FfiConverterRustBuffer<ProviderCompleteResponse> {
+    override fun read(buf: ByteBuffer): ProviderCompleteResponse {
+        return ProviderCompleteResponse(
+            FfiConverterTypeMessage.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeUsage.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ProviderCompleteResponse) = (
+            FfiConverterTypeMessage.allocationSize(value.`message`) +
+            FfiConverterString.allocationSize(value.`model`) +
+            FfiConverterTypeUsage.allocationSize(value.`usage`)
+    )
+
+    override fun write(value: ProviderCompleteResponse, buf: ByteBuffer) {
+            FfiConverterTypeMessage.write(value.`message`, buf)
+            FfiConverterString.write(value.`model`, buf)
+            FfiConverterTypeUsage.write(value.`usage`, buf)
     }
 }
 
@@ -2700,6 +2753,43 @@ public typealias FfiConverterTypeToolResponseToolResult = FfiConverterString
         { FfiConverterTypeCompletionResponse.lift(it) },
         // Error FFI converter
         CompletionException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Generates a short (≤4 words) session name
+         */
+    @Throws(ProviderException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `generateSessionName`(`messages`: List<Message>) : kotlin.String {
+        return uniffiRustCallAsync(
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_session_name(FfiConverterSequenceTypeMessage.lower(`messages`),),
+        { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
+        // Error FFI converter
+        ProviderException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Generates a tooltip summarizing the last two messages in the session,
+         * including any tool calls or results.
+         */
+    @Throws(ProviderException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `generateTooltip`(`messages`: List<Message>) : kotlin.String {
+        return uniffiRustCallAsync(
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_tooltip(FfiConverterSequenceTypeMessage.lower(`messages`),),
+        { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
+        // Error FFI converter
+        ProviderException.ErrorHandler,
     )
     }
  fun `printMessages`(`messages`: List<Message>)
