@@ -2,6 +2,7 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use mcp_core::{Role};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
@@ -522,7 +523,24 @@ fn shorten_path(path: &str, debug: bool) -> String {
 
     shortened.join("/")
 }
-
+pub fn display_session_chat_history(messages : Vec<Message>) {
+    for message in &messages {
+        let role = match message.role {
+            Role::User => style("User:".to_string()).cyan().bold(),
+            Role::Assistant => style("Goose:".to_string()).green().bold(),
+        };
+    
+        let content = message.content.iter().filter_map(|c| {
+            if let MessageContent::Text(text_content) = c {
+                Some(text_content.text.trim())
+            } else {
+                None
+            }   
+        }).collect::<Vec<_>>().join(" ");
+    
+    println!("{} {}", role, style(content).dim().bold());
+    }
+}
 // Session display functions
 pub fn display_session_info(resume: bool, provider: &str, model: &str, session_file: &Path) {
     let start_session_msg = if resume {
