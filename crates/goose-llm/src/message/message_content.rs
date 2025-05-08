@@ -1,0 +1,225 @@
+use serde::{Deserialize, Serialize};
+use serde_json;
+use serde_json::de::Deserializer;
+use serde_json::ser::Serializer;
+
+use crate::message::tool_result_serde;
+use crate::types::core::{Content, ImageContent, TextContent, ToolCall, ToolResult};
+
+// — Newtype wrappers (local structs) so we satisfy Rust’s orphan rules —
+// We need these because we can’t implement UniFFI’s FfiConverter directly on a type alias.
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolRequestToolCall(pub ToolResult<ToolCall>);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolResponseToolResult(pub ToolResult<Vec<Content>>);
+
+// — Register the newtypes with UniFFI, converting via JSON strings —
+// UniFFI’s FFI layer supports only primitive buffers (here String), so we JSON-serialize
+// through our `tool_result_serde` to preserve the same success/error schema on both sides.
+
+uniffi::custom_type!(ToolRequestToolCall, String, {
+    lower: |wrapper: &ToolRequestToolCall| {
+        let mut buf = Vec::new();
+        {
+            let mut ser = Serializer::new(&mut buf);
+            // note the borrow on wrapper.0
+            tool_result_serde::serialize(&wrapper.0, &mut ser)
+                .expect("ToolRequestToolCall serialization failed");
+        }
+        String::from_utf8(buf).expect("ToolRequestToolCall produced invalid UTF-8")
+    },
+    try_lift: |s: String| {
+        let mut de = Deserializer::from_str(&s);
+        let result = tool_result_serde::deserialize(&mut de)
+            .map_err(anyhow::Error::new)?;
+        Ok(ToolRequestToolCall(result))
+    },
+});
+
+uniffi::custom_type!(ToolResponseToolResult, String, {
+    lower: |wrapper: &ToolResponseToolResult| {
+        let mut buf = Vec::new();
+        {
+            let mut ser = Serializer::new(&mut buf);
+            tool_result_serde::serialize(&wrapper.0, &mut ser)
+                .expect("ToolResponseToolResult serialization failed");
+        }
+        String::from_utf8(buf).expect("ToolResponseToolResult produced invalid UTF-8")
+    },
+    try_lift: |s: String| {
+        let mut de = Deserializer::from_str(&s);
+        let result = tool_result_serde::deserialize(&mut de)
+            .map_err(anyhow::Error::new)?;
+        Ok(ToolResponseToolResult(result))
+    },
+});
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolRequest {
+    pub id: String,
+    pub tool_call: ToolRequestToolCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResponse {
+    pub id: String,
+    pub tool_result: ToolResponseToolResult,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
+pub struct ThinkingContent {
+    pub thinking: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
+pub struct RedactedThinkingContent {
+    pub data: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Enum)]
+/// Content passed inside a message, which can be both simple content and tool content
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum MessageContent {
+    Text(TextContent),
+    Image(ImageContent),
+    ToolReq(ToolRequest),
+    ToolResp(ToolResponse),
+    Thinking(ThinkingContent),
+    RedactedThinking(RedactedThinkingContent),
+}
+
+impl MessageContent {
+    pub fn text<S: Into<String>>(text: S) -> Self {
+        MessageContent::Text(TextContent { text: text.into() })
+    }
+
+    pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
+        MessageContent::Image(ImageContent {
+            data: data.into(),
+            mime_type: mime_type.into(),
+        })
+    }
+
+    pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolRequestToolCall) -> Self {
+        MessageContent::ToolReq(ToolRequest {
+            id: id.into(),
+            tool_call,
+        })
+    }
+
+    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResponseToolResult) -> Self {
+        MessageContent::ToolResp(ToolResponse {
+            id: id.into(),
+            tool_result,
+        })
+    }
+
+    pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
+        MessageContent::Thinking(ThinkingContent {
+            thinking: thinking.into(),
+            signature: signature.into(),
+        })
+    }
+
+    pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
+        MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
+    }
+
+    pub fn as_tool_request(&self) -> Option<&ToolRequest> {
+        if let MessageContent::ToolReq(ref tool_request) = self {
+            Some(tool_request)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_response(&self) -> Option<&ToolResponse> {
+        if let MessageContent::ToolResp(ref tool_response) = self {
+            Some(tool_response)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_response_text(&self) -> Option<String> {
+        if let Some(tool_response) = self.as_tool_response() {
+            if let Ok(contents) = &tool_response.tool_result.0 {
+                let texts: Vec<String> = contents
+                    .iter()
+                    .filter_map(|content| content.as_text().map(String::from))
+                    .collect();
+                if !texts.is_empty() {
+                    return Some(texts.join("\n"));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn as_tool_request_id(&self) -> Option<&str> {
+        if let Self::ToolReq(r) = self {
+            Some(&r.id)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_response_id(&self) -> Option<&str> {
+        if let Self::ToolResp(r) = self {
+            Some(&r.id)
+        } else {
+            None
+        }
+    }
+
+    /// Get the text content if this is a TextContent variant
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            MessageContent::Text(text) => Some(&text.text),
+            _ => None,
+        }
+    }
+
+    /// Get the thinking content if this is a ThinkingContent variant
+    pub fn as_thinking(&self) -> Option<&ThinkingContent> {
+        match self {
+            MessageContent::Thinking(thinking) => Some(thinking),
+            _ => None,
+        }
+    }
+
+    /// Get the redacted thinking content if this is a RedactedThinkingContent variant
+    pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
+        match self {
+            MessageContent::RedactedThinking(redacted) => Some(redacted),
+            _ => None,
+        }
+    }
+
+    pub fn is_text(&self) -> bool {
+        matches!(self, Self::Text(_))
+    }
+    pub fn is_image(&self) -> bool {
+        matches!(self, Self::Image(_))
+    }
+    pub fn is_tool_request(&self) -> bool {
+        matches!(self, Self::ToolReq(_))
+    }
+    pub fn is_tool_response(&self) -> bool {
+        matches!(self, Self::ToolResp(_))
+    }
+}
+
+impl From<Content> for MessageContent {
+    fn from(content: Content) -> Self {
+        match content {
+            Content::Text(text) => MessageContent::Text(text),
+            Content::Image(image) => MessageContent::Image(image),
+        }
+    }
+}

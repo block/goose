@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
 
 use crate::{
-    message::{Message, MessageContent},
+    message::{Message, MessageContent, ToolRequestToolCall},
     model::ModelConfig,
     providers::{
         base::Usage,
@@ -56,7 +56,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
-                MessageContent::ToolRequest(request) => match &request.tool_call {
+                MessageContent::ToolReq(request) => match &request.tool_call.0 {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
                         let tool_calls = converted
@@ -82,8 +82,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                 },
-                MessageContent::ToolResponse(response) => {
-                    match &response.tool_result {
+                MessageContent::ToolResp(response) => {
+                    match &response.tool_result.0 {
                         Ok(contents) => {
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
@@ -210,13 +210,16 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
                         function_name
                     ));
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContent::tool_request(
+                        id,
+                        ToolRequestToolCall(Err(error)),
+                    ));
                 } else {
                     match serde_json::from_str::<Value>(&arguments) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(ToolCall::new(&function_name, params)),
+                                ToolRequestToolCall(Ok(ToolCall::new(&function_name, params))),
                             ));
                         }
                         Err(e) => {
@@ -224,7 +227,10 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e
                             ));
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContent::tool_request(
+                                id,
+                                ToolRequestToolCall(Err(error)),
+                            ));
                         }
                     }
                 }

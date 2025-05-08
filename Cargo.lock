@@ -2646,6 +2646,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "uniffi",
  "url",
 ]
 
@@ -2729,20 +2730,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "utoipa",
-]
-
-[[package]]
-name = "goose-uniffi"
-version = "1.0.22"
-dependencies = [
- "anyhow",
- "goose-llm",
- "serde",
- "serde_json",
- "smallvec",
- "thiserror 1.0.69",
- "tokio",
- "uniffi",
 ]
 
 [[package]]

@@ -10,30 +10,15 @@ use serde::{Deserialize, Serialize};
 use crate::{message::Message, providers::Usage};
 use crate::{model::ModelConfig, providers::errors::ProviderError};
 
-pub struct CompletionRequest<'a> {
-    pub provider_name: &'a str,
+// Lifetimes are not supported in Uniffi, cause other languages don't have them
+// https://github.com/mozilla/uniffi-rs/issues/1526#issuecomment-1528851837
+#[derive(uniffi::Record)]
+pub struct CompletionRequest {
+    pub provider_name: String,
     pub model_config: ModelConfig,
-    pub system_preamble: &'a str,
-    pub messages: &'a [Message],
-    pub extensions: &'a [ExtensionConfig],
-}
-
-impl<'a> CompletionRequest<'a> {
-    pub fn new(
-        provider_name: &'a str,
-        model_config: ModelConfig,
-        system_preamble: &'a str,
-        messages: &'a [Message],
-        extensions: &'a [ExtensionConfig],
-    ) -> Self {
-        Self {
-            provider_name,
-            model_config,
-            system_preamble,
-            messages,
-            extensions,
-        }
-    }
+    pub system_preamble: String,
+    pub messages: Vec<Message>,
+    pub extensions: Vec<ExtensionConfig>,
 }
 
 #[derive(Debug, Error)]
@@ -99,14 +84,14 @@ impl RuntimeMetrics {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Enum)]
 pub enum ToolApprovalMode {
     Auto,
     Manual,
     Smart,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolConfig {
     pub name: String,
     pub description: String,
@@ -140,7 +125,18 @@ impl ToolConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+uniffi::custom_type!(ToolConfig, String, {
+    lower: |tc: &ToolConfig| {
+        serde_json::to_string(&tc).unwrap()
+    },
+    try_lift: |s: String| {
+        Ok(serde_json::from_str(&s).unwrap())
+    },
+});
+
+// — Register the newtypes with UniFFI, converting via JSON strings —
+
+#[derive(Debug, Clone, Serialize, uniffi::Record)]
 pub struct ExtensionConfig {
     name: String,
     instructions: Option<String>,

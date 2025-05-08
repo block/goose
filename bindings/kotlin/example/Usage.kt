@@ -1,5 +1,5 @@
 // bindings/kotlin/example/Usage.kt
-import uniffi.goose_uniffi.*
+import uniffi.goose_llm.*
 
 fun main() {
     val msgs = listOf(

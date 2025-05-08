@@ -72,17 +72,17 @@ pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderEr
                         parts.push(txt.to_string());
                     }
                 }
-                MessageContent::ToolRequest(req) => {
-                    if let Ok(tool_call) = &req.tool_call {
+                MessageContent::ToolReq(req) => {
+                    if let Ok(tool_call) = &req.tool_call.0 {
                         parts.push(format!(
                             "called tool '{}' with args {}",
                             tool_call.name, tool_call.arguments
                         ));
-                    } else if let Err(e) = &req.tool_call {
+                    } else if let Err(e) = &req.tool_call.0 {
                         parts.push(format!("tool request error: {}", e));
                     }
                 }
-                MessageContent::ToolResponse(resp) => match &resp.tool_result {
+                MessageContent::ToolResp(resp) => match &resp.tool_result.0 {
                     Ok(contents) => {
                         let results: Vec<String> = contents
                             .iter()
