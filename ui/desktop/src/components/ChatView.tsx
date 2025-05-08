@@ -22,8 +22,8 @@ import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
-} from './context_management/ContextManager';
-import { ContextLengthExceededHandler } from './context_management/ContextLengthExceededHandler';
+} from './context_management/ChatContextManager';
+import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
@@ -105,8 +105,8 @@ function ChatContent({
     resetMessagesWithSummary,
     closeSummaryModal,
     updateSummary,
-    hasContextLengthExceededContent,
-      preparingManualSummary,
+    hasContextHandlerContent,
+    getContextHandlerType,
   } = useChatContextManager();
 
   useEffect(() => {
@@ -522,16 +522,29 @@ function ChatContent({
                   data-testid="message-container"
                 >
                   {isUserMessage(message) ? (
-                    <UserMessage message={message} />
-                  ) : (
                     <>
-                      {/* Only render GooseMessage if it's not a CLE message */}
-                      {hasContextLengthExceededContent(message) ? (
-                        <ContextLengthExceededHandler
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
                           messages={messages}
                           messageId={message.id ?? message.created.toString()}
                           chatId={chat.id}
                           workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
+                        />
+                      ) : (
+                        <UserMessage message={message} />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Only render GooseMessage if it's not a message invoking some context management */}
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
                         />
                       ) : (
                         <GooseMessage
@@ -589,6 +602,7 @@ function ChatContent({
             numTokens={sessionTokenCount}
             droppedFiles={droppedFiles}
             messages={messages}
+            setMessages={setMessages}
           />
         </div>
       </Card>
@@ -607,14 +621,3 @@ function ChatContent({
     </div>
   );
 }
-
-export const SummaryPreparationIndicator: React.FC = () => {
-  return (
-      <div className="flex items-center justify-center p-4">
-        <div className="flex items-center text-sm text-gray-400 bg-bgSubtle p-3 rounded-lg">
-          <span className="mr-2">Preparing conversation summary...</span>
-          <span className="animate-spin h-4 w-4 border-2 border-gray-400 rounded-full border-t-transparent"></span>
-        </div>
-      </div>
-  );
-};

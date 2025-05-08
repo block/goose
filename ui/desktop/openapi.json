@@ -1244,6 +1244,27 @@
                 }
               }
             ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SummarizationRequested"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "summarizationRequested"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -1568,6 +1589,17 @@
             "type": "string",
             "description": "Working directory for the session",
             "example": "/home/user/sessions/session1"
+          }
+        }
+      },
+      "SummarizationRequested": {
+        "type": "object",
+        "required": [
+          "msg"
+        ],
+        "properties": {
+          "msg": {
+            "type": "string"
           }
         }
       },

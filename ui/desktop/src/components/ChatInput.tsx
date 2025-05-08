@@ -18,7 +18,8 @@ interface ChatInputProps {
   setView: (view: View) => void;
   numTokens?: number;
   hasMessages?: boolean;
-  messages?: Message[]; // Add this line to accept messages
+  messages?: Message[];
+  setMessages: (messages: Message[]) => void;
 }
 
 export default function ChatInput({
@@ -31,6 +32,7 @@ export default function ChatInput({
   numTokens,
   droppedFiles = [],
   messages = [],
+  setMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -336,6 +338,7 @@ export default function ChatInput({
             numTokens={numTokens}
             messages={messages}
             isLoading={isLoading}
+            setMessages={setMessages}
           />
         </div>
       </div>

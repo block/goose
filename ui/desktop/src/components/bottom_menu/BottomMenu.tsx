@@ -24,11 +24,13 @@ export default function BottomMenu({
   numTokens = 0,
   messages = [],
   isLoading = false,
+  setMessages,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
   messages?: Message[];
   isLoading?: boolean;
+  setMessages: (messages: Message[]) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
@@ -229,7 +231,11 @@ export default function BottomMenu({
         {messages.length > 0 && (
           <>
             <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
-            <ManualSummarizeButton messages={messages} isLoading={isLoading} />
+            <ManualSummarizeButton
+              messages={messages}
+              isLoading={isLoading}
+              setMessages={setMessages}
+            />
           </>
         )}
       </div>

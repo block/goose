@@ -1,19 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../../types/message';
-import { useChatContextManager } from './ContextManager';
+import { useChatContextManager } from './ChatContextManager';
 
-interface ContextLengthExceededHandlerProps {
+interface ContextHandlerProps {
   messages: Message[];
   messageId: string;
   chatId: string;
   workingDir: string;
+  contextType: 'contextLengthExceeded' | 'summarizationRequested';
 }
 
-export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandlerProps> = ({
+export const ContextHandler: React.FC<ContextHandlerProps> = ({
   messages,
   messageId,
   chatId,
   workingDir,
+  contextType,
 }) => {
   const {
     summaryContent,
@@ -22,9 +24,10 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
     openSummaryModal,
     handleContextLengthExceeded,
   } = useChatContextManager();
-
   const [hasFetchStarted, setHasFetchStarted] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  const isContextLengthExceeded = contextType === 'contextLengthExceeded';
 
   // Find the relevant message to check if it's the latest
   const isCurrentMessageLatest =
@@ -43,7 +46,7 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
     fetchStartedRef.current = true;
 
     // Call the async function without awaiting it in useEffect
-    handleContextLengthExceeded(messages, chatId, workingDir).catch((err) => {
+    handleContextLengthExceeded(messages).catch((err) => {
       console.error('Error handling context length exceeded:', err);
     });
   };
@@ -109,8 +112,16 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
 
   const renderFailedState = () => (
     <>
-      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
-      <span className="text-xs text-gray-400">{`This conversation has too much information to continue. Extension data often takes up significant space.`}</span>
+      <span className="text-xs text-gray-400">
+        {isContextLengthExceeded
+          ? `Your conversation has exceeded the model's context capacity`
+          : `Summarization requested`}
+      </span>
+      <span className="text-xs text-gray-400">
+        {isContextLengthExceeded
+          ? `This conversation has too much information to continue. Extension data often takes up significant space.`
+          : `Summarization failed. Continue chatting or start a new session.`}
+      </span>
       <button
         onClick={openNewSession}
         className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
@@ -122,7 +133,11 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
 
   const renderRetryState = () => (
     <>
-      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity`}</span>
+      <span className="text-xs text-gray-400">
+        {isContextLengthExceeded
+          ? `Your conversation has exceeded the model's context capacity`
+          : `Summarization requested`}
+      </span>
       <button
         onClick={handleRetry}
         className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
@@ -134,13 +149,22 @@ export const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandler
 
   const renderSuccessState = () => (
     <>
-      <span className="text-xs text-gray-400">{`Your conversation has exceeded the model's context capacity and a summary was prepared.`}</span>
-      <span className="text-xs text-gray-400">{`Messages above this line remain viewable but specific details are not included in active context.`}</span>
+      <span className="text-xs text-gray-400">
+        {isContextLengthExceeded
+          ? `Your conversation has exceeded the model's context capacity and a summary was prepared.`
+          : `A summary of your conversation was prepared as requested.`}
+      </span>
+      <span className="text-xs text-gray-400">
+        {isContextLengthExceeded
+          ? `Messages above this line remain viewable but specific details are not included in active context.`
+          : `This summary includes key points from your conversation.`}
+      </span>
       <button
         onClick={openSummaryModal}
         className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
       >
-        View or edit summary (you may continue your conversation based on the summary)
+        View or edit summary{' '}
+        {isContextLengthExceeded ? '(you may continue your conversation based on the summary)' : ''}
       </button>
     </>
   );

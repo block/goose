@@ -45,6 +45,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::ContextLengthExceeded(_) => {
             bail!("ContextLengthExceeded should not get passed to the provider")
         }
+        MessageContent::SummarizationRequested(_) => {
+            bail!("SummarizationRequested should not get passed to the provider")
+        }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
