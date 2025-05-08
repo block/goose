@@ -59,13 +59,14 @@ pub async fn run_server(name: &str) -> Result<()> {
         _ = shutdown.notified() => {
             // On Unix systems, kill the entire process group
             #[cfg(unix)]
-            fn terminate_process_group() {
-                let pgid = getpgrp();
-                kill(Pid::from_raw(-pgid.as_raw()), Signal::SIGTERM)
-                    .expect("Failed to send SIGTERM to process group");
+            {
+                fn terminate_process_group() {
+                    let pgid = getpgrp();
+                    kill(Pid::from_raw(-pgid.as_raw()), Signal::SIGTERM)
+                        .expect("Failed to send SIGTERM to process group");
+                }
+                terminate_process_group();
             }
-            terminate_process_group();
-
             Ok(())
         }
     }
