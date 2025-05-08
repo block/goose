@@ -11,9 +11,41 @@ use crate::types::core::{Content, ImageContent, TextContent, ToolCall, ToolResul
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolRequestToolCall(pub ToolResult<ToolCall>);
+impl ToolRequestToolCall {
+    pub fn as_result(&self) -> &ToolResult<ToolCall> {
+        &self.0
+    }
+}
+impl std::ops::Deref for ToolRequestToolCall {
+    type Target = ToolResult<ToolCall>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl From<Result<ToolCall, crate::types::core::ToolError>> for ToolRequestToolCall {
+    fn from(res: Result<ToolCall, crate::types::core::ToolError>) -> Self {
+        ToolRequestToolCall(res)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolResponseToolResult(pub ToolResult<Vec<Content>>);
+impl ToolResponseToolResult {
+    pub fn as_result(&self) -> &ToolResult<Vec<Content>> {
+        &self.0
+    }
+}
+impl std::ops::Deref for ToolResponseToolResult {
+    type Target = ToolResult<Vec<Content>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl From<Result<Vec<Content>, crate::types::core::ToolError>> for ToolResponseToolResult {
+    fn from(res: Result<Vec<Content>, crate::types::core::ToolError>) -> Self {
+        ToolResponseToolResult(res)
+    }
+}
 
 // — Register the newtypes with UniFFI, converting via JSON strings —
 // UniFFI’s FFI layer supports only primitive buffers (here String), so we JSON-serialize

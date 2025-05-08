@@ -58,8 +58,12 @@ impl Message {
     }
 
     /// Add a tool request to the message
-    pub fn with_tool_request<S: Into<String>>(self, id: S, tool_call: ToolRequestToolCall) -> Self {
-        self.with_content(MessageContent::tool_request(id, tool_call))
+    pub fn with_tool_request<S: Into<String>, T: Into<ToolRequestToolCall>>(
+        self,
+        id: S,
+        tool_call: T,
+    ) -> Self {
+        self.with_content(MessageContent::tool_request(id, tool_call.into()))
     }
 
     /// Add a tool response to the message
@@ -130,7 +134,7 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::*;
-    use crate::types::core::ToolError;
+    use crate::types::core::{ToolCall, ToolError};
 
     #[test]
     fn test_message_serialization() {
@@ -138,7 +142,7 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
+                Ok(ToolCall::new("test_tool", json!({"param": "value"})).into()),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -233,9 +237,9 @@ mod tests {
         }
 
         // Check second content item
-        if let MessageContent::ToolRequest(req) = &message.content[1] {
+        if let MessageContent::ToolReq(req) = &message.content[1] {
             assert_eq!(req.id, "tool123");
-            if let Ok(tool_call) = &req.tool_call {
+            if let Ok(tool_call) = req.tool_call.as_result() {
                 assert_eq!(tool_call.name, "test_tool");
                 assert_eq!(tool_call.arguments, json!({"param": "value"}));
             } else {

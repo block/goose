@@ -45,14 +45,14 @@ async fn test_generate_tooltip_with_tools() -> Result<(), ProviderError> {
     let mut tool_req_msg = Message::assistant();
     let req = ToolRequest {
         id: "1".to_string(),
-        tool_call: Ok(ToolCall::new("get_time", json!({"timezone": "UTC"}))),
+        tool_call: Ok(ToolCall::new("get_time", json!({"timezone": "UTC"}))).into(),
     };
-    tool_req_msg.content.push(MessageContent::ToolRequest(req));
+    tool_req_msg.content.push(MessageContent::ToolReq(req));
 
     // 2) User message with the tool response
     let tool_resp_msg = Message::user().with_tool_response(
         "1",
-        Ok(vec![Content::text("The current time is 12:00 UTC")]),
+        Ok(vec![Content::text("The current time is 12:00 UTC")]).into(),
     );
 
     let messages = vec![tool_req_msg, tool_resp_msg];
