@@ -11,6 +11,9 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial will get you started with the [open-source Square MCP Server](https://github.com/square/square-mcp-server) as a Goose extension to enable interactive work for your Square seller account!
 
+:::info
+Square has already released a [remote version of the Square MCP server](https://developer.squareup.com/docs/mcp) if you want to configure Goose for that without needing your access token. More information at the bottom of this page.
+:::
 
 :::tip TLDR
 
@@ -29,11 +32,6 @@ PRODUCTION: <true/false>
 Note that you'll use `SANDBOX` -or- `PRODUCTION`, not both, and your `ACCESS_TOKEN` will either be a sandbox or production token, depending on which environment you choose.
 :::
 
-## Configuration
-
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -45,6 +43,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   6. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
+
+  ## Configuration
+
+  :::info
+  Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+  :::
+
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -55,7 +60,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -71,7 +76,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -88,7 +93,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -108,7 +113,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -132,7 +137,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -159,7 +164,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -250,3 +255,167 @@ Here's a summary of what was created:
 
 All items are now available in your Square catalog and ready for use in your point of sale system. Each burger includes its complete description and comes with a "Regular" variation at the specified price. The items are set as both sellable and stockable by default, and they're available at all locations.
 ```
+
+
+## Introducing Square's Remote MCP
+
+Along with the open-source MCP server mentioned above, Square has also released a [remote version of the Square MCP server](https://developer.squareup.com/docs/mcp) that allows you to interact with the Square API without needing to run your own local MCP server. This remote version is hosted by Square and provides a convenient way to access the MCP functionality without the need for local installation. It also uses OAuth for authentication, which is a more secure method than using an access token.
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
+<Tabs groupId="interface2">
+  <TabItem value="ui2" label="Goose Desktop" default>
+  1. [Launch the installer](https://mcp.squareup.com/goose)
+  2. Goose will open and ask you to confirm installation.
+  3. Goose should open a browser tab to an OAuth permissions page. Double-check which permissions you want to allow, and click 'Grant Access'
+  4. It will ask you to login or reauthenticate to Square, and may ask you to confirm the permissions you want to allow.
+  </TabItem>
+  <TabItem value="cli2" label="Goose CLI">
+  1. Run the `configure` command:
+  ```sh
+  goose configure
+  ```
+
+  1. Choose to add a `Command-line Extension`
+  ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◆  What type of extension would you like to add?
+    │  ○ Built-in Extension 
+    │  ○ Command-line Extension (Run a local command or script)
+    // highlight-start    
+    │  ● Remote Extension 
+    // highlight-end    
+    └ 
+  ```
+
+  1. Give your extension a name
+  ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Remote Extension 
+    │
+    // highlight-start
+    ◆  What would you like to call this extension?
+    │  square-mcp-remote
+    // highlight-end
+    └ 
+  ```
+
+  1. Enter the SSE URI
+  ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Remote Extension
+    │
+    ◇  What would you like to call this extension?
+    │  square-mcp-remote
+    │
+    // highlight-start
+    ◆  What is the SSE endpoint URI?
+    │  https://mcp.squareup.com/sse
+    // highlight-end
+    └ 
+  ```  
+
+  1. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Remote Extension
+    │
+    ◇  What would you like to call this extension?
+    │  square-mcp-remote
+    │
+    ◆  What is the SSE endpoint URI?
+    │  https://mcp.squareup.com/sse
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    └ 
+  ```  
+
+  1. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Remote Extension
+    │
+    ◇  What would you like to call this extension?
+    │  square-mcp-remote
+    │
+    ◆  What is the SSE endpoint URI?
+    │  https://mcp.squareup.com/sse
+    │
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```  
+
+  1. Obtain a [Square Access Token](https://developer.squareup.com/apps) and paste it in.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Remote Extension
+    │
+    ◇  What would you like to call this extension?
+    │  square-mcp-remote
+    │
+    ◆  What is the SSE endpoint URI?
+    │  https://mcp.squareup.com/sse
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
+    │
+    // highlight-start
+    ◆  Would you like to add environment variables?
+    │  No
+    // highlight-end
+    │
+    └  Added square-mcp-remote extension
+  ```  
+    :::info 
+    Change the `SANDBOX` key to `PRODUCTION` if using a production token
+    :::
+
+  </TabItem>
+</Tabs>
+
+## Example Usage
+
+The usage of the remote Square MCP server is the same as the local version, but with the added security of OAuth authentication, more detailed permissions on API usage, and the convenience of not needing to run a local server.
