@@ -79,6 +79,11 @@ run-ui:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
+run-ui-only:
+    @echo "Running UI..."
+    cd ui/desktop && npm install && npm run start-gui
+
+
 # Run UI with alpha changes
 run-ui-alpha:
     @just release-binary

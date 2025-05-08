@@ -32,6 +32,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
           block: 'end',
           inline: 'nearest',
         });
+        // When explicitly scrolling to bottom, reset the following state
         setIsFollowing(true);
       }
     }, []);
@@ -66,13 +67,11 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const { scrollHeight, scrollTop, clientHeight } = viewport;
 
       const scrollBottom = scrollTop + clientHeight;
-      const newIsFollowing = scrollHeight === scrollBottom;
+      // Allow a small tolerance (2px) for rounding errors
+      const isAtBottom = scrollHeight - scrollBottom <= 2;
 
-      // Check if scrolled from top
+      setIsFollowing(isAtBottom);
       setIsScrolled(scrollTop > 0);
-
-      // react will internally optimize this to not re-store the same values
-      setIsFollowing(newIsFollowing);
     }, []);
 
     React.useEffect(() => {
@@ -97,12 +96,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         data-scrolled={isScrolled}
         {...props}
       >
-        <div
-          className={cn(
-            'absolute top-0 left-0 right-0 z-10 transition-all duration-200',
-            isScrolled ? 'border-t border-borderSubtle' : 'border-t border-transparent'
-          )}
-        />
+        <div className={cn('absolute top-0 left-0 right-0 z-10 transition-all duration-200')} />
         <ScrollAreaPrimitive.Viewport
           ref={viewportRef}
           className="h-full w-full rounded-[inherit] [&>div]:!block"

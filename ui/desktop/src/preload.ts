@@ -25,6 +25,7 @@ const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}
 
 // Define the API types in a single place
 type ElectronAPI = {
+  platform: string;
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
@@ -68,6 +69,7 @@ type AppConfigAPI = {
 };
 
 const electronAPI: ElectronAPI = {
+  platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => config,
   hideWindow: () => ipcRenderer.send('hide-window'),

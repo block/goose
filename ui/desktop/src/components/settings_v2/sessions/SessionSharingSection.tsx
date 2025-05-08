@@ -80,13 +80,13 @@ export default function SessionSharingSection() {
   };
 
   return (
-    <section id="session-sharing">
+    <section id="session-sharing" className="px-8">
       {/*Title*/}
-      <div className="flex justify-between items-center mb-2 px-8">
+      <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-medium text-textStandard">Session sharing</h2>
       </div>
 
-      <div className="px-8">
+      <div className="border-b border-borderSubtle pb-8">
         {envBaseUrlShare ? (
           <p className="text-sm text-textStandard mb-4">
             Session sharing is configured but fully opt-in — your sessions are only shared when you

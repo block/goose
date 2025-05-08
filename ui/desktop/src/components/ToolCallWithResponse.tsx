@@ -1,12 +1,11 @@
 import React from 'react';
 import { Card } from './ui/card';
-import Box from './ui/Box';
-import { ToolCallArguments } from './ToolCallArguments';
+import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { LoadingPlaceholder } from './LoadingPlaceholder';
-import { ChevronUp } from 'lucide-react';
 import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { snakeToTitleCase } from '../utils';
+import Dot, { LoadingStatus } from './ui/Dot';
+import Expand from './ui/Expand';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -20,138 +19,218 @@ export default function ToolCallWithResponse({
   toolResponse,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
-
   if (!toolCall) {
     return null;
   }
 
   return (
-    <div className="w-full">
+    <div className={'w-full text-textSubtle text-sm'}>
       <Card className="">
-        <ToolCallView toolCall={toolCall} />
-        {!isCancelledMessage ? (
-          toolResponse ? (
-            <ToolResultView
-              result={
-                toolResponse.toolResult.status === 'success'
-                  ? toolResponse.toolResult.value
-                  : undefined
-              }
-            />
-          ) : (
-            <LoadingPlaceholder />
-          )
-        ) : undefined}
+        <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse }} />
       </Card>
     </div>
   );
 }
 
-interface ToolCallViewProps {
-  toolCall: {
-    name: string;
-    arguments: Record<string, unknown>;
-  };
+interface ToolCallExpandableProps {
+  label: string | React.ReactNode;
+  isStartExpanded?: boolean;
+  isForceExpand?: boolean;
+  children: React.ReactNode;
+  className?: string;
 }
 
-function ToolCallView({ toolCall }: ToolCallViewProps) {
+function ToolCallExpandable({
+  label,
+  isStartExpanded = false,
+  isForceExpand,
+  children,
+  className = '',
+}: ToolCallExpandableProps) {
+  const [isExpanded, setIsExpanded] = React.useState(isStartExpanded);
+  const toggleExpand = () => setIsExpanded((prev) => !prev);
+  React.useEffect(() => {
+    if (isForceExpand) setIsExpanded(true);
+  }, [isForceExpand]);
+
   return (
-    <div>
-      <div className="flex items-center mb-4">
-        <Box size={16} />
-        <span className="ml-[8px] text-textStandard">
-          {snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))}
-        </span>
-      </div>
-
-      {toolCall.arguments && <ToolCallArguments args={toolCall.arguments} />}
-
-      <div className="self-stretch h-px my-[10px] -mx-4 bg-borderSubtle dark:bg-gray-700" />
+    <div className={className}>
+      <button onClick={toggleExpand} className="w-full flex justify-between items-center pr-2">
+        <span className="flex items-center">{label}</span>
+        <Expand size={5} isExpanded={isExpanded} />
+      </button>
+      {isExpanded && <div>{children}</div>}
     </div>
   );
 }
 
-interface ToolResultViewProps {
-  result?: Content[];
+interface ToolCallViewProps {
+  isCancelledMessage: boolean;
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+  toolResponse?: ToolResponseMessageContent;
 }
 
-function ToolResultView({ result }: ToolResultViewProps) {
-  // State to track expanded items
-  const [expandedItems, setExpandedItems] = React.useState<number[]>([]);
+function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallViewProps) {
+  const responseStyle = localStorage.getItem('response_style');
+  const isExpandToolDetails = (() => {
+    switch (responseStyle) {
+      case 'concise':
+        return false;
+      case 'detailed':
+      default:
+        return true;
+    }
+  })();
 
-  // If no result info, don't show anything
-  if (!result) return null;
+  const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
+  const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
+    ? 'loading'
+    : toolResponse?.toolResult.status;
 
-  // Find results where either audience is not set, or it's set to a list that includes user
-  const filteredResults = result.filter((item) => {
-    // Check audience (which may not be in the type)
-    const audience = item.annotations?.audience;
+  const toolResults: { result: Content; isExpandToolResults: boolean }[] =
+    loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
+      ? toolResponse.toolResult.value
+          .filter((item) => {
+            const audience = item.annotations?.audience as string[] | undefined;
+            return !audience || audience.includes('user');
+          })
+          .map((item) => ({
+            result: item,
+            isExpandToolResults: ((item.annotations?.priority as number | undefined) ?? -1) >= 0.5,
+          }))
+      : [];
 
-    return !audience || audience.includes('user');
-  });
+  const isShouldExpand = isExpandToolDetails || toolResults.some((v) => v.isExpandToolResults);
 
-  if (filteredResults.length === 0) return null;
+  // Function to create a compact representation of arguments
+  const getCompactArguments = () => {
+    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const entries = Object.entries(args);
 
-  const toggleExpand = (index: number) => {
-    setExpandedItems((prev) =>
-      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
-    );
-  };
+    if (entries.length === 0) return null;
 
-  const shouldShowExpanded = (item: Content, index: number) => {
+    // For a single parameter, show key and truncated value
+    if (entries.length === 1) {
+      const [key, value] = entries[0];
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      const truncatedValue =
+        stringValue.length > 30 ? stringValue.substring(0, 30) + '...' : stringValue;
+
+      return (
+        <span className="ml-2 text-textSubtle truncate text-xs opacity-70">
+          {key}: {truncatedValue}
+        </span>
+      );
+    }
+
+    // For multiple parameters, just show the keys
     return (
-      (item.annotations &&
-        item.annotations.priority !== undefined &&
-        item.annotations.priority >= 0.5) ||
-      expandedItems.includes(index)
+      <span className="ml-2 text-textSubtle truncate text-xs opacity-70">
+        {entries.map(([key]) => key).join(', ')}
+      </span>
     );
   };
 
   return (
-    <div className="">
-      {filteredResults.map((item, index) => {
-        const isExpanded = shouldShowExpanded(item, index);
-        const shouldMinimize =
-          !item.annotations ||
-          item.annotations.priority === undefined ||
-          item.annotations.priority < 0.5;
-        return (
-          <div key={index} className="relative">
-            {shouldMinimize && (
-              <button
-                onClick={() => toggleExpand(index)}
-                className="mb-1 flex items-center text-textStandard"
+    <ToolCallExpandable
+      isStartExpanded={isShouldExpand}
+      isForceExpand={isShouldExpand}
+      label={
+        <>
+          <Dot size={2} loadingStatus={loadingStatus} />
+          <span className="ml-[10px]">
+            {snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))}
+          </span>
+          {/* Display compact arguments inline */}
+          {isToolDetails && getCompactArguments()}
+        </>
+      }
+    >
+      {/* Tool Details */}
+      {isToolDetails && (
+        <div className="bg-bgStandard rounded-t mt-1">
+          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+        </div>
+      )}
+
+      {/* Tool Output */}
+      {!isCancelledMessage && (
+        <>
+          {toolResults.map(({ result, isExpandToolResults }, index) => {
+            const isLast = index === toolResults.length - 1;
+            return (
+              <div
+                key={index}
+                className={`bg-bgStandard mt-1 
+                  ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
+                  ${isLast ? 'rounded-b' : ''}
+                `}
               >
-                <span className="mr-2 text-sm">Output</span>
-                <ChevronUp
-                  className={`h-5 w-5 transition-all origin-center ${!isExpanded ? 'rotate-180' : ''}`}
-                />
-              </button>
-            )}
-            {(isExpanded || !shouldMinimize) && (
-              <>
-                {item.type === 'text' && item.text && (
-                  <MarkdownContent
-                    content={item.text}
-                    className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
-                  />
-                )}
-                {item.type === 'image' && (
-                  <img
-                    src={`data:${item.mimeType};base64,${item.data}`}
-                    alt="Tool result"
-                    className="max-w-full h-auto rounded-md my-2"
-                    onError={(e) => {
-                      console.error('Failed to load image: Invalid MIME-type encoded image data');
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
+              </div>
+            );
+          })}
+        </>
+      )}
+    </ToolCallExpandable>
+  );
+}
+
+interface ToolDetailsViewProps {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+  isStartExpanded: boolean;
+}
+
+function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
+  return (
+    <ToolCallExpandable
+      label="Tool Details"
+      className="pl-[19px] py-1"
+      isStartExpanded={isStartExpanded}
+    >
+      {toolCall.arguments && (
+        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+      )}
+    </ToolCallExpandable>
+  );
+}
+
+interface ToolResultViewProps {
+  result: Content;
+  isStartExpanded: boolean;
+}
+
+function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+  return (
+    <ToolCallExpandable
+      label={<span className="pl-[19px] py-1">Output</span>}
+      isStartExpanded={isStartExpanded}
+    >
+      <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
+        {result.type === 'text' && result.text && (
+          <MarkdownContent
+            content={result.text}
+            className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+          />
+        )}
+        {result.type === 'image' && (
+          <img
+            src={`data:${result.mimeType};base64,${result.data}`}
+            alt="Tool result"
+            className="max-w-full h-auto rounded-md my-2"
+            onError={(e) => {
+              console.error('Failed to load image');
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
+      </div>
+    </ToolCallExpandable>
   );
 }

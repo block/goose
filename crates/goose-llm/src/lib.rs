@@ -1,6 +1,11 @@
 mod completion;
+pub mod extractors;
+pub mod message;
+mod model;
 mod prompt_template;
-mod types;
+pub mod providers;
+pub mod types;
 
 pub use completion::completion;
-pub use types::{CompletionResponse, Extension, RuntimeMetrics};
+pub use message::Message;
+pub use model::ModelConfig;
