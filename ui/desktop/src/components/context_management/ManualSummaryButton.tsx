@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { ScrollText } from 'lucide-react';
 import Modal from '../Modal';
 import { Button } from '../ui/button';
 import { useChatContextManager } from './ChatContextManager';
@@ -39,14 +39,14 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
     <>
       <Button
         onClick={handleSummarize}
-        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
+        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-large"
       >
-        Summarize context
+        Summarize
       </Button>
       <Button
         onClick={() => setIsConfirmationOpen(false)}
         variant="ghost"
-        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
+        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-large font-regular"
       >
         Cancel
       </Button>
@@ -64,8 +64,7 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
           disabled={isLoadingSummary || isLoading}
           title="Summarize conversation context"
         >
-          <span className="pr-1.5">summarize</span>
-          <FileText size={16} />
+          <ScrollText size={16} />
         </button>
       </div>
 
@@ -74,10 +73,10 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
         <Modal footer={footerContent} onClose={() => setIsConfirmationOpen(false)}>
           <div className="flex flex-col mb-6">
             <div>
-              <FileText className="text-iconStandard" size={24} />
+              <ScrollText className="text-iconStandard" size={24} />
             </div>
             <div className="mt-2">
-              <h2 className="text-2xl font-regular text-textStandard">Summarize Context</h2>
+              <h2 className="text-2xl font-regular text-textStandard">Summarize Conversation</h2>
             </div>
           </div>
 
