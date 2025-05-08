@@ -63,6 +63,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ContextLengthExceeded(_) => {
                     // Skip
                 }
+                MessageContent::SummarizationRequested(_) => {
+                    // Skip
+                }
                 MessageContent::Thinking(thinking) => {
                     content.push(json!({
                         "type": "thinking",
