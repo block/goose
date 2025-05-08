@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 import Expand from './ui/Expand';
 
-type ToolCallArgumentValue =
+export type ToolCallArgumentValue =
   | string
   | number
   | boolean

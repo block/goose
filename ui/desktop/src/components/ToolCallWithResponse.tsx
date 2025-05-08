@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from './ui/card';
-import { ToolCallArguments } from './ToolCallArguments';
+import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { snakeToTitleCase } from '../utils';
@@ -105,6 +105,35 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
 
   const isShouldExpand = isExpandToolDetails || toolResults.some((v) => v.isExpandToolResults);
 
+  // Function to create a compact representation of arguments
+  const getCompactArguments = () => {
+    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const entries = Object.entries(args);
+
+    if (entries.length === 0) return null;
+
+    // For a single parameter, show key and truncated value
+    if (entries.length === 1) {
+      const [key, value] = entries[0];
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      const truncatedValue =
+        stringValue.length > 30 ? stringValue.substring(0, 30) + '...' : stringValue;
+
+      return (
+        <span className="ml-2 text-textSubtle truncate text-xs opacity-70">
+          {key}: {truncatedValue}
+        </span>
+      );
+    }
+
+    // For multiple parameters, just show the keys
+    return (
+      <span className="ml-2 text-textSubtle truncate text-xs opacity-70">
+        {entries.map(([key]) => key).join(', ')}
+      </span>
+    );
+  };
+
   return (
     <ToolCallExpandable
       isStartExpanded={isShouldExpand}
@@ -115,6 +144,8 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
           <span className="ml-[10px]">
             {snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))}
           </span>
+          {/* Display compact arguments inline */}
+          {isToolDetails && getCompactArguments()}
         </>
       }
     >
@@ -163,7 +194,9 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
       className="pl-[19px] py-1"
       isStartExpanded={isStartExpanded}
     >
-      {toolCall.arguments && <ToolCallArguments args={toolCall.arguments} />}
+      {toolCall.arguments && (
+        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+      )}
     </ToolCallExpandable>
   );
 }
