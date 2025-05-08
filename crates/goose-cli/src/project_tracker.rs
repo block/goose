@@ -25,6 +25,19 @@ pub struct ProjectTracker {
     projects: HashMap<String, ProjectInfo>,
 }
 
+/// Project information with path as a separate field for easier access
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectInfoDisplay {
+    /// The absolute path to the project directory
+    pub path: String,
+    /// Last time the project was accessed
+    pub last_accessed: DateTime<Utc>,
+    /// Last instruction sent to goose (if available)
+    pub last_instruction: Option<String>,
+    /// Last session ID associated with this project
+    pub last_session_id: Option<String>,
+}
+
 impl ProjectTracker {
     /// Get the path to the projects.json file
     fn get_projects_file() -> Result<PathBuf> {
@@ -103,6 +116,21 @@ impl ProjectTracker {
         }
 
         self.save()
+    }
+
+    /// List all tracked projects
+    ///
+    /// Returns a vector of ProjectInfoDisplay objects
+    pub fn list_projects(&self) -> Vec<ProjectInfoDisplay> {
+        self.projects
+            .iter()
+            .map(|(_, info)| ProjectInfoDisplay {
+                path: info.path.clone(),
+                last_accessed: info.last_accessed,
+                last_instruction: info.last_instruction.clone(),
+                last_session_id: info.last_session_id.clone(),
+            })
+            .collect()
     }
 }
 

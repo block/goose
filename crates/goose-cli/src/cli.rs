@@ -7,6 +7,7 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
+use crate::commands::project::{handle_project_list, handle_project_resume};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
@@ -99,6 +100,38 @@ enum SessionCommand {
             default_value = ""
         )]
         regex: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProjectCommand {
+    #[command(about = "List all tracked projects")]
+    List {
+        #[arg(short, long, help = "Show full project paths")]
+        verbose: bool,
+
+        #[arg(
+            short,
+            long,
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        #[arg(
+            long = "ascending",
+            help = "Sort by date in ascending order (oldest first)",
+            long_help = "Sort projects by date in ascending order (oldest first). Default is descending order (newest first)."
+        )]
+        ascending: bool,
+    },
+    #[command(about = "Resume a project by changing to its directory and starting Goose")]
+    Resume {
+        #[arg(
+            help = "Index of the project to resume (from the list command)",
+            default_value = "1"
+        )]
+        index: usize,
     },
 }
 
@@ -240,6 +273,16 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+    },
+
+    /// Manage projects and their associated sessions
+    #[command(
+        about = "Manage projects and their associated sessions",
+        visible_alias = "p"
+    )]
+    Project {
+        #[command(subcommand)]
+        command: ProjectCommand,
     },
 
     /// Execute commands from an instruction file
@@ -454,6 +497,18 @@ pub async fn cli() -> Result<()> {
                         None,
                     )?;
                     let _ = session.interactive(None).await;
+                    Ok(())
+                }
+            };
+        }
+        Some(Command::Project { command }) => {
+            return match command {
+                ProjectCommand::List { verbose, format, ascending } => {
+                    handle_project_list(verbose, &format, ascending)?;
+                    Ok(())
+                }
+                ProjectCommand::Resume { index } => {
+                    handle_project_resume(index)?;
                     Ok(())
                 }
             };
