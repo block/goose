@@ -409,8 +409,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   </TabItem>
 </Tabs>
 
----
-
 ## Example Usage
 
 The Square MCP server allows you to interact with Square's connect API with an extensive [service catalog](https://github.com/square/square-mcp-server?tab=readme-ov-file#service-catalog) to access the Square API ecosystem.
