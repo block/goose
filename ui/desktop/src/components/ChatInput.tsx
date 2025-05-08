@@ -6,6 +6,7 @@ import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
+import { Message } from '../types/message';
 
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -16,6 +17,9 @@ interface ChatInputProps {
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
+  hasMessages?: boolean;
+  messages?: Message[];
+  setMessages: (messages: Message[]) => void;
 }
 
 export default function ChatInput({
@@ -27,6 +31,8 @@ export default function ChatInput({
   setView,
   numTokens,
   droppedFiles = [],
+  messages = [],
+  setMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -327,7 +333,13 @@ export default function ChatInput({
             <Attach />
           </Button>
 
-          <BottomMenu setView={setView} numTokens={numTokens} />
+          <BottomMenu
+            setView={setView}
+            numTokens={numTokens}
+            messages={messages}
+            isLoading={isLoading}
+            setMessages={setMessages}
+          />
         </div>
       </div>
     </div>

@@ -12,6 +12,8 @@ import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
 import { getCurrentModelAndProvider } from '../settings_v2/models';
+import { Message } from '../../types/message';
+import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
@@ -20,9 +22,15 @@ const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 export default function BottomMenu({
   setView,
   numTokens = 0,
+  messages = [],
+  isLoading = false,
+  setMessages,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
+  messages?: Message[];
+  isLoading?: boolean;
+  setMessages: (messages: Message[]) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
@@ -267,6 +275,18 @@ export default function BottomMenu({
 
         {/* Goose Mode Selector Dropdown */}
         <BottomMenuModeSelection setView={setView} />
+
+        {/* Summarize Context Button - ADD THIS */}
+        {messages.length > 0 && (
+          <>
+            <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+            <ManualSummarizeButton
+              messages={messages}
+              isLoading={isLoading}
+              setMessages={setMessages}
+            />
+          </>
+        )}
       </div>
     </div>
   );
