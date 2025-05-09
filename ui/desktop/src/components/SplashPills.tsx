@@ -5,7 +5,13 @@ function truncateText(text: string, maxLength: number = 100): string {
   return text.slice(0, maxLength) + '...';
 }
 
-function SplashPill({ content, append, className = '', longForm = '' }) {
+interface SplashPillProps {
+  content: string;
+  append: (text: string) => void;
+  className?: string;
+}
+
+function SplashPill({ content, append, className = '' }: SplashPillProps) {
   const displayText = truncateText(content);
 
   return (
@@ -13,7 +19,7 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
       className={`px-4 py-2 text-sm text-center text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
       onClick={async () => {
         // Always use the full text (longForm or original content) when clicked
-        await append(longForm || content);
+        await append(content);
       }}
       title={content.length > 100 ? content : undefined} // Show full text on hover if truncated
     >
@@ -22,9 +28,29 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
   );
 }
 
-export default function SplashPills({ append, activities = null }) {
+interface ContextBlockProps {
+  content: string;
+}
+
+function ContextBlock({ content }: ContextBlockProps) {
+  // Remove the "message:" prefix and trim whitespace
+  const displayText = content.replace(/^message:/i, '').trim();
+
+  return (
+    <div className="mb-6 p-4 bg-bgSubtle rounded-lg border border-borderStandard animate-[fadein_500ms_ease-in_forwards]">
+      <div className="text-sm text-textStandard whitespace-pre-wrap">{displayText}</div>
+    </div>
+  );
+}
+
+interface SplashPillsProps {
+  append: (text: string) => void;
+  activities: string[] | null;
+}
+
+export default function SplashPills({ append, activities = null }: SplashPillsProps) {
   // If custom activities are provided, use those instead of the default ones
-  const pills = activities || [
+  const defaultPills = [
     'What can you do?',
     'Demo writing and reading files',
     'Make a snake game in a new folder',
@@ -32,11 +58,24 @@ export default function SplashPills({ append, activities = null }) {
     'Take a screenshot and summarize',
   ];
 
+  const pills = activities || defaultPills;
+
+  // Check if the first pill starts with "message:"
+  const hasContextPill = pills.length > 0 && pills[0].toLowerCase().startsWith('message:');
+
+  // Extract the context pill and the remaining pills
+  const contextPill = hasContextPill ? pills[0] : null;
+  const remainingPills = hasContextPill ? pills.slice(1) : pills;
+
   return (
-    <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
-      {pills.map((content, index) => (
-        <SplashPill key={index} content={content} append={append} />
-      ))}
+    <div className="flex flex-col">
+      {contextPill && <ContextBlock content={contextPill} />}
+
+      <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
+        {remainingPills.map((content, index) => (
+          <SplashPill key={index} content={content} append={append} />
+        ))}
+      </div>
     </div>
   );
 }

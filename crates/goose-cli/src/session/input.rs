@@ -18,6 +18,7 @@ pub enum InputResult {
     Plan(PlanCommandOptions),
     EndPlan,
     Recipe(Option<String>),
+    Summarize,
 }
 
 #[derive(Debug)]
@@ -91,6 +92,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_PLAN: &str = "/plan";
     const CMD_ENDPLAN: &str = "/endplan";
     const CMD_RECIPE: &str = "/recipe";
+    const CMD_SUMMARIZE: &str = "/summarize";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -133,6 +135,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
+        s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
         _ => None,
     }
 }
@@ -241,6 +244,7 @@ fn print_help() {
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
+/summarize - Summarize the current conversation to reduce context length while preserving key information.
 /? or /help - Display this help message
 
 Navigation:
@@ -473,5 +477,16 @@ mod tests {
         // Test recipe with invalid extension
         let result = handle_slash_command("/recipe /path/to/file.txt");
         assert!(matches!(result, Some(InputResult::Retry)));
+    }
+
+    #[test]
+    fn test_summarize_command() {
+        // Test the summarize command
+        let result = handle_slash_command("/summarize");
+        assert!(matches!(result, Some(InputResult::Summarize)));
+
+        // Test with whitespace
+        let result = handle_slash_command("  /summarize  ");
+        assert!(matches!(result, Some(InputResult::Summarize)));
     }
 }

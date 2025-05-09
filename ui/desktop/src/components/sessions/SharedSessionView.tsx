@@ -21,7 +21,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
 }) => {
   return (
     <div className="h-screen w-full flex flex-col">
-      <div className="relative flex items-center h-[36px] w-full"></div>
+      <div className="relative flex items-center h-14 w-full"></div>
 
       {/* Top Row - back, info (fixed) */}
       <SessionHeaderCard onBack={onBack}>

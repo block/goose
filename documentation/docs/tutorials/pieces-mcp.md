@@ -46,7 +46,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◆  What type of extension would you like to add?
         │  ○ Built-in Extension 
@@ -63,7 +63,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Remote Extension 
@@ -85,7 +85,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Remote Extension 
@@ -106,7 +106,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Remote Extension 
@@ -130,7 +130,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Remote Extension 
@@ -158,7 +158,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Remote Extension 

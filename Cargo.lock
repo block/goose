@@ -2387,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2406,7 +2406,7 @@ dependencies = [
  "fs2",
  "futures",
  "include_dir",
- "indoc",
+ "indoc 2.0.6",
  "jsonwebtoken",
  "keyring",
  "lazy_static",
@@ -2443,7 +2443,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2466,7 +2466,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2485,6 +2485,7 @@ dependencies = [
  "mcp-core",
  "mcp-server",
  "minijinja",
+ "nix 0.30.1",
  "once_cell",
  "rand",
  "regex",
@@ -2506,7 +2507,7 @@ dependencies = [
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "cbindgen",
  "futures",
@@ -2520,23 +2521,35 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "base64 0.21.7",
  "chrono",
- "goose",
+ "criterion",
+ "ctor",
+ "dotenv",
  "include_dir",
- "mcp-core",
+ "indoc 1.0.9",
+ "lazy_static",
  "minijinja",
  "once_cell",
+ "regex",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
+ "smallvec",
+ "tempfile",
+ "thiserror 1.0.69",
  "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2551,7 +2564,7 @@ dependencies = [
  "ignore",
  "image 0.24.9",
  "include_dir",
- "indoc",
+ "indoc 2.0.6",
  "keyring",
  "kill_tree",
  "lazy_static",
@@ -2582,7 +2595,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.21"
+version = "1.0.23"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3257,6 +3270,12 @@ dependencies = [
 
 [[package]]
 name = "indoc"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
+
+[[package]]
+name = "indoc"
 version = "2.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4c7245a08504955605670dbf141fceab975f15ca21570696aebe9d2e71576bd"
@@ -3470,9 +3489,9 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
 name = "libc"
-version = "0.2.170"
+version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
+checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 
 [[package]]
 name = "libdbus-sys"
@@ -3682,6 +3701,7 @@ dependencies = [
  "eventsource-client",
  "futures",
  "mcp-core",
+ "nix 0.30.1",
  "rand",
  "reqwest 0.11.27",
  "serde",
@@ -3901,6 +3921,18 @@ name = "nix"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.9.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
 dependencies = [
  "bitflags 2.9.0",
  "cfg-if",
@@ -5561,6 +5593,9 @@ name = "smallvec"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smawk"

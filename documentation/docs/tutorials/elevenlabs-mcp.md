@@ -50,7 +50,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -66,7 +66,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -83,7 +83,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -103,7 +103,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -127,7 +127,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -154,7 +154,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

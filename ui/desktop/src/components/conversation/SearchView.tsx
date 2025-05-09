@@ -1,5 +1,5 @@
 import React, { useState, useEffect, PropsWithChildren, useCallback } from 'react';
-import { SearchBar } from './SearchBar';
+import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { debounce } from 'lodash';
 import '../../styles/search.css';
@@ -10,6 +10,19 @@ import '../../styles/search.css';
 interface SearchViewProps {
   /** Optional CSS class name */
   className?: string;
+  /** Optional callback for search term changes */
+  onSearch?: (term: string, caseSensitive: boolean) => void;
+  /** Optional callback for navigating between search results */
+  onNavigate?: (direction: 'next' | 'prev') => void;
+  /** Current search results state */
+  searchResults?: {
+    count: number;
+    currentIndex: number;
+  } | null;
+}
+
+interface SearchContainerElement extends HTMLDivElement {
+  _searchHighlighter: SearchHighlighter | null;
 }
 
 /**
@@ -20,17 +33,20 @@ interface SearchViewProps {
 export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   className = '',
   children,
+  onSearch,
+  onNavigate,
+  searchResults,
 }) => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<{
+  const [internalSearchResults, setInternalSearchResults] = useState<{
     currentIndex: number;
     count: number;
   } | null>(null);
 
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const containerRef = React.useRef<SearchContainerElement | null>(null);
   const lastSearchRef = React.useRef<{ term: string; caseSensitive: boolean }>({
     term: '',
     caseSensitive: false,
@@ -39,23 +55,37 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   // Create debounced highlight function
   const debouncedHighlight = useCallback(
     (term: string, caseSensitive: boolean, highlighter: SearchHighlighter) => {
-      debounce(
-        (searchTerm: string, isCaseSensitive: boolean, searchHighlighter: SearchHighlighter) => {
-          const highlights = searchHighlighter.highlight(searchTerm, isCaseSensitive);
-          const count = highlights.length;
+      const performHighlight = () => {
+        const highlights = highlighter.highlight(term, caseSensitive);
+        const count = highlights.length;
 
-          if (count > 0) {
-            setSearchResults({
-              currentIndex: 1,
-              count,
-            });
-            searchHighlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
-          } else {
-            setSearchResults(null);
-          }
-        },
-        150
-      )(term, caseSensitive, highlighter);
+        if (count > 0) {
+          setInternalSearchResults({
+            currentIndex: 1,
+            count,
+          });
+          highlighter.setCurrentMatch(0, true);
+        } else {
+          setInternalSearchResults(null);
+        }
+      };
+
+      // If this is a case sensitivity change (same term, different case setting),
+      // execute immediately
+      if (
+        term === lastSearchRef.current.term &&
+        caseSensitive !== lastSearchRef.current.caseSensitive
+      ) {
+        performHighlight();
+        return;
+      }
+
+      // Create a debounced version of performHighlight
+      const debouncedFn = debounce(performHighlight, 150);
+      debouncedFn();
+
+      // Store the debounced function for potential cancellation
+      return debouncedFn;
     },
     []
   );
@@ -69,10 +99,18 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   const handleSearch = useCallback(
     (term: string, caseSensitive: boolean) => {
       // Store the latest search parameters
+      const isCaseChange =
+        term === lastSearchRef.current.term &&
+        caseSensitive !== lastSearchRef.current.caseSensitive;
+
       lastSearchRef.current = { term, caseSensitive };
 
+      // Call the onSearch callback if provided
+      onSearch?.(term, caseSensitive);
+
+      // If empty, clear everything and return
       if (!term) {
-        setSearchResults(null);
+        setInternalSearchResults(null);
         if (highlighterRef.current) {
           highlighterRef.current.clearHighlights();
         }
@@ -82,62 +120,73 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       const container = containerRef.current;
       if (!container) return;
 
-      if (!highlighterRef.current) {
-        highlighterRef.current = new SearchHighlighter(container, (count) => {
-          // Only update if this is still the latest search
-          if (
-            lastSearchRef.current.term === term &&
-            lastSearchRef.current.caseSensitive === caseSensitive
-          ) {
-            if (count > 0) {
-              setSearchResults((prev) => ({
-                currentIndex: prev?.currentIndex || 1,
-                count,
-              }));
-            } else {
-              setSearchResults(null);
-            }
-          }
-        });
+      // For case sensitivity changes, reuse existing highlighter
+      if (isCaseChange && highlighterRef.current) {
+        debouncedHighlight(term, caseSensitive, highlighterRef.current);
+        return;
       }
 
-      // Debounce the highlight operation
+      // Otherwise create new highlighter
+      if (highlighterRef.current) {
+        highlighterRef.current.clearHighlights();
+        highlighterRef.current.destroy();
+      }
+
+      highlighterRef.current = new SearchHighlighter(container, (count) => {
+        // Only update if this is still the latest search
+        if (
+          lastSearchRef.current.term === term &&
+          lastSearchRef.current.caseSensitive === caseSensitive
+        ) {
+          if (count > 0) {
+            setInternalSearchResults({
+              currentIndex: 1,
+              count,
+            });
+          } else {
+            setInternalSearchResults(null);
+          }
+        }
+      });
+
       debouncedHighlight(term, caseSensitive, highlighterRef.current);
     },
-    [debouncedHighlight]
+    [debouncedHighlight, onSearch]
   );
 
   /**
    * Navigates between search results in the specified direction.
    * @param direction - Direction to navigate ('next' or 'prev')
    */
-  const navigateResults = useCallback(
+  const handleNavigate = useCallback(
     (direction: 'next' | 'prev') => {
-      if (!searchResults || searchResults.count === 0 || !highlighterRef.current) return;
-
-      let newIndex: number;
-      const currentIdx = searchResults.currentIndex - 1; // Convert to 0-based
-
-      if (direction === 'next') {
-        newIndex = currentIdx + 1;
-        if (newIndex >= searchResults.count) {
-          newIndex = 0;
-        }
-      } else {
-        newIndex = currentIdx - 1;
-        if (newIndex < 0) {
-          newIndex = searchResults.count - 1;
-        }
+      // If external navigation is provided, use that
+      if (onNavigate) {
+        onNavigate(direction);
+        return;
       }
 
-      setSearchResults({
-        ...searchResults,
-        currentIndex: newIndex + 1,
+      // Otherwise use internal navigation
+      if (!internalSearchResults || !highlighterRef.current) return;
+
+      let newIndex: number;
+      if (direction === 'next') {
+        newIndex = (internalSearchResults.currentIndex % internalSearchResults.count) + 1;
+      } else {
+        newIndex =
+          internalSearchResults.currentIndex === 1
+            ? internalSearchResults.count
+            : internalSearchResults.currentIndex - 1;
+      }
+
+      setInternalSearchResults({
+        ...internalSearchResults,
+        currentIndex: newIndex,
       });
 
-      highlighterRef.current.setCurrentMatch(newIndex, true); // Explicitly scroll when navigating
+      highlighterRef.current.setCurrentMatch(newIndex - 1, true);
     },
-    [searchResults]
+    [internalSearchResults, onNavigate]
   );
 
   const handleFindCommand = useCallback(() => {
@@ -151,15 +200,15 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   const handleFindNext = useCallback(() => {
     if (isSearchVisible) {
-      navigateResults('next');
+      handleNavigate('next');
     }
-  }, [isSearchVisible, navigateResults]);
+  }, [isSearchVisible, handleNavigate]);
 
   const handleFindPrevious = useCallback(() => {
     if (isSearchVisible) {
-      navigateResults('prev');
+      handleNavigate('prev');
     }
-  }, [isSearchVisible, navigateResults]);
+  }, [isSearchVisible, handleNavigate]);
 
   const handleUseSelectionFind = useCallback(() => {
     const selection = window.getSelection()?.toString().trim();
@@ -173,13 +222,21 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
    */
   const handleCloseSearch = useCallback(() => {
     setIsSearchVisible(false);
-    setSearchResults(null);
+    setInternalSearchResults(null);
+    lastSearchRef.current = { term: '', caseSensitive: false };
+
     if (highlighterRef.current) {
       highlighterRef.current.clearHighlights();
+      highlighterRef.current.destroy();
+      highlighterRef.current = null;
     }
+
     // Cancel any pending highlight operations
     debouncedHighlight.cancel?.();
-  }, [debouncedHighlight]);
+
+    // Clear search when closing
+    onSearch?.('', false);
+  }, [debouncedHighlight, onSearch]);
 
   // Clean up highlighter and debounced functions on unmount
   useEffect(() => {
@@ -228,10 +285,10 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
         e.preventDefault();
         if (e.shiftKey) {
           // ⇧⌘G - Find Previous
-          navigateResults('prev');
+          handleNavigate('prev');
         } else {
           // ⌘G - Find Next
-          navigateResults('next');
+          handleNavigate('next');
         }
       }
     };
@@ -240,7 +297,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isSearchVisible, navigateResults, handleSearch, handleUseSelectionFind]);
+  }, [isSearchVisible, handleNavigate, handleSearch, handleUseSelectionFind]);
 
   // Listen for Find menu commands
   useEffect(() => {
@@ -258,13 +315,22 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   }, [handleFindCommand, handleFindNext, handleFindPrevious, handleUseSelectionFind]);
 
   return (
-    <div ref={containerRef} className={`search-container ${className}`}>
+    <div
+      ref={(el) => {
+        if (el) {
+          containerRef.current = el;
+          // Expose the highlighter instance
+          containerRef.current._searchHighlighter = highlighterRef.current;
+        }
+      }}
+      className={`search-container ${className}`}
+    >
       {isSearchVisible && (
         <SearchBar
           onSearch={handleSearch}
           onClose={handleCloseSearch}
-          onNavigate={navigateResults}
-          searchResults={searchResults}
+          onNavigate={handleNavigate}
+          searchResults={searchResults || internalSearchResults}
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
         />

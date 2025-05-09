@@ -36,7 +36,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◆  What type of extension would you like to add?
   // highlight-start    
@@ -52,7 +52,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -73,7 +73,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -93,7 +93,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
