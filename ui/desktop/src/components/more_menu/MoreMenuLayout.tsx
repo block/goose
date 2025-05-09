@@ -16,6 +16,10 @@ export default function MoreMenuLayout({
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
 }) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+  // Assume macOS if not explicitly set
+  const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
+
   return (
     <div
       className="relative flex items-center h-14 border-b border-borderSubtle w-full"
@@ -23,7 +27,7 @@ export default function MoreMenuLayout({
     >
       {showMenu && (
         <div
-          className={`flex items-center justify-between w-full h-full ${!(window?.electron && window?.electron?.platform) || window?.electron?.platform === 'darwin' ? 'pl-[86px]' : 'pl-[8px]'} pr-4`}
+          className={`flex items-center justify-between w-full h-full ${safeIsMacOS ? 'pl-[86px]' : 'pl-[8px]'} pr-4`}
         >
           <TooltipProvider>
             <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
