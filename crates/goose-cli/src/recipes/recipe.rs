@@ -3,7 +3,7 @@ use console::style;
 
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
-use minijinja::{Environment, Template, UndefinedBehavior};
+use minijinja::{Environment, Error, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
@@ -36,14 +36,14 @@ pub fn load_recipe(
 
     let recipe_parameters = validate_recipe_file_parameters(&recipe_file_content)?;
 
-    let mut params_for_template: Option<HashMap<String, String>> = None;
-    let rendered_content = match params {
-        None => recipe_file_content,
-        Some(user_params) => {
-            params_for_template =
-                Some(apply_values_to_parameters(&user_params, recipe_parameters)?);
-            render_content_with_params(&recipe_file_content, params_for_template.as_ref().unwrap())?
-        }
+    let (rendered_content, params_for_template) = if let Some(user_params) = params {
+        let params_for_template = apply_values_to_parameters(&user_params, recipe_parameters)?;
+        (
+            render_content_with_params(&recipe_file_content, &params_for_template)?,
+            Some(params_for_template),
+        )
+    } else {
+        (recipe_file_content, None)
     };
 
     let recipe = parse_recipe_content(&rendered_content)?;
@@ -82,6 +82,7 @@ fn validate_parameters_in_template(
     recipe_file_content: &str,
 ) -> Result<Vec<RecipeParameter>> {
     let template_variables = extract_template_variables(recipe_file_content)?;
+
     let param_keys: HashSet<String> = recipe
         .parameters
         .as_ref()
@@ -93,13 +94,17 @@ fn validate_parameters_in_template(
     let missing_keys = template_variables
         .difference(&param_keys)
         .collect::<Vec<_>>();
+
     let extra_keys = param_keys
         .difference(&template_variables)
         .collect::<Vec<_>>();
+
     if missing_keys.is_empty() && extra_keys.is_empty() {
         return Ok(recipe.parameters.unwrap_or_default());
     }
+
     let mut message = String::new();
+
     if !missing_keys.is_empty() {
         message.push_str(&format!(
             "Missing definitions for parameters in the recipe file: {}.",
@@ -110,6 +115,7 @@ fn validate_parameters_in_template(
                 .join(", ")
         ));
     }
+
     if !extra_keys.is_empty() {
         message.push_str(&format!(
             "\nUnnecessary parameter definitions: {}.",
@@ -160,7 +166,7 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 
     let template = env
         .template_from_str(template_str)
-        .map_err(|_| anyhow::anyhow!("Invalid template syntax"))?;
+        .map_err(|e: Error| anyhow::anyhow!("Invalid template syntax: {}", e.to_string()))?;
 
     Ok(template.undeclared_variables(true))
 }
@@ -212,12 +218,13 @@ fn render_content_with_params(content: &str, params: &HashMap<String, String>) -
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
     let template: Template<'_, '_> = env.template_from_str(content)
-        .map_err(|_| anyhow::anyhow!("Failed to render recipe, please check if the recipe has proper syntax for variables: eg: {{ variable_name }}"))?;
+        .map_err(|e: Error| anyhow::anyhow!("Failed to render recipe {}, please check if the recipe has proper syntax for variables: eg: {{ variable_name }}", e.to_string()))?;
 
     // Render the template with the parameters
-    template.render(params).map_err(|_| {
+    template.render(params).map_err(|e: Error| {
         anyhow::anyhow!(
-            "Failed to render the recipe - please check if all required parameters are provided"
+            "Failed to render the recipe {} - please check if all required parameters are provided",
+            e.to_string()
         )
     })
 }
