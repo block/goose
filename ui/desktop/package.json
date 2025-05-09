@@ -25,6 +25,8 @@
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
     "test-e2e:single": "npm run generate-api && playwright test -g",
+    "test-e2e:release": "npm run generate-api && electron-forge package && playwright test --config=playwright.release.config.ts",
+    "test-e2e:release-headed": "HEADED=true npm run test-e2e:release",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix --no-warn-ignored",
     "lint:check": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0 --no-warn-ignored",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
