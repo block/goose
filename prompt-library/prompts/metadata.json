@@ -1,0 +1,102 @@
+{
+  "filterCategories": {
+    "functions": [
+      {
+        "id": "coding",
+        "name": "Coding"
+      },
+      {
+        "id": "design",
+        "name": "Design"
+      },
+      {
+        "id": "data",
+        "name": "Data"
+      },
+      {
+        "id": "sales",
+        "name": "Sales"
+      },
+      {
+        "id": "marketing",
+        "name": "Marketing"
+      },
+      {
+        "id": "product",
+        "name": "Product"
+      },
+      {
+        "id": "content",
+        "name": "Content"
+      },
+      {
+        "id": "legal",
+        "name": "Legal"
+      },
+      {
+        "id": "operations",
+        "name": "Operations"
+      },
+      {
+        "id": "miscellaneous",
+        "name": "Miscellaneous"
+      }
+    ],
+    "skillLevels": [
+      {
+        "id": "beginner",
+        "name": "Beginner"
+      },
+      {
+        "id": "intermediate",
+        "name": "Intermediate"
+      },
+      {
+        "id": "advanced",
+        "name": "Advanced"
+      },
+      {
+        "id": "expert",
+        "name": "Expert"
+      }
+    ],
+    "useCases": [
+      {
+        "id": "code-review",
+        "name": "Code Review"
+      },
+      {
+        "id": "debugging",
+        "name": "Debugging"
+      },
+      {
+        "id": "documentation",
+        "name": "Documentation"
+      },
+      {
+        "id": "learning",
+        "name": "Learning"
+      },
+      {
+        "id": "optimization",
+        "name": "Optimization"
+      },
+      {
+        "id": "automation",
+        "name": "Automation"
+      },
+      {
+        "id": "data-analysis",
+        "name": "Data Analysis"
+      },
+      {
+        "id": "visualization",
+        "name": "Data Visualization"
+      },
+      {
+        "id": "regulatory-analysis",
+        "name": "Regulatory Analysis"
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "content-image-resize",
+  "title": "Resize Image with Aspect Ratio",
+  "description": "Resize an image while maintaining aspect ratio and quality",
+  "category": "Productivity",
+  "function": "content",
+  "extensions": ["developer", "computercontroller"],
+  "prompt": "Resize my image {image_path} to be {width}x{height} pixels. Maintain the aspect ratio and image quality",
+  "example": "This will:\n- Process the image file\n- Resize to specified dimensions while maintaining aspect ratio\n- Preserve image quality\n- Save the processed image",
+  "tags": ["image", "resize", "processing", "media"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "image_path": {
+      "description": "Path to the image file to be resized",
+      "required": true
+    },
+    "width": {
+      "description": "Desired width in pixels",
+      "required": true
+    },
+    "height": {
+      "description": "Desired height in pixels",
+      "required": true
+    }
+  }
+}

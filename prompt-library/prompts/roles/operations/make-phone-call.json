@@ -1,0 +1,24 @@
+{
+  "id": "voip-make-call",
+  "title": "Make a Phone Call",
+  "description": "Have goose place a phone call",
+  "category": "Business",
+  "function": "operations",
+  "extensions": ["vyop"],
+  "external": true,
+  "extensionUrl": "https://github.com/paulotaylor/voyp-mcp",
+  "prompt": "Please call the number [phone number] and tell a joke",
+  "tags": ["voip", "phone", "call", "communication"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "phone_number": {
+      "description": "Phone number to call in international format",
+      "required": true
+    }
+  }
+}
