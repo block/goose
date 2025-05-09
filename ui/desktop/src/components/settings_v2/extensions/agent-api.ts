@@ -141,13 +141,16 @@ export async function addToAgent(
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
-    if (extension.type === 'stdio') {
-      extension.cmd = await replaceWithShims(extension.cmd);
+    // Create a copy of the extension object
+    const extensionCopy = { ...extension };
+
+    if (extensionCopy.type === 'stdio') {
+      extensionCopy.cmd = await replaceWithShims(extensionCopy.cmd);
     }
 
-    extension.name = sanitizeName(extension.name);
+    extensionCopy.name = sanitizeName(extensionCopy.name);
 
-    return await extensionApiCall('/extensions/add', extension, options);
+    return await extensionApiCall('/extensions/add', extensionCopy, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
