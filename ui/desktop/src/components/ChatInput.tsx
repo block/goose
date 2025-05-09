@@ -287,7 +287,7 @@ export default function ChatInput({
             maxHeight: `${maxHeight}px`,
             overflowY: 'auto',
           }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder placeholder:opacity-50"
+          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
         />
 
         {isLoading ? (
