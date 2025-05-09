@@ -1,6 +1,6 @@
 ---
 title: "Championship Driven Development: Your Team's AI Playbook for Peak Performance"
-description: How AI-powered 'plays' can transform your dev team into a high-scoring sports team, streamlining game plans for debugging, changelogs, PRs, and more.
+description: How AI-powered 'plays' can transform your dev team into a high-scoring sports team, streamlining game plans for debugging, changelogs, PRs
 authors:
     - ian
 ---
@@ -9,7 +9,7 @@ authors:
 
 # A Developer's Playbook: Using AI for Team Efficiency
 
-Development teams can operate like sports teams. Each member has a role and a shared playbook helps coordinate efforts. Let's explore how AI-driven "plays" can form a starter "playbook" for your dev team, helping with common technical tasks. You can use these "recipes" with [Goose](/) to leverage the Model Context Protocol (MCP) to make you more productive.
+Development teams can operate like sports teams. Each member has a role and a shared playbook helps coordinate efforts. Let's explore how AI-driven "plays" can form a starter "playbook" for your dev team, helping with common technical tasks. You can use recipes with [Goose](/) to leverage the [Model Context Protocol (MCP)](https://modelcontextprofocol.io) to make you more productive.
 
 <!-- truncate -->
 
@@ -36,7 +36,7 @@ As teams adopt AI tools like Goose, the ability to define and share these automa
 
 ## AI Plays: Standardizing Your Team's Workflows
 
-Goose can help standardize and automate these tasks, by [creating recipes](/docs/guides/session-recipes). As a developer on your team uses Goose, they can create a recipe that describes how to perform a task, and then share that with the rest of the team. These recipies can be shared and reused, and improved over time, just like a sports team’s playbook.
+Goose can help standardize and automate these tasks, by [creating recipes](/docs/guides/session-recipes). As a developer on your team uses Goose, they can create a recipe that describes how to perform a task, and then share that with the rest of the team. These recipes can be shared and reused, and improved over time, just like a sports team’s playbook.
 
 Recipes are built with an understanding of the workflow you want Goose to help with, and these may involve one or more MCP servers, such as [GitHub](/docs/tutorials/github-mcp/) or [PostgreSQL](/docs/tutorials/postgres-mcp/). The recipes are designed to be reusable and adaptable, allowing developers to create a library that can be used across different projects.
 
@@ -46,7 +46,7 @@ A shared playbook of AI plays helps everyone on the team perform tasks consisten
 
 For a kitchen-related analogy as an overview, check out [Rizel's](/blog/authors/rizel/) recent blog post, [A Recipe for Success](/blog/2025/05/06/recipe-for-success).
 
-A Goose Recipe can be saved from a current Goose session, or written as a YAML file from scratch. It includes instructions for the AI to follow, a prompt to generate the AI response, and can also include parameters with data types, and which extensions are needed to use the recipe.
+A Goose Recipe can be saved from a current Goose session, or written as a YAML file from scratch. It includes instructions for the AI to follow, a prompt for the AI response, optional parameters with data types, and a list of required extensions.
 
 ### Creating a Recipe
 
@@ -94,8 +94,6 @@ An AI play can automate parts of this process. For example, the "Generate Change
 4.  **Update File:** It can then insert these formatted notes into your existing `CHANGELOG.md` file.
 
 This play helps ensure changelogs are detailed and consistently formatted, saving developer time.
-[Internal link to: Automating Documentation with AI]
-
 
 <details>
   <summary>View Changelog recipe</summary>
@@ -295,20 +293,20 @@ Your team can create plays for many other tasks:
 
 ## What kinds of tasks can your team automate?
 
-We'd love for you to share your ideas with us! You can do this by creating a recipe and sharing it with the [Goose community on Discord](http://discord.gg/block-opensource).
+We'd love for you to share your ideas with us! Share your ideas by creating a recipe and posting it to the [Goose community on Discord](http://discord.gg/block-opensource).
 
 
 
 <head>
-  <meta property="og:title" content="A Developer's Playbook: Using AI for Team Efficiency" />
+  <meta property="og:title" content="Championship Driven Development: Your team's AI Playbook for Peak Performance" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/09/developers-ai-playbook-for-team-efficiency" />
   <meta property="og:description" content="Learn how AI-driven 'plays,' based on Model Context Protocol, can help development teams improve common workflows like changelog generation and pull requests." />
-  <meta property="og:image" content="TODO" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/cdd-playbook-69a053588574d8678c2acb92a1b21da6.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="A Developer's Playbook: Using AI for Team Efficiency" />
+  <meta name="twitter:title" content="Championship Driven Development: Your team's AI Playbook for Peak Performance" />
   <meta name="twitter:description" content="Learn how AI-driven 'plays,' based on Model Context Protocol, can help development teams improve common workflows like changelog generation and pull requests." />
-  <meta name="twitter:image" content="TODO" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/cdd-playbook-69a053588574d8678c2acb92a1b21da6.png" />
   <meta name="keywords" content="AI development; Model Context Protocol; developer productivity; team playbook; AI automation; Goose; software development efficiency; changelogs; pull requests" />
 </head>
