@@ -93,13 +93,13 @@ async fn main() -> Result<()> {
         println!("\n---------------\n");
         println!("User Input: {text}");
         let messages = vec![Message::user().with_text(text)];
-        let completion_response: CompletionResponse = completion(CompletionRequest::new(
-            provider,
-            model_config.clone(),
-            system_preamble,
-            &messages,
-            &extensions,
-        ))
+        let completion_response: CompletionResponse = completion(CompletionRequest {
+            provider_name: provider.to_string(),
+            model_config: model_config.clone(),
+            system_preamble: system_preamble.to_string(),
+            messages: messages,
+            extensions: extensions.clone(),
+        })
         .await?;
         // Print the response
         println!("\nCompletion Response:");
