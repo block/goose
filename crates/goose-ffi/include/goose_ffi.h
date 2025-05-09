@@ -127,6 +127,32 @@ void goose_agent_free(goose_AgentPtr agent_ptr);
 char *goose_agent_send_message(goose_AgentPtr agent_ptr, const char *message);
 
 /*
+ Register new tools with the agent
+
+ This function registers new tools with the agent.
+
+ # Parameters
+
+ - agent_ptr: Agent pointer
+ - tools_json: JSON string containing tool definitions
+ - extension_name: Name of the extension providing the tools
+ - instructions: Instructions for how to use the tools
+
+ # Returns
+
+ true if the tools were successfully registered, false otherwise.
+
+ # Safety
+
+ The agent_ptr must be a valid pointer returned by goose_agent_new.
+ The tools_json, extension_name, and instructions must be valid C strings.
+ */
+bool goose_agent_register_tools(goose_AgentPtr agent_ptr,
+                                const char *tools_json,
+                                const char *extension_name,
+                                const char *instructions);
+
+/*
  Free a string allocated by goose FFI functions
 
  This function frees memory allocated for strings returned by goose FFI functions.
