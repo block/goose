@@ -29,8 +29,12 @@ pub fn print_messages(messages: Vec<Message>) {
 pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, CompletionError> {
     let start_total = Instant::now();
 
-    let provider = create(&req.provider_name, req.model_config)
-        .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
+    let provider = create(
+        &req.provider_name,
+        req.provider_config.clone(),
+        req.model_config.clone(),
+    )
+    .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
 
     let system_prompt = construct_system_prompt(&req.system_preamble, &req.extensions)?;
     let tools = collect_prefixed_tools(&req.extensions);

@@ -31,26 +31,19 @@ Structure:
 │               └── goose_llm.kt   ← auto-generated bindings
 ```
 
-Create Kotlin bindings:
-```
+#### Create Kotlin bindings:
+
+```bash
 # run from project root directory
 cargo build -p goose-llm 
 
 cargo run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/debug/libgoose_llm.dylib --language kotlin --out-dir bindings/kotlin
 ```
 
-Download jars in `bindings/kotlin/libs` directory (only need to do this once):
-```
-pushd bindings/kotlin/libs/
-curl -O https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.0/kotlin-stdlib-1.9.0.jar
-curl -O https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.7.3/kotlinx-coroutines-core-jvm-1.7.3.jar
-curl -O https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar
-popd
-```
 
+#### Kotlin -> Rust: run example
 
-Compile & Run usage example from Kotlin -> Rust:
-```
+```bash
 pushd bindings/kotlin/
 
 kotlinc \
@@ -68,3 +61,19 @@ java \
 popd
 ```
 
+You will have to download jars in `bindings/kotlin/libs` directory (only the first time):
+```bash
+pushd bindings/kotlin/libs/
+curl -O https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.0/kotlin-stdlib-1.9.0.jar
+curl -O https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.7.3/kotlinx-coroutines-core-jvm-1.7.3.jar
+curl -O https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar
+popd
+```
+
+#### Python -> Rust: generate bindings, run example
+
+```bash
+cargo run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/debug/libgoose_llm.dylib --language python --out-dir bindings/python
+
+DYLD_LIBRARY_PATH=./target/debug python bindings/python/usage.py
+```
