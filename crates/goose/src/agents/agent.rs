@@ -31,7 +31,21 @@ use mcp_core::{
 };
 
 use super::platform_tools;
+
 use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+
+/// Strategy for handling context length exceeded errors
+#[derive(Debug, Clone, PartialEq)]
+pub enum ContextResolutionStrategy {
+    /// Truncate messages by removing oldest ones
+    Truncate,
+    /// Summarize older messages to preserve context
+    Summarize,
+    /// Clear context and restart
+    Clear,
+    /// Let user manually delete specific messages
+    ManualDelete,
+}
 
 /// The main goose Agent
 pub struct Agent {
@@ -44,6 +58,7 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) context_strategy: ContextResolutionStrategy,
 }
 
 impl Agent {
@@ -62,10 +77,18 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            context_strategy: ContextResolutionStrategy::Truncate, // Default to truncate
         }
     }
 }
 
+<<<<<<< HEAD
+    /// Set the context resolution strategy
+    pub fn set_context_strategy(&mut self, strategy: ContextResolutionStrategy) {
+        self.context_strategy = strategy;
+    }
+
+=======
 impl Default for Agent {
     fn default() -> Self {
         Self::new()
@@ -73,6 +96,7 @@ impl Default for Agent {
 }
 
 impl Agent {
+>>>>>>> upstream/main
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {
@@ -481,6 +505,28 @@ impl Agent {
                         messages.push(final_message_tool_resp);
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
+<<<<<<< HEAD
+                        if truncation_attempt >= MAX_TRUNCATION_ATTEMPTS {
+                            // Create an error message & terminate the stream
+                            yield Message::assistant().with_text("Error: Context length exceeds limits even after multiple attempts to truncate. Please start a new session with fresh context and try again.");
+                            break;
+                        }
+                        truncation_attempt += 1;
+                        warn!("Context length exceeded. Truncation Attempt: {}/{}.", truncation_attempt, MAX_TRUNCATION_ATTEMPTS);
+                        
+                        // Handle context length exceeded using the selected strategy
+                        match self.handle_context_resolution(&mut messages, &system_prompt, &mut tools).await {
+                            Ok(_) => {
+                                // Strategy was successful, continue with the loop
+                                continue;
+                            },
+                            Err(e) => {
+                                // Strategy failed, inform the user
+                                yield Message::assistant().with_text(format!("Error: Unable to handle context length exceeded. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", e));
+                                break;
+                            }
+                        }
+=======
                         // At this point, the last message should be a user message
                         // because call to provider led to context length exceeded error
                         // Immediately yield a special message and break
@@ -488,6 +534,7 @@ impl Agent {
                             "The context length of the model has been exceeded. Please start a new session and try again.",
                         );
                         break;
+>>>>>>> upstream/main
                     },
                     Err(e) => {
                         // Create an error message & terminate the stream
@@ -702,5 +749,56 @@ impl Agent {
             .expect("valid recipe");
 
         Ok(recipe)
+    }
+
+    /// Handle context resolution strategy selection
+    pub async fn handle_context_resolution(
+        &self,
+        messages: &mut Vec<Message>,
+        system_prompt: &str,
+        tools: &mut Vec<Tool>,
+    ) -> anyhow::Result<()> {
+        match self.context_strategy {
+            ContextResolutionStrategy::Truncate => {
+                // Decay the estimate factor as we make more truncation attempts
+                let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(1); // Start with first decay
+                self.truncate_messages(messages, estimate_factor, system_prompt, tools).await
+            },
+            ContextResolutionStrategy::Summarize => {
+                // Calculate token counts for messages
+                let mut token_counts: Vec<usize> = messages
+                    .iter()
+                    .map(|msg| {
+                        self.token_counter
+                            .count_chat_tokens("", std::slice::from_ref(msg), &[])
+                    })
+                    .collect();
+
+                // Get context limit from provider
+                let context_limit = self.provider.get_model_config().context_limit();
+                
+                // Try to summarize messages
+                memory_condense::condense_messages(
+                    self.provider(),
+                    &self.token_counter,
+                    messages,
+                    &mut token_counts,
+                    context_limit,
+                ).await
+            },
+            ContextResolutionStrategy::Clear => {
+                // Clear all messages except the last user message
+                if let Some(last_user_msg) = messages.iter().rfind(|m| m.role == mcp_core::role::Role::User) {
+                    *messages = vec![last_user_msg.clone()];
+                    Ok(())
+                } else {
+                    Err(anyhow!("No user message found to preserve"))
+                }
+            },
+            ContextResolutionStrategy::ManualDelete => {
+                // For manual delete, we need to inform the frontend
+                Err(anyhow!("Manual deletion required"))
+            }
+        }
     }
 }
