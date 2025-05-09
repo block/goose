@@ -10,7 +10,7 @@ use crate::commands::mcp::run_server;
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipe::load_recipe;
+use crate::recipes::recipe::load_recipe;
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
