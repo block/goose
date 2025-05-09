@@ -23,7 +23,7 @@ export default function MoreMenuLayout({
     >
       {showMenu && (
         <div
-          className={`flex items-center justify-between w-full h-full ${window?.electron && window?.electron?.platform !== 'darwin' ? 'pl-[8px]' : 'pl-[86px]'} pr-4`}
+          className={`flex items-center justify-between w-full h-full ${!(window?.electron && window?.electron?.platform) || window?.electron?.platform === 'darwin' ? 'pl-[86px]' : 'pl-[8px]'} pr-4`}
         >
           <TooltipProvider>
             <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
