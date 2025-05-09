@@ -1,3 +1,6 @@
+__pycache__
+*.pyc
+*.jar
 run_cli.sh
 tokenizer_files/
 .DS_Store

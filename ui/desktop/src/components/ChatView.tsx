@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { getApiUrl } from '../config';
-import BottomMenu from './bottom_menu/BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
-import Input from './Input';
+import ChatInput from './ChatInput';
 import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -15,11 +14,17 @@ import { SearchView } from './conversation/SearchView';
 import { createRecipe } from '../recipe';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
-import { fetchSessionDetails } from '../sessions';
-// import { configureRecipeExtensions } from '../utils/recipeExtensions';
+import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
+import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import { Recipe } from '../recipe';
+import {
+  ChatContextManagerProvider,
+  useChatContextManager,
+} from './context_management/ChatContextManager';
+import { ContextHandler } from './context_management/ContextHandler';
+import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
   createUserMessage,
@@ -28,13 +33,12 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
+  getTextContent,
 } from '../types/message';
 
 export interface ChatType {
   id: string;
   title: string;
-  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
-  // anything before this index should not render any buttons, but anything after should
   messageHistoryIndex: number;
   messages: Message[];
 }
@@ -61,21 +65,74 @@ export default function ChatView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  // Disabled askAi calls to save costs
-  // const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
+  return (
+    <ChatContextManagerProvider>
+      <ChatContent
+        chat={chat}
+        setChat={setChat}
+        setView={setView}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      />
+    </ChatContextManagerProvider>
+  );
+}
+
+function ChatContent({
+  chat,
+  setChat,
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+}) {
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
+  const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
+  const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+
   const scrollRef = useRef<ScrollAreaHandle>(null);
+
+  const {
+    summaryContent,
+    summarizedThread,
+    isSummaryModalOpen,
+    resetMessagesWithSummary,
+    closeSummaryModal,
+    updateSummary,
+    hasContextHandlerContent,
+    getContextHandlerType,
+  } = useChatContextManager();
+
+  useEffect(() => {
+    // Log all messages when the component first mounts
+    window.electron.logInfo(
+      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array means this runs once on mount;
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
+  // Store message in global history when it's added
+  const storeMessageInHistory = useCallback((message: Message) => {
+    if (isUserMessage(message)) {
+      const text = getTextContent(message);
+      if (text) {
+        LocalMessageStorage.addMessage(text);
+      }
+    }
+  }, []);
+
   const {
     messages,
-    append,
+    append: originalAppend,
     stop,
     isLoading,
     error,
@@ -84,6 +141,7 @@ export default function ChatView({
     setInput: _setInput,
     handleInputChange: _handleInputChange,
     handleSubmit: _submitMessage,
+    updateMessageStreamBody,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -91,10 +149,11 @@ export default function ChatView({
     onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
-      // Disabled askAi calls to save costs
-      // const messageText = getTextContent(message);
-      // const fetchResponses = await askAi(messageText);
-      // setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 300);
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
@@ -106,12 +165,48 @@ export default function ChatView({
         });
       }
     },
-    onToolCall: (toolCall: string) => {
-      // Handle tool calls if needed
-      console.log('Tool call received:', toolCall);
-      // Implement tool call handling logic here
-    },
   });
+
+  // Wrap append to store messages in global history
+  const append = useCallback(
+    (messageOrString: Message | string) => {
+      const message =
+        typeof messageOrString === 'string' ? createUserMessage(messageOrString) : messageOrString;
+      storeMessageInHistory(message);
+      return originalAppend(message);
+    },
+    [originalAppend, storeMessageInHistory]
+  );
+
+  // for CLE events -- create a new session id for the next set of messages
+  useEffect(() => {
+    // If we're in a continuation session, update the chat ID
+    if (summarizedThread.length > 0) {
+      const newSessionId = generateSessionId();
+
+      // Update the session ID in the chat object
+      setChat({
+        ...chat,
+        id: newSessionId!,
+        title: `Continued from ${chat.id}`,
+        messageHistoryIndex: summarizedThread.length,
+      });
+
+      // Update the body used by useMessageStream to send future messages to the new session
+      if (summarizedThread.length > 0 && updateMessageStreamBody) {
+        updateMessageStreamBody({
+          session_id: newSessionId,
+          session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+        });
+      }
+    }
+
+    // only update if summarizedThread length changes from 0 -> 1+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    summarizedThread.length > 0,
+  ]);
 
   // Listen for make-agent-from-chat event
   useEffect(() => {
@@ -155,7 +250,8 @@ export default function ChatView({
         window.electron.logInfo('Opening recipe editor window');
       } catch (error) {
         window.electron.logInfo('Failed to create recipe:');
-        window.electron.logInfo(error.message);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        window.electron.logInfo(errorMessage);
       } finally {
         setIsGeneratingRecipe(false);
       }
@@ -167,8 +263,6 @@ export default function ChatView({
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
   }, [messages]);
-  // do we need append here?
-  // }, [append, chat.messages]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
@@ -187,13 +281,37 @@ export default function ChatView({
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
-    const customEvent = e as CustomEvent;
+    const customEvent = e as unknown as CustomEvent;
     const content = customEvent.detail?.value || '';
+
     if (content.trim()) {
       setLastInteractionTime(Date.now());
-      append(createUserMessage(content));
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
+
+      if (summarizedThread.length > 0) {
+        // move current `messages` to `ancestorMessages` and `messages` to `summarizedThread`
+        resetMessagesWithSummary(
+          messages,
+          setMessages,
+          ancestorMessages,
+          setAncestorMessages,
+          summaryContent
+        );
+
+        // update the chat with new sessionId
+
+        // now call the llm
+        setTimeout(() => {
+          append(createUserMessage(content));
+          if (scrollRef.current?.scrollToBottom) {
+            scrollRef.current.scrollToBottom();
+          }
+        }, 150);
+      } else {
+        // Normal flow (existing code)
+        append(createUserMessage(content));
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
       }
     }
   };
@@ -262,6 +380,8 @@ export default function ChatView({
         // Create tool responses for all interrupted tool requests
 
         let responseMessage: Message = {
+          display: true,
+          sendToLLM: true,
           role: 'user',
           created: Date.now(),
           content: [],
@@ -290,7 +410,10 @@ export default function ChatView({
 
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
-  const filteredMessages = messages.filter((message) => {
+  const filteredMessages = [...ancestorMessages, ...messages].filter((message) => {
+    // Only filter out when display is explicitly false
+    if (message.display === false) return false;
+
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
 
@@ -338,15 +461,37 @@ export default function ChatView({
     }
   }, [chat.id, messages]);
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        paths.push(window.electron.getPathForFile(files[i]));
+      }
+      setDroppedFiles(paths);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
-      <div className="relative flex items-center h-[36px] w-full">
-        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-      </div>
+      <MoreMenuLayout
+        hasMessages={hasMessages}
+        setView={setView}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      />
 
-      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+      <Card
+        className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
         {recipeConfig?.title && messages.length > 0 && (
           <AgentHeader
             title={recipeConfig.title}
@@ -363,7 +508,7 @@ export default function ChatView({
         )}
         {messages.length === 0 ? (
           <Splash
-            append={(text) => append(createUserMessage(text))}
+            append={append}
             activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
             title={recipeConfig?.title}
           />
@@ -377,19 +522,43 @@ export default function ChatView({
                   data-testid="message-container"
                 >
                   {isUserMessage(message) ? (
-                    <UserMessage message={message} />
+                    <>
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
+                        />
+                      ) : (
+                        <UserMessage message={message} />
+                      )}
+                    </>
                   ) : (
-                    <GooseMessage
-                      messageHistoryIndex={chat?.messageHistoryIndex}
-                      message={message}
-                      messages={messages}
-                      // metadata={messageMetadata[message.id || '']}
-                      append={(text) => append(createUserMessage(text))}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
-                      }}
-                    />
+                    <>
+                      {/* Only render GooseMessage if it's not a message invoking some context management */}
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
+                        />
+                      ) : (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          append={append}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -416,24 +585,39 @@ export default function ChatView({
                 </div>
               </div>
             )}
-            <div className="block h-16" />
+            <div className="block h-8" />
           </ScrollArea>
         )}
 
-        <div className="relative">
+        <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
           {isLoading && <LoadingGoose />}
-          <Input
+          <ChatInput
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={_input}
+            setView={setView}
+            hasMessages={hasMessages}
+            numTokens={sessionTokenCount}
+            droppedFiles={droppedFiles}
+            messages={messages}
+            setMessages={setMessages}
           />
-          <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={sessionTokenCount} />
         </div>
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
+
+      <SessionSummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={closeSummaryModal}
+        onSave={(editedContent) => {
+          updateSummary(editedContent);
+          closeSummaryModal();
+        }}
+        summaryContent={summaryContent}
+      />
     </div>
   );
 }

@@ -12,17 +12,24 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [VS Code MCP Server](https://github.com/block/vscode-mcp) as a Goose extension to enable VS Code integration, file operations, and development workflow management.
 
-:::tip TLDR
-
-**Command**
-```sh
-npx vscode-mcp-server
-```
-
-**Required Setup**
-
+:::info Required Setup
 Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) from the Visual Studio Marketplace.
 :::
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y vscode-mcp-server
+  ```
+  </TabItem>
+</Tabs>
+:::
+
 
 ## Configuration
 
@@ -33,7 +40,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 1. Add the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) to your VS Code. No additional settings required in VS Code.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  4. Click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -44,7 +57,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -60,7 +73,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -77,7 +90,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -87,7 +100,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx vscode-mcp-server
+    │  npx -y vscode-mcp-server
     // highlight-end
     └ 
   ```  
@@ -97,7 +110,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -106,7 +119,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  vscode-mcp
     │
     ◇  What command should be run?
-    │  npx vscode-mcp-server install
+    │  npx -y vscode-mcp-server install
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -115,15 +128,36 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     └ 
   ``` 
+
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  vscode-mcp
+    │
+    ◇  What command should be run?
+    │  npx -y vscode-mcp-server install
+    │
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    │
+    └ 
+  ```
   
-  6. No additional environment variables are required for basic setup
+  7. No additional environment variables are required for basic setup
   
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

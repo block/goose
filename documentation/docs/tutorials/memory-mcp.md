@@ -18,7 +18,13 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
 1. Ensure extension is enabled:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Under `Extensions`, toggle `Memory` to on.
+  4. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -30,7 +36,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◆  What type of extension would you like to add?
   // highlight-start    
@@ -46,7 +52,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -67,7 +73,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -81,12 +87,29 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   // highlight-end
   └  Enabled Memory extension
   ```  
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, toggle `Memory` to on.
-  4. Scroll to the top and click `Exit` from the upper left corner
+
+  5. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension (Connect to a new extension) 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◇  Which built-in extension would you like to enable?
+  │  Memory 
+  │
+  ◇  Please set the timeout for this tool (in secs):
+  │  300
+  │
+  // highlight-start
+  ◆  Would you like to add a description?
+  │  No
+  // highlight-end
+  └  Enabled Memory extension
+  ```
   </TabItem>
 </Tabs>
 
@@ -125,7 +148,10 @@ If you frequently work with API standards or other structured knowledge, Goose m
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open a new session in Goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open a terminal and start a new Goose session:
 
@@ -133,9 +159,6 @@ If you frequently work with API standards or other structured knowledge, Goose m
   goose session
   ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open a new session in Goose Desktop
   </TabItem>
 </Tabs>
 

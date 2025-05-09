@@ -1,5 +1,6 @@
 pub mod anthropic;
 pub mod azure;
+pub mod azureauth;
 pub mod base;
 pub mod bedrock;
 pub mod databricks;
@@ -8,6 +9,7 @@ mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod githubcopilot;
 pub mod google;
 pub mod groq;
 pub mod oauth;

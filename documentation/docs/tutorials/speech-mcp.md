@@ -12,16 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadratni/speech-mcp) as a Goose extension to enable real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation.
 
-:::tip TLDR
-
-**Command**
-```sh
-uvx -p 3.10.14 speech-mcp@latest
-```
-
-**Requirement**
-
+:::info Requirement
 [PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone
+:::
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx -p 3.10.14 speech-mcp@latest
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -33,7 +39,13 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  4. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -44,7 +56,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -60,7 +72,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -77,7 +89,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -97,7 +109,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -114,12 +126,13 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     // highlight-end
     └ 
   ```  
- 6. Choose No when asked to add environment variables
+
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -134,6 +147,35 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     │  300
     │
     // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```
+
+  7. Choose No when asked to add environment variables
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  speech
+    │
+    ◇  What command should be run?
+    │  uvx -p 3.10.14 speech-mcp@latest
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
+    │
+    // highlight-start
     ◆  Would you like to add environment variables?
     │  No
     │
@@ -141,12 +183,6 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     └  Added speech extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
@@ -157,17 +193,16 @@ In this example, you'll see how to use Goose with the Speech MCP Server Extensio
 This allows you to build with Goose hands-free, making development more accessible and interactive.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
-
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open a new session in Goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Open a terminal and start a new Goose session:
 
   ```sh
   goose session
   ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open a new session in Goose Desktop
   </TabItem>
 </Tabs>
 

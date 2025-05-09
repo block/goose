@@ -16,14 +16,17 @@ use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 mod tool_result_serde;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_call: ToolResult<ToolCall>,
 }
 
@@ -45,14 +48,17 @@ impl ToolRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_result: ToolResult<Vec<Content>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(ToSchema)]
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
@@ -60,31 +66,37 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
+    #[schema(value_type = Object)]
     pub tool_call: ToolResult<ToolCall>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextLengthExceeded {
     pub msg: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SummarizationRequested {
+    pub msg: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -97,6 +109,7 @@ pub enum MessageContent {
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
     ContextLengthExceeded(ContextLengthExceeded),
+    SummarizationRequested(SummarizationRequested),
 }
 
 impl MessageContent {
@@ -163,6 +176,19 @@ impl MessageContent {
 
     pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
         MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
+    }
+
+    pub fn summarization_requested<S: Into<String>>(msg: S) -> Self {
+        MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
+    }
+
+    // Add this new method to check for summarization requested content
+    pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
+        if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
+            Some(summarization_requested)
+        } else {
+            None
+        }
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
@@ -273,7 +299,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -443,6 +469,11 @@ impl Message {
         self.content
             .iter()
             .all(|c| matches!(c, MessageContent::Text(_)))
+    }
+
+    /// Add summarization requested to the message
+    pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
+        self.with_content(MessageContent::summarization_requested(msg))
     }
 }
 

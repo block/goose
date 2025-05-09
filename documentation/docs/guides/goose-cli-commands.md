@@ -139,6 +139,34 @@ goose session list --verbose
 # List sessions in JSON format
 goose session list --format json
 ```
+
+---
+
+### session remove [options]
+
+Remove one or more saved sessions.
+
+**Options:**
+- **`-i, --id <id>`**: Remove a specific session by its ID
+- **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
+
+**Usage:**
+
+```bash
+# Remove a specific session by ID
+goose session remove -i 20250305_113223
+
+# Remove all sessions starting with "project-"
+goose session remove -r "project-.*"
+
+# Remove all sessions containing "migration"
+goose session remove -r ".*migration.*"
+```
+
+:::caution
+Session removal is permanent and cannot be undone. Goose will show which sessions will be removed and ask for confirmation before deleting.
+::: 
+
 ---
 
 ### info [options]
@@ -237,16 +265,6 @@ goose run --recipe recipe_no_prompt.yaml
 
 ---
 
-### agents
-
-Used to show the available implementations of the agent loop itself
-
-**Usage:**
-
-```bash
-goose agents
-```
-
 ### bench
 
 Used to evaluate system-configuration across a range of practical tasks. See the [detailed guide](/docs/guides/benchmarking) for more information.
@@ -320,4 +338,4 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
-- **Up/Down arrows** - Navigate through command history
+- **`Cmd+Up/Down arrows`** - Navigate through command history

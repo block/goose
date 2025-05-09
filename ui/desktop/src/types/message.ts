@@ -78,19 +78,27 @@ export interface ContextLengthExceededContent {
   msg: string;
 }
 
+export interface SummarizationRequestedContent {
+  type: 'summarizationRequested';
+  msg: string;
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
-  | ContextLengthExceededContent;
+  | ContextLengthExceededContent
+  | SummarizationRequestedContent;
 
 export interface Message {
   id?: string;
   role: Role;
   created: number;
   content: MessageContent[];
+  display?: boolean;
+  sendToLLM?: boolean;
 }
 
 // Helper functions to create messages

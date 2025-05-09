@@ -10,6 +10,7 @@ import {
   powerSaveBlocker,
   Tray,
   App,
+  globalShortcut,
 } from 'electron';
 import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
@@ -271,6 +272,8 @@ let appConfig = {
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
+  // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
+  GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
   secretKey: generateSecretKey(),
 };
 
@@ -333,7 +336,7 @@ const createChat = async (
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
     width: 750,
@@ -359,6 +362,43 @@ const createChat = async (
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
     },
+  });
+
+  // Enable spellcheck / right and ctrl + click on mispelled word
+  //
+  // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
+  // all languages in the list of spell checked words, but it diminishes the times you
+  // get red squigglies back for mispelled english words. Given the rest of Goose only
+  // renders in english right now, this feels like the correct set of language codes
+  // for the moment.
+  //
+  // TODO: Load language codes from a setting if we ever have i18n/l10n
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add each spelling suggestion
+    for (const suggestion of params.dictionarySuggestions) {
+      menu.append(
+        new MenuItem({
+          label: suggestion,
+          click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+        })
+      );
+    }
+
+    // Allow users to add the misspelled word to the dictionary
+    if (params.misspelledWord) {
+      menu.append(
+        new MenuItem({
+          label: 'Add to dictionary',
+          click: () =>
+            mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        })
+      );
+    }
+
+    menu.popup();
   });
 
   // Store config in localStorage for future windows
@@ -683,7 +723,48 @@ ipcMain.handle('get-allowed-extensions', async () => {
   }
 });
 
+const createNewWindow = async (app: App, dir?: string | null) => {
+  const recentDirs = loadRecentDirs();
+  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  createChat(app, undefined, openDir);
+};
+
+const focusWindow = () => {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows.forEach((win) => {
+      win.show();
+    });
+    windows[windows.length - 1].webContents.send('focus-input');
+  } else {
+    createNewWindow(app);
+  }
+};
+
+const registerGlobalHotkey = (accelerator: string) => {
+  // Unregister any existing shortcuts first
+  globalShortcut.unregisterAll();
+
+  try {
+    const ret = globalShortcut.register(accelerator, () => {
+      focusWindow();
+    });
+
+    if (!ret) {
+      console.error('Failed to register global hotkey');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('Error registering global hotkey:', e);
+    return false;
+  }
+};
+
 app.whenReady().then(async () => {
+  // Register the default global hotkey
+  registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
@@ -702,9 +783,7 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
 
   createTray();
-  const recentDirs = loadRecentDirs();
-  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
-  createChat(app, undefined, openDir);
+  createNewWindow(app, dirPath);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -728,6 +807,59 @@ app.whenReady().then(async () => {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
+  // Add Find submenu to Edit menu
+  const editMenu = menu?.items.find((item) => item.label === 'Edit');
+  if (editMenu?.submenu) {
+    // Find the index of Select All to insert after it
+    const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
+
+    // Create Find submenu
+    const findSubmenu = Menu.buildFromTemplate([
+      {
+        label: 'Find…',
+        accelerator: process.platform === 'darwin' ? 'Command+F' : 'Control+F',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-command');
+        },
+      },
+      {
+        label: 'Find Next',
+        accelerator: process.platform === 'darwin' ? 'Command+G' : 'Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-next');
+        },
+      },
+      {
+        label: 'Find Previous',
+        accelerator: process.platform === 'darwin' ? 'Shift+Command+G' : 'Shift+Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-previous');
+        },
+      },
+      {
+        label: 'Use Selection for Find',
+        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
+        },
+        visible: process.platform === 'darwin', // Only show on Mac
+      },
+    ]);
+
+    // Add Find submenu to Edit menu
+    editMenu.submenu.insert(
+      selectAllIndex + 1,
+      new MenuItem({
+        label: 'Find',
+        submenu: findSubmenu,
+      })
+    );
+  }
+
   // Add Environment menu items to View menu
   const viewMenu = menu?.items.find((item) => item.label === 'View');
   if (viewMenu?.submenu) {
@@ -749,8 +881,20 @@ app.whenReady().then(async () => {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    // open goose to specific dir and set that as its working space
-    fileMenu.submenu.append(
+    fileMenu.submenu.insert(
+      0,
+      new MenuItem({
+        label: 'New Chat Window',
+        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
+        click() {
+          ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    // Open goose to specific dir and set that as its working space
+    fileMenu.submenu.insert(
+      1,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -761,8 +905,8 @@ app.whenReady().then(async () => {
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      fileMenu.submenu.append(
+      fileMenu.submenu.insert(
+        2,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -770,16 +914,62 @@ app.whenReady().then(async () => {
       );
     }
 
-    // Add menu items to File menu
+    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+
+    // The Close Window item is here.
+
+    // Add menu item to tell the user about the keyboard shortcut
     fileMenu.submenu.append(
       new MenuItem({
-        label: 'New Chat Window',
-        accelerator: 'CmdOrCtrl+N',
+        label: 'Focus Goose Window',
+        accelerator: 'CmdOrCtrl+Alt+Shift+G',
         click() {
-          ipcMain.emit('create-chat-window');
+          focusWindow();
         },
       })
     );
+  }
+
+  // on macOS, the topbar is hidden
+  if (menu && process.platform !== 'darwin') {
+    let helpMenu = menu.items.find((item) => item.label === 'Help');
+
+    // If Help menu doesn't exist, create it and add it to the menu
+    if (!helpMenu) {
+      helpMenu = new MenuItem({
+        label: 'Help',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
+      });
+      // Find a reasonable place to insert the Help menu, usually near the end
+      const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
+      menu.items.splice(insertIndex, 0, helpMenu);
+    }
+
+    // Ensure the Help menu has a submenu before appending
+    if (helpMenu.submenu) {
+      // Add a separator before the About item if the submenu is not empty
+      if (helpMenu.submenu.items.length > 0) {
+        helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      }
+
+      // Create the About Goose menu item with a submenu
+      const aboutGooseMenuItem = new MenuItem({
+        label: 'About Goose',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
+      });
+
+      // Add the Version menu item (display only) to the About Goose submenu
+      if (aboutGooseMenuItem.submenu) {
+        aboutGooseMenuItem.submenu.append(
+          new MenuItem({
+            label: `Version ${gooseVersion || app.getVersion()}`,
+            enabled: false,
+          })
+        );
+      }
+
+      helpMenu.submenu.append(aboutGooseMenuItem);
+    }
   }
 
   if (menu) {
@@ -889,12 +1079,12 @@ app.whenReady().then(async () => {
 
 /**
  * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
- * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink 
- * doesn't match a command from the list. 
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink
+ * doesn't match a command from the list.
  * If it fails to load, then it will return an empty list.
  * If the format is incorrect, it will return an empty list.
  * Format of yaml is:
- *  
+ *
  ```yaml:
  extensions:
   - id: slack
@@ -902,7 +1092,7 @@ app.whenReady().then(async () => {
   - id: knowledge_graph_memory
     command: npx -y @modelcontextprotocol/server-memory
   ```
- * 
+ *
  * @returns A promise that resolves to an array of extension commands that are allowed.
  */
 async function getAllowList(): Promise<string[]> {
@@ -940,6 +1130,11 @@ async function getAllowList(): Promise<string[]> {
     throw error;
   }
 }
+
+app.on('will-quit', () => {
+  // Unregister all shortcuts when quitting
+  globalShortcut.unregisterAll();
+});
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {

@@ -25,15 +25,17 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       <div className="flex flex-col gap-2 flex-1">
         <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
         {alert.action && (
-          <button
+          <a
+            role="button"
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               alert.action?.onClick();
             }}
             className="text-[11px] text-left underline hover:opacity-80 cursor-pointer outline-none"
           >
             {alert.action.text}
-          </button>
+          </a>
         )}
       </div>
     </div>

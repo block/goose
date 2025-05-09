@@ -12,18 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Figma MCP Server](https://github.com/hapins/figma-mcp) as a Goose extension to enable interaction with Figma files, designs, and components.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx @hapins/figma-mcp
-```
-
-**Environment Variable**
-```
-FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @hapins/figma-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
+  ```
 :::
 
 ## Configuration
@@ -33,7 +37,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -44,7 +55,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -60,7 +71,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -77,7 +88,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -87,7 +98,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @hapins/figma-mcp
+    │  npx -y @hapins/figma-mcp
     // highlight-end
     └ 
   ```  
@@ -97,7 +108,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -106,7 +117,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  figma
     │
     ◇  What command should be run?
-    │  npx @hapins/figma-mcp
+    │  npx -y @hapins/figma-mcp
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -116,16 +127,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  6. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
-  :::info
-  You can generate an access token from your Figma account settings under the Personal access tokens section.
-  :::
-
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -134,10 +141,43 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  figma
     │
     ◇  What command should be run?
-    │  npx @hapins/figma-mcp
+    │  npx -y @hapins/figma-mcp
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```
+
+  7. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
+  :::info
+  You can generate an access token from your Figma account settings under the Personal access tokens section.
+  :::
+
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  figma
+    │
+    ◇  What command should be run?
+    │  npx -y @hapins/figma-mcp
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │
     // highlight-start
     ◆  Would you like to add environment variables?
@@ -155,13 +195,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └  Added figma extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

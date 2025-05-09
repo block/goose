@@ -59,6 +59,13 @@ fn extract_identifier(identifier: Identifier) -> session::Identifier {
     }
 }
 
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    match s.split_once('=') {
+        Some((key, value)) => Ok((key.to_string(), value.to_string())),
+        None => Err(format!("invalid KEY=VALUE: {}", s)),
+    }
+}
+
 #[derive(Subcommand)]
 enum SessionCommand {
     #[command(about = "List all available sessions")]
@@ -139,19 +146,21 @@ pub enum BenchCommand {
 #[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
-    #[command(about = "Validate a recipe file")]
+    #[command(about = "Validate a recipe")]
     Validate {
-        /// Path to the recipe file to validate
-        #[arg(help = "Path to the recipe file to validate")]
-        file: String,
+        /// Recipe name to get recipe file to validate
+        #[arg(help = "recipe name to get recipe file or full path to the recipe file to validate")]
+        recipe_name: String,
     },
 
     /// Generate a deeplink for a recipe file
-    #[command(about = "Generate a deeplink for a recipe file")]
+    #[command(about = "Generate a deeplink for a recipe")]
     Deeplink {
-        /// Path to the recipe file
-        #[arg(help = "Path to the recipe file")]
-        file: String,
+        /// Recipe name to get recipe file to generate deeplink
+        #[arg(
+            help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
+        )]
+        recipe_name: String,
     },
 }
 
@@ -193,6 +202,14 @@ enum Command {
             long_help = "Continue from a previous chat session. If --name or --path is provided, resumes that specific session. Otherwise resumes the last used session."
         )]
         resume: bool,
+
+        /// Show message history when resuming
+        #[arg(
+            long,
+            help = "Show previous messages when resuming a session",
+            requires = "resume"
+        )]
+        history: bool,
 
         /// Enable debug output mode
         #[arg(
@@ -259,17 +276,27 @@ enum Command {
         )]
         input_text: Option<String>,
 
-        /// Path to recipe.yaml file
+        /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
             long = "recipe",
-            value_name = "FILE",
-            help = "Path to recipe.yaml file",
-            long_help = "Path to a recipe.yaml file that defines a custom agent configuration",
+            value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
+            help = "Recipe name to get recipe file or the full path of the recipe file",
+            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration",
             conflicts_with = "instructions",
             conflicts_with = "input_text"
         )]
         recipe: Option<String>,
+
+        #[arg(
+            long,
+            value_name = "KEY=VALUE",
+            help = "Dynamic parameters (e.g., --params username=alice --params channel_name=goose-channel)",
+            long_help = "Key-value parameters to pass to the recipe file. Can be specified multiple times.",
+            action = clap::ArgAction::Append,
+            value_parser = parse_key_val,
+        )]
+        params: Vec<(String, String)>,
 
         /// Continue in interactive mode after processing input
         #[arg(
@@ -394,6 +421,7 @@ pub async fn cli() -> Result<()> {
             command,
             identifier,
             resume,
+            history,
             debug,
             extensions,
             remote_extensions,
@@ -414,7 +442,7 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session = build_session(SessionBuilderConfig {
+                    let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
                         resume,
                         extensions,
@@ -429,6 +457,12 @@ pub async fn cli() -> Result<()> {
                         session.session_file().file_stem().and_then(|s| s.to_str()),
                         None,
                     )?;
+
+                    // Render previous messages if resuming a session and history flag is set
+                    if resume && history {
+                        session.render_message_history();
+                    }
+
                     let _ = session.interactive(None).await;
                     Ok(())
                 }
@@ -445,6 +479,7 @@ pub async fn cli() -> Result<()> {
             extensions,
             remote_extensions,
             builtins,
+            params,
         }) => {
             let input_config = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
@@ -478,15 +513,16 @@ pub async fn cli() -> Result<()> {
                     extensions_override: None,
                     additional_system_prompt: None,
                 },
-                (_, _, Some(file)) => {
-                    let recipe = load_recipe(&file, true).unwrap_or_else(|err| {
-                        eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                        std::process::exit(1);
-                    });
+                (_, _, Some(recipe_name)) => {
+                    let recipe =
+                        load_recipe(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        });
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,
-                        additional_system_prompt: Some(recipe.instructions),
+                        additional_system_prompt: recipe.instructions,
                     }
                 }
                 (None, None, None) => {
@@ -533,7 +569,13 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { cmd }) => {
             match cmd {
                 BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
-                BenchCommand::InitConfig { name } => BenchRunConfig::default().save(name),
+                BenchCommand::InitConfig { name } => {
+                    let mut config = BenchRunConfig::default();
+                    let cwd =
+                        std::env::current_dir().expect("Failed to get current working directory");
+                    config.output_dir = Some(cwd);
+                    config.save(name);
+                }
                 BenchCommand::Run { config } => BenchRunner::new(config)?.run()?,
                 BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
                 BenchCommand::ExecEval { config } => {
@@ -544,11 +586,11 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Recipe { command }) => {
             match command {
-                RecipeCommand::Validate { file } => {
-                    handle_validate(file)?;
+                RecipeCommand::Validate { recipe_name } => {
+                    handle_validate(&recipe_name)?;
                 }
-                RecipeCommand::Deeplink { file } => {
-                    handle_deeplink(file)?;
+                RecipeCommand::Deeplink { recipe_name } => {
+                    handle_deeplink(&recipe_name)?;
                 }
             }
             return Ok(());

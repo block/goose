@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 fn get_home_dir() -> PathBuf {
     choose_app_strategy(crate::config::APP_STRATEGY.clone())
@@ -17,9 +18,10 @@ fn get_home_dir() -> PathBuf {
 }
 
 /// Metadata for a session, stored as the first line in the session file
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMetadata {
     /// Working directory for the session
+    #[schema(value_type = String, example = "/home/user/sessions/session1")]
     pub working_dir: PathBuf,
     /// A short description of the session, typically 3 words or less
     pub description: String,
@@ -60,6 +62,12 @@ impl<'de> Deserialize<'de> for SessionMetadata {
 
         let helper = Helper::deserialize(deserializer)?;
 
+        // Get working dir, falling back to home if not specified or if specified dir doesn't exist
+        let working_dir = helper
+            .working_dir
+            .filter(|path| path.exists())
+            .unwrap_or_else(get_home_dir);
+
         Ok(SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
@@ -69,13 +77,20 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_total_tokens: helper.accumulated_total_tokens,
             accumulated_input_tokens: helper.accumulated_input_tokens,
             accumulated_output_tokens: helper.accumulated_output_tokens,
-            working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
+            working_dir,
         })
     }
 }
 
 impl SessionMetadata {
     pub fn new(working_dir: PathBuf) -> Self {
+        // If working_dir doesn't exist, fall back to home directory
+        let working_dir = if !working_dir.exists() {
+            get_home_dir()
+        } else {
+            working_dir
+        };
+
         Self {
             working_dir,
             description: String::new(),
@@ -558,6 +573,40 @@ mod tests {
         // Read back metadata
         let read_metadata = read_metadata(&file_path)?;
         assert_eq!(metadata.description, read_metadata.description);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_working_dir() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create metadata with non-existent directory
+        let invalid_dir = PathBuf::from("/path/that/does/not/exist");
+        let metadata = SessionMetadata::new(invalid_dir.clone());
+
+        // Should fall back to home directory
+        assert_ne!(metadata.working_dir, invalid_dir);
+        assert_eq!(metadata.working_dir, get_home_dir());
+
+        // Test deserialization of invalid directory
+        let messages = vec![Message::user().with_text("test")];
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
+
+        // Modify the file to include invalid directory
+        let contents = fs::read_to_string(&file_path)?;
+        let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+        lines[0] = lines[0].replace(
+            &get_home_dir().to_string_lossy().into_owned(),
+            &invalid_dir.to_string_lossy().into_owned(),
+        );
+        fs::write(&file_path, lines.join("\n"))?;
+
+        // Read back - should fall back to home dir
+        let read_metadata = read_metadata(&file_path)?;
+        assert_ne!(read_metadata.working_dir, invalid_dir);
+        assert_eq!(read_metadata.working_dir, get_home_dir());
 
         Ok(())
     }
