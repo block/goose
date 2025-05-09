@@ -6,6 +6,16 @@ use goose_llm::providers::errors::ProviderError;
 use goose_llm::types::core::{Content, ToolCall};
 use serde_json::json;
 
+async fn _generate_tooltip(messages: &[Message]) -> Result<String, ProviderError> {
+    let provider_name = "databricks";
+    let provider_config = serde_json::json!({
+        "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
+        "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
+    });
+
+    generate_tooltip(provider_name, provider_config.into(), messages).await
+}
+
 #[tokio::test]
 async fn test_generate_tooltip_simple() -> Result<(), ProviderError> {
     // Skip if no Databricks creds
@@ -21,7 +31,7 @@ async fn test_generate_tooltip_simple() -> Result<(), ProviderError> {
         Message::assistant().with_text("I'm fine, thanks! How can I help?"),
     ];
 
-    let tooltip = generate_tooltip(&messages).await?;
+    let tooltip = _generate_tooltip(&messages).await?;
     println!("Generated tooltip: {:?}", tooltip);
 
     assert!(!tooltip.trim().is_empty(), "Tooltip must not be empty");
@@ -57,7 +67,7 @@ async fn test_generate_tooltip_with_tools() -> Result<(), ProviderError> {
 
     let messages = vec![tool_req_msg, tool_resp_msg];
 
-    let tooltip = generate_tooltip(&messages).await?;
+    let tooltip = _generate_tooltip(&messages).await?;
     println!("Generated tooltip (tools): {:?}", tooltip);
 
     assert!(!tooltip.trim().is_empty(), "Tooltip must not be empty");
