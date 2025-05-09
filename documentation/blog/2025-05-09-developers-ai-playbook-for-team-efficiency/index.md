@@ -295,7 +295,7 @@ Your team can create plays for many other tasks:
 
 ## What kinds of tasks can your team automate?
 
-We'd love for you to share your ideas with us! You can do this by creating a recipe and sharing it with the [Goose community on Discord](https://discord.gg/goose-ai).
+We'd love for you to share your ideas with us! You can do this by creating a recipe and sharing it with the [Goose community on Discord](http://discord.gg/block-opensource).
 
 
 
