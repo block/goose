@@ -173,6 +173,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     async (forceRefresh = false): Promise<ProviderDetails[]> => {
       if (forceRefresh || providersList.length === 0) {
         const response = await providers();
+        console.log(response.data);
         setProvidersList(response.data);
         return response.data;
       }
