@@ -22,7 +22,7 @@ export default function MoreMenuLayout({
       style={{ WebkitAppRegion: 'drag' }}
     >
       {showMenu && (
-        <div className="flex items-center justify-between w-full h-full pl-2 pr-4">
+        <div className="flex items-center justify-between w-full h-full pl-[86px] pr-4">
           <TooltipProvider>
             <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
               <TooltipTrigger asChild>
