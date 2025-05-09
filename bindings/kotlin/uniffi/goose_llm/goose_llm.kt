@@ -769,6 +769,8 @@ internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
     fun uniffi_goose_llm_checksum_func_completion(): Short
 
+    fun uniffi_goose_llm_checksum_func_create_completion_request(): Short
+
     fun uniffi_goose_llm_checksum_func_create_tool_config(): Short
 
     fun uniffi_goose_llm_checksum_func_generate_session_name(): Short
@@ -821,6 +823,16 @@ internal interface UniffiLib : Library {
     // FFI functions
     fun uniffi_goose_llm_fn_func_completion(`req`: RustBuffer.ByValue): Long
 
+    fun uniffi_goose_llm_fn_func_create_completion_request(
+        `providerName`: RustBuffer.ByValue,
+        `providerConfig`: RustBuffer.ByValue,
+        `modelConfig`: RustBuffer.ByValue,
+        `systemPreamble`: RustBuffer.ByValue,
+        `messages`: RustBuffer.ByValue,
+        `extensions`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     fun uniffi_goose_llm_fn_func_create_tool_config(
         `name`: RustBuffer.ByValue,
         `description`: RustBuffer.ByValue,
@@ -829,9 +841,17 @@ internal interface UniffiLib : Library {
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
-    fun uniffi_goose_llm_fn_func_generate_session_name(`messages`: RustBuffer.ByValue): Long
+    fun uniffi_goose_llm_fn_func_generate_session_name(
+        `providerName`: RustBuffer.ByValue,
+        `providerConfig`: RustBuffer.ByValue,
+        `messages`: RustBuffer.ByValue,
+    ): Long
 
-    fun uniffi_goose_llm_fn_func_generate_tooltip(`messages`: RustBuffer.ByValue): Long
+    fun uniffi_goose_llm_fn_func_generate_tooltip(
+        `providerName`: RustBuffer.ByValue,
+        `providerConfig`: RustBuffer.ByValue,
+        `messages`: RustBuffer.ByValue,
+    ): Long
 
     fun uniffi_goose_llm_fn_func_print_messages(
         `messages`: RustBuffer.ByValue,
@@ -1067,16 +1087,19 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_goose_llm_checksum_func_completion() != 55281.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_completion() != 47457.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_goose_llm_checksum_func_create_completion_request() != 51008.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_create_tool_config() != 22809.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 61290.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 9810.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 7529.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 15466.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_print_messages() != 30278.toShort()) {
@@ -1362,50 +1385,6 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
-    }
-}
-
-data class CompletionRequest(
-    var `providerName`: kotlin.String,
-    var `modelConfig`: ModelConfig,
-    var `systemPreamble`: kotlin.String,
-    var `messages`: List<Message>,
-    var `extensions`: List<ExtensionConfig>,
-) {
-    companion object
-}
-
-/**
- * @suppress
- */
-public object FfiConverterTypeCompletionRequest : FfiConverterRustBuffer<CompletionRequest> {
-    override fun read(buf: ByteBuffer): CompletionRequest =
-        CompletionRequest(
-            FfiConverterString.read(buf),
-            FfiConverterTypeModelConfig.read(buf),
-            FfiConverterString.read(buf),
-            FfiConverterSequenceTypeMessage.read(buf),
-            FfiConverterSequenceTypeExtensionConfig.read(buf),
-        )
-
-    override fun allocationSize(value: CompletionRequest) =
-        (
-            FfiConverterString.allocationSize(value.`providerName`) +
-                FfiConverterTypeModelConfig.allocationSize(value.`modelConfig`) +
-                FfiConverterString.allocationSize(value.`systemPreamble`) +
-                FfiConverterSequenceTypeMessage.allocationSize(value.`messages`) +
-                FfiConverterSequenceTypeExtensionConfig.allocationSize(value.`extensions`)
-        )
-
-    override fun write(
-        value: CompletionRequest,
-        buf: ByteBuffer,
-    ) {
-        FfiConverterString.write(value.`providerName`, buf)
-        FfiConverterTypeModelConfig.write(value.`modelConfig`, buf)
-        FfiConverterString.write(value.`systemPreamble`, buf)
-        FfiConverterSequenceTypeMessage.write(value.`messages`, buf)
-        FfiConverterSequenceTypeExtensionConfig.write(value.`extensions`, buf)
     }
 }
 
@@ -2819,6 +2798,14 @@ public object FfiConverterSequenceTypeToolConfig : FfiConverterRustBuffer<List<T
  * is needed because the UDL type name is used in function/method signatures.
  * It's also what we have an external type that references a custom type.
  */
+public typealias CompletionRequest = kotlin.String
+public typealias FfiConverterTypeCompletionRequest = FfiConverterString
+
+/**
+ * Typealias from the type name used in the UDL file to the builtin type.  This
+ * is needed because the UDL type name is used in function/method signatures.
+ * It's also what we have an external type that references a custom type.
+ */
 public typealias Contents = List<MessageContent>
 public typealias FfiConverterTypeContents = FfiConverterSequenceTypeMessageContent
 
@@ -2871,6 +2858,28 @@ suspend fun `completion`(`req`: CompletionRequest): CompletionResponse =
         CompletionException.ErrorHandler,
     )
 
+fun `createCompletionRequest`(
+    `providerName`: kotlin.String,
+    `providerConfig`: JsonValueFfi,
+    `modelConfig`: ModelConfig,
+    `systemPreamble`: kotlin.String,
+    `messages`: List<Message>,
+    `extensions`: List<ExtensionConfig>,
+): CompletionRequest =
+    FfiConverterTypeCompletionRequest.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_create_completion_request(
+                FfiConverterString.lower(`providerName`),
+                FfiConverterTypeJsonValueFfi.lower(`providerConfig`),
+                FfiConverterTypeModelConfig.lower(`modelConfig`),
+                FfiConverterString.lower(`systemPreamble`),
+                FfiConverterSequenceTypeMessage.lower(`messages`),
+                FfiConverterSequenceTypeExtensionConfig.lower(`extensions`),
+                _status,
+            )
+        },
+    )
+
 fun `createToolConfig`(
     `name`: kotlin.String,
     `description`: kotlin.String,
@@ -2894,9 +2903,17 @@ fun `createToolConfig`(
  */
 @Throws(ProviderException::class)
 @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `generateSessionName`(`messages`: List<Message>): kotlin.String =
+suspend fun `generateSessionName`(
+    `providerName`: kotlin.String,
+    `providerConfig`: JsonValueFfi,
+    `messages`: List<Message>,
+): kotlin.String =
     uniffiRustCallAsync(
-        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_session_name(FfiConverterSequenceTypeMessage.lower(`messages`)),
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_session_name(
+            FfiConverterString.lower(`providerName`),
+            FfiConverterTypeJsonValueFfi.lower(`providerConfig`),
+            FfiConverterSequenceTypeMessage.lower(`messages`),
+        ),
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_free_rust_buffer(future) },
@@ -2912,9 +2929,17 @@ suspend fun `generateSessionName`(`messages`: List<Message>): kotlin.String =
  */
 @Throws(ProviderException::class)
 @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `generateTooltip`(`messages`: List<Message>): kotlin.String =
+suspend fun `generateTooltip`(
+    `providerName`: kotlin.String,
+    `providerConfig`: JsonValueFfi,
+    `messages`: List<Message>,
+): kotlin.String =
     uniffiRustCallAsync(
-        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_tooltip(FfiConverterSequenceTypeMessage.lower(`messages`)),
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_tooltip(
+            FfiConverterString.lower(`providerName`),
+            FfiConverterTypeJsonValueFfi.lower(`providerConfig`),
+            FfiConverterSequenceTypeMessage.lower(`messages`),
+        ),
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_free_rust_buffer(future) },

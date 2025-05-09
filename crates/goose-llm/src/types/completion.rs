@@ -11,16 +11,63 @@ use crate::types::json_value_ffi::JsonValueFfi;
 use crate::{message::Message, providers::Usage};
 use crate::{model::ModelConfig, providers::errors::ProviderError};
 
-// Lifetimes are not supported in Uniffi, cause other languages don't have them
-// https://github.com/mozilla/uniffi-rs/issues/1526#issuecomment-1528851837
-#[derive(uniffi::Record)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionRequest {
     pub provider_name: String,
+    pub provider_config: serde_json::Value,
     pub model_config: ModelConfig,
     pub system_preamble: String,
     pub messages: Vec<Message>,
     pub extensions: Vec<ExtensionConfig>,
 }
+
+impl CompletionRequest {
+    pub fn new(
+        provider_name: String,
+        provider_config: serde_json::Value,
+        model_config: ModelConfig,
+        system_preamble: String,
+        messages: Vec<Message>,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Self {
+        Self {
+            provider_name,
+            provider_config,
+            model_config,
+            system_preamble,
+            messages,
+            extensions,
+        }
+    }
+}
+
+#[uniffi::export]
+pub fn create_completion_request(
+    provider_name: &str,
+    provider_config: JsonValueFfi,
+    model_config: ModelConfig,
+    system_preamble: &str,
+    messages: Vec<Message>,
+    extensions: Vec<ExtensionConfig>,
+) -> CompletionRequest {
+    CompletionRequest::new(
+        provider_name.to_string(),
+        provider_config.into(),
+        model_config,
+        system_preamble.to_string(),
+        messages,
+        extensions,
+    )
+}
+
+uniffi::custom_type!(CompletionRequest, String, {
+    lower: |tc: &CompletionRequest| {
+        serde_json::to_string(&tc).unwrap()
+    },
+    try_lift: |s: String| {
+        Ok(serde_json::from_str(&s).unwrap())
+    },
+});
 
 // https://mozilla.github.io/uniffi-rs/latest/proc_macro/errors.html
 #[derive(Debug, Error, uniffi::Error)]
@@ -149,7 +196,7 @@ uniffi::custom_type!(ToolConfig, String, {
 
 // — Register the newtypes with UniFFI, converting via JSON strings —
 
-#[derive(Debug, Clone, Serialize, uniffi::Record)]
+#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
 pub struct ExtensionConfig {
     name: String,
     instructions: Option<String>,

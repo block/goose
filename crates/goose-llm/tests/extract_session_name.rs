@@ -4,15 +4,32 @@ use goose_llm::extractors::generate_session_name;
 use goose_llm::message::Message;
 use goose_llm::providers::errors::ProviderError;
 
-#[tokio::test]
-async fn test_generate_session_name_success() -> Result<(), ProviderError> {
-    // Load .env for Databricks credentials
+fn should_run_test() -> Result<(), String> {
     dotenv().ok();
-    let has_creds =
-        std::env::var("DATABRICKS_HOST").is_ok() && std::env::var("DATABRICKS_TOKEN").is_ok();
-    if !has_creds {
-        println!("Skipping generate_session_name test – Databricks creds not set");
-        return Ok(());
+    if std::env::var("DATABRICKS_HOST").is_err() {
+        return Err("Missing DATABRICKS_HOST".to_string());
+    }
+    if std::env::var("DATABRICKS_TOKEN").is_err() {
+        return Err("Missing DATABRICKS_TOKEN".to_string());
+    }
+    Ok(())
+}
+
+async fn _generate_session_name(messages: &[Message]) -> Result<String, ProviderError> {
+    let provider_name = "databricks";
+    let provider_config = serde_json::json!({
+        "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
+        "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
+    });
+
+    generate_session_name(provider_name, provider_config.into(), messages).await
+}
+
+#[tokio::test]
+async fn test_generate_session_name_success() {
+    if should_run_test().is_err() {
+        println!("Skipping...");
+        return;
     }
 
     // Build a few messages with at least two user messages
@@ -22,7 +39,10 @@ async fn test_generate_session_name_success() -> Result<(), ProviderError> {
         Message::user().with_text("What’s the weather in New York tomorrow?"),
     ];
 
-    let name = generate_session_name(&messages).await?;
+    let name = _generate_session_name(&messages)
+        .await
+        .expect("Failed to generate session name");
+
     println!("Generated session name: {:?}", name);
 
     // Should be non-empty and at most 4 words
@@ -34,20 +54,23 @@ async fn test_generate_session_name_success() -> Result<(), ProviderError> {
         "Name must be 4 words or less, got {}: {}",
         word_count,
         name
-    );
-
-    Ok(())
+    )
 }
 
 #[tokio::test]
 async fn test_generate_session_name_no_user() {
+    if should_run_test().is_err() {
+        println!("Skipping 'test_generate_session_name_no_user'. Databricks creds not set");
+        return;
+    }
+
     // No user messages → expect ExecutionError
     let messages = vec![
         Message::assistant().with_text("System starting…"),
         Message::assistant().with_text("All systems go."),
     ];
 
-    let err = generate_session_name(&messages).await;
+    let err = _generate_session_name(&messages).await;
     assert!(
         matches!(err, Err(ProviderError::ExecutionError(_))),
         "Expected ExecutionError when there are no user messages, got: {:?}",

@@ -26,66 +26,83 @@ pub const _DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-3-7-sonnet",
 ];
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DatabricksAuth {
-    Token(String),
+fn default_timeout() -> u64 {
+    60
 }
 
-impl DatabricksAuth {
-    pub fn token(token: String) -> Self {
-        Self::Token(token)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabricksProviderConfig {
+    pub host: String,
+    pub token: String,
+    #[serde(default)]
+    pub image_format: ImageFormat,
+    #[serde(default = "default_timeout")]
+    pub timeout: u64, // timeout in seconds
+}
+
+impl DatabricksProviderConfig {
+    pub fn new(host: String, token: String) -> Self {
+        Self {
+            host,
+            token,
+            image_format: ImageFormat::OpenAi,
+            timeout: default_timeout(),
+        }
+    }
+
+    pub fn from_env() -> Self {
+        let host = get_env("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST");
+        let token = get_env("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN");
+        Self::new(host, token)
     }
 }
 
 #[derive(Debug)]
 pub struct DatabricksProvider {
-    client: Client,
-    host: String,
-    auth: DatabricksAuth,
+    config: DatabricksProviderConfig,
     model: ModelConfig,
-    image_format: ImageFormat,
+    client: Client,
+}
+
+impl DatabricksProvider {
+    pub fn from_env(model: ModelConfig) -> Self {
+        let config = DatabricksProviderConfig::from_env();
+        DatabricksProvider::from_config(config, model)
+            .expect("Failed to initialize DatabricksProvider")
+    }
 }
 
 impl Default for DatabricksProvider {
     fn default() -> Self {
+        let config = DatabricksProviderConfig::from_env();
         let model = ModelConfig::new(DATABRICKS_DEFAULT_MODEL.to_string());
-        DatabricksProvider::from_env(model).expect("Failed to initialize Databricks provider")
+        DatabricksProvider::from_config(config, model)
+            .expect("Failed to initialize DatabricksProvider")
     }
 }
 
 impl DatabricksProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let host = get_env("DATABRICKS_HOST")?;
-        let api_key = get_env("DATABRICKS_TOKEN")?;
-
+    pub fn from_config(config: DatabricksProviderConfig, model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(600))
+            .timeout(Duration::from_secs(config.timeout))
             .build()?;
 
         Ok(Self {
-            client,
-            host,
-            auth: DatabricksAuth::token(api_key),
+            config,
             model,
-            image_format: ImageFormat::OpenAi,
+            client,
         })
     }
 
-    async fn ensure_auth_header(&self) -> Result<String> {
-        match &self.auth {
-            DatabricksAuth::Token(token) => Ok(format!("Bearer {}", token)),
-        }
-    }
-
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
+        let base_url = Url::parse(&self.config.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
         let url = base_url.join(&path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let auth_header = self.ensure_auth_header().await?;
+        let auth_header = format!("Bearer {}", &self.config.token);
         let response = self
             .client
             .post(url)
@@ -189,7 +206,13 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<ProviderCompleteResponse, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        let mut payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &self.config.image_format,
+        )?;
         // Remove the model key which is part of the url with databricks
         payload
             .as_object_mut()

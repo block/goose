@@ -66,14 +66,23 @@ fun main() = runBlocking {
     printMessages(msgs)
     println("---\n")
 
-    val sessionName = generateSessionName(msgs)
-    println("Session Name: $sessionName")
+    // Setup provider
+    val providerName = "databricks"
+    val host = System.getenv("DATABRICKS_HOST") ?: error("DATABRICKS_HOST not set")
+    val token = System.getenv("DATABRICKS_TOKEN") ?: error("DATABRICKS_TOKEN not set")
+    val providerConfig = """{"host": "$host", "token": "$token"}"""
 
-    val tooltip = generateTooltip(msgs)
-    println("Tooltip: $tooltip")
+    println("Provider Name: $providerName")
+    println("Provider Config: $providerConfig")
+
+
+    val sessionName = generateSessionName(providerName, providerConfig, msgs)
+    println("\nSession Name: $sessionName")
+
+    val tooltip = generateTooltip(providerName, providerConfig, msgs)
+    println("\nTooltip: $tooltip")
 
     // Completion
-    val provider = "databricks"
     val modelName = "goose-gpt-4-1"
     val modelConfig = ModelConfig(
         modelName,
@@ -116,8 +125,9 @@ fun main() = runBlocking {
     val systemPreamble = "You are a helpful assistant."
 
 
-    val req = CompletionRequest(
-        provider,
+    val req = createCompletionRequest(
+        providerName,
+        providerConfig,
         modelConfig,
         systemPreamble,
         msgs,
