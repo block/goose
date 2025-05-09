@@ -52,7 +52,7 @@ A Goose Recipe can be saved from a current Goose session, or written as a YAML f
 
 If you [create a recipe from a current Goose session](/docs/guides/session-recipes/#create-recipe), it will prompt you for a name and description and will generate some activities that you can edit, along with instructions that you should review and edit. You will be given a URL that you can share with your team.
 
-To create a recipe from scratch, you can use the [Goose CLI](/docs/guides/cli/) to create a new recipe file by using a `/recipe` command in the session. This will create a `recipe.yaml` file in your current directory. To make a custom file you can use `/recipe custom-filename.yaml`. From there, you will add your own instructions and activities.
+To create a recipe from scratch, you can use the Goose CLI to create a new recipe file by using a `/recipe` command in the session. This will create a `recipe.yaml` file in your current directory. To make a custom file you can use `/recipe custom-filename.yaml`. From there, you will add your own instructions and activities.
 
 ### Validating the Recipe
 
