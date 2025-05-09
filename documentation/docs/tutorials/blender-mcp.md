@@ -25,13 +25,9 @@ This tutorial covers how to add the [Blender MCP Server](https://github.com/ahuj
 </Tabs>
 :::
 
-
-
 **Requirement**
 
 Download [Blender Application](https://www.blender.org/download/) and [Blender MCP Addon file](https://github.com/ahujasid/blender-mcp/blob/main/addon.py)
-
-:::
 
 ## Configuration
 
