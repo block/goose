@@ -283,6 +283,10 @@ console.log('[main] Created appConfig:', appConfig);
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
+// Track MCP processes by window ID
+// This will store lists of PIDs that each window has spawned
+const mcpProcessMap = new Map<number, number[]>();
+
 interface RecipeConfig {
   id: string;
   name: string;
@@ -489,12 +493,70 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
+  // Create a unique session ID for this window
+  const windowSessionId = `session-${windowId}-${Date.now()}`;
+
+  // Set window's session ID to localStorage so extensions can access it
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.executeJavaScript(`
+      localStorage.setItem('gooseSessionId', '${windowSessionId}');
+    `);
+  });
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+
+    // Get the list of MCP processes associated with this window
+    const mcpPids = mcpProcessMap.get(windowId) || [];
+
     if (goosedProcess) {
-      goosedProcess.kill();
+      try {
+        log.info(`Window closed, terminating goosed process ${goosedProcess.pid}`);
+
+        // Kill the main goosed process
+        goosedProcess.kill();
+
+        // On non-Windows platforms, specifically terminate tracked MCP processes
+        if (process.platform !== 'win32' && mcpPids.length > 0) {
+          try {
+            log.info(`Cleaning up ${mcpPids.length} tracked MCP processes for window ${windowId}`);
+
+            // Terminate each tracked PID with SIGTERM
+            for (const pid of mcpPids) {
+              try {
+                process.kill(pid, 'SIGTERM');
+                log.info(`Sent SIGTERM to MCP process ${pid}`);
+              } catch (e) {
+                log.info(`Process ${pid} may have already terminated`);
+              }
+            }
+
+            // 200ms later, force kill any remaining processes
+            setTimeout(() => {
+              for (const pid of mcpPids) {
+                try {
+                  // Check if process still exists
+                  process.kill(pid, 0);
+                  // Process exists, send SIGKILL
+                  process.kill(pid, 'SIGKILL');
+                  log.info(`Sent SIGKILL to MCP process ${pid}`);
+                } catch (e) {
+                  // Process already terminated
+                }
+              }
+            }, 200);
+          } catch (mcpError) {
+            log.error('Error while terminating MCP processes:', mcpError);
+          }
+        }
+      } catch (error) {
+        log.error('Error while terminating goosed process:', error);
+      }
     }
+
+    // Clean up the process tracking map
+    mcpProcessMap.delete(windowId);
   });
   return mainWindow;
 };
@@ -691,6 +753,46 @@ ipcMain.handle('read-file', (_event, filePath) => {
       resolve({ file: stdout, filePath, error: null, found: true });
     });
   });
+});
+
+// Handler to register MCP process PIDs for tracking
+ipcMain.handle('register-mcp-pid', (event, pid) => {
+  // Get the BrowserWindow that sent this message
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) {
+    log.error(`Cannot register PID ${pid}, no window found`);
+    return false;
+  }
+
+  // Find the window ID in our map
+  let windowId = null;
+  for (const [id, win] of windowMap.entries()) {
+    if (win === window) {
+      windowId = id;
+      break;
+    }
+  }
+
+  if (windowId === null) {
+    log.error(`Cannot register PID ${pid}, window ID not found`);
+    return false;
+  }
+
+  // Get or create the PID array for this window
+  let pids = mcpProcessMap.get(windowId);
+  if (!pids) {
+    pids = [];
+    mcpProcessMap.set(windowId, pids);
+  }
+
+  // Add the PID if it's not already tracked
+  if (!pids.includes(pid)) {
+    pids.push(pid);
+    log.info(`Registered MCP process ${pid} for window ${windowId}`);
+    return true;
+  }
+
+  return false;
 });
 
 ipcMain.handle('write-file', (_event, filePath, content) => {
@@ -1134,6 +1236,33 @@ async function getAllowList(): Promise<string[]> {
 app.on('will-quit', () => {
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
+
+  // Final cleanup for this app instance's MCP processes
+  // This will only affect processes started by windows of this app instance
+  // and won't interfere with other running Goose instances
+  if (process.platform !== 'win32') {
+    try {
+      log.info(
+        'App quitting, doing final MCP process cleanup for all sessions in this app instance'
+      );
+
+      // Find any goosed sessions that might have been spawned by this app instance
+      // This pattern looks for MCP processes with session IDs that have the format we generate
+      spawn('pkill', ['-TERM', '-f', 'GOOSE_SESSION_ID=session-']);
+
+      // Brief delay for graceful termination
+      setTimeout(() => {
+        try {
+          // Force kill any remaining processes
+          spawn('pkill', ['-KILL', '-f', 'GOOSE_SESSION_ID=session-']);
+        } catch (e) {
+          // Processes likely already terminated
+        }
+      }, 200);
+    } catch (error) {
+      log.error('Error in final MCP cleanup:', error);
+    }
+  }
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.

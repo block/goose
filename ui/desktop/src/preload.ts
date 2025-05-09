@@ -52,6 +52,8 @@ type ElectronAPI = {
   writeFile: (directory: string, content: string) => Promise<boolean>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  // MCP Process tracking
+  registerMcpPid: (pid: number) => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -106,6 +108,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('write-file', filePath, content),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
+  // MCP process tracking
+  registerMcpPid: (pid: number) => ipcRenderer.invoke('register-mcp-pid', pid),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

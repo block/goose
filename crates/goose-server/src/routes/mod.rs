@@ -1,5 +1,6 @@
 // Export route modules
 pub mod agent;
+pub mod command;
 pub mod config_management;
 pub mod configs;
 pub mod context;
@@ -25,4 +26,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(config_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
+        .merge(command::routes(state.clone()))
 }
