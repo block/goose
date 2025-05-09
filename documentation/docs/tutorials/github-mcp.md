@@ -12,18 +12,23 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [GitHub MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
 :::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-github
+  ```
+  </TabItem>
+</Tabs>
 
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-github
-```
-
-**Environment Variable**
-```
-GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
-```
+  **Environment Variable**
+  ```
+  GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
+  ```
 :::
-
 
 ## Configuration
 

@@ -11,21 +11,24 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial will get you started with [deemkeen's MQTT MCP server](https://github.com/deemkeen/mbotmcp) for the [MakeBlock mbot2 rover](https://www.makeblock.com/products/buy-mbot2), and outline some code changes we made along the way.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
-```
-
-**Environment Variables**
-```
-MQTT_SERVER_URI: tcp://1.2.3.4:1883
-MQTT_PASSWORD: <string or blank>
-MQTT_USERNAME: <string or blank>
-```
-
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=/path/to/java&arg=-jar&arg=/path/to/mbotmcp-0.0.1-SNAPSHOT.jar&name=mbot2&description=mbot2&env=MQTT_SERVER_URI%3Dtcp://1.2.3.4:1883&env=MQTT_USERNAME%3Dyour_username&env=MQTT_PASSWORD%3Dyour_password)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  MQTT_SERVER_URI: tcp://1.2.3.4:1883
+  MQTT_PASSWORD: <string or blank>
+  MQTT_USERNAME: <string or blank>
+  ```
 :::
 
 ## Configuration

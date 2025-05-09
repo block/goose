@@ -202,16 +202,15 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ```sh
     npx square-mcp-server start
     ```
-
+    </TabItem>
+  </Tabs>
     **Environment Variables**
     ```
     ACCESS_TOKEN: <YOUR_API_KEY>
     SANDBOX: <true/false>
     PRODUCTION: <true/false>
     ```
-    </TabItem>
 
-  </Tabs>
     Note that you'll use `SANDBOX` -or- `PRODUCTION`, not both, and your `ACCESS_TOKEN` will either be a sandbox or production token, depending on which environment you choose.
   :::
 

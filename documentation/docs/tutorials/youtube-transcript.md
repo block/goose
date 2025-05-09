@@ -12,13 +12,17 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a Goose extension to enable fetching and working with YouTube video transcripts.
 
 :::tip TLDR
-
-**Command**
-```sh
-npx @jkawamoto/mcp-youtube-transcript
-```
-
-No environment variables are required for this extension.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @jkawamoto/mcp-youtube-transcript
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -88,7 +92,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     // highlight-end
     └ 
   ```  
@@ -107,7 +111,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -158,7 +162,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300

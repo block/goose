@@ -12,17 +12,24 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [VS Code MCP Server](https://github.com/block/vscode-mcp) as a Goose extension to enable VS Code integration, file operations, and development workflow management.
 
-:::tip TLDR
-
-**Command**
-```sh
-npx vscode-mcp-server
-```
-
-**Required Setup**
-
+:::info Required Setup
 Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) from the Visual Studio Marketplace.
 :::
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y vscode-mcp-server
+  ```
+  </TabItem>
+</Tabs>
+:::
+
 
 ## Configuration
 
@@ -93,7 +100,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx vscode-mcp-server
+    │  npx -y vscode-mcp-server
     // highlight-end
     └ 
   ```  
@@ -112,7 +119,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  vscode-mcp
     │
     ◇  What command should be run?
-    │  npx vscode-mcp-server install
+    │  npx -y vscode-mcp-server install
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -136,7 +143,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  vscode-mcp
     │
     ◇  What command should be run?
-    │  npx vscode-mcp-server install
+    │  npx -y vscode-mcp-server install
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
