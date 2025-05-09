@@ -1,61 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { getApiUrl, getSecretKey } from '../../../config';
+import React, { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, filterGooseModes, ModeSelectionItem } from './ModeSelectionItem';
+import { useConfig } from '../../ConfigContext';
 
 export const ModeSelection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
   const [previousApproveModel, setPreviousApproveModel] = useState('');
+  const { read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
-    const storeResponse = await fetch(getApiUrl('/configs/store'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        key: 'GOOSE_MODE',
-        value: newMode,
-        isSecret: false,
-      }),
-    });
-
-    if (!storeResponse.ok) {
-      const errorText = await storeResponse.text();
-      console.error('Store response error:', errorText);
+    try {
+      await upsert('GOOSE_MODE', newMode, false);
+      // Only track the previous approve if current mode is approve related but new mode is not.
+      if (currentMode.includes('approve') && !newMode.includes('approve')) {
+        setPreviousApproveModel(currentMode);
+      }
+      setCurrentMode(newMode);
+    } catch (error) {
+      console.error('Error updating goose mode:', error);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
     }
-    // Only track the previous approve if current mode is approve related but new mode is not.
-    if (currentMode.includes('approve') && !newMode.includes('approve')) {
-      setPreviousApproveModel(currentMode);
-    }
-    setCurrentMode(newMode);
   };
 
-  useEffect(() => {
-    const fetchCurrentMode = async () => {
-      try {
-        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
-          },
-        });
-
-        if (response.ok) {
-          const { value } = await response.json();
-          if (value) {
-            setCurrentMode(value);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching current mode:', error);
+  const fetchCurrentMode = useCallback(async () => {
+    try {
+      const mode = (await read('GOOSE_MODE', false)) as string;
+      if (mode) {
+        setCurrentMode(mode);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching current mode:', error);
+    }
+  }, [read]);
 
+  useEffect(() => {
     fetchCurrentMode();
-  }, []);
+  }, [fetchCurrentMode]);
 
   return (
     <div>

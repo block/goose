@@ -19,6 +19,11 @@ const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backe
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
+interface ModelLimit {
+  pattern: string;
+  context_limit: number;
+}
+
 export default function BottomMenu({
   setView,
   numTokens = 0,
@@ -40,40 +45,28 @@ export default function BottomMenu({
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
 
-  // Model-specific token limits that match the backend implementation
-  const MODEL_SPECIFIC_LIMITS: { [key: string]: number } = {
-    // OpenAI models
-    'gpt-4o': 128_000,
-    'gpt-4-turbo': 128_000,
-    'o1-mini': 128_000,
-    'o1-preview': 128_000,
-    o1: 200_000,
-    'o3-mini': 200_000,
-    'gpt-4.1': 1_000_000,
-    'gpt-4-1': 1_000_000,
-
-    // Anthropic models
-    'claude-3': 200_000,
-
-    // Google models
-    'gemini-2.5': 1_000_000,
-    'gemini-2-5': 1_000_000,
-
-    // Meta Llama models
-    'llama3.2': 128_000,
-    'llama3.3': 128_000,
+  // Load model limits from the API
+  const getModelLimits = async () => {
+    try {
+      const response = await read('model-limits', false);
+      if (response) {
+        // The response is already parsed, no need for JSON.parse
+        return response as ModelLimit[];
+      }
+    } catch (err) {
+      console.error('Error fetching model limits:', err);
+    }
+    return [];
   };
 
-  // Helper function to replicate Rust's get_model_specific_limit logic
-  function getModelSpecificLimit(modelName: string): number | null {
-    // Check each pattern against the model name
-    for (const [pattern, limit] of Object.entries(MODEL_SPECIFIC_LIMITS)) {
-      if (modelName.toLowerCase().includes(pattern.toLowerCase())) {
-        return limit;
-      }
-    }
-    return null;
-  }
+  // Helper function to find model limit using pattern matching
+  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
+    if (!modelName) return null;
+    const matchingLimit = modelLimits.find((limit) =>
+      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
+    );
+    return matchingLimit ? matchingLimit.context_limit : null;
+  };
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
@@ -90,7 +83,7 @@ export default function BottomMenu({
       // Find the provider details for the current provider
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {
-        // Find the model's token limit
+        // Find the model's token limit from the backend response
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
           setTokenLimit(modelConfig.context_limit);
@@ -98,15 +91,15 @@ export default function BottomMenu({
         }
       }
 
-      // Fallback: Use the pattern matching logic if no exact match was found
-      const fallbackLimit = getModelSpecificLimit(model);
+      // Fallback: Use pattern matching logic if no exact model match was found
+      const modelLimit = await getModelLimits();
+      const fallbackLimit = findModelLimit(model as string, modelLimit);
       if (fallbackLimit !== null) {
-        console.log(`Using fallback token limit for model ${model}: ${fallbackLimit}`);
         setTokenLimit(fallbackLimit);
         return;
       }
 
-      // If no match found, use the default
+      // If no match found, use the default model limit
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
     } catch (err) {
       console.error('Error loading providers or token limit:', err);
