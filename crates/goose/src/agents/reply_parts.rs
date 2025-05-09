@@ -6,7 +6,7 @@ use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
+    augment_message_with_tool_calls, modify_system_prompt_for_tool_json,
 };
 use crate::session;
 use mcp_core::tool::Tool;
@@ -99,11 +99,7 @@ impl Agent {
 
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {
-            let interpreter = OllamaInterpreter::new().map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
-            })?;
-
-            response = augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
+            response = augment_message_with_tool_calls(response, toolshim_tools, &config)
                 .await
                 .map_err(|e| {
                     ProviderError::ExecutionError(format!("Failed to augment message: {}", e))

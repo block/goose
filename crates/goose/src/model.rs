@@ -7,6 +7,20 @@ pub const GPT_4O_TOKENIZER: &str = "Xenova--gpt-4o";
 pub const CLAUDE_TOKENIZER: &str = "Xenova--claude-tokenizer";
 
 /// Configuration for model-specific settings and limits
+/// Enum to specify which tool interpreter to use
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ToolshimProvider {
+    Ollama,
+    Passthrough,
+}
+
+impl Default for ToolshimProvider {
+    fn default() -> Self {
+        ToolshimProvider::Ollama
+    }
+}
+
+/// Configuration for model-specific settings and limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
     /// The name of the model to use
@@ -25,6 +39,8 @@ pub struct ModelConfig {
     pub toolshim: bool,
     /// Model to use for toolshim (optional as a default exists)
     pub toolshim_model: Option<String>,
+    /// Which tool interpreter provider to use
+    pub toolshim_provider: ToolshimProvider,
 }
 
 impl ModelConfig {
@@ -44,6 +60,16 @@ impl ModelConfig {
 
         let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
+        let toolshim_provider = match std::env::var("GOOSE_TOOLSHIM_PROVIDER")
+            .as_deref()
+            .map(str::to_uppercase)
+            .as_deref()
+        {
+            Ok("OLLAMA") => ToolshimProvider::Ollama,
+            Ok("PASSTHROUGH") => ToolshimProvider::Passthrough,
+            _ => ToolshimProvider::default(),
+        };
+
         let temperature = std::env::var("GOOSE_TEMPERATURE")
             .ok()
             .and_then(|val| val.parse::<f32>().ok());
@@ -56,6 +82,7 @@ impl ModelConfig {
             max_tokens: None,
             toolshim,
             toolshim_model,
+            toolshim_provider,
         }
     }
 
@@ -130,6 +157,12 @@ impl ModelConfig {
         self
     }
 
+    /// Set the toolshim provider
+    pub fn with_toolshim_provider(mut self, provider: ToolshimProvider) -> Self {
+        self.toolshim_provider = provider;
+        self
+    }
+
     /// Get the tokenizer name
     pub fn tokenizer_name(&self) -> &str {
         &self.tokenizer_name
@@ -179,9 +212,12 @@ mod tests {
 
     #[test]
     fn test_model_config_tool_interpretation() {
-        // Test without env vars - should be false
+        use temp_env::with_var;
+
+        // Test without env vars - should be false and default to Ollama
         let config = ModelConfig::new("test-model".to_string());
         assert!(!config.toolshim);
+        assert!(matches!(config.toolshim_provider, ToolshimProvider::Ollama));
 
         // Test with tool interpretation setting
         let config = ModelConfig::new("test-model".to_string()).with_toolshim(true);
@@ -191,6 +227,28 @@ mod tests {
         let config = ModelConfig::new("test-model".to_string())
             .with_toolshim_model(Some("mistral-nemo".to_string()));
         assert_eq!(config.toolshim_model, Some("mistral-nemo".to_string()));
+
+        // Test toolshim provider from environment variable
+        with_var("GOOSE_TOOLSHIM_PROVIDER", Some("passthrough"), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert!(matches!(config.toolshim_provider, ToolshimProvider::Passthrough));
+        });
+
+        with_var("GOOSE_TOOLSHIM_PROVIDER", Some("OLLAMA"), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert!(matches!(config.toolshim_provider, ToolshimProvider::Ollama));
+        });
+
+        // Test invalid provider falls back to default
+        with_var("GOOSE_TOOLSHIM_PROVIDER", Some("invalid"), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert!(matches!(config.toolshim_provider, ToolshimProvider::Ollama));
+        });
+
+        // Test setter method
+        let config = ModelConfig::new("test-model".to_string())
+            .with_toolshim_provider(ToolshimProvider::Passthrough);
+        assert!(matches!(config.toolshim_provider, ToolshimProvider::Passthrough));
     }
 
     #[test]
