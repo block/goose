@@ -68,3 +68,11 @@ java \
 popd
 ```
 
+
+
+Compile & Run usage example from Python -> Rust:
+```
+cargo run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/debug/libgoose_llm.dylib --language python --out-dir bindings/python
+
+DYLD_LIBRARY_PATH=./target/debug python bindings/python/usage.py
+```
