@@ -147,7 +147,7 @@ impl ProviderTester {
                 .message
                 .content
                 .iter()
-                .any(|content| matches!(content, MessageContent::ToolRequest(_))),
+                .any(|content| matches!(content, MessageContent::ToolReq(_))),
             "Expected tool request in response"
         );
 
@@ -171,7 +171,8 @@ impl ProviderTester {
                   Weather
                   Saturday 9:00 PM
                   Clear",
-            )]),
+            )])
+            .into(),
         );
 
         // Verify we construct a valid payload including the request/response pair for the next inference
