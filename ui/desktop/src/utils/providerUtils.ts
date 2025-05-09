@@ -1,10 +1,6 @@
 import { getApiUrl, getSecretKey } from '../config';
-import { FullExtensionConfig, loadAndAddStoredExtensions } from '../extensions';
-import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
-import { Model } from '../components/settings/models/ModelContext';
-import { gooseModels } from '../components/settings/models/GooseModels';
+import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
-import { settingsV2Enabled } from '../flags';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -15,31 +11,6 @@ import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigC
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
 import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
-
-interface AppConfig {
-  GOOSE_PROVIDER?: string;
-  [key: string]: unknown;
-}
-
-export function getStoredProvider(config: AppConfig): string | null {
-  return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
-}
-
-export function getStoredModel(): string | null {
-  const storedModel = localStorage.getItem('GOOSE_MODEL'); // Adjust key name if necessary
-
-  if (storedModel) {
-    try {
-      const modelInfo: Model = JSON.parse(storedModel);
-      return modelInfo.name || null; // Return name if it exists, otherwise null
-    } catch (error) {
-      console.error('Error parsing GOOSE_MODEL from local storage:', error);
-      return null; // Return null if parsing fails
-    }
-  }
-
-  return null; // Return null if storedModel is not found
-}
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
@@ -166,13 +137,6 @@ export const initializeSystem = async (
     console.log('initializing agent with provider', provider, 'model', model);
     await initializeAgent({ provider, model });
 
-    // This will go away after the release of settings v2 as this is now handled in config.yaml
-    if (!settingsV2Enabled) {
-      // Sync the model state with React
-      const syncedModel = syncModelWithAgent(provider, model);
-      console.log('Model synced with React state:', syncedModel);
-    }
-
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = recipeConfig?.instructions;
@@ -200,93 +164,47 @@ export const initializeSystem = async (
       }
     }
 
-    if (settingsV2Enabled) {
-      if (!options?.getExtensions || !options?.addExtension) {
-        console.warn('Extension helpers not provided in alpha mode');
-        return;
-      }
+    if (!options?.getExtensions || !options?.addExtension) {
+      console.warn('Extension helpers not provided in alpha mode');
+      return;
+    }
 
-      // NOTE: remove when we want to stop migration logic
-      // Check if we need to migrate extensions from localStorage to config.yaml
-      const configVersion = localStorage.getItem('configVersion');
-      const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
+    // NOTE: remove when we want to stop migration logic
+    // Check if we need to migrate extensions from localStorage to config.yaml
+    const configVersion = localStorage.getItem('configVersion');
+    const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
-      console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
-      if (shouldMigrateExtensions) {
-        await migrateExtensionsToSettingsV3();
-      }
+    console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
+    if (shouldMigrateExtensions) {
+      await migrateExtensionsToSettingsV3();
+    }
 
-      /* NOTE:
-       * If we've migrated and this is a version update, refreshedExtensions should be > 0
-       *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
-       * Otherwise if the user has never opened goose - refreshedExtensions will be 0
-       *  and we want to fall into the case to initializeBundledExtensions.
-       */
+    /* NOTE:
+     * If we've migrated and this is a version update, refreshedExtensions should be > 0
+     *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
+     * Otherwise if the user has never opened goose - refreshedExtensions will be 0
+     *  and we want to fall into the case to initializeBundledExtensions.
+     */
 
-      // Initialize or sync built-in extensions into config.yaml
-      let refreshedExtensions = await options.getExtensions(false);
+    // Initialize or sync built-in extensions into config.yaml
+    let refreshedExtensions = await options.getExtensions(false);
 
-      if (refreshedExtensions.length === 0) {
-        await initializeBundledExtensions(options.addExtension);
-        refreshedExtensions = await options.getExtensions(false);
-      } else {
-        await syncBundledExtensions(refreshedExtensions, options.addExtension);
-      }
-
-      // Add enabled extensions to agent
-      for (const extensionEntry of refreshedExtensions) {
-        if (extensionEntry.enabled) {
-          const extensionConfig = extractExtensionConfig(extensionEntry);
-          await addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
-        }
-      }
+    if (refreshedExtensions.length === 0) {
+      await initializeBundledExtensions(options.addExtension);
+      refreshedExtensions = await options.getExtensions(false);
     } else {
-      loadAndAddStoredExtensions().catch((error) => {
-        console.error('Failed to load and add stored extension configs:', error);
-      });
+      await syncBundledExtensions(refreshedExtensions, options.addExtension);
+    }
+
+    // Add enabled extensions to agent
+    for (const extensionEntry of refreshedExtensions) {
+      if (extensionEntry.enabled) {
+        const extensionConfig = extractExtensionConfig(extensionEntry);
+        await addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
+      }
     }
   } catch (error) {
     console.error('Failed to initialize agent:', error);
     throw error;
   }
-};
-
-// This function ensures the agent initialization values and React model state stay in sync
-const syncModelWithAgent = (provider: string, modelName: string): Model | null => {
-  console.log('Syncing model state with agent:', { provider, modelName });
-
-  // First, try to find a matching model in our predefined list
-  let matchingModel = gooseModels.find(
-    (m) => m.name === modelName && m.provider.toLowerCase() === provider.toLowerCase()
-  );
-
-  // If no match by exact name and provider, try just by provider
-  if (!matchingModel) {
-    matchingModel = gooseModels.find((m) => m.provider.toLowerCase() === provider.toLowerCase());
-
-    if (matchingModel) {
-      console.log('Found model by provider only:', matchingModel);
-    }
-  }
-
-  // If still no match, create a custom model
-  if (!matchingModel) {
-    console.log('No matching model found, creating custom model');
-    matchingModel = {
-      id: Date.now(),
-      name: modelName,
-      provider: provider,
-      alias: `${provider} - ${modelName}`,
-    };
-  }
-
-  // Update localStorage with the model
-  if (matchingModel) {
-    localStorage.setItem(GOOSE_PROVIDER, matchingModel.provider.toLowerCase());
-    localStorage.setItem(GOOSE_MODEL, JSON.stringify(matchingModel));
-
-    return matchingModel;
-  }
-
-  return null;
 };
