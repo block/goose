@@ -215,12 +215,16 @@ impl GoogleDriveRouter {
         let search_tool = Tool::new(
             "search".to_string(),
             indoc! {r#"
-                Search for files in google drive by name, given an input search query. At least one of ('name', 'mimeType', or 'parent') are required.
+                List or search for files or labels in google drive by name, given an input search query. At least one of ('name', 'mimeType', or 'parent') are required for file searches.
             "#}
             .to_string(),
             json!({
               "type": "object",
               "properties": {
+                "drive_type": {
+                    "type": "string",
+                    "description": "Required type of object to list or search (file, label)."
+                },
                 "name": {
                     "type": "string",
                     "description": "String to search for in the file's name.",
@@ -246,6 +250,7 @@ impl GoogleDriveRouter {
                     "description": "How many items to return from the search query, default 10, max 100",
                 }
               },
+              "required": ["type"],
             }),
             Some(ToolAnnotations {
                     title: Some("Search GDrive".to_string()),
@@ -560,7 +565,7 @@ impl GoogleDriveRouter {
             "manage_comment".to_string(),
             indoc! {r#"
                 Manage comment for a Google Drive file.
-                
+
                 Supports the operations:
                 - create: Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
                 - reply: Add a reply to a comment thread, or resolve a comment.
@@ -708,26 +713,6 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let list_labels_tool = Tool::new(
-            "list_labels".to_string(),
-            indoc! {r#"
-                List labels available in Google Drive.
-            "#}
-            .to_string(),
-            json!({
-              "type": "object",
-              "properties": {
-              },
-            }),
-            Some(ToolAnnotations {
-                title: Some("List labels".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
-
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -745,7 +730,6 @@ impl GoogleDriveRouter {
             10. update_file - Update a existing file
             11. sheets_tool - Work with Google Sheets data using various operations
             12. docs_tool - Work with Google Docs data using various operations
-            13. list_labels - List the labels available in Google Drive
 
             ## Available Tools
 
@@ -807,7 +791,7 @@ impl GoogleDriveRouter {
 
             ### 8. Manage Comment Tool
             Create or reply comment for a Google Drive file.
-            
+
             ### 9. Create File Tool
             Create any kind of file, including Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
             - For Google Docs: Converts Markdown text to a Google Document
@@ -871,10 +855,6 @@ impl GoogleDriveRouter {
             - startPosition: The start position for delete_content operation
             - endPosition: The end position for delete_content operation
 
-            ### 14. List Labels
-            Lists all labels available in Google Drive. These labels can then be
-            added or removed from files, by ID.
-
             ## Common Usage Pattern
 
             1. First, search for the file you want to read, searching by name.
@@ -912,7 +892,6 @@ impl GoogleDriveRouter {
                 list_drives_tool,
                 get_permissions_tool,
                 sharing_tool,
-                list_labels_tool,
             ],
             instructions,
             drive,
@@ -923,8 +902,22 @@ impl GoogleDriveRouter {
         }
     }
 
-    // Implement search tool functionality
     async fn search(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let drive_type = params.get("drive_type").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The type is required".to_string()),
+        )?;
+        match drive_type {
+            "file" => return self.search_files(params).await,
+            "label" => return self.list_labels(params).await,
+            t => Err(ToolError::InvalidParameters(format!(
+                "type must be one of ('file', 'label'), got {}",
+                t
+            ))),
+        }
+    }
+
+    // Implement search tool functionality
+    async fn search_files(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let name = params.get("name").and_then(|q| q.as_str());
         let mime_type = params.get("mimeType").and_then(|q| q.as_str());
         let drive_id = params.get("driveId").and_then(|q| q.as_str());
@@ -3016,7 +3009,6 @@ impl Router for GoogleDriveRouter {
                 "list_drives" => this.list_drives(arguments).await,
                 "get_permissions" => this.get_permissions(arguments).await,
                 "sharing" => this.sharing(arguments).await,
-                "list_labels" => this.list_labels(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
