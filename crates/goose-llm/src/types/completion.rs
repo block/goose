@@ -11,10 +11,10 @@ use crate::types::json_value_ffi::JsonValueFfi;
 use crate::{message::Message, providers::Usage};
 use crate::{model::ModelConfig, providers::errors::ProviderError};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
 pub struct CompletionRequest {
     pub provider_name: String,
-    pub provider_config: serde_json::Value,
+    pub provider_config: JsonValueFfi,
     pub model_config: ModelConfig,
     pub system_preamble: String,
     pub messages: Vec<Message>,
@@ -24,7 +24,7 @@ pub struct CompletionRequest {
 impl CompletionRequest {
     pub fn new(
         provider_name: String,
-        provider_config: serde_json::Value,
+        provider_config: JsonValueFfi,
         model_config: ModelConfig,
         system_preamble: String,
         messages: Vec<Message>,
@@ -52,22 +52,13 @@ pub fn create_completion_request(
 ) -> CompletionRequest {
     CompletionRequest::new(
         provider_name.to_string(),
-        provider_config.into(),
+        provider_config,
         model_config,
         system_preamble.to_string(),
         messages,
         extensions,
     )
 }
-
-uniffi::custom_type!(CompletionRequest, String, {
-    lower: |tc: &CompletionRequest| {
-        serde_json::to_string(&tc).unwrap()
-    },
-    try_lift: |s: String| {
-        Ok(serde_json::from_str(&s).unwrap())
-    },
-});
 
 // https://mozilla.github.io/uniffi-rs/latest/proc_macro/errors.html
 #[derive(Debug, Error, uniffi::Error)]
