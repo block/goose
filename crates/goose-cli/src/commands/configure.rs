@@ -327,11 +327,40 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         }
     }
 
-    // Select model, defaulting to the provider's recommended model UNLESS there is an env override
-    let default_model = std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
-    let model: String = cliclack::input("Enter a model from that provider:")
-        .default_input(&default_model)
-        .interact()?;
+    // Attempt to fetch supported models for this provider
+    let spin = spinner();
+    spin.start("Attempting to fetch supported models...");
+    let models_res = {
+        let temp_model_config = goose::model::ModelConfig::new(provider_meta.default_model.clone());
+        let temp_provider = create(provider_name, temp_model_config)?;
+        temp_provider.fetch_supported_models_async().await
+    };
+    spin.stop(style("Model fetch complete").green());
+
+    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
+    let model: String = match models_res {
+        Err(e) => {
+            // Provider hook error
+            cliclack::outro(style(e.to_string()).on_red().white())?;
+            return Ok(false);
+        }
+        Ok(Some(models)) => cliclack::select("Select a model:")
+            .items(
+                &models
+                    .iter()
+                    .map(|m| (m, m.as_str(), ""))
+                    .collect::<Vec<_>>(),
+            )
+            .interact()?
+            .to_string(),
+        Ok(None) => {
+            let default_model =
+                std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
+            cliclack::input("Enter a model from that provider:")
+                .default_input(&default_model)
+                .interact()?
+        }
+    };
 
     // Test the configuration
     let spin = spinner();
