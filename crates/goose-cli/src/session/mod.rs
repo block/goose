@@ -291,14 +291,15 @@ impl Session {
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
 
         // Track the current directory and last instruction in projects.json
-        let session_id = self.session_file.file_stem()
+        let session_id = self
+            .session_file
+            .file_stem()
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
-        
-        if let Err(e) = crate::project_tracker::update_project_tracker(
-            Some(&message),
-            session_id.as_deref(),
-        ) {
+
+        if let Err(e) =
+            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
+        {
             eprintln!(
                 "Warning: Failed to update project tracker with instruction: {}",
                 e
@@ -372,16 +373,16 @@ impl Session {
                             self.messages.push(Message::user().with_text(&content));
 
                             // Track the current directory and last instruction in projects.json
-                            let session_id = self.session_file.file_stem()
+                            let session_id = self
+                                .session_file
+                                .file_stem()
                                 .and_then(|s| s.to_str())
                                 .map(|s| s.to_string());
-                                
-                            if let Err(e) =
-                                crate::project_tracker::update_project_tracker(
-                                    Some(&content),
-                                    session_id.as_deref(),
-                                )
-                            {
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
 
