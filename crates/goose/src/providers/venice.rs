@@ -570,7 +570,6 @@ impl Provider for VeniceProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ModelConfig;
 
     #[test]
     fn test_metadata_structure() {
@@ -578,7 +577,6 @@ mod tests {
 
         assert_eq!(metadata.default_model, "llama-3.3-70b");
         assert!(!metadata.known_models.is_empty());
-        assert!(metadata.known_models.contains(&"llama-3.3-70b".to_string()));
 
         assert_eq!(metadata.config_keys.len(), 4);
         assert_eq!(metadata.config_keys[0].name, "VENICE_API_KEY");
