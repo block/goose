@@ -67,8 +67,7 @@ pub fn handle_project_list(verbose: bool, format: &str, ascending: bool) -> Resu
                         short_path.push_str("...");
                         for component in components.iter().skip(len - 2) {
                             short_path.push('/');
-                            short_path
-                                .push_str(component.as_os_str().to_string_lossy().as_ref());
+                            short_path.push_str(component.as_os_str().to_string_lossy().as_ref());
                         }
                         short_path
                     }
@@ -155,13 +154,21 @@ fn format_date(date: DateTime<chrono::Utc>) -> String {
 
 /// Handle the default project command (no subcommand)
 ///
-/// Offers to resume the most recently accessed project
+/// Offers options to resume the most recently accessed project
 pub fn handle_project_default() -> Result<()> {
     let tracker = ProjectTracker::load()?;
     let mut projects = tracker.list_projects();
 
     if projects.is_empty() {
-        println!("No projects found to resume.");
+        // If no projects exist, just start a new one in the current directory
+        println!("No previous projects found. Starting a new session in the current directory.");
+        let mut command = std::process::Command::new("goose");
+        command.arg("session");
+        let status = command.status()?;
+
+        if !status.success() {
+            println!("Failed to run Goose. Exit code: {:?}", status.code());
+        }
         return Ok(());
     }
 
@@ -197,38 +204,96 @@ pub fn handle_project_default() -> Result<()> {
         path_str
     };
 
-    // Ask the user if they want to resume this project
+    // Ask the user what they want to do
     let _ = intro("Goose Project Manager");
-    let resume = cliclack::confirm(format!("Resume most recent project: {}?", short_path))
-        .initial_value(true)
+
+    let current_dir = std::env::current_dir()?;
+    let current_dir_display = current_dir.display();
+
+    let choice = cliclack::select("Choose an option:")
+        .item(
+            "resume",
+            format!("Resume project with session: {}", short_path),
+            "Continue with the previous session",
+        )
+        .item(
+            "fresh",
+            format!("Resume project with fresh session: {}", short_path),
+            "Change to the project directory but start a new session",
+        )
+        .item(
+            "new",
+            format!(
+                "Start new project in current directory: {}",
+                current_dir_display
+            ),
+            "Stay in the current directory and start a new session",
+        )
         .interact()?;
 
-    if resume {
-        let _ = outro(format!("Changing to directory: {}", project_dir));
+    match choice {
+        "resume" => {
+            let _ = outro(format!("Changing to directory: {}", project_dir));
 
-        // Get the session ID if available
-        let session_id = project.last_session_id.clone();
+            // Get the session ID if available
+            let session_id = project.last_session_id.clone();
 
-        // Change to the project directory
-        std::env::set_current_dir(project_dir)?;
+            // Change to the project directory
+            std::env::set_current_dir(project_dir)?;
 
-        // Build the command to run Goose
-        let mut command = std::process::Command::new("goose");
-        command.arg("session");
+            // Build the command to run Goose
+            let mut command = std::process::Command::new("goose");
+            command.arg("session");
 
-        if let Some(id) = session_id {
-            command.arg("--name").arg(&id).arg("--resume");
-            println!("Resuming session: {}", id);
+            if let Some(id) = session_id {
+                command.arg("--name").arg(&id).arg("--resume");
+                println!("Resuming session: {}", id);
+            }
+
+            // Execute the command
+            let status = command.status()?;
+
+            if !status.success() {
+                println!("Failed to run Goose. Exit code: {:?}", status.code());
+            }
         }
+        "fresh" => {
+            let _ = outro(format!(
+                "Changing to directory: {} with a fresh session",
+                project_dir
+            ));
 
-        // Execute the command
-        let status = command.status()?;
+            // Change to the project directory
+            std::env::set_current_dir(project_dir)?;
 
-        if !status.success() {
-            println!("Failed to run Goose. Exit code: {:?}", status.code());
+            // Build the command to run Goose with a fresh session
+            let mut command = std::process::Command::new("goose");
+            command.arg("session");
+
+            // Execute the command
+            let status = command.status()?;
+
+            if !status.success() {
+                println!("Failed to run Goose. Exit code: {:?}", status.code());
+            }
         }
-    } else {
-        let _ = outro("Project resume canceled.");
+        "new" => {
+            let _ = outro("Starting a new session in the current directory");
+
+            // Build the command to run Goose
+            let mut command = std::process::Command::new("goose");
+            command.arg("session");
+
+            // Execute the command
+            let status = command.status()?;
+
+            if !status.success() {
+                println!("Failed to run Goose. Exit code: {:?}", status.code());
+            }
+        }
+        _ => {
+            let _ = outro("Operation canceled");
+        }
     }
 
     Ok(())

@@ -43,9 +43,9 @@ impl ProjectTracker {
     fn get_projects_file() -> Result<PathBuf> {
         let projects_file = choose_app_strategy(crate::APP_STRATEGY.clone())
             .context("goose requires a home dir")?
-            .in_config_dir("projects.json");
+            .in_data_dir("projects.json");
 
-        // Ensure config directory exists
+        // Ensure data directory exists
         if let Some(parent) = projects_file.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)?;
