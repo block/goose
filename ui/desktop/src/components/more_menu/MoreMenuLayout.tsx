@@ -16,18 +16,24 @@ export default function MoreMenuLayout({
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
 }) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+  // Assume macOS if not explicitly set
+  const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
+
   return (
     <div
       className="relative flex items-center h-14 border-b border-borderSubtle w-full"
       style={{ WebkitAppRegion: 'drag' }}
     >
       {showMenu && (
-        <div className="flex items-center justify-between w-full h-full pl-[86px] pr-4">
+        <div
+          className={`flex items-center justify-between w-full h-full ${safeIsMacOS ? 'pl-[86px]' : 'pl-[8px]'} pr-4`}
+        >
           <TooltipProvider>
             <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
               <TooltipTrigger asChild>
                 <button
-                  className="z-[100] no-drag hover:cursor-pointer border border-subtle hover:border-borderStandard rounded-lg p-2 pr-3 text-textSubtle hover:text-textStandard text-sm flex items-center transition-colors [&>svg]:size-4 "
+                  className="z-[100] no-drag hover:cursor-pointer border border-borderSubtle hover:border-borderStandard rounded-lg p-2 pr-3 text-textSubtle hover:text-textStandard text-sm flex items-center transition-colors [&>svg]:size-4 "
                   onClick={async () => {
                     if (hasMessages) {
                       window.electron.directoryChooser();

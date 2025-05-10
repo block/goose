@@ -87,12 +87,15 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
               xmlns="http://www.w3.org/2000/svg"
               width="64"
               height="64"
-              viewBox="0 0 64 64"
-              fill="none"
+              viewBox="0 0 24 24"
+              className="stroke-textProminent fill-bgApp"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <circle cx="32" cy="32" r="32" fill="#101010" />
-              <rect x="22" y="17" width="8" height="8" rx="4" fill="white" />
-              <rect x="22" y="28" width="20" height="20" rx="10" fill="white" />
+              <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+              <path d="m21 2-9.6 9.6" />
+              <circle cx="7.5" cy="15.5" r="5.5" />
             </svg>
             <h1 className="text-3xl font-medium text-textStandard mt-4">Permission Rules</h1>
             <p className="text-textSubtle">
