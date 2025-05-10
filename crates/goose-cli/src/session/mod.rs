@@ -13,6 +13,7 @@ use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
+
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
@@ -667,9 +668,18 @@ impl Session {
                                     .item(Permission::DenyOnce, "Deny", "Deny the tool call")
                                     .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
                                     .interact()?;
-                                
+
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+
+                                    let mut cancellation_message = Message::user();
+                                    cancellation_message.content.push(MessageContent::text(
+                                        "[The user cancelled this tool call and wants to continue with a different approach.]"
+                                    ));
+                                    self.messages.push(cancellation_message);
+                                    session::persist_messages(&self.session_file, &self.messages, None).await?;
+
+                                    drop(stream);
                                     break;
                                 } else {
                                     self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
