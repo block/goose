@@ -665,11 +665,18 @@ impl Session {
                                     .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
                                     .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
                                     .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
                                     .interact()?;
-                                self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission,
-                                },).await;
+                                
+                                if permission == Permission::Cancel {
+                                    output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    break;
+                                } else {
+                                    self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission,
+                                    },).await;
+                                }
                             } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
                                 output::hide_thinking();
 
