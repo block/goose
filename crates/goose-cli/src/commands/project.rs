@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::DateTime;
+use cliclack::{self, intro, outro};
 use console::{style, Term};
 use serde_json::json;
 use std::path::Path;
@@ -33,7 +34,8 @@ pub fn handle_project_list(verbose: bool, format: &str, ascending: bool) -> Resu
             });
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         }
-        "text" | _ => {
+        _ => {
+            // Default to text format
             let term = Term::stdout();
             term.clear_screen()?;
 
@@ -57,15 +59,16 @@ pub fn handle_project_list(verbose: bool, format: &str, ascending: bool) -> Resu
                     let path = Path::new(&project.path);
                     let components: Vec<_> = path.components().collect();
                     let len = components.len();
-                    
+
                     if len <= 2 {
                         project.path.clone()
                     } else {
                         let mut short_path = String::new();
                         short_path.push_str("...");
-                        for i in (len - 2)..len {
+                        for component in components.iter().skip(len - 2) {
                             short_path.push('/');
-                            short_path.push_str(components[i].as_os_str().to_string_lossy().as_ref());
+                            short_path
+                                .push_str(component.as_os_str().to_string_lossy().as_ref());
                         }
                         short_path
                     }
@@ -76,9 +79,7 @@ pub fn handle_project_list(verbose: bool, format: &str, ascending: bool) -> Resu
 
                 println!(
                     "{:<40} {:<30} {:<20}",
-                    path_display,
-                    formatted_date,
-                    session_id
+                    path_display, formatted_date, session_id
                 );
             }
         }
@@ -113,7 +114,7 @@ pub fn handle_project_resume(project_index: usize) -> Result<()> {
 
     let project = &projects[project_index - 1];
     let project_dir = &project.path;
-    
+
     // Check if the directory exists
     if !Path::new(project_dir).exists() {
         println!("Project directory '{}' no longer exists.", project_dir);
@@ -138,7 +139,7 @@ pub fn handle_project_resume(project_index: usize) -> Result<()> {
 
     // Execute the command
     let status = command.status()?;
-    
+
     if !status.success() {
         println!("Failed to run Goose. Exit code: {:?}", status.code());
     }
@@ -150,4 +151,195 @@ pub fn handle_project_resume(project_index: usize) -> Result<()> {
 fn format_date(date: DateTime<chrono::Utc>) -> String {
     // Format: "2025-05-08 18:15:30"
     date.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// Handle the default project command (no subcommand)
+///
+/// Offers to resume the most recently accessed project
+pub fn handle_project_default() -> Result<()> {
+    let tracker = ProjectTracker::load()?;
+    let mut projects = tracker.list_projects();
+
+    if projects.is_empty() {
+        println!("No projects found to resume.");
+        return Ok(());
+    }
+
+    // Sort projects by last_accessed (newest first)
+    projects.sort_by(|a, b| b.last_accessed.cmp(&a.last_accessed));
+
+    // Get the most recent project
+    let project = &projects[0];
+    let project_dir = &project.path;
+
+    // Check if the directory exists
+    if !Path::new(project_dir).exists() {
+        println!(
+            "Most recent project directory '{}' no longer exists.",
+            project_dir
+        );
+        return Ok(());
+    }
+
+    // Format the path for display
+    let path = Path::new(project_dir);
+    let components: Vec<_> = path.components().collect();
+    let len = components.len();
+    let short_path = if len <= 2 {
+        project_dir.clone()
+    } else {
+        let mut path_str = String::new();
+        path_str.push_str("...");
+        for component in components.iter().skip(len - 2) {
+            path_str.push('/');
+            path_str.push_str(component.as_os_str().to_string_lossy().as_ref());
+        }
+        path_str
+    };
+
+    // Ask the user if they want to resume this project
+    let _ = intro("Goose Project Manager");
+    let resume = cliclack::confirm(format!("Resume most recent project: {}?", short_path))
+        .initial_value(true)
+        .interact()?;
+
+    if resume {
+        let _ = outro(format!("Changing to directory: {}", project_dir));
+
+        // Get the session ID if available
+        let session_id = project.last_session_id.clone();
+
+        // Change to the project directory
+        std::env::set_current_dir(project_dir)?;
+
+        // Build the command to run Goose
+        let mut command = std::process::Command::new("goose");
+        command.arg("session");
+
+        if let Some(id) = session_id {
+            command.arg("--name").arg(&id).arg("--resume");
+            println!("Resuming session: {}", id);
+        }
+
+        // Execute the command
+        let status = command.status()?;
+
+        if !status.success() {
+            println!("Failed to run Goose. Exit code: {:?}", status.code());
+        }
+    } else {
+        let _ = outro("Project resume canceled.");
+    }
+
+    Ok(())
+}
+
+/// Handle the interactive projects command
+///
+/// Shows a list of projects and lets the user select one to resume
+pub fn handle_projects_interactive() -> Result<()> {
+    let tracker = ProjectTracker::load()?;
+    let mut projects = tracker.list_projects();
+
+    if projects.is_empty() {
+        println!("No projects found.");
+        return Ok(());
+    }
+
+    // Sort projects by last_accessed (newest first)
+    projects.sort_by(|a, b| b.last_accessed.cmp(&a.last_accessed));
+
+    // Format project paths for display
+    let project_choices: Vec<(String, String)> = projects
+        .iter()
+        .enumerate()
+        .map(|(i, project)| {
+            let path = Path::new(&project.path);
+            let components: Vec<_> = path.components().collect();
+            let len = components.len();
+            let short_path = if len <= 2 {
+                project.path.clone()
+            } else {
+                let mut path_str = String::new();
+                path_str.push_str("...");
+                for component in components.iter().skip(len - 2) {
+                    path_str.push('/');
+                    path_str.push_str(component.as_os_str().to_string_lossy().as_ref());
+                }
+                path_str
+            };
+
+            let formatted_date = format_date(project.last_accessed);
+            (
+                format!("{}", i + 1),                           // Value to return
+                format!("{} ({})", short_path, formatted_date), // Display text
+            )
+        })
+        .collect();
+
+    // Let the user select a project
+    let _ = intro("Goose Project Manager");
+    let mut select = cliclack::select("Select a project to resume:");
+
+    // Add each project as an option
+    for (value, display) in &project_choices {
+        select = select.item(value, display, "");
+    }
+
+    // Add a cancel option
+    let cancel_value = String::from("cancel");
+    select = select.item(&cancel_value, "Cancel", "Don't resume any project");
+
+    let selected = select.interact()?;
+
+    if selected == "cancel" {
+        let _ = outro("Project selection canceled.");
+        return Ok(());
+    }
+
+    // Parse the selected index
+    let index = selected.parse::<usize>().unwrap_or(0);
+    if index == 0 || index > projects.len() {
+        let _ = outro("Invalid selection.");
+        return Ok(());
+    }
+
+    // Get the selected project
+    let project = &projects[index - 1];
+    let project_dir = &project.path;
+
+    // Check if the directory exists
+    if !Path::new(project_dir).exists() {
+        let _ = outro(format!(
+            "Project directory '{}' no longer exists.",
+            project_dir
+        ));
+        return Ok(());
+    }
+
+    let _ = outro(format!("Changing to directory: {}", project_dir));
+
+    // Get the session ID if available
+    let session_id = project.last_session_id.clone();
+
+    // Change to the project directory
+    std::env::set_current_dir(project_dir)?;
+
+    // Build the command to run Goose
+    let mut command = std::process::Command::new("goose");
+    command.arg("session");
+
+    if let Some(id) = session_id {
+        command.arg("--name").arg(&id).arg("--resume");
+        println!("Resuming session: {}", id);
+    }
+
+    // Execute the command
+    let status = command.status()?;
+
+    if !status.success() {
+        println!("Failed to run Goose. Exit code: {:?}", status.code());
+    }
+
+    Ok(())
 }

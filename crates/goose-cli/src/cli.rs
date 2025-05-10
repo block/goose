@@ -7,7 +7,9 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
-use crate::commands::project::{handle_project_list, handle_project_resume};
+use crate::commands::project::{
+    handle_project_default, handle_project_list, handle_project_resume, handle_projects_interactive,
+};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
@@ -277,13 +279,20 @@ enum Command {
 
     /// Manage projects and their associated sessions
     #[command(
-        about = "Manage projects and their associated sessions",
+        about = "Manage projects and their associated sessions (with no subcommand, offers to resume the last project)",
         visible_alias = "p"
     )]
     Project {
         #[command(subcommand)]
-        command: ProjectCommand,
+        command: Option<ProjectCommand>,
     },
+
+    /// Interactive list of projects to choose from
+    #[command(
+        about = "Show a list of projects and interactively select one to resume",
+        visible_alias = "ps"
+    )]
+    Projects,
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -502,16 +511,28 @@ pub async fn cli() -> Result<()> {
             };
         }
         Some(Command::Project { command }) => {
-            return match command {
-                ProjectCommand::List { verbose, format, ascending } => {
+            match command {
+                Some(ProjectCommand::List {
+                    verbose,
+                    format,
+                    ascending,
+                }) => {
                     handle_project_list(verbose, &format, ascending)?;
-                    Ok(())
                 }
-                ProjectCommand::Resume { index } => {
+                Some(ProjectCommand::Resume { index }) => {
                     handle_project_resume(index)?;
-                    Ok(())
                 }
-            };
+                None => {
+                    // Default behavior: offer to resume the last project
+                    handle_project_default()?;
+                }
+            }
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // Interactive project selection
+            handle_projects_interactive()?;
+            return Ok(());
         }
         Some(Command::Run {
             instructions,

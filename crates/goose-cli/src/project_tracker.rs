@@ -109,7 +109,7 @@ impl ProjectTracker {
         if let Some(instr) = instruction {
             project_info.last_instruction = Some(instr.to_string());
         }
-        
+
         // Update the session ID if provided
         if let Some(id) = session_id {
             project_info.last_session_id = Some(id.to_string());
@@ -123,8 +123,8 @@ impl ProjectTracker {
     /// Returns a vector of ProjectInfoDisplay objects
     pub fn list_projects(&self) -> Vec<ProjectInfoDisplay> {
         self.projects
-            .iter()
-            .map(|(_, info)| ProjectInfoDisplay {
+            .values()
+            .map(|info| ProjectInfoDisplay {
                 path: info.path.clone(),
                 last_accessed: info.last_accessed,
                 last_instruction: info.last_instruction.clone(),
