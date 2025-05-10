@@ -6,6 +6,10 @@ description: Add Pieces for Developers MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/V8zp9m9__t4" />
+
 This tutorial covers how to add the [Pieces for Developers MCP Server](https://docs.pieces.app/products/mcp/get-started?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
 
 ## Configuration
