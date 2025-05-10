@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod agentv2;
 pub mod config;
 pub mod context_mgmt;
 pub mod message;
