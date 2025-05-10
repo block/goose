@@ -1,9 +1,9 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::Provider;
-use crate::providers::databricks::DatabricksProvider;
+use crate::providers::create;
 use crate::providers::errors::ProviderError;
 use crate::types::core::{Content, Role};
+use crate::types::json_value_ffi::JsonValueFfi;
 use anyhow::Result;
 use indoc::indoc;
 use serde_json::{json, Value};
@@ -53,7 +53,21 @@ fn build_system_prompt() -> String {
 
 /// Generates a tooltip summarizing the last two messages in the session,
 /// including any tool calls or results.
-pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderError> {
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn generate_tooltip(
+    provider_name: &str,
+    provider_config: JsonValueFfi,
+    messages: &[Message],
+) -> Result<String, ProviderError> {
+    // Use OpenAI models specifically for this task
+    let model_name = if provider_name == "databricks" {
+        "goose-gpt-4-1"
+    } else {
+        "gpt-4.1"
+    };
+    let model_cfg = ModelConfig::new(model_name.to_string()).with_temperature(Some(0.0));
+    let provider = create(provider_name, provider_config.into(), model_cfg)?;
+
     // Need at least two messages to summarize
     if messages.len() < 2 {
         return Err(ProviderError::ExecutionError(
@@ -72,17 +86,17 @@ pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderEr
                         parts.push(txt.to_string());
                     }
                 }
-                MessageContent::ToolRequest(req) => {
-                    if let Ok(tool_call) = &req.tool_call {
+                MessageContent::ToolReq(req) => {
+                    if let Ok(tool_call) = &req.tool_call.0 {
                         parts.push(format!(
                             "called tool '{}' with args {}",
                             tool_call.name, tool_call.arguments
                         ));
-                    } else if let Err(e) = &req.tool_call {
+                    } else if let Err(e) = &req.tool_call.0 {
                         parts.push(format!("tool request error: {}", e));
                     }
                 }
-                MessageContent::ToolResponse(resp) => match &resp.tool_result {
+                MessageContent::ToolResp(resp) => match &resp.tool_result.0 {
                     Ok(contents) => {
                         let results: Vec<String> = contents
                             .iter()
@@ -126,10 +140,6 @@ pub async fn generate_tooltip(messages: &[Message]) -> Result<String, ProviderEr
         "Here are the last two messages:\n{}\n\nTooltip:",
         rendered.join("\n")
     );
-
-    // Instantiate the provider
-    let model_cfg = ModelConfig::new("goose-gpt-4-1".to_string()).with_temperature(Some(0.0));
-    let provider = DatabricksProvider::from_env(model_cfg)?;
 
     // Schema wrapping our tooltip string
     let schema = json!({

@@ -12,18 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Asana MCP Server](https://github.com/roychri/mcp-server-asana) as a Goose extension to enable task automation, project tracking, and team collaboration.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx -y @roychri/mcp-server-asana
-```
-
-**Environment Variable**
-```
-ASANA_ACCESS_TOKEN: <YOUR_TOKEN>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40roychri%2Fmcp-server-asana&id=asana&name=Asana&description=enable%20task%20automation%2C%20project%20tracking%2C%20and%20team%20collaboration&env=ASANA_ACCESS_TOKEN%3DAsana%20Access%20Token)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @roychri/mcp-server-asana
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  ASANA_ACCESS_TOKEN: <YOUR_TOKEN>
+  ```
 :::
 
 ## Configuration

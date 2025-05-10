@@ -13,11 +13,17 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a Goose extension. This enables Goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/tutorials/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across Goose sessions.
 
 :::tip TLDR
-
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-memory
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-memory
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration

@@ -1,3 +1,5 @@
+uniffi::setup_scaffolding!();
+
 mod completion;
 pub mod extractors;
 pub mod message;

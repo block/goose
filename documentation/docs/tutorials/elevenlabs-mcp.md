@@ -13,16 +13,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable AI-powered voice generation, voice cloning, audio editing, and speech-to-text transcription.
 
 :::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&arg=elevenlabs-mcp&id=elevenlabs&name=ElevenLabs&description=ElevenLabs%20voice%20synthesis%20server&env=ELEVENLABS_API_KEY)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx elevenlabs-mcp
+  ```
+  </TabItem>
+</Tabs>
 
-**Command**
-```sh
-uvx elevenlabs-mcp
-```
-
-**Environment Variable**
-```
-ELEVENLABS_API_KEY: <YOUR_API_KEY>
-```
+  **Environment Variable**
+  ```
+  ELEVENLABS_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration
@@ -30,7 +36,6 @@ ELEVENLABS_API_KEY: <YOUR_API_KEY>
 :::info
 Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
-
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>

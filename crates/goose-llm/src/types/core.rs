@@ -4,14 +4,14 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     User,
     Assistant,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Content {
     Text(TextContent),
@@ -47,13 +47,13 @@ impl Content {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 pub struct TextContent {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageContent {
     pub data: String,
@@ -116,7 +116,7 @@ impl ToolCall {
 }
 
 #[non_exhaustive]
-#[derive(Error, Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Error, Debug, Clone, Deserialize, Serialize, PartialEq, uniffi::Error)]
 pub enum ToolError {
     #[error("Invalid parameters: {0}")]
     InvalidParameters(String),

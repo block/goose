@@ -25,8 +25,8 @@ impl ProviderType {
 
     fn create_provider(&self, cfg: ModelConfig) -> Result<Arc<dyn Provider>> {
         Ok(match self {
-            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(cfg)?),
-            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(cfg)?),
+            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(cfg)),
+            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(cfg)),
         })
     }
 }

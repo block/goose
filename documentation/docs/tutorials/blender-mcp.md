@@ -11,19 +11,23 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a Goose extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-uvx blender-mcp
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&arg=blender-mcp&id=blender&name=Blender&description=Blender%203D%20scene%20creation%20integration)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx blender-mcp
+  ```
+  </TabItem>
+</Tabs>
+:::
 
 **Requirement**
 
 Download [Blender Application](https://www.blender.org/download/) and [Blender MCP Addon file](https://github.com/ahujasid/blender-mcp/blob/main/addon.py)
-
-:::
 
 ## Configuration
 
