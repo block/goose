@@ -15,17 +15,16 @@ pub use goose::session::Identifier;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use etcetera::choose_app_strategy;
-use etcetera::AppStrategy;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
 use goose::session;
+use goose::token_counter::TokenCounter;
 use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
-
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -320,9 +319,10 @@ impl Session {
         // Create and use a global history file in ~/.config/goose directory
         // This allows command history to persist across different chat sessions
         // instead of being tied to each individual session's messages
-        let history_file = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("history.txt");
+        let strategy =
+            choose_app_strategy(crate::APP_STRATEGY.clone()).expect("goose requires a home dir");
+        let config_dir = strategy.config_dir();
+        let history_file = config_dir.join("history.txt");
 
         // Ensure config directory exists
         if let Some(parent) = history_file.parent() {
@@ -348,6 +348,9 @@ impl Session {
 
         output::display_greeting();
         loop {
+            // Display context usage before each prompt
+            self.display_context_usage().await?;
+
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
                     match self.run_mode {
@@ -937,6 +940,43 @@ impl Session {
     pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
+    }
+
+    /// Display the current context window usage
+    pub async fn display_context_usage(&self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit.unwrap_or(32000);
+
+        // Get the exact system prompt and tools using prepare_tools_and_prompt
+        let (tools, toolshim_tools, system_prompt) = self.agent.prepare_tools_and_prompt().await?;
+
+        // Combine tools and toolshim_tools
+        let mut all_tools = tools.clone();
+        all_tools.extend(toolshim_tools.iter().cloned());
+
+        // Create a token counter using the same tokenizer as the model
+        let token_counter = TokenCounter::new(model_config.tokenizer_name());
+
+        // Count system prompt tokens
+        let system_token_count = token_counter.count_tokens(&system_prompt);
+
+        // Count tools tokens
+        let tools_token_count = token_counter.count_tokens_for_tools(&all_tools);
+
+        // Count message tokens
+        let message_token_count: usize = self
+            .messages
+            .iter()
+            .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+            .sum();
+
+        // Calculate total tokens
+        let total_tokens = system_token_count + tools_token_count + message_token_count;
+
+        output::display_context_usage(total_tokens, context_limit);
+
+        Ok(())
     }
 
     /// Handle prompt command execution

@@ -556,6 +556,39 @@ pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
+/// Display context window usage as a colored dot visualization
+pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
+    use console::style;
+
+    // Calculate percentage used
+    let percentage = (total_tokens as f64 / context_limit as f64 * 100.0).round() as usize;
+
+    // Create dot visualization
+    // Use 10 dots total
+    let dot_count = 10;
+    let filled_dots = ((percentage as f64 / 100.0) * dot_count as f64).round() as usize;
+    let empty_dots = dot_count - filled_dots;
+
+    let filled = "●".repeat(filled_dots);
+    let empty = "○".repeat(empty_dots);
+
+    // Combine dots and apply color
+    let dots = format!("{}{}", filled, empty);
+    let colored_dots = if percentage < 50 {
+        style(dots).green()
+    } else if percentage < 85 {
+        style(dots).yellow()
+    } else {
+        style(dots).red()
+    };
+
+    // Print the status line
+    println!(
+        "Context: {} {}% ({}/{} tokens)",
+        colored_dots, percentage, total_tokens, context_limit
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
