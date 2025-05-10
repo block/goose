@@ -193,5 +193,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     output::display_session_info(session_config.resume, &provider_name, &model, &session_file);
+    let show_session_msgs = cliclack::confirm(format!(
+        "{} do you want to see the session chat history?",
+        style("WARNING:").yellow()
+    ))
+    .initial_value(true)
+    .interact()
+    .expect("Failed to get user input");
+    if show_session_msgs {
+        let messages = session::read_messages(&session_file).unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to read session messages: {}", e));
+            process::exit(1);
+        });
+        output::display_session_chat_history(messages);
+    }
     session
 }
