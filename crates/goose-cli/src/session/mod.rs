@@ -13,7 +13,6 @@ use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
-
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
@@ -672,11 +671,12 @@ impl Session {
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
 
-                                    let mut cancellation_message = Message::user();
-                                    cancellation_message.content.push(MessageContent::text(
-                                        "[The user cancelled this tool call and wants to continue with a different approach.]"
+                                    let mut response_message = Message::user();
+                                    response_message.content.push(MessageContent::tool_response(
+                                        confirmation.id.clone(),
+                                        Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
-                                    self.messages.push(cancellation_message);
+                                    self.messages.push(response_message);
                                     session::persist_messages(&self.session_file, &self.messages, None).await?;
 
                                     drop(stream);
