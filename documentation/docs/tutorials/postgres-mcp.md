@@ -7,6 +7,8 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PZlYQ5IthYM" />
+
 The PostgreSQL MCP Server extension allows Goose to interact directly with your PostgreSQL databases, enabling database operations, querying, and schema management capabilities. This makes it easy to work with your databases through natural language interactions.
 
 :::tip TLDR
