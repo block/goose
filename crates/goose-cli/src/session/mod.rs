@@ -290,6 +290,22 @@ impl Session {
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
 
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) =
+            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
+        {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
+        }
+
         self.process_agent_response(false).await?;
         Ok(())
     }
@@ -355,6 +371,20 @@ impl Session {
                             save_history(&mut editor);
 
                             self.messages.push(Message::user().with_text(&content));
+
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
 
                             // Get the provider from the agent for description generation
                             let provider = self.agent.provider().await?;

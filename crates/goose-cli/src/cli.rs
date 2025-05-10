@@ -7,6 +7,9 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
+use crate::commands::project::{
+    handle_project_default, handle_project_list, handle_project_resume, handle_projects_interactive,
+};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
@@ -99,6 +102,38 @@ enum SessionCommand {
             default_value = ""
         )]
         regex: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProjectCommand {
+    #[command(about = "List all tracked projects")]
+    List {
+        #[arg(short, long, help = "Show full project paths")]
+        verbose: bool,
+
+        #[arg(
+            short,
+            long,
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        #[arg(
+            long = "ascending",
+            help = "Sort by date in ascending order (oldest first)",
+            long_help = "Sort projects by date in ascending order (oldest first). Default is descending order (newest first)."
+        )]
+        ascending: bool,
+    },
+    #[command(about = "Resume a project by changing to its directory and starting Goose")]
+    Resume {
+        #[arg(
+            help = "Index of the project to resume (from the list command)",
+            default_value = "1"
+        )]
+        index: usize,
     },
 }
 
@@ -249,6 +284,23 @@ enum Command {
         )]
         builtins: Vec<String>,
     },
+
+    /// Manage projects and their associated sessions
+    #[command(
+        about = "Manage projects and their associated sessions (with no subcommand, offers to resume the last project)",
+        visible_alias = "p"
+    )]
+    Project {
+        #[command(subcommand)]
+        command: Option<ProjectCommand>,
+    },
+
+    /// Interactive list of projects to choose from
+    #[command(
+        about = "Show a list of projects and interactively select one to resume",
+        visible_alias = "ps"
+    )]
+    Projects,
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -405,6 +457,11 @@ struct InputConfig {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Track the current directory in projects.json
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        eprintln!("Warning: Failed to update project tracker: {}", e);
+    }
+
     match cli.command {
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
@@ -467,6 +524,30 @@ pub async fn cli() -> Result<()> {
                     Ok(())
                 }
             };
+        }
+        Some(Command::Project { command }) => {
+            match command {
+                Some(ProjectCommand::List {
+                    verbose,
+                    format,
+                    ascending,
+                }) => {
+                    handle_project_list(verbose, &format, ascending)?;
+                }
+                Some(ProjectCommand::Resume { index }) => {
+                    handle_project_resume(index)?;
+                }
+                None => {
+                    // Default behavior: offer to resume the last project
+                    handle_project_default()?;
+                }
+            }
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // Interactive project selection
+            handle_projects_interactive()?;
+            return Ok(());
         }
         Some(Command::Run {
             instructions,
