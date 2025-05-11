@@ -76,15 +76,16 @@ pub fn handle_project_list(verbose: bool, format: &str, ascending: bool) -> Resu
 
                 let formatted_date = format_date(project.last_accessed);
                 let session_id = project.last_session_id.unwrap_or_else(|| "-".to_string());
-                
+
                 // Format the last instruction for display (truncated)
-                let instruction_display = project.last_instruction.map_or("-".to_string(), |instr| {
-                    if instr.len() > 37 {
-                        format!("{}...", &instr[0..34])
-                    } else {
-                        instr
-                    }
-                });
+                let instruction_display =
+                    project.last_instruction.map_or("-".to_string(), |instr| {
+                        if instr.len() > 37 {
+                            format!("{}...", &instr[0..34])
+                        } else {
+                            instr
+                        }
+                    });
 
                 println!(
                     "{:<40} {:<30} {:<20} {:<40}",
@@ -142,16 +143,24 @@ pub fn handle_project_resume(project_index: usize) -> Result<()> {
     let resume_session = if has_previous_session {
         let _ = intro("Goose Project Manager");
         let session_choice = cliclack::select("What would you like to do?")
-            .item("resume", "Resume previous session", "Continue with the previous session")
-            .item("new", "Start new session", "Start a fresh session in this project directory")
+            .item(
+                "resume",
+                "Resume previous session",
+                "Continue with the previous session",
+            )
+            .item(
+                "new",
+                "Start new session",
+                "Start a fresh session in this project directory",
+            )
             .interact()?;
-        
+
         let _ = outro(if session_choice == "resume" {
             "Resuming previous session"
         } else {
             "Starting new session"
         });
-        
+
         session_choice == "resume"
     } else {
         false
@@ -369,18 +378,22 @@ pub fn handle_projects_interactive() -> Result<()> {
             };
 
             // Include last instruction if available (truncated)
-            let instruction_preview = project.last_instruction.as_ref().map_or(String::new(), |instr| {
-                let truncated = if instr.len() > 40 {
-                    format!("{}...", &instr[0..37])
-                } else {
-                    instr.clone()
-                };
-                format!(" [{}]", truncated)
-            });
+            let instruction_preview =
+                project
+                    .last_instruction
+                    .as_ref()
+                    .map_or(String::new(), |instr| {
+                        let truncated = if instr.len() > 40 {
+                            format!("{}...", &instr[0..37])
+                        } else {
+                            instr.clone()
+                        };
+                        format!(" [{}]", truncated)
+                    });
 
             let formatted_date = format_date(project.last_accessed);
             (
-                format!("{}", i + 1),                           // Value to return
+                format!("{}", i + 1), // Value to return
                 format!("{} ({}){}", short_path, formatted_date, instruction_preview), // Display text with instruction
             )
         })
@@ -437,10 +450,18 @@ pub fn handle_projects_interactive() -> Result<()> {
     // Only ask about resuming if there's a previous session
     let resume_session = if has_previous_session {
         let session_choice = cliclack::select("What would you like to do?")
-            .item("resume", "Resume previous session", "Continue with the previous session")
-            .item("new", "Start new session", "Start a fresh session in this project directory")
+            .item(
+                "resume",
+                "Resume previous session",
+                "Continue with the previous session",
+            )
+            .item(
+                "new",
+                "Start new session",
+                "Start a fresh session in this project directory",
+            )
             .interact()?;
-        
+
         session_choice == "resume"
     } else {
         false
