@@ -6,7 +6,7 @@ authors:
 ---
 
 
-A couple of weeks back ![Qwen 3](https://qwenlm.github.io/blog/qwen3/) launched with a raft of capabilities and sizes. 
+A couple of weeks back Qwen 3 (https://qwenlm.github.io/blog/qwen3/) launched with a raft of capabilities and sizes. 
 
 This model showed promise and even in very compact form, such as 8B parameters and 4bit quantisation, was able to do tool calling successfully with goose. 
 Even multi turn tool calling. 
