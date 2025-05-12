@@ -2,7 +2,7 @@ use anyhow::Result;
 use base64::Engine;
 use console::style;
 
-use crate::recipe::load_recipe;
+use crate::recipes::recipe::load_recipe;
 
 /// Validates a recipe file
 ///
