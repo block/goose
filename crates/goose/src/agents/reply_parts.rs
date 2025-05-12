@@ -15,9 +15,7 @@ use super::super::agents::Agent;
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
-    pub(crate) async fn prepare_tools_and_prompt(
-        &self,
-    ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tools from extension manager
         let mut tools = self.list_tools(None).await;
 
