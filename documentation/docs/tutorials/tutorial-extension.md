@@ -34,7 +34,7 @@ goose configure
 ┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension 
+│  Add Extension (Connect to a new extension) 
 │
 ◆  What type of extension would you like to add?
 // highlight-start  
@@ -50,7 +50,7 @@ goose configure
 ┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension 
+│  Add Extension (Connect to a new extension) 
 │
 ◇  What type of extension would you like to add?
 │  Built-in Extension 
@@ -71,7 +71,7 @@ goose configure
    ┌   goose-configure 
    │
    ◇  What would you like to configure?
-   │  Add Extension 
+   │  Add Extension (Connect to a new extension) 
    │
    ◇  What type of extension would you like to add?
    │  Built-in Extension 

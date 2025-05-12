@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Message } from '../../types/message';
-import { manageContextFromBackend, convertApiMessageToFrontendMessage } from './index';
+import {
+  manageContextFromBackend,
+  convertApiMessageToFrontendMessage,
+  createSummarizationRequestMessage,
+} from './index';
 
 // Define the context management interface
 interface ChatContextManagerState {
@@ -9,10 +13,10 @@ interface ChatContextManagerState {
   isSummaryModalOpen: boolean;
   isLoadingSummary: boolean;
   errorLoadingSummary: boolean;
+  preparingManualSummary: boolean;
 }
 
 interface ChatContextManagerActions {
-  fetchSummary: (messages: Message[]) => Promise<void>;
   updateSummary: (newSummaryContent: string) => void;
   resetMessagesWithSummary: (
     messages: Message[],
@@ -23,12 +27,15 @@ interface ChatContextManagerActions {
   ) => void;
   openSummaryModal: () => void;
   closeSummaryModal: () => void;
+  hasContextHandlerContent: (message: Message) => boolean;
   hasContextLengthExceededContent: (message: Message) => boolean;
-  handleContextLengthExceeded: (
+  hasSummarizationRequestedContent: (message: Message) => boolean;
+  getContextHandlerType: (message: Message) => 'contextLengthExceeded' | 'summarizationRequested';
+  handleContextLengthExceeded: (messages: Message[]) => Promise<void>;
+  handleManualSummarization: (
     messages: Message[],
-    chatId: string,
-    workingDir: string
-  ) => Promise<void>;
+    setMessages: (messages: Message[]) => void
+  ) => void;
 }
 
 // Create the context
@@ -45,10 +52,12 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [errorLoadingSummary, setErrorLoadingSummary] = useState<boolean>(false);
+  const [preparingManualSummary, setPreparingManualSummary] = useState<boolean>(false);
 
   const handleContextLengthExceeded = async (messages: Message[]): Promise<void> => {
     setIsLoadingSummary(true);
     setErrorLoadingSummary(false);
+    setPreparingManualSummary(true);
 
     try {
       // 2. Now get the summary from the backend
@@ -75,38 +84,25 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
       console.error('Error handling context length exceeded:', err);
       setErrorLoadingSummary(true);
       setIsLoadingSummary(false);
+    } finally {
+      setPreparingManualSummary(false);
     }
   };
 
-  const fetchSummary = async (messages: Message[]) => {
-    setIsLoadingSummary(true);
-    setErrorLoadingSummary(false);
+  const handleManualSummarization = (
+    messages: Message[],
+    setMessages: (messages: Message[]) => void
+  ): void => {
+    // add some messages to the message thread
+    // these messages will be filtered out in chat view
+    // but they will also be what allows us to render some text in the chatview itself, similar to CLE events
+    const summarizationRequest = createSummarizationRequestMessage(
+      messages,
+      'Summarize the session and begin a new one'
+    );
 
-    try {
-      const response = await manageContextFromBackend({
-        messages: messages,
-        manageAction: 'summarize',
-      });
-
-      // Convert API messages to frontend messages
-      const convertedMessages = response.messages.map(
-        (apiMessage) => convertApiMessageToFrontendMessage(apiMessage, false, true) // do not show to user but send to llm
-      );
-
-      // Extract the summary text from the first message
-      const summaryMessage = convertedMessages[0].content[0];
-      if (summaryMessage.type === 'text') {
-        const summary = summaryMessage.text;
-        setSummaryContent(summary);
-        setSummarizedThread(convertedMessages);
-      }
-
-      setIsLoadingSummary(false);
-    } catch (err) {
-      console.error('Error fetching summary:', err);
-      setErrorLoadingSummary(true);
-      setIsLoadingSummary(false);
-    }
+    // add the message to the message thread
+    setMessages([...messages, summarizationRequest]);
   };
 
   const updateSummary = (newSummaryContent: string) => {
@@ -212,8 +208,25 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     setSummaryContent('');
   };
 
+  const hasContextHandlerContent = (message: Message): boolean => {
+    return hasContextLengthExceededContent(message) || hasSummarizationRequestedContent(message);
+  };
+
   const hasContextLengthExceededContent = (message: Message): boolean => {
     return message.content.some((content) => content.type === 'contextLengthExceeded');
+  };
+
+  const hasSummarizationRequestedContent = (message: Message): boolean => {
+    return message.content.some((content) => content.type === 'summarizationRequested');
+  };
+
+  const getContextHandlerType = (
+    message: Message
+  ): 'contextLengthExceeded' | 'summarizationRequested' => {
+    if (hasContextLengthExceededContent(message)) {
+      return 'contextLengthExceeded';
+    }
+    return 'summarizationRequested';
   };
 
   const openSummaryModal = () => {
@@ -231,15 +244,19 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     isSummaryModalOpen,
     isLoadingSummary,
     errorLoadingSummary,
+    preparingManualSummary,
 
     // Actions
-    fetchSummary,
     updateSummary,
     resetMessagesWithSummary,
     openSummaryModal,
     closeSummaryModal,
+    hasContextHandlerContent,
     hasContextLengthExceededContent,
+    hasSummarizationRequestedContent,
+    getContextHandlerType,
     handleContextLengthExceeded,
+    handleManualSummarization,
   };
 
   return (

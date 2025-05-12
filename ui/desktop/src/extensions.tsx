@@ -362,7 +362,7 @@ function getStdioConfig(
   description: string,
   parsedTimeout: number
 ) {
-  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
+  const allowedCommands = ['docker', 'jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,

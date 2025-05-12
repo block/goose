@@ -312,7 +312,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: requestMessages,
+            messages: filteredMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,
@@ -439,7 +439,6 @@ export function useMessageStream({
       event?.preventDefault?.();
       if (!input.trim()) return;
 
-      console.log('handleSubmit called with input:', input);
       await append(input);
       setInput('');
     },

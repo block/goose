@@ -12,16 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadratni/speech-mcp) as a Goose extension to enable real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation.
 
-:::tip TLDR
-
-**Command**
-```sh
-uvx -p 3.10.14 speech-mcp@latest
-```
-
-**Requirement**
-
+:::info Requirement
 [PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone
+:::
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx -p 3.10.14 speech-mcp@latest
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -50,7 +56,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -66,7 +72,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -83,7 +89,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -103,7 +109,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -126,7 +132,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -152,7 +158,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

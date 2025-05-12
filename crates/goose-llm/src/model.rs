@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+const DEFAULT_CONTEXT_LIMIT: u32 = 128_000;
 
 /// Configuration for model-specific settings and limits
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, uniffi::Record)]
 pub struct ModelConfig {
     /// The name of the model to use
     pub model_name: String,
     /// Optional explicit context limit that overrides any defaults
-    pub context_limit: Option<usize>,
+    pub context_limit: Option<u32>,
     /// Optional temperature setting (0.0 - 1.0)
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
@@ -34,7 +34,7 @@ impl ModelConfig {
     }
 
     /// Get model-specific context limit based on model name
-    fn get_model_specific_limit(model_name: &str) -> Option<usize> {
+    fn get_model_specific_limit(model_name: &str) -> Option<u32> {
         // Implement some sensible defaults
         match model_name {
             // OpenAI models, https://platform.openai.com/docs/models#models-overview
@@ -52,7 +52,7 @@ impl ModelConfig {
     }
 
     /// Set an explicit context limit
-    pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
+    pub fn with_context_limit(mut self, limit: Option<u32>) -> Self {
         // Default is None and therefore DEFAULT_CONTEXT_LIMIT, only set
         // if input is Some to allow passing through with_context_limit in
         // configuration cases
@@ -76,7 +76,7 @@ impl ModelConfig {
 
     /// Get the context_limit for the current model
     /// If none are defined, use the DEFAULT_CONTEXT_LIMIT
-    pub fn context_limit(&self) -> usize {
+    pub fn context_limit(&self) -> u32 {
         self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
     }
 }

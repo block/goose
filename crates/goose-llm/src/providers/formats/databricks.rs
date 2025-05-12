@@ -83,9 +83,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         ]
                     }));
                 }
-                MessageContent::ToolRequest(request) => {
+                MessageContent::ToolReq(request) => {
                     has_tool_calls = true;
-                    match &request.tool_call {
+                    match &request.tool_call.as_result() {
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
 
@@ -114,8 +114,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::ToolResponse(response) => {
-                    match &response.tool_result {
+                MessageContent::ToolResp(response) => {
+                    match &response.tool_result.0 {
                         Ok(contents) => {
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
@@ -300,13 +300,13 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
                         function_name
                     ));
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContent::tool_request(id, Err(error).into()));
                 } else {
                     match serde_json::from_str::<Value>(&arguments) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(ToolCall::new(&function_name, params)),
+                                Ok(ToolCall::new(&function_name, params)).into(),
                             ));
                         }
                         Err(e) => {
@@ -314,7 +314,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e
                             ));
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContent::tool_request(id, Err(error).into()));
                         }
                     }
                 }
@@ -324,7 +324,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
 
     Ok(Message {
         role: Role::Assistant,
-        created: chrono::Utc::now().timestamp(),
+        created: chrono::Utc::now().timestamp_millis(),
         content: content.into(),
     })
 }
@@ -681,19 +681,20 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
+                Ok(ToolCall::new("example", json!({"param1": "value1"})).into()),
             ),
         ];
 
         // Get the ID from the tool request to use in the response
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
+        let tool_id = if let MessageContent::ToolReq(request) = &messages[2].content[0] {
             request.id.clone()
         } else {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(
+            Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")]).into()),
+        );
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
 
@@ -719,14 +720,15 @@ mod tests {
         )];
 
         // Get the ID from the tool request to use in the response
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
+        let tool_id = if let MessageContent::ToolReq(request) = &messages[0].content[0] {
             request.id.clone()
         } else {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(
+            Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")]).into()),
+        );
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
 
@@ -857,7 +859,7 @@ mod tests {
         let message = response_to_message(response)?;
 
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContent::ToolReq(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, json!({"param": "value"}));
@@ -876,8 +878,8 @@ mod tests {
 
         let message = response_to_message(response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            match &request.tool_call {
+        if let MessageContent::ToolReq(request) = &message.content[0] {
+            match &request.tool_call.as_result() {
                 Err(ToolError::NotFound(msg)) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
@@ -898,8 +900,8 @@ mod tests {
 
         let message = response_to_message(response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            match &request.tool_call {
+        if let MessageContent::ToolReq(request) = &message.content[0] {
+            match &request.tool_call.as_result() {
                 Err(ToolError::InvalidParameters(msg)) => {
                     assert!(msg.starts_with("Could not interpret tool use parameters"));
                 }
@@ -920,7 +922,7 @@ mod tests {
 
         let message = response_to_message(response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContent::ToolReq(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, json!({}));

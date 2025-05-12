@@ -1,9 +1,8 @@
-use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::Provider;
-use crate::providers::databricks::DatabricksProvider;
+use crate::providers::create;
 use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
+use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
 use anyhow::Result;
 use indoc::indoc;
 use serde_json::{json, Value};
@@ -49,7 +48,21 @@ fn build_system_prompt() -> String {
 }
 
 /// Generates a short (≤4 words) session name
-pub async fn generate_session_name(messages: &[Message]) -> Result<String, ProviderError> {
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn generate_session_name(
+    provider_name: &str,
+    provider_config: JsonValueFfi,
+    messages: &[Message],
+) -> Result<String, ProviderError> {
+    // Use OpenAI models specifically for this task
+    let model_name = if provider_name == "databricks" {
+        "goose-gpt-4-1"
+    } else {
+        "gpt-4.1"
+    };
+    let model_cfg = ModelConfig::new(model_name.to_string()).with_temperature(Some(0.0));
+    let provider = create(provider_name, provider_config.into(), model_cfg)?;
+
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages
         .iter()
@@ -73,10 +86,6 @@ pub async fn generate_session_name(messages: &[Message]) -> Result<String, Provi
 
     let system_prompt = build_system_prompt();
     let user_msg_text = format!("Here are the user messages:\n{}", context.join("\n"));
-
-    // Instantiate DatabricksProvider with goose-gpt-4-1
-    let model_cfg = ModelConfig::new("goose-gpt-4-1".to_string()).with_temperature(Some(0.0));
-    let provider = DatabricksProvider::from_env(model_cfg)?;
 
     // Use `extract` with a simple string schema
     let schema = json!({
