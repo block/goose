@@ -19,7 +19,7 @@ This tutorial covers how to add the [YouTube Transcript MCP Server](https://gith
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx -y @jkawamoto/mcp-youtube-transcript
+  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
   ```
   </TabItem>
 </Tabs>
