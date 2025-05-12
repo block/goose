@@ -37,7 +37,7 @@ When you reach the context limit in Goose Desktop:
 
 :::note
 In Goose Desktop, context management is handled automatically.  
-You won’t see options to `clear` or `truncate` — the UI always uses summarization when the context limit is reached.
+You won’t see options to `clear` or `truncate` — Goose always uses summarization when the context limit is reached.
 :::
 
   </TabItem>
