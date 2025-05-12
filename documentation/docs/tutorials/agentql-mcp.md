@@ -12,15 +12,21 @@ This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tiny
 
 :::tip TLDR
 
-**Command**
-```sh
-npx -y agentql-mcp
-```
-
-**Environment Variable**
-```
-AGENTQL_API_KEY: <YOUR_API_KEY>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y agentql-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  AGENTQL_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration

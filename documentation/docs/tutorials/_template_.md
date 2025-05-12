@@ -12,18 +12,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-{command}
-```
-
-**Environment Variable**
-```
-{env_var}: <YOUR_TOKEN>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer]({goose_url})
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  {command}
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  {env_var}: <ENV_VALUE>
+  ```
 :::
 
 ## Configuration
@@ -42,7 +46,7 @@ Note that you'll need [JBang](https://www.jbang.dev/download) installed on your 
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  1. [Launch the installer]({goose_url})
   2. Press `Yes` to confirm the installation
   3. Obtain a [XYZ Access Token](/) and paste it in
   4. Click `Save Configuration`

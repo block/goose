@@ -11,18 +11,22 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial will get you started with the [Brave Search MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) as a Goose extension to enable interactive searches for both web and local searches.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx @modelcontextprotocol/server-brave-search
-```
-
-**Environment Variable**
-```
-BRAVE_API_KEY: <YOUR_API_KEY>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-brave-search
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  BRAVE_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration
@@ -93,7 +97,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     // highlight-end
     └ 
   ```  
@@ -112,7 +116,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -136,7 +140,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -167,7 +171,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  brave-search
     │
     ◇  What command should be run?
-    │  npx @modelcontextprotocol/server-brave-search
+    │  npx -y @modelcontextprotocol/server-brave-search
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
