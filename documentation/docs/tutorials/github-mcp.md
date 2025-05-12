@@ -12,18 +12,23 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [GitHub MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
 :::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-github
+  ```
+  </TabItem>
+</Tabs>
 
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-github
-```
-
-**Environment Variable**
-```
-GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
-```
+  **Environment Variable**
+  ```
+  GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
+  ```
 :::
-
 
 ## Configuration
 
@@ -50,7 +55,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -66,7 +71,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -83,7 +88,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -103,7 +108,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -127,7 +132,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -158,7 +163,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

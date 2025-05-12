@@ -3,7 +3,8 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use super::{
     errors::ProviderError,
@@ -13,97 +14,119 @@ use super::{
 use crate::{
     message::Message,
     model::ModelConfig,
-    providers::{Provider, ProviderCompleteResponse, Usage},
+    providers::{Provider, ProviderCompleteResponse, ProviderExtractResponse, Usage},
     types::core::Tool,
 };
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
-pub const _OPEN_AI_KNOWN_MODELS: &[&str] = &[
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo",
-    "o1",
-    "o3",
-    "o4-mini",
-];
+pub const _OPEN_AI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4.1", "o1", "o3", "o4-mini"];
+
+fn default_timeout() -> u64 {
+    60
+}
+
+fn default_base_path() -> String {
+    "v1/chat/completions".to_string()
+}
+
+fn default_host() -> String {
+    "https://api.openai.com".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenAiProviderConfig {
+    pub api_key: String,
+    #[serde(default = "default_host")]
+    pub host: String,
+    #[serde(default)]
+    pub organization: Option<String>,
+    #[serde(default = "default_base_path")]
+    pub base_path: String,
+    #[serde(default)]
+    pub project: Option<String>,
+    #[serde(default)]
+    pub custom_headers: Option<HashMap<String, String>>,
+    #[serde(default = "default_timeout")]
+    pub timeout: u64, // timeout in seconds
+}
+
+impl OpenAiProviderConfig {
+    pub fn new(api_key: String) -> Self {
+        Self {
+            api_key,
+            host: default_host(),
+            organization: None,
+            base_path: default_base_path(),
+            project: None,
+            custom_headers: None,
+            timeout: 600,
+        }
+    }
+
+    pub fn from_env() -> Self {
+        let api_key = get_env("OPENAI_API_KEY").expect("Missing OPENAI_API_KEY");
+        Self::new(api_key)
+    }
+}
 
 #[derive(Debug)]
 pub struct OpenAiProvider {
-    client: Client,
-    host: String,
-    base_path: String,
-    api_key: String,
-    organization: Option<String>,
-    project: Option<String>,
+    config: OpenAiProviderConfig,
     model: ModelConfig,
-    custom_headers: Option<HashMap<String, String>>,
+    client: Client,
+}
+
+impl OpenAiProvider {
+    pub fn from_env(model: ModelConfig) -> Self {
+        let config = OpenAiProviderConfig::from_env();
+        OpenAiProvider::from_config(config, model).expect("Failed to initialize OpenAiProvider")
+    }
 }
 
 impl Default for OpenAiProvider {
     fn default() -> Self {
+        let config = OpenAiProviderConfig::from_env();
         let model = ModelConfig::new(OPEN_AI_DEFAULT_MODEL.to_string());
-        OpenAiProvider::from_env(model).expect("Failed to initialize OpenAI provider")
+        OpenAiProvider::from_config(config, model).expect("Failed to initialize OpenAiProvider")
     }
 }
 
 impl OpenAiProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let api_key: String = get_env("OPENAI_API_KEY")?;
-        let host: String =
-            get_env("OPENAI_HOST").unwrap_or_else(|_| "https://api.openai.com".to_string());
-        let base_path: String =
-            get_env("OPENAI_BASE_PATH").unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let organization: Option<String> = get_env("OPENAI_ORGANIZATION").ok();
-        let project: Option<String> = get_env("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = get_env("OPENAI_CUSTOM_HEADERS")
-            .or_else(|_| get_env("OPENAI_CUSTOM_HEADERS"))
-            .ok()
-            .map(parse_custom_headers);
-        // parse get_env("OPENAI_TIMEOUT") to u64 or set default to 600
-        let timeout_secs = get_env("OPENAI_TIMEOUT")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(600);
+    pub fn from_config(config: OpenAiProviderConfig, model: ModelConfig) -> Result<Self> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_secs))
+            .timeout(Duration::from_secs(config.timeout))
             .build()?;
 
         Ok(Self {
-            client,
-            host,
-            base_path,
-            api_key,
-            organization,
-            project,
+            config,
             model,
-            custom_headers,
+            client,
         })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = url::Url::parse(&self.host)
+        let base_url = url::Url::parse(&self.config.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join(&self.base_path).map_err(|e| {
+        let url = base_url.join(&self.config.base_path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
         let mut request = self
             .client
             .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key));
+            .header("Authorization", format!("Bearer {}", self.config.api_key));
 
         // Add organization header if present
-        if let Some(org) = &self.organization {
+        if let Some(org) = &self.config.organization {
             request = request.header("OpenAI-Organization", org);
         }
 
         // Add project header if present
-        if let Some(project) = &self.project {
+        if let Some(project) = &self.config.project {
             request = request.header("OpenAI-Project", project);
         }
 
-        if let Some(custom_headers) = &self.custom_headers {
+        if let Some(custom_headers) = &self.config.custom_headers {
             for (key, value) in custom_headers {
                 request = request.header(key, value);
             }
@@ -146,15 +169,63 @@ impl Provider for OpenAiProvider {
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok(ProviderCompleteResponse::new(message, model, usage))
     }
-}
 
-fn parse_custom_headers(s: String) -> HashMap<String, String> {
-    s.split(',')
-        .filter_map(|header| {
-            let mut parts = header.splitn(2, '=');
-            let key = parts.next().map(|s| s.trim().to_string())?;
-            let value = parts.next().map(|s| s.trim().to_string())?;
-            Some((key, value))
-        })
-        .collect()
+    async fn extract(
+        &self,
+        system: &str,
+        messages: &[Message],
+        schema: &Value,
+    ) -> Result<ProviderExtractResponse, ProviderError> {
+        // 1. Build base payload (no tools)
+        let mut payload = create_request(&self.model, system, messages, &[], &ImageFormat::OpenAi)?;
+
+        // 2. Inject strict JSON‐Schema wrapper
+        payload
+            .as_object_mut()
+            .expect("payload must be an object")
+            .insert(
+                "response_format".to_string(),
+                json!({
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "extraction",
+                        "schema": schema,
+                        "strict": true
+                    }
+                }),
+            );
+
+        // 3. Call OpenAI
+        let response = self.post(payload.clone()).await?;
+
+        // 4. Extract the assistant’s `content` and parse it into JSON
+        let msg = &response["choices"][0]["message"];
+        let raw = msg.get("content").cloned().ok_or_else(|| {
+            ProviderError::ResponseParseError("Missing content in extract response".into())
+        })?;
+        let data = match raw {
+            Value::String(s) => serde_json::from_str(&s)
+                .map_err(|e| ProviderError::ResponseParseError(format!("Invalid JSON: {}", e)))?,
+            Value::Object(_) | Value::Array(_) => raw,
+            other => {
+                return Err(ProviderError::ResponseParseError(format!(
+                    "Unexpected content type: {:?}",
+                    other
+                )))
+            }
+        };
+
+        // 5. Gather usage & model info
+        let usage = match get_usage(&response) {
+            Ok(u) => u,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage in extract: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+
+        Ok(ProviderExtractResponse::new(data, model, usage))
+    }
 }

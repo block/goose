@@ -12,13 +12,18 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Selenium MCP Server](https://github.com/angiejones/mcp-selenium) as a Goose extension to automate browser interactions such as navigating web pages and completing forms.
 
-
 :::tip TLDR
-
-**Command**
-```sh
-npx -y @angiejones/mcp-selenium
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40angiejones%2Fmcp-selenium&id=selenium-mcp&name=Selenium%20MCP&description=automates%20browser%20interactions)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @angiejones/mcp-selenium
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -46,7 +51,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -62,7 +67,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -79,7 +84,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -99,7 +104,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -123,7 +128,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -151,7 +156,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

@@ -535,6 +535,53 @@ impl Session {
 
                     continue;
                 }
+                InputResult::Summarize => {
+                    save_history(&mut editor);
+
+                    let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
+                    let should_summarize =
+                        cliclack::confirm(prompt).initial_value(true).interact()?;
+
+                    if should_summarize {
+                        println!("{}", console::style("Summarizing conversation...").yellow());
+                        output::show_thinking();
+
+                        // Get the provider for summarization
+                        let provider = self.agent.provider().await?;
+
+                        // Call the summarize_context method which uses the summarize_messages function
+                        let (summarized_messages, _) =
+                            self.agent.summarize_context(&self.messages).await?;
+
+                        // Update the session messages with the summarized ones
+                        self.messages = summarized_messages;
+
+                        // Persist the summarized messages
+                        session::persist_messages(
+                            &self.session_file,
+                            &self.messages,
+                            Some(provider),
+                        )
+                        .await?;
+
+                        output::hide_thinking();
+                        println!(
+                            "{}",
+                            console::style("Conversation has been summarized.").green()
+                        );
+                        println!(
+                            "{}",
+                            console::style(
+                                "Key information has been preserved while reducing context length."
+                            )
+                            .green()
+                        );
+                    } else {
+                        println!("{}", console::style("Summarization cancelled.").yellow());
+                    }
+
+                    continue;
+                }
             }
         }
 
@@ -880,6 +927,31 @@ impl Session {
 
     pub fn message_history(&self) -> Vec<Message> {
         self.messages.clone()
+    }
+
+    /// Render all past messages from the session history
+    pub fn render_message_history(&self) {
+        if self.messages.is_empty() {
+            return;
+        }
+
+        // Print session restored message
+        println!(
+            "\n{} {} messages loaded into context.",
+            console::style("Session restored:").green().bold(),
+            console::style(self.messages.len()).green()
+        );
+
+        // Render each message
+        for message in &self.messages {
+            output::render_message(message, self.debug);
+        }
+
+        // Add a visual separator after restored messages
+        println!(
+            "\n{}\n",
+            console::style("──────── New Messages ────────").dim()
+        );
     }
 
     /// Get the session metadata

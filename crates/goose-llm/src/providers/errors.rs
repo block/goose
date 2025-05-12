@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, uniffi::Error)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),
@@ -22,6 +22,9 @@ pub enum ProviderError {
 
     #[error("Usage data error: {0}")]
     UsageError(String),
+
+    #[error("Invalid response: {0}")]
+    ResponseParseError(String),
 }
 
 impl From<anyhow::Error> for ProviderError {

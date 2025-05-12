@@ -30,13 +30,14 @@ When a conversation reaches the context limit, Goose offers different ways to ha
 
 When you reach the context limit in Goose Desktop:
 
-1. You'll see a notification that the context limit has been reached
-2. You'll need to start a new session to continue your conversation
+1. Goose will automatically start summarizing the conversation to make room.
+2. You'll see a message that says **"Preparing summary..."**, followed by **"Session summarized."**
+3. Once complete, you'll have the option to **"View or edit summary."**
+4. You can then continue the session with the summarized context in place.
 
-:::tip
-You can access previous context by:
-- Referencing information from your previous sessions
-- Using the [Memory extension](/docs/tutorials/memory-mcp) to maintain context across sessions and reference information from previous conversations
+:::note
+In Goose Desktop, context management is handled automatically.  
+You won’t see options to `clear` or `truncate` — Goose always uses summarization when the context limit is reached.
 :::
 
   </TabItem>

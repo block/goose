@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 
@@ -7,31 +8,58 @@ use mcp_core::protocol::JsonRpcMessage;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Mutex};
 
+// Import nix crate components instead of libc
+#[cfg(unix)]
+use nix::sys::signal::{kill, Signal};
+#[cfg(unix)]
+use nix::unistd::{getpgid, Pid};
+
 use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
+
+// Global to track process groups we've created
+static PROCESS_GROUP: AtomicI32 = AtomicI32::new(-1);
 
 /// A `StdioTransport` uses a child process's stdin/stdout as a communication channel.
 ///
 /// It uses channels for message passing and handles responses asynchronously through a background task.
 pub struct StdioActor {
-    receiver: mpsc::Receiver<TransportMessage>,
+    receiver: Option<mpsc::Receiver<TransportMessage>>,
     pending_requests: Arc<PendingRequests>,
-    _process: Child, // we store the process to keep it alive
+    process: Child, // we store the process to keep it alive
     error_sender: mpsc::Sender<Error>,
-    stdin: ChildStdin,
-    stdout: ChildStdout,
-    stderr: ChildStderr,
+    stdin: Option<ChildStdin>,
+    stdout: Option<ChildStdout>,
+    stderr: Option<ChildStderr>,
+}
+
+impl Drop for StdioActor {
+    fn drop(&mut self) {
+        // Get the process group ID before attempting cleanup
+        #[cfg(unix)]
+        if let Some(pid) = self.process.id() {
+            if let Ok(pgid) = getpgid(Some(Pid::from_raw(pid as i32))) {
+                // Send SIGTERM to the entire process group
+                let _ = kill(Pid::from_raw(-pgid.as_raw()), Signal::SIGTERM);
+                // Give processes a moment to cleanup
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                // Force kill if still running
+                let _ = kill(Pid::from_raw(-pgid.as_raw()), Signal::SIGKILL);
+            }
+        }
+    }
 }
 
 impl StdioActor {
     pub async fn run(mut self) {
         use tokio::pin;
 
-        let incoming = Self::handle_incoming_messages(self.stdout, self.pending_requests.clone());
-        let outgoing = Self::handle_outgoing_messages(
-            self.receiver,
-            self.stdin,
-            self.pending_requests.clone(),
-        );
+        let stdout = self.stdout.take().expect("stdout should be available");
+        let stdin = self.stdin.take().expect("stdin should be available");
+        let receiver = self.receiver.take().expect("receiver should be available");
+
+        let incoming = Self::handle_incoming_messages(stdout, self.pending_requests.clone());
+        let outgoing =
+            Self::handle_outgoing_messages(receiver, stdin, self.pending_requests.clone());
 
         // take ownership of futures for tokio::select
         pin!(incoming);
@@ -46,25 +74,27 @@ impl StdioActor {
                 tracing::debug!("Stdout handler completed: {:?}", result);
             }
             // capture the status so we don't need to wait for a timeout
-            status = self._process.wait() => {
+            status = self.process.wait() => {
                 tracing::debug!("Process exited with status: {:?}", status);
             }
         }
 
         // Then always try to read stderr before cleaning up
         let mut stderr_buffer = Vec::new();
-        if let Ok(bytes) = self.stderr.read_to_end(&mut stderr_buffer).await {
-            let err_msg = if bytes > 0 {
-                String::from_utf8_lossy(&stderr_buffer).to_string()
-            } else {
-                "Process ended unexpectedly".to_string()
-            };
+        if let Some(mut stderr) = self.stderr.take() {
+            if let Ok(bytes) = stderr.read_to_end(&mut stderr_buffer).await {
+                let err_msg = if bytes > 0 {
+                    String::from_utf8_lossy(&stderr_buffer).to_string()
+                } else {
+                    "Process ended unexpectedly".to_string()
+                };
 
-            tracing::info!("Process stderr: {}", err_msg);
-            let _ = self
-                .error_sender
-                .send(Error::StdioProcessError(err_msg))
-                .await;
+                tracing::info!("Process stderr: {}", err_msg);
+                let _ = self
+                    .error_sender
+                    .send(Error::StdioProcessError(err_msg))
+                    .await;
+            }
         }
 
         // Clean up regardless of which path we took
@@ -213,9 +243,9 @@ impl StdioTransport {
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
 
-        // Set process group only on Unix systems
+        // Set process group and ensure signal handling on Unix systems
         #[cfg(unix)]
-        command.process_group(0); // don't inherit signal handling from parent process
+        command.process_group(0);
 
         // Hide console window on Windows
         #[cfg(windows)]
@@ -240,6 +270,15 @@ impl StdioTransport {
             .take()
             .ok_or_else(|| Error::StdioProcessError("Failed to get stderr".into()))?;
 
+        // Store the process group ID for cleanup
+        #[cfg(unix)]
+        if let Some(pid) = process.id() {
+            // Use nix instead of unsafe libc calls
+            if let Ok(pgid) = getpgid(Some(Pid::from_raw(pid as i32))) {
+                PROCESS_GROUP.store(pgid.as_raw(), Ordering::SeqCst);
+            }
+        }
+
         Ok((process, stdin, stdout, stderr))
     }
 }
@@ -254,13 +293,13 @@ impl Transport for StdioTransport {
         let (error_tx, error_rx) = mpsc::channel(1);
 
         let actor = StdioActor {
-            receiver: message_rx,
+            receiver: Some(message_rx),
             pending_requests: Arc::new(PendingRequests::new()),
-            _process: process,
+            process,
             error_sender: error_tx,
-            stdin,
-            stdout,
-            stderr,
+            stdin: Some(stdin),
+            stdout: Some(stdout),
+            stderr: Some(stderr),
         };
 
         tokio::spawn(actor.run());
@@ -273,6 +312,17 @@ impl Transport for StdioTransport {
     }
 
     async fn close(&self) -> Result<(), Error> {
+        // Attempt to clean up the process group on close
+        #[cfg(unix)]
+        if let Some(pgid) = PROCESS_GROUP.load(Ordering::SeqCst).checked_abs() {
+            // Use nix instead of unsafe libc calls
+            // Try SIGTERM first
+            let _ = kill(Pid::from_raw(-pgid), Signal::SIGTERM);
+            // Give processes a moment to cleanup
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            // Force kill if still running
+            let _ = kill(Pid::from_raw(-pgid), Signal::SIGKILL);
+        }
         Ok(())
     }
 }

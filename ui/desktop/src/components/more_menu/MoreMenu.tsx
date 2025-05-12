@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, Refresh, Time, Send, Settings } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
-import { settingsV2Enabled } from '../../flags';
 import { ViewOptions, View } from '../../App';
 
 interface MenuButtonProps {
@@ -270,40 +269,21 @@ export default function MoreMenu({
 
               <ThemeSelect themeMode={themeMode} onThemeChange={handleThemeChange} />
 
-              {settingsV2Enabled && (
-                <MenuButton
-                  data-testid="reset-provider-button"
-                  onClick={async () => {
-                    await remove('GOOSE_PROVIDER', false);
-                    await remove('GOOSE_MODEL', false);
-                    setOpen(false);
-                    setView('welcome');
-                  }}
-                  danger
-                  subtitle="Clear selected model and restart (alpha)"
-                  icon={<Refresh className="w-4 h-4 text-textStandard" />}
-                  className="border-b-0"
-                >
-                  Reset provider and model
-                </MenuButton>
-              )}
-
-              {!settingsV2Enabled && (
-                <MenuButton
-                  data-testid="reset-provider-button"
-                  onClick={() => {
-                    localStorage.removeItem('GOOSE_PROVIDER');
-                    setOpen(false);
-                    window.electron.createChatWindow();
-                  }}
-                  danger
-                  subtitle="Clear selected model and restart"
-                  icon={<Refresh className="w-4 h-4 text-textStandard" />}
-                  className="border-b-0"
-                >
-                  Reset provider and model
-                </MenuButton>
-              )}
+              <MenuButton
+                data-testid="reset-provider-button"
+                onClick={async () => {
+                  await remove('GOOSE_PROVIDER', false);
+                  await remove('GOOSE_MODEL', false);
+                  setOpen(false);
+                  setView('welcome');
+                }}
+                danger
+                subtitle="Clear selected model and restart (alpha)"
+                icon={<Refresh className="w-4 h-4 text-textStandard" />}
+                className="border-b-0"
+              >
+                Reset provider and model
+              </MenuButton>
             </div>
           </PopoverContent>
         </>

@@ -12,16 +12,21 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a Goose extension to enable AI-powered web search functionality.
 
 :::tip TLDR
-
-**Command**
-```sh
-npx -y tavily-mcp 
-```
-
-**Environment Variable**
-```
-TAVILY_API_KEY: <YOUR_API_KEY>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y tavily-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  TAVILY_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration
@@ -49,7 +54,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -65,7 +70,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -82,7 +87,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -102,7 +107,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -125,7 +130,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -155,7 +160,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

@@ -1,8 +1,7 @@
-import type { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../api';
 import { toastService } from '../../../toasts';
 import { activateExtension } from './extension-manager';
-import { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';
-import { settingsV2Enabled } from '../../../flags';
+import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
 
 /**
  * Build an extension config for stdio from the deeplink URL
@@ -15,7 +14,7 @@ function getStdioConfig(
   timeout: number
 ) {
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
+  const allowedCommands = ['docker', 'jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(
       'Invalid Command',
@@ -129,11 +128,7 @@ export async function addExtensionFromDeepLink(
   // Check if extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {
     console.log('Environment variables required, redirecting to settings');
-    if (settingsV2Enabled) {
-      setView('settings', { deepLinkConfig: config, showEnvVars: true });
-    } else {
-      setView('settings', { extensionId: nameToKey(name), showEnvVars: true });
-    }
+    setView('settings', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
 

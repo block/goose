@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::ProviderError;
 use crate::{message::Message, types::core::Tool};
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, uniffi::Record)]
 pub struct Usage {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
@@ -26,7 +26,7 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderCompleteResponse {
     pub message: Message,
     pub model: String,
@@ -40,6 +40,23 @@ impl ProviderCompleteResponse {
             model,
             usage,
         }
+    }
+}
+
+/// Response from a structured‐extraction call
+#[derive(Debug, Clone)]
+pub struct ProviderExtractResponse {
+    /// The extracted JSON object
+    pub data: serde_json::Value,
+    /// Which model produced it
+    pub model: String,
+    /// Token usage stats
+    pub usage: Usage,
+}
+
+impl ProviderExtractResponse {
+    pub fn new(data: serde_json::Value, model: String, usage: Usage) -> Self {
+        Self { data, model, usage }
     }
 }
 
@@ -65,6 +82,27 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<ProviderCompleteResponse, ProviderError>;
+
+    /// Structured extraction: always JSON‐Schema
+    ///
+    /// # Arguments
+    /// * `system`   – system prompt guiding the extraction task  
+    /// * `messages` – conversation history  
+    /// * `schema`   – a JSON‐Schema for the expected output.
+    ///                 Will set strict=true for OpenAI & Databricks.
+    ///
+    /// # Returns
+    /// A `ProviderExtractResponse` whose `data` is a JSON object matching `schema`.  
+    ///
+    /// # Errors
+    /// * `ProviderError::ContextLengthExceeded` if the prompt is too large  
+    /// * other `ProviderError` variants for API/network failures
+    async fn extract(
+        &self,
+        system: &str,
+        messages: &[Message],
+        schema: &serde_json::Value,
+    ) -> Result<ProviderExtractResponse, ProviderError>;
 }
 
 #[cfg(test)]

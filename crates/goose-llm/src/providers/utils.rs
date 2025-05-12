@@ -19,10 +19,20 @@ struct OpenAIErrorResponse {
     error: OpenAIError,
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
 pub enum ImageFormat {
+    #[default]
     OpenAi,
     Anthropic,
+}
+
+/// Timeout in seconds.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Timeout(u32);
+impl Default for Timeout {
+    fn default() -> Self {
+        Timeout(60)
+    }
 }
 
 /// Convert an image content into an image json based on format
