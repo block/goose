@@ -287,7 +287,7 @@ export default function ChatInput({
             maxHeight: `${maxHeight}px`,
             overflowY: 'auto',
           }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder placeholder:opacity-50"
+          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
         />
 
         {isLoading ? (
@@ -310,10 +310,10 @@ export default function ChatInput({
             size="icon"
             variant="ghost"
             disabled={!displayValue.trim()}
-            className={`absolute right-3 top-2 transition-colors rounded-full hover:cursor w-7 h-7 [&_svg]:size-4 ${
+            className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
               !displayValue.trim()
                 ? 'text-textSubtle cursor-not-allowed'
-                : 'bg-bgAppInverse text-white'
+                : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
             }`}
           >
             <Send />
