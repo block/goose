@@ -182,7 +182,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ### Goose Prompt
 
-> _Goose, what is the NIP-60 and how can I implement it?._
+> _Goose, what is the NIP-61 and how can I implement it?._
 
 
 ### Goose Output
@@ -196,7 +196,7 @@ Note that IDs have been changed to generic ones
 
     ─── read_nip | nostrbook ──────────────────────────
 
-    nip: 60
+    nip: 61
 
 </details>
 
