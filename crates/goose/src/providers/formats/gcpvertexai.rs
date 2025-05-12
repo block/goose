@@ -92,8 +92,6 @@ pub enum GeminiVersion {
     Pro15,
     /// Gemini 2.0 Flash version
     Flash20,
-    /// Gemini 2.0 Pro Experimental version
-    Pro20Exp,
     /// Gemini 2.5 Pro Experimental version
     Pro25Exp,
     /// Generic Gemini model for custom or new versions
@@ -113,7 +111,6 @@ impl fmt::Display for GcpVertexAIModel {
             Self::Gemini(version) => match version {
                 GeminiVersion::Pro15 => "gemini-1.5-pro-002",
                 GeminiVersion::Flash20 => "gemini-2.0-flash-001",
-                GeminiVersion::Pro20Exp => "gemini-2.0-pro-exp-02-05",
                 GeminiVersion::Pro25Exp => "gemini-2.5-pro-exp-03-25",
                 GeminiVersion::Generic(name) => name,
             },
@@ -148,7 +145,6 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "claude-3-5-haiku@20241022" => Ok(Self::Claude(ClaudeVersion::Haiku35)),
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
             "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
-            "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
             "gemini-2.5-pro-exp-03-25" => Ok(Self::Gemini(GeminiVersion::Pro25Exp)),
             // Generic models based on prefix matching
             _ if s.starts_with("claude-") => {
@@ -342,7 +338,6 @@ mod tests {
             "claude-3-5-haiku@20241022",
             "gemini-1.5-pro-002",
             "gemini-2.0-flash-001",
-            "gemini-2.0-pro-exp-02-05",
             "gemini-2.5-pro-exp-03-25",
         ];
 
@@ -364,7 +359,6 @@ mod tests {
             ("claude-3-5-haiku@20241022", GcpLocation::Ohio),
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
-            ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),
             ("gemini-2.5-pro-exp-03-25", GcpLocation::Iowa),
         ];
 
