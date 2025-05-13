@@ -64,7 +64,14 @@ if (process.platform === 'win32') {
             const configParam = parsedUrl.searchParams.get('config');
             if (configParam) {
               try {
-                recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+                // Decode URL-safe base64
+                const decodedConfig = decodeURIComponent(configParam)
+                  .replace(/-/g, '+')
+                  .replace(/_/g, '/');
+                // Add padding if needed
+                const paddedConfig =
+                  decodedConfig + '='.repeat((4 - (decodedConfig.length % 4)) % 4);
+                recipeConfig = JSON.parse(Buffer.from(paddedConfig, 'base64').toString('utf-8'));
               } catch (e) {
                 console.error('Failed to parse bot config:', e);
               }
@@ -155,7 +162,11 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
-        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        // Decode URL-safe base64
+        const decodedConfig = decodeURIComponent(configParam).replace(/-/g, '+').replace(/_/g, '/');
+        // Add padding if needed
+        const paddedConfig = decodedConfig + '='.repeat((4 - (decodedConfig.length % 4)) % 4);
+        recipeConfig = JSON.parse(Buffer.from(paddedConfig, 'base64').toString('utf-8'));
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -178,7 +189,13 @@ app.on('open-url', async (event, url) => {
       const configParam = parsedUrl.searchParams.get('config');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          // Decode URL-safe base64
+          const decodedConfig = decodeURIComponent(configParam)
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+          // Add padding if needed
+          const paddedConfig = decodedConfig + '='.repeat((4 - (decodedConfig.length % 4)) % 4);
+          recipeConfig = JSON.parse(Buffer.from(paddedConfig, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
