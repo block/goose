@@ -29,9 +29,8 @@ use std::collections::{HashMap, HashSet};
 /// - The required fields are missing
 pub fn load_recipe(
     recipe_name: &str,
-    log: bool,
     params: Option<Vec<(String, String)>>,
-) -> Result<Recipe> {
+) -> Result<(Recipe, Option<HashMap<String, String>>)> {
     let recipe_file_content = retrieve_recipe_file(recipe_name)?;
 
     let recipe_parameters = validate_recipe_file_parameters(&recipe_file_content)?;
@@ -47,29 +46,38 @@ pub fn load_recipe(
     };
 
     let recipe = parse_recipe_content(&rendered_content)?;
-    if log {
-        // Display information about the loaded recipe
-        println!(
-            "{} {}",
-            style("Loading recipe:").green().bold(),
-            style(&recipe.title).green()
-        );
-        println!("{} {}", style("Description:").dim(), &recipe.description);
 
-        if let Some(params) = params_for_template {
-            if !params.is_empty() {
-                println!("{}", style("Parameters:").dim());
-                for (key, value) in params {
-                    println!("{}: {}", key, value);
+    Ok((recipe, params_for_template))
+}
+
+pub fn load_recipe_with_message(
+    recipe_name: &str,
+    log: bool,
+    params: Option<Vec<(String, String)>>) -> Result<Recipe> {
+        let (recipe, params_for_template) = load_recipe(recipe_name, params)?;
+        if log {
+            // Display information about the loaded recipe
+            println!(
+                "{} {}",
+                style("Loading recipe:").green().bold(),
+                style(&recipe.title).green()
+            );
+            println!("{} {}", style("Description:").dim(), &recipe.description);
+    
+            if let Some(params) = params_for_template {
+                if !params.is_empty() {
+                    println!("{}", style("Parameters:").dim());
+                    for (key, value) in params {
+                        println!("{}: {}", key, value);
+                    }
                 }
             }
+    
+            println!(); // Add a blank line for spacing
         }
-
-        println!(); // Add a blank line for spacing
+    
+        Ok(recipe)
     }
-
-    Ok(recipe)
-}
 
 fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Vec<RecipeParameter>> {
     let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
@@ -305,7 +313,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
+        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -339,7 +347,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
+        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -369,7 +377,7 @@ mod tests {
             ]"#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), None);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -405,7 +413,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
         let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-        let recipe = load_recipe(recipe_path.to_str().unwrap(), false, Some(params)).unwrap();
+        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -429,7 +437,7 @@ mod tests {
             ]"#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), None);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -453,7 +461,7 @@ mod tests {
         let params = vec![("param".to_string(), "value".to_string())];
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, Some(params));
+        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), Some(params));
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         assert!(err.to_string().contains("unknown variant `some_invalid_type`, expected one of `string`, `number`, `date`, `file`"));
@@ -466,9 +474,7 @@ mod tests {
             "#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), false, None);
-        assert!(load_recipe_result.is_ok());
-        let recipe = load_recipe_result.unwrap();
+        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), None).unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
     }

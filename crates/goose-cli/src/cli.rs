@@ -11,7 +11,7 @@ use crate::commands::project::{handle_project_default, handle_projects_interacti
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::load_recipe;
+use crate::recipes::recipe::load_recipe_with_message;
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -315,6 +315,13 @@ enum Command {
         )]
         interactive: bool,
 
+        #[arg(
+            short = None,
+            long = "preview",
+            help = "preview the recipe"
+        )]
+        preview: bool,
+
         /// Identifier for this run session
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -504,9 +511,10 @@ pub async fn cli() -> Result<()> {
             remote_extensions,
             builtins,
             params,
+            preview,
         }) => {
-            let input_config = match (instructions, input_text, recipe) {
-                (Some(file), _, _) if file == "-" => {
+            let input_config = match (instructions, input_text, recipe, preview) {
+                (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
@@ -518,7 +526,7 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                     }
                 }
-                (Some(file), _, _) => {
+                (Some(file), _, _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
@@ -532,24 +540,28 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                     }
                 }
-                (_, Some(text), _) => InputConfig {
+                (_, Some(text), _, _) => InputConfig {
                     contents: Some(text),
                     extensions_override: None,
                     additional_system_prompt: None,
                 },
-                (_, _, Some(recipe_name)) => {
+                (_, _, Some(recipe_name), preview) => {
                     let recipe =
-                        load_recipe(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
+                        load_recipe_with_message(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
+                    if preview {
+                        println!("{}", "it is previewing");
+                        return Ok(());
+                    }
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,
                         additional_system_prompt: recipe.instructions,
                     }
                 }
-                (None, None, None) => {
+                (None, None, None, _) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }
