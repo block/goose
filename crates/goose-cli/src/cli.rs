@@ -11,7 +11,7 @@ use crate::commands::project::{handle_project_default, handle_projects_interacti
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::load_recipe_with_message;
+use crate::recipes::recipe::{load_recipe_as_template, preview_recipe_with_parameters};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -546,15 +546,15 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                 },
                 (_, _, Some(recipe_name), preview) => {
+                    if preview {
+                        preview_recipe_with_parameters(&recipe_name, params)?;
+                        return Ok(());
+                    }
                     let recipe =
-                        load_recipe_with_message(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
+                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
-                    if preview {
-                        println!("{}", "it is previewing");
-                        return Ok(());
-                    }
                     InputConfig {
                         contents: recipe.prompt,
                         extensions_override: recipe.extensions,

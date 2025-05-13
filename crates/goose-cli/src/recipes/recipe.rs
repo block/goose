@@ -1,19 +1,75 @@
 use anyhow::Result;
 use console::style;
 
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::print_recipe::print_recipe_preview;
+use crate::recipes::{
+    print_recipe::missing_parameters_command_line, search_recipe::retrieve_recipe_file,
+};
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Error, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
 
+use super::print_recipe::print_required_parameters_for_template;
+
+/// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
+///
+/// # Arguments
+///
+/// * `path` - Path to the recipe file (YAML or JSON)
+/// * `params` - parameters to render the recipe with
+///
+/// # Returns
+///
+/// The rendered recipe if successful
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Recipe is not valid
+/// - The required fields are missing
+pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
+    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
+
+    let recipe = validate_recipe_file_parameters(&recipe_file_content)?;
+
+    let (params_for_template, missing_params) =
+        apply_values_to_parameters(&params, recipe.parameters)?;
+    if !missing_params.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Please provide the following parameters in the command line: {}",
+            missing_parameters_command_line(missing_params)
+        ));
+    }
+
+    let rendered_content = render_content_with_params(&recipe_file_content, &params_for_template)?;
+
+    let recipe = parse_recipe_content(&rendered_content)?;
+
+    // Display information about the loaded recipe
+    println!(
+        "{} {}",
+        style("Loading recipe:").green().bold(),
+        style(&recipe.title).green()
+    );
+    println!("{} {}", style("Description:").bold(), &recipe.description);
+
+    if !params_for_template.is_empty() {
+        println!("{}", style("Parameters used to load this recipe:").bold());
+        for (key, value) in params {
+            println!("{}: {}", key, value);
+        }
+    }
+    println!();
+    Ok(recipe)
+}
+
 /// Loads and validates a recipe from a YAML or JSON file
 ///
 /// # Arguments
 ///
 /// * `path` - Path to the recipe file (YAML or JSON)
-/// * `log`  - whether to log information about the recipe or not
 /// * `params` - optional parameters to render the recipe with
 ///
 /// # Returns
@@ -26,73 +82,43 @@ use std::collections::{HashMap, HashSet};
 /// - The file doesn't exist
 /// - The file can't be read
 /// - The YAML/JSON is invalid
-/// - The required fields are missing
-pub fn load_recipe(
-    recipe_name: &str,
-    params: Option<Vec<(String, String)>>,
-) -> Result<(Recipe, Option<HashMap<String, String>>)> {
+/// - The parameter definition does not match the template variables in the recipe file
+pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
     let recipe_file_content = retrieve_recipe_file(recipe_name)?;
 
-    let recipe_parameters = validate_recipe_file_parameters(&recipe_file_content)?;
-
-    let (rendered_content, params_for_template) = if let Some(user_params) = params {
-        let params_for_template = apply_values_to_parameters(&user_params, recipe_parameters)?;
-        (
-            render_content_with_params(&recipe_file_content, &params_for_template)?,
-            Some(params_for_template),
-        )
-    } else {
-        (recipe_file_content, None)
-    };
-
-    let recipe = parse_recipe_content(&rendered_content)?;
-
-    Ok((recipe, params_for_template))
+    validate_recipe_file_parameters(&recipe_file_content)
 }
 
-pub fn load_recipe_with_message(
+pub fn preview_recipe_with_parameters(
     recipe_name: &str,
-    log: bool,
-    params: Option<Vec<(String, String)>>) -> Result<Recipe> {
-        let (recipe, params_for_template) = load_recipe(recipe_name, params)?;
-        if log {
-            // Display information about the loaded recipe
-            println!(
-                "{} {}",
-                style("Loading recipe:").green().bold(),
-                style(&recipe.title).green()
-            );
-            println!("{} {}", style("Description:").dim(), &recipe.description);
-    
-            if let Some(params) = params_for_template {
-                if !params.is_empty() {
-                    println!("{}", style("Parameters:").dim());
-                    for (key, value) in params {
-                        println!("{}: {}", key, value);
-                    }
-                }
-            }
-    
-            println!(); // Add a blank line for spacing
-        }
-    
-        Ok(recipe)
-    }
+    params: Vec<(String, String)>,
+) -> Result<()> {
+    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
 
-fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Vec<RecipeParameter>> {
+    let raw_recipe = validate_recipe_file_parameters(&recipe_file_content)?;
+    print_recipe_preview(&raw_recipe);
+    let recipe_parameters = raw_recipe.parameters;
+    let (params_for_template, missing_params) =
+        apply_values_to_parameters(&params, recipe_parameters)?;
+    print_required_parameters_for_template(params_for_template, missing_params);
+
+    Ok(())
+}
+
+fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Recipe> {
     let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
     validate_optional_parameters(&recipe_from_recipe_file)?;
-    validate_parameters_in_template(recipe_from_recipe_file, recipe_file_content)
+    validate_parameters_in_template(&recipe_from_recipe_file.parameters, recipe_file_content)?;
+    Ok(recipe_from_recipe_file)
 }
 
 fn validate_parameters_in_template(
-    recipe: Recipe,
+    recipe_parameters: &Option<Vec<RecipeParameter>>,
     recipe_file_content: &str,
-) -> Result<Vec<RecipeParameter>> {
+) -> Result<()> {
     let template_variables = extract_template_variables(recipe_file_content)?;
 
-    let param_keys: HashSet<String> = recipe
-        .parameters
+    let param_keys: HashSet<String> = recipe_parameters
         .as_ref()
         .unwrap_or(&vec![])
         .iter()
@@ -108,7 +134,7 @@ fn validate_parameters_in_template(
         .collect::<Vec<_>>();
 
     if missing_keys.is_empty() && extra_keys.is_empty() {
-        return Ok(recipe.parameters.unwrap_or_default());
+        return Ok(());
     }
 
     let mut message = String::new();
@@ -181,11 +207,11 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 
 fn apply_values_to_parameters(
     user_params: &[(String, String)],
-    recipe_parameters: Vec<RecipeParameter>,
-) -> Result<HashMap<String, String>> {
+    recipe_parameters: Option<Vec<RecipeParameter>>,
+) -> Result<(HashMap<String, String>, Vec<String>)> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     let mut missing_params: Vec<String> = Vec::new();
-    for param in recipe_parameters {
+    for param in recipe_parameters.unwrap_or_default() {
         if !param_map.contains_key(&param.key) {
             match (&param.default, &param.requirement) {
                 (Some(default), _) => param_map.insert(param.key.clone(), default.clone()),
@@ -204,29 +230,16 @@ fn apply_values_to_parameters(
             };
         }
     }
-    match missing_params.is_empty() {
-        true => Ok(param_map),
-        false => {
-            let formatted = missing_params
-                .iter()
-                .map(|key| format!("--params {}=your_value", key))
-                .collect::<Vec<_>>()
-                .join(" ");
-
-            Err(anyhow::anyhow!(
-                "Please provide the following parameters in the command line: {}",
-                formatted
-            ))
-        }
-    }
+    Ok((param_map, missing_params))
 }
 
 fn render_content_with_params(content: &str, params: &HashMap<String, String>) -> Result<String> {
     // Create a minijinja environment and context
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
-    let template: Template<'_, '_> = env.template_from_str(content)
-        .map_err(|e: Error| anyhow::anyhow!("Failed to render recipe {}, please check if the recipe has proper syntax for variables: eg: {{ variable_name }}", e.to_string()))?;
+    let template: Template<'_, '_> = env
+        .template_from_str(content)
+        .map_err(|e: Error| anyhow::anyhow!("Invalid template syntax: {}", e.to_string()))?;
 
     // Render the template with the parameters
     template.render(params).map_err(|e: Error| {
@@ -292,13 +305,11 @@ mod tests {
         let content = "Hello {{ unclosed";
         let params = HashMap::new();
         let err = render_content_with_params(content, &params).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("please check if the recipe has proper syntax"));
+        assert!(err.to_string().contains("Invalid template syntax"));
     }
 
     #[test]
-    fn test_load_recipe_success() {
+    fn test_load_recipe_as_template_success() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ my_name }}",
             "parameters": [
@@ -313,7 +324,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), params).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -331,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_success_variable_in_prompt() {
+    fn test_load_recipe_as_template_success_variable_in_prompt() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions",
             "prompt": "My prompt {{ my_name }}",
@@ -347,7 +358,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), params).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -364,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_wrong_parameters_in_recipe_file() {
+    fn test_load_recipe_as_template_wrong_parameters_in_recipe_file() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ expected_param1 }} {{ expected_param2 }}",
             "parameters": [
@@ -377,7 +388,7 @@ mod tests {
             ]"#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), None);
+        let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new());
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -392,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_with_default_values_in_recipe_file() {
+    fn test_load_recipe_as_template_with_default_values_in_recipe_file() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ param_with_default }} {{ param_without_default }}",
             "parameters": [
@@ -413,7 +424,7 @@ mod tests {
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
         let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), Some(params)).unwrap();
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), params).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -424,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_optional_parameters_without_default_values_in_recipe_file() {
+    fn test_load_recipe_as_template_optional_parameters_without_default_values_in_recipe_file() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ optional_param }}",
             "parameters": [
@@ -437,7 +448,7 @@ mod tests {
             ]"#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), None);
+        let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new());
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -447,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_wrong_input_type_in_recipe_file() {
+    fn test_load_recipe_as_template_wrong_input_type_in_recipe_file() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ param }}",
             "parameters": [
@@ -461,20 +472,20 @@ mod tests {
         let params = vec![("param".to_string(), "value".to_string())];
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), Some(params));
+        let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), params);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         assert!(err.to_string().contains("unknown variant `some_invalid_type`, expected one of `string`, `number`, `date`, `file`"));
     }
 
     #[test]
-    fn test_load_recipe_success_without_parameters() {
+    fn test_load_recipe_as_template_success_without_parameters() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions"
             "#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-        let (recipe, _) = load_recipe(recipe_path.to_str().unwrap(), None).unwrap();
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
     }
