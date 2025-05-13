@@ -1,0 +1,6 @@
+# No external dependencies required for basic examples
+# The examples use only Python standard library modules
+
+# If you want to add more advanced features, you might need:
+# httpx>=0.24.0  # For HTTP client functionality
+# asyncio        # For async operations (included in Python 3.7+)
