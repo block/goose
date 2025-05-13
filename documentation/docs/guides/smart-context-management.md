@@ -61,7 +61,7 @@ You can proactively summarize your conversation before reaching context limits:
 <Tabs>
   <TabItem value="automatic" label="Automatic" default>
 
-When you reach the context limit in the CLI, you'll see a prompt like this. After choosing an option and the context is managed, you can continue your conversation in the same session.
+When you hit the context limit, you'll see this prompt to choose a management option, allowing you to continue your session:
 
 ```sh
 ◇  The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?
