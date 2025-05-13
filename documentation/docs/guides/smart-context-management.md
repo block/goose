@@ -28,6 +28,9 @@ When a conversation reaches the context limit, Goose offers different ways to ha
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
+<Tabs>
+  <TabItem value="automatic" label="Automatic" default>
+
 When you reach the context limit in Goose Desktop:
 
 1. Goose will automatically start summarizing the conversation to make room.
@@ -37,13 +40,28 @@ When you reach the context limit in Goose Desktop:
 
 :::note
 In Goose Desktop, context management is handled automatically.  
-You won’t see options to `clear` or `truncate` — Goose always uses summarization when the context limit is reached.
+You won't see options to `clear` or `truncate` — Goose always uses summarization when the context limit is reached.
 :::
+
+  </TabItem>
+  <TabItem value="manual" label="Manual">
+
+You can proactively summarize your conversation before reaching context limits:
+
+1. Click the scroll text icon (📜) in the chat interface
+2. Confirm the summarization in the modal
+3. View or edit the generated summary if needed
+
+  </TabItem>
+</Tabs>
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
-When you reach the context limit in the CLI, you'll see a prompt like this:
+<Tabs>
+  <TabItem value="automatic" label="Automatic" default>
+
+When you reach the context limit in the CLI, you'll see a prompt like this. After choosing an option and the context is managed, you can continue your conversation in the same session.
 
 ```sh
 ◇  The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?
@@ -60,7 +78,23 @@ Context maxed out
 Goose summarized messages for you.
 ```
 
-After choosing an option and the context is managed, you can continue your conversation in the same session.
+  </TabItem>
+  <TabItem value="manual" label="Manual">
+
+To proactively trigger summarization before reaching context limits, use the `/summarize` command:
+
+```sh
+( O)> /summarize
+◇  Are you sure you want to summarize this conversation? This will condense the message history.
+│  Yes 
+│
+Summarizing conversation...
+Conversation has been summarized.
+Key information has been preserved while reducing context length.
+```
+
+  </TabItem>
+</Tabs>
 
   </TabItem>
 </Tabs>
