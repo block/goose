@@ -44,8 +44,10 @@ command_not_found_handler() {
 
 ## Qwen3 reasoning
 
-By default Qwen 3 models will "think" (reason) about the problem, as they are general purpose models, but I found it was quicker (and worked better for my purpose) to make it go into this reason stage. 
-By adding `/no_think` to the system prompt, it will generally skip to the execution (this may make it less successful at larger tasks, but this is a small model for just a few turns of tool calls in this case). 
+
+By default Qwen 3 models will "think" (reason) about the problem, as they are general purpose models, but I found it was quicker (and worked better for my purpose) to make it skip this reasoning stage.
+
+By adding `/no_think` to the system prompt, it will generally skip to the execution (this may make it less successful at larger tasks but this is a small model for just a few turns of tool calls in this case). 
 
 I made a [small tweak to the default Ollama chat template](https://ollama.com/michaelneale/qwen3) which you can use as above that you can use as above, if you like (or the default `qwen3` model hosted by Ollama also works fine out of the box).
 
