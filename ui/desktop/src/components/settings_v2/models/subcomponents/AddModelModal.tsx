@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ArrowLeftRight, ExternalLink } from 'lucide-react';
 
 import Modal from '../../../Modal';
@@ -10,6 +10,7 @@ import { useConfig } from '../../../ConfigContext';
 import { changeModel } from '../index';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
+import { useModel } from '../../../settings/models/ModelContext';
 
 const ModalButtons = ({ onSubmit, onCancel, _isValid, _validationErrors }) => (
   <div>
@@ -37,7 +38,8 @@ type AddModelModalProps = {
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders, upsert, getExtensions, addExtension } = useConfig();
+  const { getProviders, upsert } = useConfig();
+  const { switchModel } = useModel();
   const [providerOptions, setProviderOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
   const [provider, setProvider] = useState<string | null>(null);
@@ -81,12 +83,16 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
       const providerMetaData = await getProviderMetadata(provider, getProviders);
       const providerDisplayName = providerMetaData.display_name;
 
+      const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
+
       await changeModel({
-        model: { name: model, provider: provider, subtext: providerDisplayName } as Model, // pass in a Model object
+        model: modelObj,
         writeToConfig: upsert,
-        getExtensions,
-        addExtension,
       });
+
+      // Update the model context
+      switchModel(modelObj);
+
       onClose();
     }
   };
@@ -120,7 +126,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({
-              options: metadata.known_models.map((modelName) => ({
+              options: metadata.known_models.map(({ name: modelName }) => ({
                 value: modelName,
                 label: modelName,
                 provider: name,

@@ -2,6 +2,7 @@ use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
+use goose::providers::create;
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -46,11 +47,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    let provider =
-        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = Agent::new(provider);
+    let agent: Agent = Agent::new();
+    let new_provider = create(&provider_name, model_config).unwrap();
+    let _ = agent.update_provider(new_provider).await;
 
     // Handle session file resolution and resuming
     let session_file = if session_config.resume {
@@ -97,12 +98,22 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             std::env::current_dir().expect("Failed to get current working directory");
         if current_workdir != metadata.working_dir {
             // Ask user if they want to change the working directory
-            let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
             .initial_value(true)
             .interact().expect("Failed to get user input");
 
             if change_workdir {
-                std::env::set_current_dir(metadata.working_dir).unwrap();
+                if !metadata.working_dir.exists() {
+                    output::render_error(&format!(
+                        "Cannot switch to original working directory - {} no longer exists",
+                        style(metadata.working_dir.display()).cyan()
+                    ));
+                } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
+                    output::render_error(&format!(
+                        "Failed to switch to original working directory: {}",
+                        e
+                    ));
+                }
             }
         }
     }

@@ -158,6 +158,13 @@ Welcome to goose! Let's get you set up with a provider.
 │  gemini-2.0-flash-exp
 ```
 
+You may also use the `GOOSE_DISABLE_KEYRING` environment variable, which disables the system keyring for secret storage. Set to any value (e.g., "1", "true", "yes"), to disable. The actual value doesn't matter, only whether the variable is set.
+
+When the keyring is disabled, secrets are stored here:
+
+* macOS/Linux: `~/.config/goose/secrets.yaml`
+* Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
+
 ---
 
 ### Package Runners
@@ -243,6 +250,9 @@ This likely means that the local host address is not accessible from WSL.
     ```
     http://172.24.80.1:11434
     ```
+    
+If you still encounter a `failed to connect` error, you can try using WSL's [Mirrored Networking](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking) setting if you using Windows 11 22H2 or higher 
+
 ---
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!

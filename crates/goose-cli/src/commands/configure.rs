@@ -3,8 +3,7 @@ use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -21,6 +20,8 @@ use mcp_core::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
+
+use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -194,7 +195,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item(
                 "settings",
                 "Goose Settings",
-                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment and more",
+                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more",
             )
             .interact()?;
 
@@ -583,6 +584,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
             if add_env {
                 loop {
                     let key: String = cliclack::input("Environment variable name:")
@@ -593,7 +597,18 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .mask('▪')
                         .interact()?;
 
-                    envs.insert(key, value);
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -608,6 +623,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
+                    env_keys,
                     description,
                     timeout: Some(timeout),
                     bundled: None,
@@ -671,6 +687,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
             if add_env {
                 loop {
                     let key: String = cliclack::input("Environment variable name:")
@@ -681,7 +700,18 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .mask('▪')
                         .interact()?;
 
-                    envs.insert(key, value);
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -695,6 +725,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
+                    env_keys,
                     description,
                     timeout: Some(timeout),
                     bundled: None,
@@ -779,6 +810,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Toggle Experiment",
             "Enable or disable an experiment feature",
         )
+        .item(
+            "recipe",
+            "Goose recipe github repo",
+            "Goose will pull recipes from this repo if not found locally.",
+        )
         .interact()?;
 
     match setting_type {
@@ -793,6 +829,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "experiment" => {
             toggle_experiments_dialog()?;
+        }
+        "recipe" => {
+            configure_recipe_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -954,11 +993,11 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    let provider =
-        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = Agent::new(provider);
+    let agent = Agent::new();
+    let new_provider = create(&provider_name, model_config)?;
+    agent.update_provider(new_provider).await?;
     if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())
@@ -985,8 +1024,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .await
         .into_iter()
         .filter(|tool| {
-            tool.name != PLATFORM_ENABLE_EXTENSION_TOOL_NAME
-                && tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
+            tool.name != PLATFORM_LIST_RESOURCES_TOOL_NAME
                 && tool.name != PLATFORM_READ_RESOURCE_TOOL_NAME
         })
         .map(|tool| {
@@ -1074,5 +1112,28 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         tool.name, permission_label
     ))?;
 
+    Ok(())
+}
+
+fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
+    let key_name = GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
+    let config = Config::global();
+    let default_recipe_repo = std::env::var(key_name)
+        .ok()
+        .or_else(|| config.get_param(key_name).unwrap_or(None));
+    let mut recipe_repo_input = cliclack::input(
+        "Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+    )
+    .required(false);
+    if let Some(recipe_repo) = default_recipe_repo {
+        recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
+    }
+    let input_value: String = recipe_repo_input.interact()?;
+    // if input is blank, it clears the recipe github repo settings in the config file
+    if input_value.clone().trim().is_empty() {
+        config.delete(key_name)?;
+    } else {
+        config.set_param(key_name, Value::String(input_value))?;
+    }
     Ok(())
 }

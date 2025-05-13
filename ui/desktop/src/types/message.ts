@@ -41,13 +41,6 @@ export interface ToolResponse {
   toolResult: ToolCallResult<Content[]>;
 }
 
-export interface ToolConfirmationRequest {
-  id: string;
-  toolName: string;
-  arguments: Record<string, unknown>;
-  prompt?: string;
-}
-
 export interface ToolRequestMessageContent {
   type: 'toolRequest';
   id: string;
@@ -68,35 +61,26 @@ export interface ToolConfirmationRequestMessageContent {
   prompt?: string;
 }
 
-export interface EnableExtensionCall {
+export interface ExtensionCall {
   name: string;
   arguments: Record<string, unknown>;
   extensionName: string;
 }
 
-export interface EnableExtensionCallResult<T> {
+export interface ExtensionCallResult<T> {
   status: 'success' | 'error';
   value?: T;
   error?: string;
 }
 
-export interface EnableExtensionRequest {
-  id: string;
-  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
+export interface ContextLengthExceededContent {
+  type: 'contextLengthExceeded';
+  msg: string;
 }
 
-export interface EnableExtensionConfirmationRequest {
-  id: string;
-  extensionName: string;
-  arguments: Record<string, unknown>;
-  prompt?: string;
-}
-
-export interface EnableExtensionRequestMessageContent {
-  type: 'enableExtensionRequest';
-  id: string;
-  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
-  extensionName: string;
+export interface SummarizationRequestedContent {
+  type: 'summarizationRequested';
+  msg: string;
 }
 
 export type MessageContent =
@@ -105,13 +89,16 @@ export type MessageContent =
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
-  | EnableExtensionRequestMessageContent;
+  | ContextLengthExceededContent
+  | SummarizationRequestedContent;
 
 export interface Message {
   id?: string;
   role: Role;
   created: number;
   content: MessageContent[];
+  display?: boolean;
+  sendToLLM?: boolean;
 }
 
 // Helper functions to create messages
@@ -226,8 +213,18 @@ function generateId(): string {
 // Helper functions to extract content from messages
 export function getTextContent(message: Message): string {
   return message.content
-    .filter((content): content is TextContent => content.type === 'text')
-    .map((content) => content.text)
+    .filter(
+      (content): content is TextContent | ContextLengthExceededContent =>
+        content.type === 'text' || content.type === 'contextLengthExceeded'
+    )
+    .map((content) => {
+      if (content.type === 'text') {
+        return content.text;
+      } else if (content.type === 'contextLengthExceeded') {
+        return content.msg;
+      }
+      return '';
+    })
     .join('\n');
 }
 
@@ -243,15 +240,6 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
-export function getEnableExtensionRequests(
-  message: Message
-): EnableExtensionRequestMessageContent[] {
-  return message.content.filter(
-    (content): content is EnableExtensionRequestMessageContent =>
-      content.type === 'enableExtensionRequest'
-  );
-}
-
 export function getToolConfirmationContent(
   message: Message
 ): ToolConfirmationRequestMessageContent {
@@ -261,29 +249,12 @@ export function getToolConfirmationContent(
   );
 }
 
-export function getEnableExtensionContent(message: Message): EnableExtensionRequestMessageContent {
-  return message.content.find(
-    (content): content is EnableExtensionRequestMessageContent =>
-      content.type === 'enableExtensionRequest'
-  );
-}
-
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   if (toolRequests.length === 0) return false;
 
   // For now, we'll assume all tool calls are completed when this is checked
   // In a real implementation, you'd need to check if all tool requests have responses
-  // by looking through subsequent messages
-  return true;
-}
-
-export function hasCompletedEnableExtensionCalls(message: Message): boolean {
-  const extensionRequests = getEnableExtensionRequests(message);
-  if (extensionRequests.length === 0) return false;
-
-  // For now, we'll assume all extension calls are completed when this is checked
-  // In a real implementation, you'd need to check if all extension requests have responses
   // by looking through subsequent messages
   return true;
 }

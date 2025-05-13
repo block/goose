@@ -22,7 +22,7 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 // https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
-pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
 // Databricks can passthrough to a wide range of models, we only provide the default
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
@@ -84,7 +84,6 @@ impl DatabricksProvider {
         // For compatibility for now we check both config and secret for databricks host
         // but it is not actually a secret value
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
-
         if host.is_err() {
             host = config.get_secret("DATABRICKS_HOST")
         }
@@ -118,6 +117,31 @@ impl DatabricksProvider {
             client,
             auth: DatabricksAuth::oauth(host.clone()),
             host,
+            model,
+            image_format: ImageFormat::OpenAi,
+        })
+    }
+
+    /// Create a new DatabricksProvider with the specified host and token
+    ///
+    /// # Arguments
+    ///
+    /// * `host` - The Databricks host URL
+    /// * `token` - The Databricks API token
+    /// * `model` - The model configuration
+    ///
+    /// # Returns
+    ///
+    /// Returns a Result containing the new DatabricksProvider instance
+    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(600))
+            .build()?;
+
+        Ok(Self {
+            client,
+            host,
+            auth: DatabricksAuth::token(api_key),
             model,
             image_format: ImageFormat::OpenAi,
         })
@@ -224,10 +248,7 @@ impl Provider for DatabricksProvider {
             "Databricks",
             "Models on Databricks AI Gateway",
             DATABRICKS_DEFAULT_MODEL,
-            DATABRICKS_KNOWN_MODELS
-                .iter()
-                .map(|&s| s.to_string())
-                .collect(),
+            DATABRICKS_KNOWN_MODELS.to_vec(),
             DATABRICKS_DOC_URL,
             vec![
                 ConfigKey::new("DATABRICKS_HOST", true, false, None),

@@ -20,6 +20,8 @@ pub const OPEN_AI_KNOWN_MODELS: &[&str] = &[
     "gpt-4-turbo",
     "gpt-3.5-turbo",
     "o1",
+    "o3",
+    "o4-mini",
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -58,6 +60,7 @@ impl OpenAiProvider {
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let custom_headers: Option<HashMap<String, String>> = config
             .get_secret("OPENAI_CUSTOM_HEADERS")
+            .or_else(|_| config.get_param("OPENAI_CUSTOM_HEADERS"))
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
@@ -119,10 +122,7 @@ impl Provider for OpenAiProvider {
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
-            OPEN_AI_KNOWN_MODELS
-                .iter()
-                .map(|&s| s.to_string())
-                .collect(),
+            OPEN_AI_KNOWN_MODELS.to_vec(),
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),

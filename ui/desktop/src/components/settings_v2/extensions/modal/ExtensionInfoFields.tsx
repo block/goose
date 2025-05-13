@@ -1,6 +1,5 @@
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
-import React from 'react';
 
 interface ExtensionInfoFieldsProps {
   name: string;
@@ -52,7 +51,7 @@ export default function ExtensionInfoFields({
             }}
             options={[
               { value: 'stdio', label: 'Standard IO (STDIO)' },
-              { value: 'sse', label: 'Security Service Edge (SSE)' },
+              { value: 'sse', label: 'Server-Sent Events (SSE)' },
             ]}
             isSearchable={false}
           />

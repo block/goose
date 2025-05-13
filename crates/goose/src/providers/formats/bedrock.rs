@@ -31,9 +31,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::EnableExtensionRequest(_enable_extension_request) => {
-            bedrock::ContentBlock::Text("".to_string())
-        }
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
@@ -44,6 +41,12 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::RedactedThinking(_) => {
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
+        }
+        MessageContent::ContextLengthExceeded(_) => {
+            bail!("ContextLengthExceeded should not get passed to the provider")
+        }
+        MessageContent::SummarizationRequested(_) => {
+            bail!("SummarizationRequested should not get passed to the provider")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();

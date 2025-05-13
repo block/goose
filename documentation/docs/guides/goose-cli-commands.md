@@ -1,7 +1,8 @@
 ---
-sidebar_position: 4
+sidebar_position: 7
+title: CLI Commands
+sidebar_label: CLI Commands
 ---
-# CLI Commands
 
 Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their  descriptions:
 
@@ -138,6 +139,34 @@ goose session list --verbose
 # List sessions in JSON format
 goose session list --format json
 ```
+
+---
+
+### session remove [options]
+
+Remove one or more saved sessions.
+
+**Options:**
+- **`-i, --id <id>`**: Remove a specific session by its ID
+- **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
+
+**Usage:**
+
+```bash
+# Remove a specific session by ID
+goose session remove -i 20250305_113223
+
+# Remove all sessions starting with "project-"
+goose session remove -r "project-.*"
+
+# Remove all sessions containing "migration"
+goose session remove -r ".*migration.*"
+```
+
+:::caution
+Session removal is permanent and cannot be undone. Goose will show which sessions will be removed and ask for confirmation before deleting.
+::: 
+
 ---
 
 ### info [options]
@@ -190,7 +219,7 @@ goose update --reconfigure
 
 ### mcp
 
-Run an enabled MCP server specified by `<name>` (e.g. 'Google Drive')
+Run an enabled MCP server specified by `<name>` (e.g. `'Google Drive'`)
 
 **Usage:**
 ```bash
@@ -208,9 +237,10 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use - for stdin.
 - **`-t, --text <TEXT>`**: Input text to provide to Goose directly
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
-- **`-n, --name <NAME>`**: Name for this run session (e.g. 'daily-tasks')
+- **`-n, --name <NAME>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
-- **`-p, --path <PATH>`**: Path for this run session (e.g. './playground.jsonl')
+- **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
+- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
 - **`--with-builtin <NAME>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
@@ -218,19 +248,22 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 ```bash
 goose run --instructions plan.md
+
+#Load a recipe with a prompt that Goose executes and then exits  
+goose run --recipe recipe.yaml
+
+#Load a recipe from this chat and then stays in an interactive session
+goose run --recipe recipe.yaml -s
+
+#Load a recipe containing a prompt which Goose executes and then drops into an interactive session
+goose run --recipe recipe.yaml --interactive
+
+#Generates an error: no text provided for prompt in headless mode
+goose run --recipe recipe_no_prompt.yaml
+
 ```
 
 ---
-
-### agents
-
-Used to show the available implementations of the agent loop itself
-
-**Usage:**
-
-```bash
-goose agents
-```
 
 ### bench
 
@@ -240,6 +273,30 @@ Used to evaluate system-configuration across a range of practical tasks. See the
 
 ```bash
 goose bench ...etc.
+```
+
+### recipe
+Used to validate a recipe file and get a link to share the recipe (aka "shared agent") with another Goose user.
+
+```bash
+goose recipe <COMMAND>
+```
+
+**Options:**
+
+- **`--help, -h`**: Print this message or the help for the subcommand
+
+**Command Usage:**
+
+```bash
+# Validate a recipe file
+goose recipe validate $FILE.yaml
+
+# Generate a deeplink for a recipe file
+goose recipe deeplink $FILE.yaml
+
+# Print this message or the help for the given command
+goose recipe help
 ```
 
 ---
@@ -257,6 +314,7 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/mode <name>` - Set the goose mode to use ('auto', 'approve', 'chat')
 - `/plan <message>` - Create a structured plan based on the given message
 - `/?` or `/help` - Display this help message
+- `/recipe <recipe file name>` - Generate and save a session recipe to `recipe.yaml` or the filename specified by the command parameter.
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
@@ -280,4 +338,4 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
-- **Up/Down arrows** - Navigate through command history
+- **`Cmd+Up/Down arrows`** - Navigate through command history

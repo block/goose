@@ -1,7 +1,8 @@
 import React from 'react';
 import { Calendar, MessageSquareText, Folder, Target } from 'lucide-react';
 import { type SharedSessionDetails } from '../../sharedSessions';
-import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
+import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
 
 interface SharedSessionViewProps {
   session: SharedSessionDetails | null;
@@ -20,7 +21,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
 }) => {
   return (
     <div className="h-screen w-full flex flex-col">
-      <div className="relative flex items-center h-[36px] w-full"></div>
+      <div className="relative flex items-center h-14 w-full"></div>
 
       {/* Top Row - back, info (fixed) */}
       <SessionHeaderCard onBack={onBack}>
@@ -32,7 +33,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
           <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
               <Calendar className="w-4 h-4 mr-1" />
-              {formatDate(session.messages[0]?.created)}
+              {formatMessageTimestamp(session.messages[0]?.created)}
             </span>
             <span className="flex items-center">
               <MessageSquareText className="w-4 h-4 mr-1" />

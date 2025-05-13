@@ -2,11 +2,12 @@ import React from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import { ConfigureProvidersGrid } from './ConfigureProvidersGrid';
+import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 export default function ConfigureProvidersView({ onClose }: { onClose: () => void }) {
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <MoreMenuLayout showMenu={false} />
 
       <ScrollArea className="h-full w-full">
         <div className="px-8 pt-6 pb-4">

@@ -22,6 +22,7 @@ fn default_version() -> String {
 /// * `context` - Supplementary context information for the Recipe
 /// * `activities` - Activity labels that appear when loading the Recipe
 /// * `author` - Information about the Recipe's creator and metadata
+/// * `parameters` - Additional parameters for the Recipe
 ///
 /// # Example
 ///
@@ -41,12 +42,13 @@ fn default_version() -> String {
 ///     version: "1.0.0".to_string(),
 ///     title: "Example Agent".to_string(),
 ///     description: "An example Recipe configuration".to_string(),
-///     instructions: "Act as a helpful assistant".to_string(),
+///     instructions: Some("Act as a helpful assistant".to_string()),
 ///     prompt: None,
 ///     extensions: None,
 ///     context: None,
 ///     activities: None,
 ///     author: None,
+///     parameters: None,
 /// };
 /// ```
 #[derive(Serialize, Deserialize, Debug)]
@@ -59,9 +61,11 @@ pub struct Recipe {
 
     pub description: String, // a longer description of the recipe
 
-    pub instructions: String, // the instructions for the model
-
     // Optional fields
+    // Note: at least one of instructions or prompt need to be set
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>, // the instructions for the model
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>, // the prompt to start the session with
 
@@ -76,6 +80,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>, // any additional author information
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -85,6 +92,33 @@ pub struct Author {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>, // any additional metadata for the author
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterRequirement {
+    Required,
+    Optional,
+    UserPrompt,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterInputType {
+    String,
+    Number,
+    Date,
+    File,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipeParameter {
+    pub key: String,
+    pub input_type: RecipeParameterInputType,
+    pub requirement: RecipeParameterRequirement,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
 }
 
 /// Builder for creating Recipe instances
@@ -101,6 +135,7 @@ pub struct RecipeBuilder {
     context: Option<Vec<String>>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
+    parameters: Option<Vec<RecipeParameter>>,
 }
 
 impl Recipe {
@@ -129,6 +164,7 @@ impl Recipe {
             context: None,
             activities: None,
             author: None,
+            parameters: None,
         }
     }
 }
@@ -187,24 +223,34 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the parameters for the Recipe
+    pub fn parameters(mut self, parameters: Vec<RecipeParameter>) -> Self {
+        self.parameters = Some(parameters);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
     pub fn build(self) -> Result<Recipe, &'static str> {
         let title = self.title.ok_or("Title is required")?;
         let description = self.description.ok_or("Description is required")?;
-        let instructions = self.instructions.ok_or("Instructions are required")?;
+
+        if self.instructions.is_none() && self.prompt.is_none() {
+            return Err("At least one of 'prompt' or 'instructions' is required");
+        }
 
         Ok(Recipe {
             version: self.version,
             title,
             description,
-            instructions,
+            instructions: self.instructions,
             prompt: self.prompt,
             extensions: self.extensions,
             context: self.context,
             activities: self.activities,
             author: self.author,
+            parameters: self.parameters,
         })
     }
 }

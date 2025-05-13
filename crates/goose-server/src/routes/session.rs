@@ -1,3 +1,6 @@
+use super::utils::verify_secret_key;
+use std::sync::Arc;
+
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
@@ -7,56 +10,79 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::info::{get_session_info, SessionInfo};
+use goose::session::info::{get_session_info, SessionInfo, SortOrder};
+use goose::session::SessionMetadata;
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Serialize)]
-struct SessionListResponse {
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionListResponse {
+    /// List of available session information objects
     sessions: Vec<SessionInfo>,
 }
 
-#[derive(Serialize)]
-struct SessionHistoryResponse {
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionHistoryResponse {
+    /// Unique identifier for the session
     session_id: String,
-    metadata: session::SessionMetadata,
+    /// Session metadata containing creation time and other details
+    metadata: SessionMetadata,
+    /// List of messages in the session conversation
     messages: Vec<Message>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/sessions",
+    responses(
+        (status = 200, description = "List of available sessions retrieved successfully", body = SessionListResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
 // List all available sessions
 async fn list_sessions(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<SessionListResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    verify_secret_key(&headers, &state)?;
 
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let sessions = get_session_info().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions =
+        get_session_info(SortOrder::Descending).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/sessions/{session_id}",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session history retrieved successfully", body = SessionHistoryResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
 // Get a specific session's history
 async fn get_session_history(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
@@ -79,7 +105,7 @@ async fn get_session_history(
 }
 
 // Configure routes for this module
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/:session_id", get(get_session_history))

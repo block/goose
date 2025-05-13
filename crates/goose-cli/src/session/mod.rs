@@ -6,6 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::{build_session, SessionBuilderConfig};
+use console::Color;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -157,6 +158,7 @@ impl Session {
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
+            env_keys: Vec::new(),
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
@@ -189,6 +191,7 @@ impl Session {
             name,
             uri: extension_url,
             envs: Envs::new(HashMap::new()),
+            env_keys: Vec::new(),
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
@@ -282,10 +285,26 @@ impl Session {
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
-        let provider = self.agent.provider();
+        let provider = self.agent.provider().await?;
 
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) =
+            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
+        {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
+        }
 
         self.process_agent_response(false).await?;
         Ok(())
@@ -353,8 +372,22 @@ impl Session {
 
                             self.messages.push(Message::user().with_text(&content));
 
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
+
                             // Get the provider from the agent for description generation
-                            let provider = self.agent.provider();
+                            let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
                             session::persist_messages(
@@ -502,6 +535,53 @@ impl Session {
 
                     continue;
                 }
+                InputResult::Summarize => {
+                    save_history(&mut editor);
+
+                    let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
+                    let should_summarize =
+                        cliclack::confirm(prompt).initial_value(true).interact()?;
+
+                    if should_summarize {
+                        println!("{}", console::style("Summarizing conversation...").yellow());
+                        output::show_thinking();
+
+                        // Get the provider for summarization
+                        let provider = self.agent.provider().await?;
+
+                        // Call the summarize_context method which uses the summarize_messages function
+                        let (summarized_messages, _) =
+                            self.agent.summarize_context(&self.messages).await?;
+
+                        // Update the session messages with the summarized ones
+                        self.messages = summarized_messages;
+
+                        // Persist the summarized messages
+                        session::persist_messages(
+                            &self.session_file,
+                            &self.messages,
+                            Some(provider),
+                        )
+                        .await?;
+
+                        output::hide_thinking();
+                        println!(
+                            "{}",
+                            console::style("Conversation has been summarized.").green()
+                        );
+                        println!(
+                            "{}",
+                            console::style(
+                                "Key information has been preserved while reducing context length."
+                            )
+                            .green()
+                        );
+                    } else {
+                        println!("{}", console::style("Summarization cancelled.").yellow());
+                    }
+
+                    continue;
+                }
             }
         }
 
@@ -523,7 +603,7 @@ impl Session {
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider())
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
                 .await?;
 
         match planner_response_type {
@@ -590,7 +670,7 @@ impl Session {
             .reply(
                 &self.messages,
                 Some(SessionConfig {
-                    id: session_id,
+                    id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
                 }),
@@ -620,23 +700,54 @@ impl Session {
                                     principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
-                            } else if let Some(MessageContent::EnableExtensionRequest(enable_extension_request)) = message.content.first() {
+                            } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
                                 output::hide_thinking();
 
-                                let prompt = "Goose would like to install the following extension, do you approve?".to_string();
-                                let confirmed = cliclack::select(prompt)
-                                    .item(true, "Yes, for this session", "Enable the extension for this session")
-                                    .item(false, "No", "Do not enable the extension")
+                                let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
+                                let selected = cliclack::select(prompt)
+                                    .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                    .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
+                                    .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
                                     .interact()?;
-                                let permission = if confirmed {
-                                    Permission::AllowOnce
-                                } else {
-                                    Permission::DenyOnce
-                                };
-                                self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
-                                    principal_type: PrincipalType::Extension,
-                                    permission,
-                                },).await;
+
+                                match selected {
+                                    "clear" => {
+                                        self.messages.clear();
+                                        let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        break;  // exit the loop to hand back control to the user
+                                    }
+                                    "truncate" => {
+                                        // Truncate messages to fit within context length
+                                        let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50));
+                                        output::render_text("", Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = truncated_messages;
+                                    }
+                                    "summarize" => {
+                                        // Summarize messages to fit within context length
+                                        let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages for you.", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = summarized_messages;
+                                    }
+                                    _ => {
+                                        unreachable!()
+                                    }
+                                }
+                                // Restart the stream after handling ContextLengthExceeded
+                                stream = self
+                                    .agent
+                                    .reply(
+                                        &self.messages,
+                                        Some(SessionConfig {
+                                            id: session_id.clone(),
+                                            working_dir: std::env::current_dir()
+                                                .expect("failed to get current session working directory"),
+                                        }),
+                                    )
+                                    .await?;
                             }
                             // otherwise we have a model/tool to render
                             else {
@@ -816,6 +927,31 @@ impl Session {
 
     pub fn message_history(&self) -> Vec<Message> {
         self.messages.clone()
+    }
+
+    /// Render all past messages from the session history
+    pub fn render_message_history(&self) {
+        if self.messages.is_empty() {
+            return;
+        }
+
+        // Print session restored message
+        println!(
+            "\n{} {} messages loaded into context.",
+            console::style("Session restored:").green().bold(),
+            console::style(self.messages.len()).green()
+        );
+
+        // Render each message
+        for message in &self.messages {
+            output::render_message(message, self.debug);
+        }
+
+        // Add a visual separator after restored messages
+        println!(
+            "\n{}\n",
+            console::style("──────── New Messages ────────").dim()
+        );
     }
 
     /// Get the session metadata

@@ -17,15 +17,12 @@ use url::Url;
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
-    "gemini-1.5-pro-latest",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite-preview-02-05",
     "gemini-2.0-flash-thinking-exp-01-21",
     "gemini-2.0-pro-exp-02-05",
     "gemini-2.5-pro-exp-03-25",
+    "gemini-2.5-flash-preview-04-17",
 ];
 
 pub const GOOGLE_DOC_URL: &str = "https://ai.google/get-started/our-models/";
@@ -133,7 +130,7 @@ impl Provider for GoogleProvider {
             "Google Gemini",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
-            GOOGLE_KNOWN_MODELS.iter().map(|&s| s.to_string()).collect(),
+            GOOGLE_KNOWN_MODELS.to_vec(),
             GOOGLE_DOC_URL,
             vec![
                 ConfigKey::new("GOOGLE_API_KEY", true, true, None),

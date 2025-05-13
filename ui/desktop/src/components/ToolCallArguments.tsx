@@ -1,8 +1,8 @@
-import { ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
+import Expand from './ui/Expand';
 
-type ToolCallArgumentValue =
+export type ToolCallArgumentValue =
   | string
   | number
   | boolean
@@ -28,34 +28,32 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
       if (!needsExpansion) {
         return (
-          <div className="mb-2">
+          <div className="text-sm mb-2">
             <div className="flex flex-row">
-              <span className="text-sm font-medium text-textSubtle min-w-[140px]">{key}</span>
-              <span className="text-sm text-textStandard">{value}</span>
+              <span className="text-textSubtle min-w-[140px]">{key}</span>
+              <span className="text-textPlaceholder">{value}</span>
             </div>
           </div>
         );
       }
 
       return (
-        <div className="mb-2">
+        <div className="text-sm mb-2">
           <div className="flex flex-row">
-            <span className="text-sm font-medium text-textSubtle min-w-[140px]">{key}</span>
-            <div className="flex items-center">
+            <span className="text-textSubtle min-w-[140px]">{key}</span>
+            <div className="w-full flex justify-between items-start">
               {isExpanded ? (
-                <div className="mt-2">
-                  <MarkdownContent content={value} />
+                <div className="">
+                  <MarkdownContent content={value} className="text-sm text-textPlaceholder" />
                 </div>
               ) : (
-                <span className="text-sm text-textStandard mr-2">{value.slice(0, 60)}...</span>
+                <span className="text-textPlaceholder mr-2">{value.slice(0, 60)}...</span>
               )}
               <button
                 onClick={() => toggleKey(key)}
-                className="text-sm hover:opacity-75 text-textStandard"
+                className="hover:opacity-75 text-textPlaceholder pr-2"
               >
-                <ChevronUp
-                  className={`h-5 w-5 transition-all origin-center ${!isExpanded ? 'rotate-180' : ''}`}
-                />
+                <Expand size={5} isExpanded={isExpanded} />
               </button>
             </div>
           </div>
@@ -73,8 +71,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     return (
       <div className="mb-2">
         <div className="flex flex-row">
-          <span className="font-medium mr- text-textStandard min-w-[140px]2">{key}:</span>
-          <pre className="whitespace-pre-wrap text-textStandard">{content}</pre>
+          <span className="mr- text-textPlaceholder min-w-[140px]2">{key}:</span>
+          <pre className="whitespace-pre-wrap text-textPlaceholder">{content}</pre>
         </div>
       </div>
     );

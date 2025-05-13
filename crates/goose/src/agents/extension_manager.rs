@@ -10,10 +10,11 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task;
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
-use crate::config::ExtensionConfigManager;
+use crate::agents::extension::Envs;
+use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
@@ -113,11 +114,74 @@ impl ExtensionManager {
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
         let sanitized_name = normalize(config.key().to_string());
+
+        /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
+        async fn merge_environments(
+            envs: &Envs,
+            env_keys: &[String],
+            ext_name: &str,
+        ) -> Result<HashMap<String, String>, ExtensionError> {
+            let mut all_envs = envs.get_env();
+            let config_instance = Config::global();
+
+            for key in env_keys {
+                // If the Envs payload already contains the key, prefer that value
+                // over looking into the keychain/secret store
+                if all_envs.contains_key(key) {
+                    continue;
+                }
+
+                match config_instance.get(key, true) {
+                    Ok(value) => {
+                        if value.is_null() {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                "Secret key not found in config (returned null)."
+                            );
+                            continue;
+                        }
+
+                        // Try to get string value
+                        if let Some(str_val) = value.as_str() {
+                            all_envs.insert(key.clone(), str_val.to_string());
+                        } else {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                value_type = %value.get("type").and_then(|t| t.as_str()).unwrap_or("unknown"),
+                                "Secret value is not a string; skipping."
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            key = %key,
+                            ext_name = %ext_name,
+                            error = %e,
+                            "Failed to fetch secret from config."
+                        );
+                        return Err(ExtensionError::SetupError(format!(
+                            "Failed to fetch secret '{}' from config: {}",
+                            key, e
+                        )));
+                    }
+                }
+            }
+
+            Ok(all_envs)
+        }
+
         let mut client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse {
-                uri, envs, timeout, ..
+                uri,
+                envs,
+                env_keys,
+                timeout,
+                ..
             } => {
-                let transport = SseTransport::new(uri, envs.get_env());
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport = SseTransport::new(uri, all_envs);
                 let handle = transport.start().await?;
                 let service = McpService::with_timeout(
                     handle,
@@ -131,10 +195,12 @@ impl ExtensionManager {
                 cmd,
                 args,
                 envs,
+                env_keys,
                 timeout,
                 ..
             } => {
-                let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
                 let handle = transport.start().await?;
                 let service = McpService::with_timeout(
                     handle,
@@ -150,7 +216,6 @@ impl ExtensionManager {
                 timeout,
                 bundled: _,
             } => {
-                // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
                     .to_str()
@@ -185,19 +250,16 @@ impl ExtensionManager {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
-        // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
             self.instructions
                 .insert(sanitized_name.clone(), instructions);
         }
 
-        // if the server is capable if resources we track it
         if init_result.capabilities.resources.is_some() {
             self.resource_capable_extensions
                 .insert(sanitized_name.clone());
         }
 
-        // Store the client using the provided name
         self.clients
             .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
 
@@ -224,6 +286,38 @@ impl ExtensionManager {
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
         Ok(())
+    }
+
+    pub async fn suggest_disable_extensions_prompt(&self) -> Value {
+        let enabled_extensions_count = self.clients.len();
+
+        let total_tools = self
+            .get_prefixed_tools(None)
+            .await
+            .map(|tools| tools.len())
+            .unwrap_or(0);
+
+        // Check if either condition is met
+        const MIN_EXTENSIONS: usize = 5;
+        const MIN_TOOLS: usize = 50;
+
+        if enabled_extensions_count > MIN_EXTENSIONS || total_tools > MIN_TOOLS {
+            Value::String(format!(
+                "The user currently has enabled {} extensions with a total of {} tools. \
+                Since this exceeds the recommended limits ({} extensions or {} tools), \
+                you should ask the user if they would like to disable some extensions for this session.\n\n\
+                Use the search_available_extensions tool to find extensions available to disable. \
+                You should only disable extensions found from the search_available_extensions tool. \
+                List all the extensions available to disable in the response. \
+                Explain that minimizing extensions helps with the recall of the correct tools to use.",
+                enabled_extensions_count,
+                total_tools,
+                MIN_EXTENSIONS,
+                MIN_TOOLS,
+            ))
+        } else {
+            Value::String(String::new()) // Empty string if under limits
+        }
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
@@ -663,14 +757,30 @@ impl ExtensionManager {
             }
         }
 
+        // Get currently enabled extensions that can be disabled
+        let enabled_extensions: Vec<String> = self.clients.keys().cloned().collect();
+
+        // Build output string
         if !disabled_extensions.is_empty() {
             output_parts.push(format!(
-                "Currently available extensions user can enable:\n{}\n",
+                "Extensions available to enable:\n{}\n",
                 disabled_extensions.join("\n")
             ));
         } else {
-            output_parts
-                .push("No available extensions found in current configuration.\n".to_string());
+            output_parts.push("No extensions available to enable.\n".to_string());
+        }
+
+        if !enabled_extensions.is_empty() {
+            output_parts.push(format!(
+                "\n\nExtensions available to disable:\n{}\n",
+                enabled_extensions
+                    .iter()
+                    .map(|name| format!("- {}", name))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        } else {
+            output_parts.push("No extensions that can be disabled.\n".to_string());
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])

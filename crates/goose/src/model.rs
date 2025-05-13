@@ -1,10 +1,38 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
 // Tokenizer names, used to infer from model name
 pub const GPT_4O_TOKENIZER: &str = "Xenova--gpt-4o";
 pub const CLAUDE_TOKENIZER: &str = "Xenova--claude-tokenizer";
+
+// Define the model limits as a static HashMap for reuse
+static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    // OpenAI models, https://platform.openai.com/docs/models#models-overview
+    map.insert("gpt-4o", 128_000);
+    map.insert("gpt-4-turbo", 128_000);
+    map.insert("o1-mini", 128_000);
+    map.insert("o1-preview", 128_000);
+    map.insert("o1", 200_000);
+    map.insert("o3-mini", 200_000);
+    map.insert("gpt-4.1", 1_000_000);
+    map.insert("gpt-4-1", 1_000_000);
+
+    // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
+    map.insert("claude-3", 200_000);
+
+    // Google models, https://ai.google/get-started/our-models/
+    map.insert("gemini-2.5", 1_000_000);
+    map.insert("gemini-2-5", 1_000_000);
+
+    // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
+    map.insert("llama3.2", 128_000);
+    map.insert("llama3.3", 128_000);
+    map
+});
 
 /// Configuration for model-specific settings and limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +53,13 @@ pub struct ModelConfig {
     pub toolshim: bool,
     /// Model to use for toolshim (optional as a default exists)
     pub toolshim_model: Option<String>,
+}
+
+/// Struct to represent model pattern matches and their limits
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelLimitConfig {
+    pub pattern: String,
+    pub context_limit: usize,
 }
 
 impl ModelConfig {
@@ -70,23 +105,23 @@ impl ModelConfig {
 
     /// Get model-specific context limit based on model name
     fn get_model_specific_limit(model_name: &str) -> Option<usize> {
-        // Implement some sensible defaults
-        match model_name {
-            // OpenAI models, https://platform.openai.com/docs/models#models-overview
-            name if name.contains("gpt-4o") => Some(128_000),
-            name if name.contains("gpt-4-turbo") => Some(128_000),
-            name if name.contains("o1-mini") || name.contains("o1-preview") => Some(128_000),
-            name if name.contains("o1") => Some(200_000),
-            name if name.contains("o3-mini") => Some(200_000),
-
-            // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
-            name if name.contains("claude-3") => Some(200_000),
-
-            // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
-            name if name.contains("llama3.2") => Some(128_000),
-            name if name.contains("llama3.3") => Some(128_000),
-            _ => None,
+        for (pattern, &limit) in MODEL_SPECIFIC_LIMITS.iter() {
+            if model_name.contains(pattern) {
+                return Some(limit);
+            }
         }
+        None
+    }
+
+    /// Get all model pattern matches and their limits
+    pub fn get_all_model_limits() -> Vec<ModelLimitConfig> {
+        MODEL_SPECIFIC_LIMITS
+            .iter()
+            .map(|(&pattern, &context_limit)| ModelLimitConfig {
+                pattern: pattern.to_string(),
+                context_limit,
+            })
+            .collect()
     }
 
     /// Set an explicit context limit
@@ -208,5 +243,16 @@ mod tests {
 
         let config = ModelConfig::new("test-model".to_string());
         assert_eq!(config.temperature, None);
+    }
+
+    #[test]
+    fn test_get_all_model_limits() {
+        let limits = ModelConfig::get_all_model_limits();
+        assert!(!limits.is_empty());
+
+        // Test that we can find specific patterns
+        let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
+        assert!(gpt4_limit.is_some());
+        assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
     }
 }

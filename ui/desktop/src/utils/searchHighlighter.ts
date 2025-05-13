@@ -11,18 +11,10 @@ export class SearchHighlighter {
   private scrollContainer: HTMLElement | null = null;
   private currentTerm: string = '';
   private caseSensitive: boolean = false;
-  private scrollHandler: (() => void) | null = null;
   private onMatchesChange?: (count: number) => void;
   private currentMatchIndex: number = -1;
-  private isUpdatingPositions: boolean = false;
-  private updatePending: boolean = false;
-  private shouldScrollToMatch: boolean = false;
+  private isScrollingProgrammatically: boolean = false;
 
-  /**
-   * Creates a new SearchHighlighter instance.
-   * @param container - The root HTML element to search within
-   * @param onMatchesChange - Optional callback that receives the count of matches when changed
-   */
   constructor(container: HTMLElement, onMatchesChange?: (count: number) => void) {
     this.container = container;
     this.onMatchesChange = onMatchesChange;
@@ -40,55 +32,37 @@ export class SearchHighlighter {
       z-index: 1;
     `;
 
-    // Find scroll container (usually the radix scroll area viewport)
-    this.scrollContainer = container.closest('[data-radix-scroll-area-viewport]');
+    // Find scroll container (look for our custom data attribute first, then fallback to radix)
+    this.scrollContainer =
+      container
+        .closest('[data-search-scroll-area]')
+        ?.querySelector('[data-radix-scroll-area-viewport]') ||
+      container.closest('[data-radix-scroll-area-viewport]');
+
     if (this.scrollContainer) {
       this.scrollContainer.style.position = 'relative';
       this.scrollContainer.appendChild(this.overlay);
 
-      // Add scroll handler with debouncing to prevent performance issues
-      this.scrollHandler = () => {
-        if (this.isUpdatingPositions) {
-          this.updatePending = true;
-          return;
-        }
-
-        this.isUpdatingPositions = true;
-        requestAnimationFrame(() => {
-          this.updateHighlightPositions();
-          this.isUpdatingPositions = false;
-
-          if (this.updatePending) {
-            this.updatePending = false;
-            this.scrollHandler?.();
+      // Add scroll end detection
+      this.scrollContainer.addEventListener(
+        'scroll',
+        () => {
+          if (!this.isScrollingProgrammatically) {
+            // User is manually scrolling, update highlight positions
+            this.updateHighlightPositions();
           }
-        });
-      };
-      this.scrollContainer.addEventListener('scroll', this.scrollHandler);
+        },
+        { passive: true }
+      );
     } else {
       container.style.position = 'relative';
       container.appendChild(this.overlay);
     }
 
-    // Handle content changes with debouncing
+    // Handle content changes
     this.resizeObserver = new ResizeObserver(() => {
       if (this.highlights.length > 0) {
-        if (this.isUpdatingPositions) {
-          this.updatePending = true;
-          return;
-        }
-
-        this.isUpdatingPositions = true;
-        requestAnimationFrame(() => {
-          this.updateHighlightPositions();
-          this.isUpdatingPositions = false;
-
-          if (this.updatePending) {
-            this.updatePending = false;
-            // Re-run the update
-            requestAnimationFrame(() => this.updateHighlightPositions());
-          }
-        });
+        this.updateHighlightPositions();
       }
     });
     this.resizeObserver.observe(container);
@@ -103,36 +77,16 @@ export class SearchHighlighter {
         }
       }
       if (shouldUpdate && this.currentTerm) {
-        if (this.isUpdatingPositions) {
-          this.updatePending = true;
-          return;
-        }
-
-        this.isUpdatingPositions = true;
-        requestAnimationFrame(() => {
-          this.highlight(this.currentTerm, this.caseSensitive);
-          this.isUpdatingPositions = false;
-
-          if (this.updatePending) {
-            this.updatePending = false;
-            // Re-run the update
-            requestAnimationFrame(() => this.highlight(this.currentTerm, this.caseSensitive));
-          }
-        });
+        this.highlight(this.currentTerm, this.caseSensitive);
       }
     });
     this.mutationObserver.observe(container, { childList: true, subtree: true });
   }
 
-  /**
-   * Highlights all occurrences of a search term within the container.
-   * @param term - The text to search for
-   * @param caseSensitive - Whether to perform a case-sensitive search
-   * @returns Array of highlight elements created
-   */
   highlight(term: string, caseSensitive = false) {
-    // Store the current match index before clearing
+    // Store the current match index and count before clearing
     const currentIndex = this.currentMatchIndex;
+    const oldHighlightCount = this.highlights.length;
 
     this.clearHighlights();
     this.currentTerm = term;
@@ -191,16 +145,20 @@ export class SearchHighlighter {
         const highlightRect = document.createElement('div');
         highlightRect.className = 'search-highlight';
 
-        const scrollTop = this.scrollContainer ? this.scrollContainer.scrollTop : window.scrollY;
-        const scrollLeft = this.scrollContainer ? this.scrollContainer.scrollLeft : window.scrollX;
-        const containerTop = this.scrollContainer?.getBoundingClientRect().top || 0;
-        const containerLeft = this.scrollContainer?.getBoundingClientRect().left || 0;
+        // Get the scroll container's position
+        const containerRect = this.scrollContainer?.getBoundingClientRect() || { top: 0, left: 0 };
+        const scrollTop = this.scrollContainer?.scrollTop || 0;
+        const scrollLeft = this.scrollContainer?.scrollLeft || 0;
+
+        // Calculate the highlight position relative to the scroll container
+        const top = rect.top + scrollTop - containerRect.top;
+        const left = rect.left + scrollLeft - containerRect.left;
 
         highlightRect.style.cssText = `
           position: absolute;
           pointer-events: none;
-          top: ${rect.top + scrollTop - containerTop}px;
-          left: ${rect.left + scrollLeft - containerLeft}px;
+          top: ${top}px;
+          left: ${left}px;
           width: ${rect.width}px;
           height: ${rect.height}px;
         `;
@@ -211,135 +169,97 @@ export class SearchHighlighter {
       return highlight;
     });
 
-    // Notify about updated match count
-    this.onMatchesChange?.(this.highlights.length);
+    // Only notify about count changes if the number of matches has actually changed
+    if (this.highlights.length !== oldHighlightCount) {
+      this.onMatchesChange?.(this.highlights.length);
+    }
 
-    // Restore current match if it was set
-    if (currentIndex >= 0 && this.highlights.length > 0) {
-      // Use the stored index, not this.currentMatchIndex which was reset in clearHighlights
-      this.setCurrentMatch(currentIndex, false); // Don't scroll when restoring highlight
+    // Restore current match if we have the same number of highlights
+    if (currentIndex >= 0 && this.highlights.length === oldHighlightCount) {
+      this.setCurrentMatch(currentIndex, false);
+    }
+    // Otherwise, if we have highlights but the count changed, start from the beginning
+    else if (this.highlights.length > 0) {
+      this.setCurrentMatch(0, false);
     }
 
     return this.highlights;
   }
 
-  /**
-   * Sets the current match and optionally scrolls to it.
-   * @param index - Zero-based index of the match to set as current
-   * @param shouldScroll - Whether to scroll to the match (true for explicit navigation)
-   */
   setCurrentMatch(index: number, shouldScroll = true) {
-    // Store the current match index
-    this.currentMatchIndex = index;
+    if (!this.highlights.length) return;
 
-    // Save the scroll flag
-    this.shouldScrollToMatch = shouldScroll;
+    // Ensure index wraps around
+    const wrappedIndex =
+      ((index % this.highlights.length) + this.highlights.length) % this.highlights.length;
+
+    // Store the current match index
+    this.currentMatchIndex = wrappedIndex;
 
     // Remove current class from all highlights
     this.overlay.querySelectorAll('.search-highlight').forEach((el) => {
       el.classList.remove('current');
     });
 
-    // Add current class to the matched highlight
-    if (this.highlights.length > 0) {
-      // Ensure index wraps around
-      const wrappedIndex =
-        ((index % this.highlights.length) + this.highlights.length) % this.highlights.length;
+    // Add current class to all parts of the highlight
+    const currentHighlight = this.highlights[wrappedIndex];
+    const highlightElements = currentHighlight.querySelectorAll('.search-highlight');
+    highlightElements.forEach((el) => {
+      el.classList.add('current');
+    });
 
-      // Find all highlight elements within the current highlight container
-      const highlightElements = this.highlights[wrappedIndex].querySelectorAll('.search-highlight');
+    // Only scroll if explicitly requested
+    if (shouldScroll && this.scrollContainer) {
+      const firstHighlight = highlightElements[0] as HTMLElement;
+      if (firstHighlight) {
+        // Calculate the target scroll position
+        const containerRect = this.scrollContainer.getBoundingClientRect();
+        const highlightRect = firstHighlight.getBoundingClientRect();
 
-      // Add 'current' class to all parts of the highlight (for multi-line matches)
-      highlightElements.forEach((el) => {
-        el.classList.add('current');
-      });
+        // Calculate the target position that would center the highlight
+        const targetScrollTop =
+          this.scrollContainer.scrollTop +
+          (highlightRect.top - containerRect.top) -
+          (containerRect.height - highlightRect.height) / 2;
 
-      // Only scroll if explicitly requested (e.g., when navigating)
-      if (shouldScroll) {
-        // Ensure we call scrollToMatch with the correct index
-        setTimeout(() => this.scrollToMatch(wrappedIndex), 0);
+        // Set flag before scrolling
+        this.isScrollingProgrammatically = true;
+
+        // Perform the scroll
+        this.scrollContainer.scrollTop = targetScrollTop;
+
+        // Clear flag after a short delay
+        setTimeout(() => {
+          this.isScrollingProgrammatically = false;
+        }, 100);
       }
     }
   }
 
-  /**
-   * Scrolls to center the specified match in the viewport.
-   * @param index - Zero-based index of the match to scroll to
-   */
-  private scrollToMatch(index: number) {
-    if (!this.scrollContainer || !this.highlights[index]) return;
-
-    const currentHighlight = this.highlights[index].querySelector(
-      '.search-highlight'
-    ) as HTMLElement;
-    if (!currentHighlight) return;
-
-    const rect = currentHighlight.getBoundingClientRect();
-    const containerRect = this.scrollContainer.getBoundingClientRect();
-
-    // Calculate how far the element is from the top of the viewport
-    const elementRelativeToViewport = rect.top - containerRect.top;
-
-    // Calculate the new scroll position that would center the element
-    const currentScrollTop = this.scrollContainer.scrollTop;
-    const targetPosition =
-      currentScrollTop + elementRelativeToViewport - (containerRect.height - rect.height) / 2;
-
-    // Ensure we don't scroll past the bottom
-    const maxScroll = this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight;
-    const finalPosition = Math.max(0, Math.min(targetPosition, maxScroll));
-
-    this.scrollContainer.scrollTo({
-      top: finalPosition,
-      behavior: 'smooth',
-    });
-  }
-
-  /**
-   * Updates the positions of all highlights after content changes.
-   * This preserves the current match selection but doesn't scroll.
-   */
   private updateHighlightPositions() {
     if (this.currentTerm) {
-      // Store the current index for restoration
       const currentIndex = this.currentMatchIndex;
-
-      // Clear and recreate all highlights
-      this.overlay.innerHTML = '';
-      this.highlights = [];
-
-      // Re-highlight with the current term
+      const oldHighlights = this.highlights.length; // Store the current count
       this.highlight(this.currentTerm, this.caseSensitive);
 
-      // Ensure the current match is still highlighted, but don't scroll
-      if (currentIndex >= 0 && this.highlights.length > 0) {
+      // If we still have the same number of highlights, restore the current index
+      if (this.highlights.length === oldHighlights && currentIndex >= 0) {
         this.setCurrentMatch(currentIndex, false);
       }
     }
   }
 
-  /**
-   * Removes all search highlights from the container.
-   */
   clearHighlights() {
     this.highlights.forEach((h) => h.remove());
     this.highlights = [];
     this.currentTerm = '';
     this.currentMatchIndex = -1;
-    this.shouldScrollToMatch = false;
-    this.overlay.innerHTML = ''; // Ensure all highlights are removed
+    this.overlay.innerHTML = '';
   }
 
-  /**
-   * Cleans up all resources used by the highlighter.
-   * Should be called when the component using this highlighter unmounts.
-   */
   destroy() {
     this.resizeObserver.disconnect();
     this.mutationObserver.disconnect();
-    if (this.scrollHandler && this.scrollContainer) {
-      this.scrollContainer.removeEventListener('scroll', this.scrollHandler);
-    }
     this.overlay.remove();
   }
 }

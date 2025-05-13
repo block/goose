@@ -22,20 +22,31 @@ impl Agent {
         let mut tools = self.list_tools(None).await;
 
         // Add frontend tools
-        for frontend_tool in self.frontend_tools.values() {
+        let frontend_tools = self.frontend_tools.lock().await;
+        for frontend_tool in frontend_tools.values() {
             tools.push(frontend_tool.tool.clone());
         }
 
         // Prepare system prompt
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let mut system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
+
+        // Get model name from provider
+        let provider = self.provider().await?;
+        let model_config = provider.get_model_config();
+        let model_name = &model_config.model_name;
+
+        let prompt_manager = self.prompt_manager.lock().await;
+        let mut system_prompt = prompt_manager.build_system_prompt(
+            extensions_info,
+            self.frontend_instructions.lock().await.clone(),
+            extension_manager.suggest_disable_extensions_prompt().await,
+            Some(model_name),
+        );
 
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];
-        if self.provider.get_model_config().toolshim {
+        if model_config.toolshim {
             // If tool interpretation is enabled, modify the system prompt
             system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
             // Make a copy of tools before emptying
@@ -83,6 +94,9 @@ impl Agent {
         // Call the provider to get a response
         let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
 
+        // Store the model information in the global store
+        crate::providers::base::set_current_model(&usage.model);
+
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {
             let interpreter = OllamaInterpreter::new().map_err(|e| {
@@ -104,7 +118,7 @@ impl Agent {
     /// - frontend_requests: Tool requests that should be handled by the frontend
     /// - other_requests: All other tool requests (including requests to enable extensions)
     /// - filtered_message: The original message with frontend tool requests removed
-    pub(crate) fn categorize_tool_requests(
+    pub(crate) async fn categorize_tool_requests(
         &self,
         response: &Message,
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
@@ -122,20 +136,25 @@ impl Agent {
             .collect();
 
         // Create a filtered message with frontend tool requests removed
-        let filtered_content = response
-            .content
-            .iter()
-            .filter(|c| {
-                if let MessageContent::ToolRequest(req) = c {
-                    // Only filter out frontend tool requests
+        let mut filtered_content = Vec::new();
+
+        // Process each content item one by one
+        for content in &response.content {
+            let should_include = match content {
+                MessageContent::ToolRequest(req) => {
                     if let Ok(tool_call) = &req.tool_call {
-                        return !self.is_frontend_tool(&tool_call.name);
+                        !self.is_frontend_tool(&tool_call.name).await
+                    } else {
+                        true
                     }
                 }
-                true
-            })
-            .cloned()
-            .collect();
+                _ => true,
+            };
+
+            if should_include {
+                filtered_content.push(content.clone());
+            }
+        }
 
         let filtered_message = Message {
             role: response.role.clone(),
@@ -149,7 +168,7 @@ impl Agent {
 
         for request in tool_requests {
             if let Ok(tool_call) = &request.tool_call {
-                if self.is_frontend_tool(&tool_call.name) {
+                if self.is_frontend_tool(&tool_call.name).await {
                     frontend_requests.push(request);
                 } else {
                     other_requests.push(request);

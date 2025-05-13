@@ -11,7 +11,8 @@ import {
   Tray,
   shell,
   screen,
-  type App,
+  App,
+  globalShortcut,
   type MenuItemConstructorOptions,
 } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -35,6 +36,7 @@ import * as crypto from 'crypto';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import type { BotConfig } from './botConfig';
+import * as yaml from 'yaml';
 
 const exec = promisify(execCallback);
 
@@ -42,13 +44,15 @@ if (started) app.quit();
 
 app.setAsDefaultProtocolClient('goose');
 
-const gotTheLock = app.requestSingleInstanceLock();
+// Only apply single instance lock on Windows where it's needed for deep links
+let gotTheLock = true;
+if (process.platform === 'win32') {
+  gotTheLock = app.requestSingleInstanceLock();
 
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (event, commandLine) => {
-    if (process.platform === 'win32') {
+  if (!gotTheLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', (event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -88,15 +92,15 @@ if (!gotTheLock) {
         }
         mainWindow.focus();
       }
-    }
-  });
-  if (process.platform === 'win32') {
-    const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
-    if (protocolUrl) {
-      app.whenReady().then(() => {
-        handleProtocolUrl(protocolUrl);
-      });
-    }
+    });
+  }
+
+  // Handle protocol URLs on Windows startup
+  const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
+  if (protocolUrl) {
+    app.whenReady().then(() => {
+      handleProtocolUrl(protocolUrl);
+    });
   }
 }
 
@@ -275,6 +279,8 @@ let appConfig = {
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
+  // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
+  GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
   secretKey: generateSecretKey(),
 };
 
@@ -301,7 +307,7 @@ const createChat = async (
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
     width: 750,
@@ -327,6 +333,43 @@ const createChat = async (
       ],
       partition: 'persist:goose',
     },
+  });
+
+  // Enable spellcheck / right and ctrl + click on mispelled word
+  //
+  // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
+  // all languages in the list of spell checked words, but it diminishes the times you
+  // get red squigglies back for mispelled english words. Given the rest of Goose only
+  // renders in english right now, this feels like the correct set of language codes
+  // for the moment.
+  //
+  // TODO: Load language codes from a setting if we ever have i18n/l10n
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add each spelling suggestion
+    for (const suggestion of params.dictionarySuggestions) {
+      menu.append(
+        new MenuItem({
+          label: suggestion,
+          click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+        })
+      );
+    }
+
+    // Allow users to add the misspelled word to the dictionary
+    if (params.misspelledWord) {
+      menu.append(
+        new MenuItem({
+          label: 'Add to dictionary',
+          click: () =>
+            mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        })
+      );
+    }
+
+    menu.popup();
   });
 
   // Store config in localStorage for future windows
@@ -614,7 +657,59 @@ ipcMain.handle('write-file', async (_event, filePath, content) => {
   }
 });
 
+// Handle allowed extensions list fetching
+ipcMain.handle('get-allowed-extensions', async () => {
+  try {
+    const allowList = await getAllowList();
+    return allowList;
+  } catch (error) {
+    console.error('Error fetching allowed extensions:', error);
+    throw error;
+  }
+});
+
+const createNewWindow = async (app: App, dir?: string | null) => {
+  const recentDirs = loadRecentDirs();
+  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  createChat(app, undefined, openDir);
+};
+
+const focusWindow = () => {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows.forEach((win) => {
+      win.show();
+    });
+    windows[windows.length - 1].webContents.send('focus-input');
+  } else {
+    createNewWindow(app);
+  }
+};
+
+const registerGlobalHotkey = (accelerator: string) => {
+  // Unregister any existing shortcuts first
+  globalShortcut.unregisterAll();
+
+  try {
+    const ret = globalShortcut.register(accelerator, () => {
+      focusWindow();
+    });
+
+    if (!ret) {
+      console.error('Failed to register global hotkey');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('Error registering global hotkey:', e);
+    return false;
+  }
+};
+
 app.whenReady().then(async () => {
+  // Register the default global hotkey
+  registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
@@ -633,9 +728,13 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
 
   createTray();
+<<<<<<< HEAD
   const recentDirs = loadRecentDirs();
   let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : undefined);
   firstOpenWindow = await createChat(app, undefined, openDir);
+=======
+  createNewWindow(app, dirPath);
+>>>>>>> main
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -657,6 +756,59 @@ app.whenReady().then(async () => {
       })
     );
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  }
+
+  // Add Find submenu to Edit menu
+  const editMenu = menu?.items.find((item) => item.label === 'Edit');
+  if (editMenu?.submenu) {
+    // Find the index of Select All to insert after it
+    const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
+
+    // Create Find submenu
+    const findSubmenu = Menu.buildFromTemplate([
+      {
+        label: 'Find…',
+        accelerator: process.platform === 'darwin' ? 'Command+F' : 'Control+F',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-command');
+        },
+      },
+      {
+        label: 'Find Next',
+        accelerator: process.platform === 'darwin' ? 'Command+G' : 'Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-next');
+        },
+      },
+      {
+        label: 'Find Previous',
+        accelerator: process.platform === 'darwin' ? 'Shift+Command+G' : 'Shift+Control+G',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('find-previous');
+        },
+      },
+      {
+        label: 'Use Selection for Find',
+        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
+        },
+        visible: process.platform === 'darwin', // Only show on Mac
+      },
+    ]);
+
+    // Add Find submenu to Edit menu
+    editMenu.submenu.insert(
+      selectAllIndex + 1,
+      new MenuItem({
+        label: 'Find',
+        submenu: findSubmenu,
+      })
+    );
   }
 
   // Add Environment menu items to View menu
@@ -681,8 +833,20 @@ app.whenReady().then(async () => {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    // open goose to specific dir and set that as its working space
-    fileMenu.submenu.append(
+    fileMenu.submenu.insert(
+      0,
+      new MenuItem({
+        label: 'New Chat Window',
+        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
+        click() {
+          ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    // Open goose to specific dir and set that as its working space
+    fileMenu.submenu.insert(
+      1,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -693,8 +857,8 @@ app.whenReady().then(async () => {
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      fileMenu.submenu.append(
+      fileMenu.submenu.insert(
+        2,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -702,36 +866,38 @@ app.whenReady().then(async () => {
       );
     }
 
-    // Add menu items to File menu
+    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+
+    // The Close Window item is here.
+
+    // Add menu item to tell the user about the keyboard shortcut
     fileMenu.submenu.append(
       new MenuItem({
-        label: 'New Chat Window',
-        accelerator: 'CmdOrCtrl+N',
+        label: 'Focus Goose Window',
+        accelerator: 'CmdOrCtrl+Alt+Shift+G',
         click() {
-          ipcMain.emit('create-chat-window');
+          focusWindow();
         },
       })
     );
+  }
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Launch SQL Bot (Demo)',
-        click() {
-          // Example SQL Assistant bot deep link
-          const sqlBotUrl =
-            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
+  // on macOS, the topbar is hidden
+  if (menu && process.platform !== 'darwin') {
+    let helpMenu = menu.items.find((item) => item.label === 'Help');
 
-          // Extract the bot config from the URL
-          const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let recipeConfig = null;
-          if (configParam) {
-            try {
-              recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-            } catch (e) {
-              console.error('Failed to parse bot config:', e);
-            }
-          }
+    // If Help menu doesn't exist, create it and add it to the menu
+    if (!helpMenu) {
+      helpMenu = new MenuItem({
+        label: 'Help',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
+      });
+      // Find a reasonable place to insert the Help menu, usually near the end
+      const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
+      menu.items.splice(insertIndex, 0, helpMenu);
+    }
 
+<<<<<<< HEAD
           // Create a new window
           const recentDirs = loadRecentDirs();
           const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
@@ -741,6 +907,33 @@ app.whenReady().then(async () => {
         },
       })
     );
+=======
+    // Ensure the Help menu has a submenu before appending
+    if (helpMenu.submenu) {
+      // Add a separator before the About item if the submenu is not empty
+      if (helpMenu.submenu.items.length > 0) {
+        helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      }
+
+      // Create the About Goose menu item with a submenu
+      const aboutGooseMenuItem = new MenuItem({
+        label: 'About Goose',
+        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
+      });
+
+      // Add the Version menu item (display only) to the About Goose submenu
+      if (aboutGooseMenuItem.submenu) {
+        aboutGooseMenuItem.submenu.append(
+          new MenuItem({
+            label: `Version ${gooseVersion || app.getVersion()}`,
+            enabled: false,
+          })
+        );
+      }
+
+      helpMenu.submenu.append(aboutGooseMenuItem);
+    }
+>>>>>>> main
   }
 
   if (menu) {
@@ -873,6 +1066,65 @@ app.whenReady().then(async () => {
     }
   });
   // --- End Path Resolution Handler ---
+});
+
+/**
+ * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink
+ * doesn't match a command from the list.
+ * If it fails to load, then it will return an empty list.
+ * If the format is incorrect, it will return an empty list.
+ * Format of yaml is:
+ *
+ ```yaml:
+ extensions:
+  - id: slack
+    command: uvx mcp_slack
+  - id: knowledge_graph_memory
+    command: npx -y @modelcontextprotocol/server-memory
+  ```
+ *
+ * @returns A promise that resolves to an array of extension commands that are allowed.
+ */
+async function getAllowList(): Promise<string[]> {
+  if (!process.env.GOOSE_ALLOWLIST) {
+    return [];
+  }
+
+  try {
+    // Fetch the YAML file
+    const response = await fetch(process.env.GOOSE_ALLOWLIST);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
+      );
+    }
+
+    // Parse the YAML content
+    const yamlContent = await response.text();
+    const parsedYaml = yaml.parse(yamlContent);
+
+    // Extract the commands from the extensions array
+    if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+      const commands = parsedYaml.extensions.map(
+        (ext: { id: string; command: string }) => ext.command
+      );
+      console.log(`Fetched ${commands.length} allowed extension commands`);
+      return commands;
+    } else {
+      console.error('Invalid YAML structure:', parsedYaml);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error in getAllowList:', error);
+    throw error;
+  }
+}
+
+app.on('will-quit', () => {
+  // Unregister all shortcuts when quitting
+  globalShortcut.unregisterAll();
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.

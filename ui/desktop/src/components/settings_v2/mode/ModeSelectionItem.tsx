@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
+import { View, ViewOptions } from '../../../App';
 
 export interface GooseMode {
   key: string;
@@ -11,17 +12,17 @@ export interface GooseMode {
 export const all_goose_modes: GooseMode[] = [
   {
     key: 'auto',
-    label: 'Completely autonomous',
+    label: 'Autonomous',
     description: 'Full file modification capabilities, edit, create, and delete files freely.',
   },
   {
     key: 'approve',
-    label: 'Manual approval',
+    label: 'Manual',
     description: 'All tools, extensions and file modifications will require human approval',
   },
   {
     key: 'smart_approve',
-    label: 'Smart approval',
+    label: 'Smart',
     description: 'Intelligently determine which actions need approval based on risk level ',
   },
   {
@@ -31,46 +32,13 @@ export const all_goose_modes: GooseMode[] = [
   },
 ];
 
-export function filterGooseModes(
-  currentMode: string,
-  modes: GooseMode[],
-  previousApproveMode: string
-) {
-  return modes.filter((mode) => {
-    const approveList = ['approve', 'smart_approve'];
-    const nonApproveList = ['auto', 'chat'];
-    // Always keep 'auto' and 'chat'
-    if (nonApproveList.includes(mode.key)) {
-      return true;
-    }
-    // If current mode is non approve mode, we display write approve by default.
-    if (nonApproveList.includes(currentMode) && !previousApproveMode) {
-      return mode.key === 'smart_approve';
-    }
-
-    // Always include the current and previou approve mode
-    if (mode.key === currentMode) {
-      return true;
-    }
-
-    // Current mode and previous approve mode cannot exist at the same time.
-    if (approveList.includes(currentMode) && approveList.includes(previousApproveMode)) {
-      return false;
-    }
-
-    if (mode.key === previousApproveMode) {
-      return true;
-    }
-
-    return false;
-  });
-}
-
 interface ModeSelectionItemProps {
   currentMode: string;
   mode: GooseMode;
   showDescription: boolean;
   isApproveModeConfigure: boolean;
+  parentView: View;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   handleModeChange: (newMode: string) => void;
 }
 
@@ -79,6 +47,8 @@ export function ModeSelectionItem({
   mode,
   showDescription,
   isApproveModeConfigure,
+  parentView,
+  setView,
   handleModeChange,
 }: ModeSelectionItemProps) {
   const [checked, setChecked] = useState(currentMode == mode.key);
@@ -91,28 +61,28 @@ export function ModeSelectionItem({
   return (
     <div className="group hover:cursor-pointer">
       <div
-        className="flex items-center justify-between text-textStandard mb-4"
+        className="flex items-center justify-between text-textStandard py-2 px-4 hover:bg-bgSubtle"
         onClick={() => handleModeChange(mode.key)}
       >
         <div className="flex">
           <div>
-            <h3 className="text-textStandard dark:text-gray-200">{mode.label}</h3>
+            <h3 className="text-textStandard">{mode.label}</h3>
             {showDescription && (
-              <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
-                {mode.description}
-              </p>
+              <p className="text-xs text-textSubtle mt-[2px]">{mode.description}</p>
             )}
           </div>
         </div>
 
-        <div className="relative flex items-center gap-3 mr-4">
+        <div className="relative flex items-center gap-2">
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
-                setIsDislogOpen(true);
+                setView('permission', {
+                  parentView,
+                });
               }}
             >
-              <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
+              <Gear className="w-4 h-4 text-textSubtle hover:text-textStandard" />
             </button>
           )}
           <input

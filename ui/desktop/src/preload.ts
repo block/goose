@@ -1,4 +1,4 @@
-import Electron, { contextBridge, ipcRenderer } from 'electron';
+import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 interface RecipeConfig {
   id: string;
@@ -25,6 +25,7 @@ const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}
 
 // Define the API types in a single place
 type ElectronAPI = {
+  platform: string;
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
@@ -49,6 +50,8 @@ type ElectronAPI = {
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
+  getAllowedExtensions: () => Promise<string[]>;
+  getPathForFile: (file: File) => string;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -66,6 +69,7 @@ type AppConfigAPI = {
 };
 
 const electronAPI: ElectronAPI = {
+  platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => config,
   hideWindow: () => ipcRenderer.send('hide-window'),
@@ -100,6 +104,8 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

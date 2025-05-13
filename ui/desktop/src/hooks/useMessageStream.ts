@@ -121,6 +121,9 @@ export interface UseMessageStreamHelpers {
 
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
+
+  /** Modify body (session id and/or work dir mid-stream) **/
+  updateMessageStreamBody?: (newBody: object) => void;
 }
 
 /**
@@ -147,6 +150,14 @@ export function useMessageStream({
   const { data: messages, mutate } = useSWR<Message[]>([chatKey, 'messages'], null, {
     fallbackData: initialMessages,
   });
+
+  // expose a way to update the body so we can update the session id when CLE occurs
+  const updateMessageStreamBody = useCallback((newBody: object) => {
+    extraMetadataRef.current.body = {
+      ...extraMetadataRef.current.body,
+      ...newBody,
+    };
+  }, []);
 
   // Keep the latest messages in a ref
   const messagesRef = useRef<Message[]>(messages || []);
@@ -215,11 +226,26 @@ export function useMessageStream({
                 const parsedEvent = JSON.parse(data) as MessageEvent;
 
                 switch (parsedEvent.type) {
-                  case 'Message':
+                  case 'Message': {
+                    // Create a new message object with the properties preserved or defaulted
+                    const newMessage = {
+                      ...parsedEvent.message,
+                      // Only set to true if it's undefined (preserve false values)
+                      display:
+                        parsedEvent.message.display === undefined
+                          ? true
+                          : parsedEvent.message.display,
+                      sendToLLM:
+                        parsedEvent.message.sendToLLM === undefined
+                          ? true
+                          : parsedEvent.message.sendToLLM,
+                    };
+
                     // Update messages with the new message
-                    currentMessages = [...currentMessages, parsedEvent.message];
+                    currentMessages = [...currentMessages, newMessage];
                     mutate(currentMessages, false);
                     break;
+                  }
 
                   case 'Error':
                     throw new Error(parsedEvent.error);
@@ -268,9 +294,12 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
+        // Filter out messages where sendToLLM is explicitly false
+        const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
+
         // Log request details for debugging
         console.log('Request details:', {
-          messages: requestMessages,
+          messages: filteredMessages,
           body: extraMetadataRef.current.body,
         });
 
@@ -283,7 +312,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: requestMessages,
+            messages: filteredMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,
@@ -338,6 +367,7 @@ export function useMessageStream({
         mutateLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [api, processMessageStream, mutateLoading, setError, onResponse, onError, maxSteps]
   );
 
@@ -409,7 +439,6 @@ export function useMessageStream({
       event?.preventDefault?.();
       if (!input.trim()) return;
 
-      console.log('handleSubmit called with input:', input);
       await append(input);
       setInput('');
     },
@@ -486,5 +515,6 @@ export function useMessageStream({
     handleSubmit,
     isLoading: isLoading || false,
     addToolResult,
+    updateMessageStreamBody,
   };
 }

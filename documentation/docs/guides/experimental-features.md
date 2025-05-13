@@ -1,4 +1,8 @@
-# Experimental Features
+---
+title: Experimental Features
+sidebar_position: 16
+sidebar_label: Experimental Features
+---
 
 Goose is an open source project that is constantly being improved, and new features are added regularly. Some of these features are considered experimental, meaning they are still in development and may not be fully stable or ready for production use. This guide covers how to enable and use experimental features in Goose, as well as how to provide feedback on them.
 

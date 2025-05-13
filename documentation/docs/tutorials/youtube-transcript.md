@@ -12,13 +12,17 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a Goose extension to enable fetching and working with YouTube video transcripts.
 
 :::tip TLDR
-
-**Command**
-```sh
-npx @jkawamoto/mcp-youtube-transcript
-```
-
-No environment variables are required for this extension.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
+  ```
+  </TabItem>
+</Tabs>
 :::
 
 ## Configuration
@@ -28,7 +32,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  2. Press `Yes` to confirm the installation
+  3. Click `Save Configuration`
+  4. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -39,7 +49,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -55,7 +65,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -72,7 +82,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -82,7 +92,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     // highlight-end
     └ 
   ```  
@@ -92,7 +102,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -101,7 +111,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
+    │  npx -y @jkawamoto/mcp-youtube-transcript
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -110,13 +120,40 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     └ 
   ``` 
-  
-  6. No environment variables are required for this extension
+
+ 6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  knowledge graph memory
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-memory
+    │
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    │
+    └ 
+  ```
+
+  7. No environment variables are required for this extension
   ```sh
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -125,24 +162,20 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx @jkawamoto/mcp-youtube-transcript
-    │     
+    │  npx -y @jkawamoto/mcp-youtube-transcript
+    │
     ◇  Please set the timeout for this tool (in secs):
     │  300
-    │    
-    // highlight-start
+    │
+    ◇  Would you like to add a description?
+    │  No    // highlight-start
+    │
     ◆  Would you like to add environment variables?
     │  No
     // highlight-end
     └  Added youtube-transcript extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

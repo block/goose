@@ -18,7 +18,12 @@ The Tutorial extension serves as an interactive learning tool that:
 1. Ensure the Tutorial extension is enabled:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Under `Extensions`, toggle `Tutorial` to on.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
 ```sh
 goose configure
@@ -29,7 +34,7 @@ goose configure
 ┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension 
+│  Add Extension (Connect to a new extension) 
 │
 ◆  What type of extension would you like to add?
 // highlight-start  
@@ -45,7 +50,7 @@ goose configure
 ┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension 
+│  Add Extension (Connect to a new extension) 
 │
 ◇  What type of extension would you like to add?
 │  Built-in Extension 
@@ -66,7 +71,7 @@ goose configure
    ┌   goose-configure 
    │
    ◇  What would you like to configure?
-   │  Add Extension 
+   │  Add Extension (Connect to a new extension) 
    │
    ◇  What type of extension would you like to add?
    │  Built-in Extension 
@@ -81,11 +86,6 @@ goose configure
    └  Enabled Tutorials extension
 ``` 
 </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, toggle `Tutorial` to on.
-  </TabItem>
 </Tabs>
 
 ## Available Tutorials

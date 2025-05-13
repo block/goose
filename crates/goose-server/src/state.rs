@@ -1,25 +1,34 @@
-use anyhow::Result;
 use goose::agents::Agent;
-use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
 
+/// Shared reference to an Agent that can be cloned cheaply
+/// without cloning the underlying Agent object
+pub type AgentRef = Arc<Agent>;
+
+/// Thread-safe container for an optional Agent reference
+/// Outer Arc: Allows multiple route handlers to access the same Mutex
+/// - Mutex provides exclusive access for updates
+/// - Option allows for the case where no agent exists yet
+///
 /// Shared application state
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct AppState {
-    pub agent: Arc<RwLock<Option<Agent>>>,
+    // agent: SharedAgentStore,
+    agent: Option<AgentRef>,
     pub secret_key: String,
-    pub config: Arc<Mutex<HashMap<String, Value>>>,
 }
 
 impl AppState {
-    pub async fn new(secret_key: String) -> Result<Self> {
-        Ok(Self {
-            agent: Arc::new(RwLock::new(None)),
+    pub async fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
+        Arc::new(Self {
+            agent: Some(agent.clone()),
             secret_key,
-            config: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+
+    pub async fn get_agent(&self) -> Result<Arc<Agent>, anyhow::Error> {
+        self.agent
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Agent needs to be created first."))
     }
 }
