@@ -12,8 +12,8 @@ import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
-const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
-const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
+const TOKEN_WARNING_THRESHOLD = 0.1; // warning shows at 80% of the token limit
+const TOOLS_MAX_SUGGESTED = 1; // max number of tools before we show a warning
 
 interface ModelLimit {
   pattern: string;
@@ -67,6 +67,7 @@ export default function BottomMenu({
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
+      console.log('loading provider details');
       // Get current model and provider first to avoid unnecessary provider fetches
       const { model, provider } = await getCurrentModelAndProvider({ readFromConfig: read });
       if (!model || !provider) {
@@ -74,14 +75,21 @@ export default function BottomMenu({
         return;
       }
 
+      console.log('loading provider details model: ', model);
+
       const providers = await getProviders(true);
+
+      console.log('loading provider details provider: ', provider);
+      console.log('loading provider details providers: ', providers);
 
       // Find the provider details for the current provider
       const currentProvider = providers.find((p) => p.name === provider);
+      console.log('loading provider details currentProvider: ', currentProvider);
       if (currentProvider?.metadata?.known_models) {
         // Find the model's token limit from the backend response
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
+          console.log('modelConfig?.context_limit: ', modelConfig?.context_limit);
           setTokenLimit(modelConfig.context_limit);
           return;
         }

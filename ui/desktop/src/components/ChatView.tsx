@@ -451,6 +451,7 @@ function ChatContent({
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
+        console.log('Session details:', sessionDetails.metadata.total_tokens);
         setSessionTokenCount(sessionDetails.metadata.total_tokens);
       } catch (err) {
         console.error('Error fetching session token count:', err);
