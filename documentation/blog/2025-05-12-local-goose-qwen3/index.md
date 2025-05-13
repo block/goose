@@ -63,7 +63,6 @@ It would be interesting to try the larger models if, you have access to hardware
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/12/local-goose-qwen3" />
   <meta property="og:description" content="Run AI commands locally with Goose and Qwen3 for fast, offline tool execution" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-qwen-local-62d07cd240ff65cb99a6ef41a2c851a5.png" />
-
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goose and Qwen3 for Local Execution" />
