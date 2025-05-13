@@ -6,6 +6,7 @@ sidebar_label: Smart Context Management
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { ScrollText } from 'lucide-react';
 
 When working with [Large Language Models (LLMs)](/docs/getting-started/providers), there are limits to how much conversation history they can process at once. Goose provides smart context management features to help you maintain productive sessions even when reaching these limits. Here are the key concepts:
 
@@ -40,17 +41,12 @@ When you reach the context limit in Goose Desktop:
 3. Once complete, you'll have the option to **"View or edit summary."**
 4. You can then continue the session with the summarized context in place.
 
-:::note
-In Goose Desktop, context management is handled automatically.  
-You won't see options to `clear` or `truncate` — Goose always uses summarization when the context limit is reached.
-:::
-
   </TabItem>
   <TabItem value="manual" label="Manual">
 
 You can proactively summarize your conversation before reaching context limits:
 
-1. Click the scroll text icon (📜) in the chat interface
+1. Click the scroll text icon (<ScrollText className="inline" size={16} />) in the chat interface
 2. Confirm the summarization in the modal
 3. View or edit the generated summary if needed
 
