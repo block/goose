@@ -315,6 +315,16 @@ enum Command {
         )]
         interactive: bool,
 
+        /// Run without storing a session file
+        #[arg(
+            long = "no-session",
+            help = "Run without storing a session file",
+            long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
+            conflicts_with = "resume",
+            conflicts_with = "identifier"
+        )]
+        no_session: bool,
+
         /// Identifier for this run session
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -459,6 +469,7 @@ pub async fn cli() -> Result<()> {
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
                         resume,
+                        no_session: false,
                         extensions,
                         remote_extensions,
                         builtins,
@@ -499,6 +510,7 @@ pub async fn cli() -> Result<()> {
             interactive,
             identifier,
             resume,
+            no_session,
             debug,
             extensions,
             remote_extensions,
@@ -558,6 +570,7 @@ pub async fn cli() -> Result<()> {
             let mut session = build_session(SessionBuilderConfig {
                 identifier: identifier.map(extract_identifier),
                 resume,
+                no_session,
                 extensions,
                 remote_extensions,
                 builtins,
@@ -625,7 +638,18 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let mut session = build_session(SessionBuilderConfig::default()).await;
+                let mut session = build_session(SessionBuilderConfig {
+                    identifier: None,
+                    resume: false,
+                    no_session: false,
+                    extensions: Vec::new(),
+                    remote_extensions: Vec::new(),
+                    builtins: Vec::new(),
+                    extensions_override: None,
+                    additional_system_prompt: None,
+                    debug: false,
+                })
+                .await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,
