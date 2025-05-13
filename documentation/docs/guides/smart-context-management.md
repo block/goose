@@ -28,6 +28,8 @@ When a conversation reaches the context limit, Goose offers different ways to ha
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
+Goose Desktop exclusively uses summarization to manage context, preserving key information while reducing size.
+
 <Tabs>
   <TabItem value="automatic" label="Automatic" default>
 
@@ -57,6 +59,8 @@ You can proactively summarize your conversation before reaching context limits:
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
+
+The CLI offers three context management options: summarize, truncate, or clear your session.
 
 <Tabs>
   <TabItem value="automatic" label="Automatic" default>
