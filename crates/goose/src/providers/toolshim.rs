@@ -34,7 +34,7 @@ use super::errors::ProviderError;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
 use crate::message::{Message, MessageContent};
-use crate::model::ModelConfig;
+use crate::model::{ModelConfig, ToolshimProvider};
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolCall};
@@ -51,7 +51,7 @@ pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral-nemo";
 /// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter (default: DEFAULT_INTERPRETER_MODEL)
 /// A trait for models that can interpret text into structured tool call JSON format
 #[async_trait::async_trait]
-pub trait ToolInterpreter {
+pub trait ToolInterpreter: Send + Sync {
     /// Interpret potential tool calls from text and convert them to proper tool call JSON format
     async fn interpret_to_tool_calls(
         &self,
@@ -284,6 +284,26 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
     }
 }
 
+/// A simple pass-through interpreter that always returns an empty vector of tool calls
+pub struct PassThroughInterpreter;
+
+impl PassThroughInterpreter {
+    pub fn new() -> Self {
+        PassThroughInterpreter
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolInterpreter for PassThroughInterpreter {
+    async fn interpret_to_tool_calls(
+        &self,
+        _content: &str,
+        _tools: &[Tool],
+    ) -> Result<Vec<ToolCall>, ProviderError> {
+        Ok(vec![])
+    }
+}
+
 /// Creates a string containing formatted tool information
 pub fn format_tool_info(tools: &[Tool]) -> String {
     let mut tool_info = String::new();
@@ -310,10 +330,10 @@ pub fn modify_system_prompt_for_tool_json(system_prompt: &str, tools: &[Tool]) -
 }
 
 /// Helper function to augment a message with tool calls if any are detected
-pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
-    interpreter: &T,
+pub async fn augment_message_with_tool_calls(
     message: Message,
     tools: &[Tool],
+    config: &ModelConfig,
 ) -> Result<Message, ProviderError> {
     // If there are no tools or the message is empty, return the original message
     if tools.is_empty() {
@@ -343,6 +363,12 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     {
         return Ok(message);
     }
+
+    // Create the appropriate interpreter based on config
+    let interpreter: Box<dyn ToolInterpreter> = match config.toolshim_provider {
+        ToolshimProvider::Ollama => Box::new(OllamaInterpreter::new()?),
+        ToolshimProvider::Passthrough => Box::new(PassThroughInterpreter::new()),
+    };
 
     // Use the interpreter to convert the content to tool calls
     let tool_calls = interpreter.interpret_to_tool_calls(content, tools).await?;
