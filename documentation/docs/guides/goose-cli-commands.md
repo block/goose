@@ -315,6 +315,7 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/plan <message>` - Create a structured plan based on the given message
 - `/?` or `/help` - Display this help message
 - `/recipe <recipe file name>` - Generate and save a session recipe to `recipe.yaml` or the filename specified by the command parameter.
+- `/summarize` - Summarize the current session to reduce context length while preserving key information
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
