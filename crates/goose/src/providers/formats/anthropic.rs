@@ -211,7 +211,7 @@ pub fn format_system(system: &str) -> Value {
 }
 
 /// Convert Anthropic's API response to internal Message format
-pub fn response_to_message(response: Value) -> Result<Message> {
+pub fn response_to_message(response: &Value) -> Result<Message> {
     let content_blocks = response
         .get(CONTENT_FIELD)
         .and_then(|c| c.as_array())
@@ -440,7 +440,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::Text(text) = &message.content[0] {
@@ -481,7 +481,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
@@ -531,7 +531,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         assert_eq!(message.content.len(), 3);

@@ -320,7 +320,7 @@ pub fn create_request(
 /// * `Result<Message>` - Converted message
 pub fn response_to_message(response: Value, request_context: RequestContext) -> Result<Message> {
     match request_context.provider() {
-        ModelProvider::Anthropic => anthropic::response_to_message(response),
+        ModelProvider::Anthropic => anthropic::response_to_message(&response),
         ModelProvider::Google => google::response_to_message(response),
     }
 }

@@ -65,7 +65,7 @@ impl AnthropicProvider {
         })
     }
 
-    async fn post(&self, headers: HeaderMap, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, headers: HeaderMap, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("v1/messages").map_err(|e| {
@@ -76,7 +76,7 @@ impl AnthropicProvider {
             .client
             .post(url)
             .headers(headers)
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
@@ -190,10 +190,10 @@ impl Provider for AnthropicProvider {
         }
 
         // Make request
-        let response = self.post(headers, payload.clone()).await?;
+        let response = self.post(headers, &payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         let model = get_model(&response);

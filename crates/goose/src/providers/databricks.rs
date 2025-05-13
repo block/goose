@@ -273,7 +273,7 @@ impl DatabricksProvider {
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         // Check if this is an embedding request by looking at the payload structure
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let path = if is_embedding {
@@ -451,10 +451,10 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
@@ -619,7 +619,7 @@ impl EmbeddingCapable for DatabricksProvider {
             "input": texts,
         });
 
-        let response = self.post(request).await?;
+        let response = self.post(&request).await?;
 
         let embeddings = response["data"]
             .as_array()

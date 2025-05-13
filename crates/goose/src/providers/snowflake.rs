@@ -108,7 +108,7 @@ impl SnowflakeProvider {
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url_str =
             if !self.host.starts_with("https://") && !self.host.starts_with("http://") {
                 format!("https://{}", self.host)
@@ -318,7 +318,7 @@ impl SnowflakeProvider {
                     .unwrap_or_else(|| "Invalid credentials".to_string());
 
                 Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}", 
+                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}",
                     error_msg
                 )))
             }
@@ -426,10 +426,10 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
