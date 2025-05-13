@@ -49,9 +49,8 @@ export default function UserMessage({ message }: UserMessageProps) {
               <div
                 key={`txt-${index}`}
                 ref={index === 0 ? contentRef : null}
-                className="user-message"
               >
-                <MarkdownContent content={part.text} className="text-white prose-a:text-white" />
+                <MarkdownContent content={part.text} className="text-white prose-a:text-white user-message" />
               </div>
             ))}
           </div>
