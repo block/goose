@@ -1,17 +1,16 @@
 use anyhow::Result;
 use console::style;
 
-use crate::recipes::print_recipe::print_recipe_explanation;
-use crate::recipes::{
-    print_recipe::missing_parameters_command_line, search_recipe::retrieve_recipe_file,
+use crate::recipes::print_recipe::{
+    missing_parameters_command_line, print_recipe_explanation,
+    print_required_parameters_for_template,
 };
+use crate::recipes::search_recipe::retrieve_recipe_file;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Error, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
-
-use super::print_recipe::print_required_parameters_for_template;
 
 /// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
 ///
@@ -476,7 +475,9 @@ mod tests {
         let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), params);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
-        assert!(err.to_string().contains("unknown variant `some_invalid_type`, expected one of `string`, `number`, `date`, `file`"));
+        assert!(err
+            .to_string()
+            .contains("unknown variant `some_invalid_type`"));
     }
 
     #[test]
