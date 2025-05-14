@@ -184,7 +184,7 @@ impl Provider for GoogleProvider {
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("name").and_then(|v| v.as_str()))
-            .map(|name| name.split('/').last().unwrap_or(name).to_string())
+            .map(|name| name.split('/').next_back().unwrap_or(name).to_string())
             .collect();
         models.sort();
         Ok(Some(models))
