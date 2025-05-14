@@ -83,17 +83,22 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">
             <BackButton onClick={() => onClose()} className="mb-4" />
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="64"
-              height="64"
-              viewBox="0 0 64 64"
-              fill="none"
-            >
-              <circle cx="32" cy="32" r="32" fill="#101010" />
-              <rect x="22" y="17" width="8" height="8" rx="4" fill="white" />
-              <rect x="22" y="28" width="20" height="20" rx="10" fill="white" />
-            </svg>
+            <div className="rounded-full bg-bgAppInverse w-16 h-16 flex items-center justify-center mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                className="stroke-bgApp fill-textProminent"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+                <path d="m21 2-9.6 9.6" />
+                <circle cx="7.5" cy="15.5" r="5.5" />
+              </svg>
+            </div>
             <h1 className="text-3xl font-medium text-textStandard mt-4">Permission Rules</h1>
             <p className="text-textSubtle">
               Hidden instructions that will be passed to the provider to help direct and add context

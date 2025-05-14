@@ -109,7 +109,7 @@ export default function GooseMessage({
               <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
-            <div className="relative flex justify-start z-[-1]">
+            <div className="relative flex justify-start">
               {toolRequests.length === 0 && (
                 <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                   {timestamp}

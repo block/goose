@@ -1,6 +1,18 @@
-import { Provider, ProviderResponse } from './types';
+import { ProviderResponse, ConfigDetails } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { default_key_value, required_keys } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
+
+// Backend API response types
+interface ProviderMetadata {
+  description: string;
+  models: string[];
+}
+
+interface ProviderDetails {
+  name: string;
+  metadata: ProviderMetadata;
+  is_configured: boolean;
+}
 
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
@@ -66,57 +78,41 @@ export async function getActiveProviders(): Promise<string[]> {
 }
 
 export async function getConfigSettings(): Promise<Record<string, ProviderResponse>> {
-  const providerList = await getProvidersList();
-  // Extract the list of IDs
-  const providerIds = providerList.map((provider) => provider.id);
-
-  // Fetch configs state (set/unset) using the provider IDs
-  const response = await fetch(getApiUrl('/configs/providers'), {
-    method: 'POST',
+  // Fetch provider config status
+  const response = await fetch(getApiUrl('/config/providers'), {
+    method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       'X-Secret-Key': getSecretKey(),
     },
-    body: JSON.stringify({
-      providers: providerIds,
-    }),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch secrets');
+    throw new Error('Failed to fetch provider configuration status');
   }
 
-  const data = (await response.json()) as Record<string, ProviderResponse>;
-  return data;
-}
+  const providers: ProviderDetails[] = await response.json();
 
-export async function getProvidersList(): Promise<Provider[]> {
-  const response = await fetch(getApiUrl('/agent/providers'), {
-    method: 'GET',
-  });
+  // Convert the response to the expected format
+  const data: Record<string, ProviderResponse> = {};
+  providers.forEach((provider) => {
+    const providerRequiredKeys = required_keys[provider.name] || [];
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch providers: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  interface ProviderItem {
-    id: string;
-    details?: {
-      name?: string;
-      description?: string;
-      models?: string[];
-      required_keys?: string[];
+    data[provider.name] = {
+      name: provider.name,
+      supported: true,
+      description: provider.metadata.description,
+      models: provider.metadata.models,
+      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>((acc, key) => {
+        acc[key] = {
+          key,
+          is_set: provider.is_configured,
+          location: provider.is_configured ? 'config' : undefined,
+        };
+        return acc;
+      }, {}),
     };
-  }
+  });
 
-  // Format the response into an array of providers
-  return data.map((item: ProviderItem) => ({
-    id: item.id, // Root-level ID
-    name: item.details?.name || 'Unknown Provider', // Nested name in details
-    description: item.details?.description || 'No description available.', // Nested description
-    models: item.details?.models || [], // Nested models array
-    requiredKeys: item.details?.required_keys || [], // Nested required keys array
-  }));
+  return data;
 }
