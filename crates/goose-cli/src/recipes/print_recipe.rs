@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use console::style;
 use goose::recipe::Recipe;
 
-pub fn print_recipe_preview(recipe: &Recipe) {
+pub fn print_recipe_explanation(recipe: &Recipe) {
     println!(
         "{} {}",
         style("🔍 Loading recipe:").bold().green(),
@@ -49,14 +49,14 @@ pub fn print_required_parameters_for_template(
     if !missing_params.is_empty() {
         println!(
             "{}",
-            style("🔴 Missing parameters in the command line:").bold()
+            style("🔴 Missing parameters in the command line if you want to run the recipe:").bold()
         );
         for param in missing_params.iter() {
             println!("   - {}", param);
         }
         println!(
             "📩 {}:",
-            style("Please provide the following parameters in the command line").bold()
+            style("Please provide the following parameters in the command line if you want to run the recipe:").bold()
         );
         println!("  {}", missing_parameters_command_line(missing_params));
     }

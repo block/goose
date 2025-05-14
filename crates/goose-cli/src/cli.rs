@@ -11,7 +11,7 @@ use crate::commands::project::{handle_project_default, handle_projects_interacti
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::{load_recipe_as_template, preview_recipe_with_parameters};
+use crate::recipes::recipe::{load_recipe_as_template, explain_recipe_with_parameters};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -324,13 +324,12 @@ enum Command {
         )]
         no_session: bool,
 
-        /// Preview recipe
+        /// Show the recipe title, description, and parameters
         #[arg(
-            short = None,
-            long = "preview",
-            help = "preview the recipe"
+            long = "explain",
+            help = "Show the recipe title, description, and parameters"
         )]
-        preview: bool,
+        explain: bool,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -523,9 +522,9 @@ pub async fn cli() -> Result<()> {
             remote_extensions,
             builtins,
             params,
-            preview,
+            explain,
         }) => {
-            let input_config = match (instructions, input_text, recipe, preview) {
+            let input_config = match (instructions, input_text, recipe, explain) {
                 (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
@@ -557,9 +556,9 @@ pub async fn cli() -> Result<()> {
                     extensions_override: None,
                     additional_system_prompt: None,
                 },
-                (_, _, Some(recipe_name), preview) => {
-                    if preview {
-                        preview_recipe_with_parameters(&recipe_name, params)?;
+                (_, _, Some(recipe_name), explain) => {
+                    if explain {
+                        explain_recipe_with_parameters(&recipe_name, params)?;
                         return Ok(());
                     }
                     let recipe =

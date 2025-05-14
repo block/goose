@@ -1,7 +1,7 @@
 use anyhow::Result;
 use console::style;
 
-use crate::recipes::print_recipe::print_recipe_preview;
+use crate::recipes::print_recipe::print_recipe_explanation;
 use crate::recipes::{
     print_recipe::missing_parameters_command_line, search_recipe::retrieve_recipe_file,
 };
@@ -89,14 +89,14 @@ pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
     validate_recipe_file_parameters(&recipe_file_content)
 }
 
-pub fn preview_recipe_with_parameters(
+pub fn explain_recipe_with_parameters(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<()> {
     let recipe_file_content = retrieve_recipe_file(recipe_name)?;
 
     let raw_recipe = validate_recipe_file_parameters(&recipe_file_content)?;
-    print_recipe_preview(&raw_recipe);
+    print_recipe_explanation(&raw_recipe);
     let recipe_parameters = raw_recipe.parameters;
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, false)?;
