@@ -16,10 +16,10 @@ To build the FFI library, you'll need Rust and Cargo installed. Then run:
 
 ```bash
 # Build the library in debug mode
-cargo build --package goose_ffi
+cargo build --package goose-ffi
 
 # Build the library in release mode (recommended for production)
-cargo build --release --package goose_ffi
+cargo build --release --package goose-ffi
 ```
 
 This will generate a dynamic library (.so, .dll, or .dylib depending on your platform) in the `target` directory, and automatically generate the C header file in the `include` directory.
@@ -54,7 +54,7 @@ To run the Python example:
 
 ```bash
 # First, build the FFI library
-cargo build --release --package goose_ffi
+cargo build --release --package goose-ffi
 
 # Then set the environment variables & run the example
 DATABRICKS_HOST=... DATABRICKS_API_KEY=... python crates/goose-ffi/examples/goose_agent.py
