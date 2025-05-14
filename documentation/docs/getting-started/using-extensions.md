@@ -249,17 +249,17 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
 
 ### Deeplinks
 
-Deeplinks provide a convenient way to install and configure remote extensions in Goose Desktop. They use a `goose://` URL scheme with an `id`, `name` and `description` argument, and either a `url` argument or `cmd` and `arg` arguments.
-
+Extensions can be installed using Goose's deep link protocol. The URL format varies based on the extension type:
 <Tabs groupId="interface">
   <TabItem value="stdio" label="StandardIO" default>
 ```
-goose://extension?cmd=<command>&arg=<argument>&id=...&name=...&description=...
+goose://extension?cmd=<command>&arg=<argument>&id=<id>&name=<name>&description=<description>
 ```
 
-Parameters:
-- `cmd`: The base command to run (e.g., `npx`)
-- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...&arg=...`)
+Required parameters:
+- `cmd`: The base command to run (e.g., `npx`, `uvx`)
+- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...`)
+- `timeout`: Maximum time (in seconds) to wait for extension responses
 - `id`: Unique identifier for the extension
 - `name`: Display name for the extension
 - `description`: Brief description of the extension's functionality
@@ -267,18 +267,19 @@ Parameters:
 A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
 
 ```
-goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&id=...
+goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&timeout=<timeout>&id=<id>&name=<name>&description=<description>
 ```
 
 Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
   </TabItem>
-
   <TabItem value="sse" label="Server-Sent Events">
 ```
-goose://extension?url=<remote-sse-url>&id=...&name=...&description=...
+goose://extension?url=<remote-sse-url>&id=<id>&name=<name>&description=<description>
 ```
+
 Parameters:
 - `url`: The URL of the remote SSE server
+- `timeout`: Maximum time (in seconds) to wait for extension responses
 - `id`: Unique identifier for the extension
 - `name`: Display name for the extension
 - `description`: Brief description of the extension's functionality
@@ -286,7 +287,7 @@ Parameters:
 For example, a deeplink for a URL like `http://localhost:8080/sse` would look like this when URL-encoded:
 
 ```
-goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&id=...&name=...&description=...
+goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&timeout=<timeout>&id=<id>&name=<name>&description=<description>>
 ```
 
   </TabItem>
@@ -461,21 +462,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ### Remote Extensions over SSE
 
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Desktop" default>
-To enable a remote extension over SSE, you can use a deeplink as [described above](#deeplinks).
-
-Clicking on a `goose://` deeplink will open Goose Desktop and prompt you to install the extension. You can use the Advanced Settings menu to view and manage the installed extension.
-
-For example, to use remote extension running on localhost on port 8080 like `http://localhost:8080/sse`, your deeplink would look like this:
-
-```
-goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&id=...&name=...&description=...
-```
-
-
-</TabItem>
-<TabItem value="cli" label="CLI">
 To enable a remote extension over SSE while starting a session, run the following command:
 
 ```bash
@@ -487,8 +473,6 @@ For example, to start a session with a remote extension running on localhost on 
 ```bash
 goose session --with-remote-extension "http://localhost:8080/sse"
 ```
-  </TabItem>
-</Tabs>
 
 ## Developing Extensions
 
