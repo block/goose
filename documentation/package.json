@@ -34,7 +34,7 @@
     "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^3.4.1",
-     "swiper": "^11.2.6"
+    "swiper": "^11.2.6"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.7.0",
@@ -56,5 +56,8 @@
   },
   "engines": {
     "node": ">=18.0"
+  },
+  "volta": {
+    "node": "18.20.8"
   }
 }

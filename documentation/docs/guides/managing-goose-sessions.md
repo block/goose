@@ -18,6 +18,14 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
+        You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
+        
+        | Action | macOS | Windows/Linux |
+        |--------|-------|---------------|
+        | New Session in Current Directory | `Cmd+N`  | `Ctrl+N`  |
+        | New Session in Different Directory  | `Cmd+O` | `Ctrl+O` |
+        | Focus Goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         From your terminal, navigate to the directory from which you'd like to start, and run:
@@ -175,8 +183,9 @@ Search allows you to find specific content within your current session. The sear
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
         | Open Search | `Cmd+F`  | `Ctrl+F`  |
-        | Previous Match | `↑` | `↑` |
-        | Next Match | `↓` | `↓` |
+        | Next Match | `Cmd+G`<br />or `↓` | `Ctrl+G`<br />or `↓` |
+        | Previous Match | `Shift+Cmd+G`<br />or `↑` | `Shift+Ctrl+G`<br />or `↑` |
+        | Use Selection for Find | `Cmd+E` | n/a |
         | Toggle Case-Sensitivity | `Aa` | `Aa` |
         | Close Search | `Esc` or X | `Esc` or X |
 
