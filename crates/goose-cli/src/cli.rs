@@ -220,6 +220,15 @@ enum Command {
         )]
         debug: bool,
 
+        /// Maximum number of consecutive identical tool calls allowed
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Maximum number of consecutive identical tool calls allowed",
+            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+        )]
+        max_tool_repetitions: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -323,6 +332,15 @@ enum Command {
             conflicts_with_all = ["resume", "name", "path"] 
         )]
         no_session: bool,
+
+        /// Maximum number of consecutive identical tool calls allowed
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Maximum number of consecutive identical tool calls allowed",
+            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+        )]
+        max_tool_repetitions: Option<u32>,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -446,6 +464,7 @@ pub async fn cli() -> Result<()> {
             resume,
             history,
             debug,
+            max_tool_repetitions,
             extensions,
             remote_extensions,
             builtins,
@@ -475,6 +494,7 @@ pub async fn cli() -> Result<()> {
                         extensions_override: None,
                         additional_system_prompt: None,
                         debug,
+                        max_tool_repetitions,
                     })
                     .await;
                     setup_logging(
@@ -511,6 +531,7 @@ pub async fn cli() -> Result<()> {
             resume,
             no_session,
             debug,
+            max_tool_repetitions,
             extensions,
             remote_extensions,
             builtins,
@@ -576,6 +597,7 @@ pub async fn cli() -> Result<()> {
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
                 debug,
+                max_tool_repetitions,
             })
             .await;
 
@@ -647,6 +669,7 @@ pub async fn cli() -> Result<()> {
                     extensions_override: None,
                     additional_system_prompt: None,
                     debug: false,
+                    max_tool_repetitions: None,
                 })
                 .await;
                 setup_logging(
