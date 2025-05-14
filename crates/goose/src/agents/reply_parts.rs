@@ -17,6 +17,7 @@ impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
+        messages: &[Message],
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tools from extension manager
         let mut tools = self.list_tools(None).await;
@@ -55,7 +56,10 @@ impl Agent {
             tools = vec![];
         }
 
-        Ok((tools, toolshim_tools, system_prompt))
+        let (mcp_router_tools, mcp_router_toolshims) =
+            self.mcp_router(messages, &tools, &toolshim_tools).await?;
+
+        Ok((mcp_router_tools, mcp_router_toolshims, system_prompt))
     }
 
     /// Categorize tools based on their annotations

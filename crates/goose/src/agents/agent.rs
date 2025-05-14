@@ -323,7 +323,7 @@ impl Agent {
 
         // Setup tools and prompt
         let (mut tools, mut toolshim_tools, mut system_prompt) =
-            self.prepare_tools_and_prompt().await?;
+            self.prepare_tools_and_prompt(&messages).await?;
 
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
@@ -470,7 +470,7 @@ impl Agent {
 
                             // Update system prompt and tools if installations were successful
                             if all_install_successful {
-                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt(&messages).await?;
                             }
                         }
 
@@ -702,5 +702,14 @@ impl Agent {
             .expect("valid recipe");
 
         Ok(recipe)
+    }
+
+    pub async fn mcp_router(
+        &self,
+        _messages: &[Message],
+        tools: &[Tool],
+        toolshim_tools: &[Tool],
+    ) -> Result<(Vec<Tool>, Vec<Tool>)> {
+        Ok((tools.to_vec(), toolshim_tools.to_vec()))
     }
 }
