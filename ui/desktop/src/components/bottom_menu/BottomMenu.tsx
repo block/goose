@@ -40,6 +40,7 @@ export default function BottomMenu({
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
+  const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
 
   // Load model limits from the API
   const getModelLimits = async () => {
@@ -67,10 +68,14 @@ export default function BottomMenu({
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
+      // Reset token limit loaded state
+      setIsTokenLimitLoaded(false);
+
       // Get current model and provider first to avoid unnecessary provider fetches
       const { model, provider } = await getCurrentModelAndProvider({ readFromConfig: read });
       if (!model || !provider) {
         console.log('No model or provider found');
+        setIsTokenLimitLoaded(true);
         return;
       }
 
@@ -83,6 +88,7 @@ export default function BottomMenu({
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
           setTokenLimit(modelConfig.context_limit);
+          setIsTokenLimitLoaded(true);
           return;
         }
       }
@@ -92,15 +98,18 @@ export default function BottomMenu({
       const fallbackLimit = findModelLimit(model as string, modelLimit);
       if (fallbackLimit !== null) {
         setTokenLimit(fallbackLimit);
+        setIsTokenLimitLoaded(true);
         return;
       }
 
       // If no match found, use the default model limit
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      setIsTokenLimitLoaded(true);
     } catch (err) {
       console.error('Error loading providers or token limit:', err);
       // Set default limit on error
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      setIsTokenLimitLoaded(true);
     }
   };
 
@@ -114,20 +123,20 @@ export default function BottomMenu({
   useEffect(() => {
     clearAlerts();
 
-    // Add token alerts if we have a token limit
-    if (tokenLimit && numTokens > 0) {
+    // Only show token alerts if we have loaded the real token limit
+    if (isTokenLimitLoaded && tokenLimit && numTokens > 0) {
       if (numTokens >= tokenLimit) {
         // Only show error alert when limit reached
         addAlert({
           type: AlertType.Error,
-          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’ve reached the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You've reached the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
           autoShow: true, // Auto-show token limit errors
         });
       } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
         // Only show warning alert when approaching limit
         addAlert({
           type: AlertType.Warning,
-          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’re reaching the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
           autoShow: true, // Auto-show token limit warnings
         });
       } else {
@@ -157,7 +166,7 @@ export default function BottomMenu({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, addAlert, clearAlerts]);
+  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Add effect to handle clicks outside
   useEffect(() => {
