@@ -246,6 +246,57 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
   </TabItem>
 </Tabs>
 
+
+### Deeplinks
+
+Deeplinks provide a convenient way to install and configure remote extensions in Goose Desktop. They use a `goose://` URL scheme with an `id`, `name` and `description` argument, and either a `url` argument or `cmd` and `arg` arguments.
+
+<Tabs groupId="interface">
+  <TabItem value="stdio" label="StandardIO" default>
+```
+goose://extension?cmd=<command>&arg=<argument>&id=...&name=...&description=...
+```
+
+Parameters:
+- `cmd`: The base command to run (e.g., `npx`)
+- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...&arg=...`)
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
+
+```
+goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&id=...
+```
+
+Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
+  </TabItem>
+
+  <TabItem value="sse" label="Server-Sent Events">
+```
+goose://extension?url=<remote-sse-url>&id=...&name=...&description=...
+```
+Parameters:
+- `url`: The URL of the remote SSE server
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+For example, a deeplink for a URL like `http://localhost:8080/sse` would look like this when URL-encoded:
+
+```
+goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&id=...&name=...&description=...
+```
+
+  </TabItem>
+</Tabs>
+
+:::note
+All parameters in the deeplink must be URL-encoded. For example, spaces should be replaced with `%20`, and `@` should be replaced with `%40`.
+:::
+
+
 ### Config Entry
 For advanced users, you can also directly edit the config file (`~/.config/goose/config.yaml`) to add, remove, or update an extension:
 
@@ -344,9 +395,6 @@ You can remove installed extensions.
 </Tabs>
 
 
-
-
-
 ## Starting Session with Extensions
 
 You can start a tailored Goose session with specific extensions directly from the CLI. 
@@ -410,54 +458,21 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
-### Deeplinks
-
-Deeplinks provide a convenient way to install and configure remote extensions in Goose Desktop. They use the `goose://` URL scheme with the following format using `cmd` and `arg` parameters:
-
-```
-goose://extension?cmd=<command>&arg=<argument>&id=...&name=...&description=...
-```
-
-Parameters:
-- `cmd`: The base command to run (e.g., `npx`)
-- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...&arg=...`)
-- `id`: Unique identifier for the extension
-- `name`: Display name for the extension
-- `description`: Brief description of the extension's functionality
-
-A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
-
-```
-goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&id=...
-```
-
-Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
-
-All commands and arguments must be URL-encoded. For example, spaces should be replaced with `%20`, and `@` should be replaced with `%40`.
-
 
 ### Remote Extensions over SSE
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Desktop" default>
-Deeplinks for remote SSE extenstions replace the `cmd` parameter with `url` to specify the URL of the remote SSE server, and remove other arguments, to look like this:
+To enable a remote extension over SSE, you can use a deeplink as [described above](#deeplinks).
+
+Clicking on a `goose://` deeplink will open Goose Desktop and prompt you to install the extension. You can use the Advanced Settings menu to view and manage the installed extension.
+
+For example, to use remote extension running on localhost on port 8080 like `http://localhost:8080/sse`, your deeplink would look like this:
 
 ```
-goose://extension?url=<remote-sse-url>&id=...&name=...&description=...
+goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&id=...&name=...&description=...
 ```
 
-example:
-```
-goose://extension?url=http%3A%2F%2Flocalhost%3A39300%2Fmodel_context_protocol%2F2024-11-05%2Fsse&id=pieces&name=Pieces%20for%20Developers&description=Provides%20access%20to%20your%20Pieces%20Long-Term%20Memory
-```
-
-The deeplink must be url-friendly, so your `url` argument should also be URL-encoded.
-
-Parameters:
-- `url` for remote SSE, set to the URL
-- `id`: Unique identifier for the extension
-- `name`: Display name for the extension
-- `description`: Brief description of the extension's functionality
 
 </TabItem>
 <TabItem value="cli" label="CLI">
