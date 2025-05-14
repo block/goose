@@ -110,23 +110,35 @@ export default function BottomMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel]);
 
-  // Handle tool count alerts
+  // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
 
     // Add token alerts if we have a token limit
     if (tokenLimit && numTokens > 0) {
       if (numTokens >= tokenLimit) {
+        // Only show error alert when limit reached
         addAlert({
           type: AlertType.Error,
           message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’ve reached the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
           autoShow: true, // Auto-show token limit errors
         });
       } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
+        // Only show warning alert when approaching limit
         addAlert({
           type: AlertType.Warning,
           message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’re reaching the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
           autoShow: true, // Auto-show token limit warnings
+        });
+      } else {
+        // Show info alert only when not in warning/error state
+        addAlert({
+          type: AlertType.Info,
+          message: 'Context window',
+          progress: {
+            current: numTokens,
+            total: tokenLimit,
+          },
         });
       }
     }
