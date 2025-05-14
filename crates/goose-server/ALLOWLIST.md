@@ -1,3 +1,5 @@
+IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference in case it is used on the server side for launch time enforcement.
+
 # Goose Extension Allowlist
 
 The allowlist feature provides a security mechanism for controlling which MCP commands can be used by goose. 
@@ -24,8 +26,10 @@ If this environment variable is not set, no allowlist restrictions will be appli
 In certain development or testing scenarios, you may need to bypass the allowlist restrictions. You can do this by setting the `GOOSE_ALLOWLIST_BYPASS` environment variable to `true`:
 
 ```bash
-export GOOSE_ALLOWLIST_BYPASS=true
+# For the GUI, you can have it show a warning instead of blocking (but it will always show a warning):
+export GOOSE_ALLOWLIST_WARNING=true
 ```
+
 
 When this environment variable is set to `true` (case insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
 

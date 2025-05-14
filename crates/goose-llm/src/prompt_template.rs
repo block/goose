@@ -1,9 +1,12 @@
+use std::{
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
+
 use include_dir::{include_dir, Dir};
 use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
 use once_cell::sync::Lazy;
 use serde::Serialize;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
 
 /// This directory will be embedded into the final binary.
 /// Typically used to store "core" or "system" prompts.

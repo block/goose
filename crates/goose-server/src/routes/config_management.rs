@@ -10,6 +10,7 @@ use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use goose::config::Config;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
+use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
@@ -153,6 +154,14 @@ pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
+
+    // Special handling for model-limits
+    if query.key == "model-limits" {
+        let limits = ModelConfig::get_all_model_limits();
+        return Ok(Json(
+            serde_json::to_value(limits).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+        ));
+    }
 
     let config = Config::global();
 
@@ -480,4 +489,46 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/backup", post(backup_config))
         .route("/config/permissions", post(upsert_permissions))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_model_limits() {
+        // Create test state and headers
+        let test_state = AppState::new(
+            Arc::new(goose::agents::Agent::default()),
+            "test".to_string(),
+        )
+        .await;
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        // Execute
+        let result = read_config(
+            State(test_state),
+            headers,
+            Json(ConfigKeyQuery {
+                key: "model-limits".to_string(),
+                is_secret: false,
+            }),
+        )
+        .await;
+
+        // Assert
+        assert!(result.is_ok());
+        let response = result.unwrap();
+
+        // Parse the response and check the contents
+        let limits: Vec<goose::model::ModelLimitConfig> =
+            serde_json::from_value(response.0).unwrap();
+        assert!(!limits.is_empty());
+
+        // Check for some expected patterns
+        let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
+        assert!(gpt4_limit.is_some());
+        assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
+    }
 }

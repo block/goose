@@ -1,68 +1,144 @@
+use std::{collections::HashMap, time::Instant};
+
 use anyhow::Result;
 use chrono::Utc;
 use serde_json::Value;
-use std::collections::HashMap;
 
-use goose::message::Message;
-use goose::model::ModelConfig;
-use goose::providers::create;
-use goose::providers::errors::ProviderError;
+use crate::{
+    message::{Message, MessageContent},
+    prompt_template,
+    providers::create,
+    types::{
+        completion::{
+            CompletionError, CompletionRequest, CompletionResponse, ExtensionConfig,
+            RuntimeMetrics, ToolApprovalMode, ToolConfig,
+        },
+        core::ToolCall,
+    },
+};
 
-use std::time::Instant;
-
-use crate::prompt_template;
-use crate::{CompletionResponse, Extension, RuntimeMetrics};
+#[uniffi::export]
+pub fn print_messages(messages: Vec<Message>) {
+    for msg in messages {
+        println!("[{:?} @ {}] {:?}", msg.role, msg.created, msg.content);
+    }
+}
 
 /// Public API for the Goose LLM completion function
-pub async fn completion(
-    provider: &str,
-    model_config: ModelConfig,
-    system_preamble: &str,
-    messages: &[Message],
-    extensions: &[Extension],
-) -> Result<CompletionResponse, ProviderError> {
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, CompletionError> {
     let start_total = Instant::now();
-    let provider = create(provider, model_config).unwrap();
-    let system_prompt = construct_system_prompt(system_preamble, extensions);
-    // println!("\nSystem prompt: {}\n", system_prompt);
 
-    let tools = extensions
+    let provider = create(
+        &req.provider_name,
+        req.provider_config.clone(),
+        req.model_config.clone(),
+    )
+    .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
+
+    let system_prompt = construct_system_prompt(&req.system_preamble, &req.extensions)?;
+    let tools = collect_prefixed_tools(&req.extensions);
+
+    // Call the LLM provider
+    let start_provider = Instant::now();
+    let mut response = provider
+        .complete(&system_prompt, &req.messages, &tools)
+        .await?;
+    let provider_elapsed_sec = start_provider.elapsed().as_secs_f32();
+    let usage_tokens = response.usage.total_tokens;
+
+    let tool_configs = collect_prefixed_tool_configs(&req.extensions);
+    update_needs_approval_for_tool_calls(&mut response.message, &tool_configs)?;
+
+    Ok(CompletionResponse::new(
+        response.message,
+        response.model,
+        response.usage,
+        calculate_runtime_metrics(start_total, provider_elapsed_sec, usage_tokens),
+    ))
+}
+
+/// Render the global `system.md` template with the provided context.
+fn construct_system_prompt(
+    system_preamble: &str,
+    extensions: &[ExtensionConfig],
+) -> Result<String, CompletionError> {
+    let mut context: HashMap<&str, Value> = HashMap::new();
+    context.insert("system_preamble", Value::String(system_preamble.to_owned()));
+    context.insert("extensions", serde_json::to_value(extensions)?);
+    context.insert(
+        "current_date",
+        Value::String(Utc::now().format("%Y-%m-%d").to_string()),
+    );
+
+    Ok(prompt_template::render_global_file("system.md", &context)?)
+}
+
+/// Determine if a tool call requires manual approval.
+fn determine_needs_approval(config: &ToolConfig, _call: &ToolCall) -> bool {
+    match config.approval_mode {
+        ToolApprovalMode::Auto => false,
+        ToolApprovalMode::Manual => true,
+        ToolApprovalMode::Smart => {
+            // TODO: Implement smart approval logic later
+            true
+        }
+    }
+}
+
+/// Set `needs_approval` on every tool call in the message.
+/// Returns a `ToolNotFound` error if the corresponding `ToolConfig` is missing.
+pub fn update_needs_approval_for_tool_calls(
+    message: &mut Message,
+    tool_configs: &HashMap<String, ToolConfig>,
+) -> Result<(), CompletionError> {
+    for content in &mut message.content.iter_mut() {
+        if let MessageContent::ToolReq(req) = content {
+            if let Ok(call) = &mut req.tool_call.0 {
+                // Provide a clear error message when the tool config is missing
+                let config = tool_configs.get(&call.name).ok_or_else(|| {
+                    CompletionError::ToolNotFound(format!(
+                        "could not find tool config for '{}'",
+                        call.name
+                    ))
+                })?;
+                let needs_approval = determine_needs_approval(config, call);
+                call.set_needs_approval(needs_approval);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Collect all `Tool` instances from the extensions.
+fn collect_prefixed_tools(extensions: &[ExtensionConfig]) -> Vec<crate::types::core::Tool> {
+    extensions
         .iter()
         .flat_map(|ext| ext.get_prefixed_tools())
-        .collect::<Vec<_>>();
+        .collect()
+}
 
-    let start_provider = Instant::now();
-    let (response, usage) = provider.complete(&system_prompt, messages, &tools).await?;
-    let total_time_ms_provider = start_provider.elapsed().as_millis();
-    let total_time_ms = start_total.elapsed().as_millis();
+/// Collect all `ToolConfig` entries from the extensions into a map.
+fn collect_prefixed_tool_configs(extensions: &[ExtensionConfig]) -> HashMap<String, ToolConfig> {
+    extensions
+        .iter()
+        .flat_map(|ext| ext.get_prefixed_tool_configs())
+        .collect()
+}
 
-    let tokens_per_second = usage.usage.total_tokens.and_then(|toks| {
-        if total_time_ms_provider > 0 {
-            Some(toks as f64 / (total_time_ms_provider as f64 / 1000.0))
+/// Compute runtime metrics for the request.
+fn calculate_runtime_metrics(
+    total_start: Instant,
+    provider_elapsed_sec: f32,
+    token_count: Option<i32>,
+) -> RuntimeMetrics {
+    let total_ms = total_start.elapsed().as_secs_f32();
+    let tokens_per_sec = token_count.and_then(|toks| {
+        if provider_elapsed_sec > 0.0 {
+            Some(toks as f64 / (provider_elapsed_sec as f64))
         } else {
             None
         }
     });
-
-    let runtime_metrics =
-        RuntimeMetrics::new(total_time_ms, total_time_ms_provider, tokens_per_second);
-
-    let result = CompletionResponse::new(response.clone(), usage.clone(), runtime_metrics);
-
-    Ok(result)
-}
-
-fn construct_system_prompt(system_preamble: &str, extensions: &[Extension]) -> String {
-    let mut context: HashMap<&str, Value> = HashMap::new();
-
-    context.insert(
-        "system_preamble",
-        Value::String(system_preamble.to_string()),
-    );
-    context.insert("extensions", serde_json::to_value(extensions).unwrap());
-
-    let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    context.insert("current_date_time", Value::String(current_date_time));
-
-    prompt_template::render_global_file("system.md", &context).expect("Prompt should render")
+    RuntimeMetrics::new(total_ms, provider_elapsed_sec, tokens_per_sec)
 }

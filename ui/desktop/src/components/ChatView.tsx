@@ -22,8 +22,8 @@ import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
-} from './context_management/ContextManager';
-import { ContextLengthExceededHandler } from './context_management/ContextLengthExceededHandler';
+} from './context_management/ChatContextManager';
+import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
@@ -105,7 +105,8 @@ function ChatContent({
     resetMessagesWithSummary,
     closeSummaryModal,
     updateSummary,
-    hasContextLengthExceededContent,
+    hasContextHandlerContent,
+    getContextHandlerType,
   } = useChatContextManager();
 
   useEffect(() => {
@@ -521,17 +522,29 @@ function ChatContent({
                   data-testid="message-container"
                 >
                   {isUserMessage(message) ? (
-                    <UserMessage message={message} />
-                  ) : (
                     <>
-                      {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
-                      {process.env.NODE_ENV === 'development' &&
-                      hasContextLengthExceededContent(message) ? (
-                        <ContextLengthExceededHandler
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
                           messages={messages}
                           messageId={message.id ?? message.created.toString()}
                           chatId={chat.id}
                           workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
+                        />
+                      ) : (
+                        <UserMessage message={message} />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Only render GooseMessage if it's not a message invoking some context management */}
+                      {hasContextHandlerContent(message) ? (
+                        <ContextHandler
+                          messages={messages}
+                          messageId={message.id ?? message.created.toString()}
+                          chatId={chat.id}
+                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                          contextType={getContextHandlerType(message)}
                         />
                       ) : (
                         <GooseMessage
@@ -588,22 +601,23 @@ function ChatContent({
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}
             droppedFiles={droppedFiles}
+            messages={messages}
+            setMessages={setMessages}
           />
         </div>
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-      {process.env.NODE_ENV === 'development' && (
-        <SessionSummaryModal
-          isOpen={isSummaryModalOpen}
-          onClose={closeSummaryModal}
-          onSave={(editedContent) => {
-            updateSummary(editedContent);
-            closeSummaryModal();
-          }}
-          summaryContent={summaryContent}
-        />
-      )}
+
+      <SessionSummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={closeSummaryModal}
+        onSave={(editedContent) => {
+          updateSummary(editedContent);
+          closeSummaryModal();
+        }}
+        summaryContent={summaryContent}
+      />
     </div>
   );
 }

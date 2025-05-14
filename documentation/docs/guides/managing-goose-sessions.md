@@ -160,6 +160,10 @@ You can resume a CLI session in Desktop and vice versa.
     </TabItem>
 </Tabs>
 
+## Remove Sessions
+
+You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
+
 ## Search Within Sessions
 
 Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.

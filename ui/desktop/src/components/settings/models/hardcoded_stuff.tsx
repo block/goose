@@ -48,6 +48,7 @@ export const default_models = {
   gcp_vertex_ai: 'gemini-2.0-flash-001',
   aws_bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
   snowflake: 'claude-3-5-sonnet',
+  venice: 'llama-3.3-70b',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -128,4 +129,5 @@ export const provider_aliases = [
   { provider: 'GCP Vertex AI', alias: 'gcp_vertex_ai' },
   { provider: 'AWS Bedrock', alias: 'aws_bedrock' },
   { provider: 'Snowflake', alias: 'snowflake' },
+  { provider: 'Venice', alias: 'venice' },
 ];

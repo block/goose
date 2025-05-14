@@ -241,8 +241,6 @@ html {
   padding-top: 24px;
 }
 
-/* net new */
-
 .hero--logo svg {
   height: 220px;
   width: 220px;
@@ -255,6 +253,17 @@ html {
 
 .pill-button p {
   margin: 0;
+}
+
+.ctaButton {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: var(--background-app);
+  color: var(--text-standard);
+  font-weight: bold;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
 }
 
 /* Enable word-wrap for code blocks */
@@ -306,3 +315,4 @@ html[data-theme="light"] .hide-in-light {
   object-fit: cover; /* Ensure the image covers the area while maintaining aspect ratio */
   border-radius: 8px; /* Optional: rounded corners */
 }
+

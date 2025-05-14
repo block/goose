@@ -158,6 +158,13 @@ Welcome to goose! Let's get you set up with a provider.
 │  gemini-2.0-flash-exp
 ```
 
+You may also use the `GOOSE_DISABLE_KEYRING` environment variable, which disables the system keyring for secret storage. Set to any value (e.g., "1", "true", "yes"), to disable. The actual value doesn't matter, only whether the variable is set.
+
+When the keyring is disabled, secrets are stored here:
+
+* macOS/Linux: `~/.config/goose/secrets.yaml`
+* Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
+
 ---
 
 ### Package Runners

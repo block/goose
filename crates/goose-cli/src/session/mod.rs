@@ -290,6 +290,22 @@ impl Session {
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
 
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) =
+            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
+        {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
+        }
+
         self.process_agent_response(false).await?;
         Ok(())
     }
@@ -355,6 +371,20 @@ impl Session {
                             save_history(&mut editor);
 
                             self.messages.push(Message::user().with_text(&content));
+
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
 
                             // Get the provider from the agent for description generation
                             let provider = self.agent.provider().await?;
@@ -501,6 +531,53 @@ impl Session {
                                 e
                             );
                         }
+                    }
+
+                    continue;
+                }
+                InputResult::Summarize => {
+                    save_history(&mut editor);
+
+                    let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
+                    let should_summarize =
+                        cliclack::confirm(prompt).initial_value(true).interact()?;
+
+                    if should_summarize {
+                        println!("{}", console::style("Summarizing conversation...").yellow());
+                        output::show_thinking();
+
+                        // Get the provider for summarization
+                        let provider = self.agent.provider().await?;
+
+                        // Call the summarize_context method which uses the summarize_messages function
+                        let (summarized_messages, _) =
+                            self.agent.summarize_context(&self.messages).await?;
+
+                        // Update the session messages with the summarized ones
+                        self.messages = summarized_messages;
+
+                        // Persist the summarized messages
+                        session::persist_messages(
+                            &self.session_file,
+                            &self.messages,
+                            Some(provider),
+                        )
+                        .await?;
+
+                        output::hide_thinking();
+                        println!(
+                            "{}",
+                            console::style("Conversation has been summarized.").green()
+                        );
+                        println!(
+                            "{}",
+                            console::style(
+                                "Key information has been preserved while reducing context length."
+                            )
+                            .green()
+                        );
+                    } else {
+                        println!("{}", console::style("Summarization cancelled.").yellow());
                     }
 
                     continue;
@@ -852,6 +929,31 @@ impl Session {
         self.messages.clone()
     }
 
+    /// Render all past messages from the session history
+    pub fn render_message_history(&self) {
+        if self.messages.is_empty() {
+            return;
+        }
+
+        // Print session restored message
+        println!(
+            "\n{} {} messages loaded into context.",
+            console::style("Session restored:").green().bold(),
+            console::style(self.messages.len()).green()
+        );
+
+        // Render each message
+        for message in &self.messages {
+            output::render_message(message, self.debug);
+        }
+
+        // Add a visual separator after restored messages
+        println!(
+            "\n{}\n",
+            console::style("──────── New Messages ────────").dim()
+        );
+    }
+
     /// Get the session metadata
     pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
         if !self.session_file.exists() {
@@ -976,29 +1078,30 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
-    let (reasoner_provider, reasoner_model) = match (
-        std::env::var("GOOSE_PLANNER_PROVIDER"),
-        std::env::var("GOOSE_PLANNER_MODEL"),
-    ) {
-        (Ok(provider), Ok(model)) => (provider, model),
-        _ => {
-            println!(
-                "WARNING: GOOSE_PLANNER_PROVIDER or GOOSE_PLANNER_MODEL is not set. \
-                 Using default model from config..."
-            );
-            let config = Config::global();
-            let provider = config
-                .get_param("GOOSE_PROVIDER")
-                .expect("No provider configured. Run 'goose configure' first");
-            let model = config
-                .get_param("GOOSE_MODEL")
-                .expect("No model configured. Run 'goose configure' first");
-            (provider, model)
-        }
+    let config = Config::global();
+
+    // Try planner-specific provider first, fallback to default provider
+    let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
+        provider
+    } else {
+        println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
+        config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .expect("No provider configured. Run 'goose configure' first")
     };
 
-    let model_config = ModelConfig::new(reasoner_model);
-    let reasoner = create(&reasoner_provider, model_config)?;
+    // Try planner-specific model first, fallback to default model
+    let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
+        model
+    } else {
+        println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");
+        config
+            .get_param::<String>("GOOSE_MODEL")
+            .expect("No model configured. Run 'goose configure' first")
+    };
+
+    let model_config = ModelConfig::new(model);
+    let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
 }

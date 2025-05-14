@@ -21,6 +21,8 @@ pub struct SessionBuilderConfig {
     pub identifier: Option<Identifier>,
     /// Whether to resume an existing session
     pub resume: bool,
+    /// Whether to run without a session file
+    pub no_session: bool,
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
     /// List of remote extension commands to add
@@ -54,7 +56,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let _ = agent.update_provider(new_provider).await;
 
     // Handle session file resolution and resuming
-    let session_file = if session_config.resume {
+    let session_file = if session_config.no_session {
+        // Use a temporary path that won't be written to
+        #[cfg(unix)]
+        {
+            std::path::PathBuf::from("/dev/null")
+        }
+        #[cfg(windows)]
+        {
+            std::path::PathBuf::from("NUL")
+        }
+    } else if session_config.resume {
         if let Some(identifier) = session_config.identifier {
             let session_file = session::get_path(identifier);
             if !session_file.exists() {
@@ -87,7 +99,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session::get_path(id)
     };
 
-    if session_config.resume {
+    if session_config.resume && !session_config.no_session {
         // Read the session metadata
         let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
             output::render_error(&format!("Failed to read session metadata: {}", e));
@@ -103,7 +115,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             .interact().expect("Failed to get user input");
 
             if change_workdir {
-                std::env::set_current_dir(metadata.working_dir).unwrap();
+                if !metadata.working_dir.exists() {
+                    output::render_error(&format!(
+                        "Cannot switch to original working directory - {} no longer exists",
+                        style(metadata.working_dir.display()).cyan()
+                    ));
+                } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
+                    output::render_error(&format!(
+                        "Failed to switch to original working directory: {}",
+                        e
+                    ));
+                }
             }
         }
     }

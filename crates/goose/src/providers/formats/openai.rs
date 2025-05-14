@@ -55,6 +55,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ContextLengthExceeded(_) => {
                     continue;
                 }
+                MessageContent::SummarizationRequested(_) => {
+                    continue;
+                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
@@ -202,15 +205,12 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let mut description = tool.description.clone();
-        description.truncate(1024);
-
-        // OpenAI's tool description max str len is 1024
         result.push(json!({
             "type": "function",
             "function": {
                 "name": tool.name,
-                "description": description,
+                // do not silently truncate description
+                "description": tool.description,
                 "parameters": tool.input_schema,
             }
         }));
