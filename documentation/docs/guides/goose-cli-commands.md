@@ -36,12 +36,12 @@ goose configure
 
     **Options:**
 
-    **`-n, --name <name>`**
+    **`-n, --name <n>`**
 
     **Usage:**
 
     ```bash
-    goose session --name <name>
+    goose session --name <n>
     ```
 
 - Resume a previous session
@@ -53,7 +53,7 @@ goose configure
     **Usage:**
 
     ```bash
-    goose session --resume --name <name>
+    goose session --resume --name <n>
     ```
 
 - Start a session with the specified extension
@@ -219,11 +219,11 @@ goose update --reconfigure
 
 ### mcp
 
-Run an enabled MCP server specified by `<name>` (e.g. `'Google Drive'`)
+Run an enabled MCP server specified by `<n>` (e.g. `'Google Drive'`)
 
 **Usage:**
 ```bash
-goose mcp <name>
+goose mcp <n>
 ```
 
 ---
@@ -237,12 +237,12 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use - for stdin.
 - **`-t, --text <TEXT>`**: Input text to provide to Goose directly
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
-- **`-n, --name <NAME>`**: Name for this run session (e.g. `daily-tasks`)
+- **`-n, --name <n>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
 - **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
 - **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
-- **`--with-builtin <NAME>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
+- **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Usage:**
 
@@ -305,16 +305,17 @@ goose recipe help
 The CLI provides a set of slash commands that can be accessed during a session. These commands support tab completion for easier use.
 
 #### Available Commands
-- `/exit` or `/quit` - Exit the current session
-- `/t` - Toggle between Light/Dark/Ansi themes
-- `/extension <command>` - Add a stdio extension (format: ENV1=val1 command args...)
-- `/builtin <names>` - Add builtin extensions by name (comma-separated)
-- `/prompts [--extension <name>]` - List all available prompts, optionally filtered by extension
-- `/prompt <n> [--info] [key=value...]` - Get prompt info or execute a prompt
-- `/mode <name>` - Set the goose mode to use ('auto', 'approve', 'chat')
-- `/plan <message>` - Create a structured plan based on the given message
 - `/?` or `/help` - Display this help message
+- `/builtin <names>` - Add builtin extensions by name (comma-separated)
+- `/exit` or `/quit` - Exit the current session
+- `/extension <command>` - Add a stdio extension (format: ENV1=val1 command args...)
+- `/mode <n>` - Set the goose mode to use ('auto', 'approve', 'chat')
+- `/plan <message>` - Create a structured plan based on the given message
+- `/prompt <n> [--info] [key=value...]` - Get prompt info or execute a prompt
+- `/prompts [--extension <n>]` - List all available prompts, optionally filtered by extension
 - `/recipe <recipe file name>` - Generate and save a session recipe to `recipe.yaml` or the filename specified by the command parameter.
+- `/summarize` - Summarize the current session to reduce context length while preserving key information
+- `/t` - Toggle between Light/Dark/Ansi themes
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
