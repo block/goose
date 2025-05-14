@@ -35,7 +35,7 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
     let recipe = validate_recipe_file_parameters(&recipe_file_content)?;
 
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe.parameters)?;
+        apply_values_to_parameters(&params, recipe.parameters, true)?;
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
@@ -99,7 +99,7 @@ pub fn preview_recipe_with_parameters(
     print_recipe_preview(&raw_recipe);
     let recipe_parameters = raw_recipe.parameters;
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe_parameters)?;
+        apply_values_to_parameters(&params, recipe_parameters, false)?;
     print_required_parameters_for_template(params_for_template, missing_params);
 
     Ok(())
@@ -208,6 +208,7 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 fn apply_values_to_parameters(
     user_params: &[(String, String)],
     recipe_parameters: Option<Vec<RecipeParameter>>,
+    enable_user_prompt: bool,
 ) -> Result<(HashMap<String, String>, Vec<String>)> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     let mut missing_params: Vec<String> = Vec::new();
@@ -215,7 +216,7 @@ fn apply_values_to_parameters(
         if !param_map.contains_key(&param.key) {
             match (&param.default, &param.requirement) {
                 (Some(default), _) => param_map.insert(param.key.clone(), default.clone()),
-                (None, RecipeParameterRequirement::UserPrompt) => {
+                (None, RecipeParameterRequirement::UserPrompt) if enable_user_prompt => {
                     let input_value = cliclack::input(format!(
                         "Please enter {} ({})",
                         param.key, param.description

@@ -325,6 +325,7 @@ enum Command {
         )]
         no_session: bool,
 
+        /// Preview recipe
         #[arg(
             short = None,
             long = "preview",
