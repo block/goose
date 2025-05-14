@@ -21,7 +21,7 @@ pub fn print_recipe_preview(recipe: &Recipe) {
                 };
 
                 println!(
-                    "   - {} ({:?}, {:?}){}: {}",
+                    "   - {} ({}, {}){}: {}",
                     style(&param.key).cyan(),
                     param.input_type,
                     param.requirement,
@@ -47,15 +47,18 @@ pub fn print_required_parameters_for_template(
         }
     }
     if !missing_params.is_empty() {
-        println!("{}", style("🔴 Missing parameters:").bold());
+        println!(
+            "{}",
+            style("🔴 Missing parameters in the command line:").bold()
+        );
         for param in missing_params.iter() {
             println!("   - {}", param);
         }
         println!(
-            "{}",
-            style("Please provide the following parameters in the command line:").bold()
+            "📩 {}:",
+            style("Please provide the following parameters in the command line").bold()
         );
-        println!("{}", missing_parameters_command_line(missing_params));
+        println!("  {}", missing_parameters_command_line(missing_params));
     }
 }
 
