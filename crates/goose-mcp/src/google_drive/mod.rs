@@ -556,7 +556,13 @@ impl GoogleDriveRouter {
               },
               "required": ["spreadsheetId", "operation"],
             }),
-            None,
+            Some(ToolAnnotations {
+                title: Some("Work with Google Sheets data using various operations.".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let docs_tool = Tool::new(
@@ -607,7 +613,13 @@ impl GoogleDriveRouter {
               },
               "required": ["documentId", "operation"],
             }),
-            None,
+            Some(ToolAnnotations {
+                title: Some("Work with Google Docs data using various operations.".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let get_comments_tool = Tool::new(
