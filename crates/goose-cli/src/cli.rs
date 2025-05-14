@@ -11,7 +11,7 @@ use crate::commands::project::{handle_project_default, handle_projects_interacti
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::{load_recipe_as_template, explain_recipe_with_parameters};
+use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;

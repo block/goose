@@ -49,7 +49,8 @@ pub fn print_required_parameters_for_template(
     if !missing_params.is_empty() {
         println!(
             "{}",
-            style("🔴 Missing parameters in the command line if you want to run the recipe:").bold()
+            style("🔴 Missing parameters in the command line if you want to run the recipe:")
+                .bold()
         );
         for param in missing_params.iter() {
             println!("   - {}", param);
