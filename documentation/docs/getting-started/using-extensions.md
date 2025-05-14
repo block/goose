@@ -140,7 +140,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 
   2. Select `Add Extension` from the menu.
 
-  3. Choose the type of extension you’d like to add:
+  3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
@@ -245,6 +245,58 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
 
   </TabItem>
 </Tabs>
+
+
+### Deeplinks
+
+Extensions can be installed using Goose's deep link protocol. The URL format varies based on the extension type:
+<Tabs groupId="interface">
+  <TabItem value="stdio" label="StandardIO" default>
+```
+goose://extension?cmd=<command>&arg=<argument>&id=<id>&name=<name>&description=<description>
+```
+
+Required parameters:
+- `cmd`: The base command to run (e.g., `npx`, `uvx`)
+- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...`)
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
+
+```
+goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&timeout=<timeout>&id=<id>&name=<name>&description=<description>
+```
+
+Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
+  </TabItem>
+  <TabItem value="sse" label="Server-Sent Events">
+```
+goose://extension?url=<remote-sse-url>&id=<id>&name=<name>&description=<description>
+```
+
+Parameters:
+- `url`: The URL of the remote SSE server
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+For example, a deeplink for a URL like `http://localhost:8080/sse` would look like this when URL-encoded:
+
+```
+goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&timeout=<timeout>&id=<id>&name=<name>&description=<description>>
+```
+
+  </TabItem>
+</Tabs>
+
+:::note
+All parameters in the deeplink must be URL-encoded. For example, spaces should be replaced with `%20`, and `@` should be replaced with `%40`.
+:::
+
 
 ### Config Entry
 For advanced users, you can also directly edit the config file (`~/.config/goose/config.yaml`) to add, remove, or update an extension:
@@ -465,9 +517,6 @@ You can remove installed extensions.
 </Tabs>
 
 
-
-
-
 ## Starting Session with Extensions
 
 You can start a tailored Goose session with specific extensions directly from the CLI. 
@@ -530,6 +579,7 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 :::info
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
+
 
 ### Remote Extensions over SSE
 
