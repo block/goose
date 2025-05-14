@@ -346,6 +346,7 @@ impl Config {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&self.config_path)?;
 
         // Acquire an exclusive lock for the entire operation
