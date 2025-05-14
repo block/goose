@@ -140,7 +140,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 
   2. Select `Add Extension` from the menu.
 
-  3. Choose the type of extension you’d like to add:
+  3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
@@ -410,8 +410,57 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
+### Deeplinks
+
+Deeplinks provide a convenient way to install and configure remote extensions in Goose Desktop. They use the `goose://` URL scheme with the following format using `cmd` and `arg` parameters:
+
+```
+goose://extension?cmd=<command>&arg=<argument>&id=...&name=...&description=...
+```
+
+Parameters:
+- `cmd`: The base command to run (e.g., `npx`)
+- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...&arg=...`)
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
+
+```
+goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&id=...
+```
+
+Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
+
+All commands and arguments must be URL-encoded. For example, spaces should be replaced with `%20`, and `@` should be replaced with `%40`.
+
+
 ### Remote Extensions over SSE
 
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Desktop" default>
+Deeplinks for remote SSE extenstions replace the `cmd` parameter with `url` to specify the URL of the remote SSE server, and remove other arguments, to look like this:
+
+```
+goose://extension?url=<remote-sse-url>&id=...&name=...&description=...
+```
+
+example:
+```
+goose://extension?url=http%3A%2F%2Flocalhost%3A39300%2Fmodel_context_protocol%2F2024-11-05%2Fsse&id=pieces&name=Pieces%20for%20Developers&description=Provides%20access%20to%20your%20Pieces%20Long-Term%20Memory
+```
+
+The deeplink must be url-friendly, so your `url` argument should also be URL-encoded.
+
+Parameters:
+- `url` for remote SSE, set to the URL
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+</TabItem>
+<TabItem value="cli" label="CLI">
 To enable a remote extension over SSE while starting a session, run the following command:
 
 ```bash
@@ -423,6 +472,8 @@ For example, to start a session with a remote extension running on localhost on 
 ```bash
 goose session --with-remote-extension "http://localhost:8080/sse"
 ```
+  </TabItem>
+</Tabs>
 
 ## Developing Extensions
 
