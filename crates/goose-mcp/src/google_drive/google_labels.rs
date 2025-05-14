@@ -258,48 +258,6 @@ impl<'a, C> LabelMethods<'a, C> {
 }
 
 /// Lists the workspace's labels.
-///
-/// A builder for the *list* method supported by a *label* resource.
-/// It is not used directly, but through a [`LabelMethods`] instance.
-///
-/// # Example
-///
-/// Instantiate a resource method builder
-///
-/// ```test_harness,no_run
-/// # extern crate hyper;
-/// # extern crate hyper_rustls;
-/// # extern crate google_drive3 as drive3;
-/// # extern crate google_labels as labels;
-/// # async fn dox() {
-/// # use drive3::{DriveHub, FieldMask, hyper_rustls, hyper_util, yup_oauth2};
-/// # use labels::DriveLabelsHub
-///
-/// # let secret: yup_oauth2::ApplicationSecret = Default::default();
-/// # let auth = yup_oauth2::InstalledFlowAuthenticator::builder(
-/// #     secret,
-/// #     yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
-/// # ).build().await.unwrap();
-///
-/// # let client = hyper_util::client::legacy::Client::builder(
-/// #     hyper_util::rt::TokioExecutor::new()
-/// # )
-/// # .build(
-/// #     hyper_rustls::HttpsConnectorBuilder::new()
-/// #         .with_native_roots()
-/// #         .unwrap()
-/// #         .https_or_http()
-/// #         .enable_http1()
-/// #         .build()
-/// # );
-/// # let mut hub = DriveLabelsHub::new(client, auth);
-/// // You can configure optional parameters by calling the respective setters at will, and
-/// // execute the final call using `doit()`.
-/// // Values shown here are possibly random and not representative !
-/// let result = hub.labels().list()
-///              .doit().await;
-/// # }
-/// ```
 pub struct LabelListCall<'a, C>
 where
     C: 'a,
