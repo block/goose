@@ -146,7 +146,7 @@ pub struct Field {
     query_key: Option<String>,
     properties: Option<FieldProperty>,
     #[serde(rename = "selectionOptions")]
-    selection_options: Option<Vec<Choice>>,
+    selection_options: Option<SelectionOption>,
 }
 
 impl common::Part for Field {}
@@ -161,6 +161,17 @@ pub struct FieldProperty {
 }
 
 impl common::Part for FieldProperty {}
+
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde_with::serde_as]
+#[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct SelectionOption {
+    #[serde(rename = "listOptions")]
+    pub list_options: Option<String>,
+    pub choices: Option<Vec<Choice>>,
+}
+
+impl common::Part for SelectionOption {}
 
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde_with::serde_as]
