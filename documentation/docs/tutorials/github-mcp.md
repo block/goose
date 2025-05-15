@@ -7,19 +7,29 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
+<!-- YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" / -->
 
-This tutorial covers how to add the [GitHub MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github) as a Goose extension to enable file operations, repository management, search functionality, and more.
+This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
 :::tip TLDR
+Clone the repo to your system and run the command below to install the GitHub MCP Server as a Goose extension. This will require a Go compiler v 1.23.7 or newer to be installed on your system.
+
+```sh
+git clone https://github.com/github/github-mcp-server
+cd github-mcp-server/cmd/github-mcp-server
+go build
+```
+This will create a binary called `github-mcp-server` in the current directory which you can move anywhere else on your system if you wish.
+
+
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
+  [Launch the installer](goose://extension?cmd=/path/to/github-mcp-server-binary&arg=stdio&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token&env=GITHUB_TOOLSETS%3Dtool%20scopes)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx -y @modelcontextprotocol/server-github
+  /path/to/github-mcp-server stdio
   ```
   </TabItem>
 </Tabs>
@@ -27,22 +37,22 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/model
   **Environment Variable**
   ```
   GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
+  GITHUB_TOOLSETS: <tool scopes>
   ```
+
+  Tool scopes can be found in [their documentation](https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration).
 :::
 
 ## Configuration
 
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
+  1. [Launch the installer](goose://extension?cmd=/path/to/github-mcp-server-binary&arg=stdio&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token&env=GITHUB_TOOLSETS%3Dtool%20scopes)
   2. Press `Yes` to confirm the installation
   3. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  4. Set the toolset scopes you want to use. You can find the available scopes in the [GitHub MCP Server documentation](https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration)
+  5. Click `Save Configuration`
+  6. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -50,7 +60,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   goose configure
   ```
 
-  2. Choose to add a `Command-line Extension`
+  1. Choose to add a `Command-line Extension`
   ```sh
     ┌   goose-configure 
     │
@@ -66,7 +76,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```
 
-  3. Give your extension a name
+  1. Give your extension a name
   ```sh
     ┌   goose-configure 
     │
@@ -83,7 +93,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```
 
-  4. Enter the command
+  1. Enter the command
   ```sh
     ┌   goose-configure 
     │
@@ -98,12 +108,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
+    │  /path/to/github-mcp-server-binary stdio
     // highlight-end
     └ 
   ```  
 
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+  1. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
    ```sh
     ┌   goose-configure 
     │
@@ -117,7 +127,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  github
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
+    │  /path/to/github-mcp-server-binary stdio
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -127,7 +137,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ``` 
 
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+  1. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
     ┌   goose-configure 
     │
@@ -141,7 +151,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  github
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
+    │  /path/to/github-mcp-server-binary stdio
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -154,10 +164,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```
 
-  7. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in.
+  1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in.
   :::info
   When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.
   :::
+  You will also need to set GITHUB_TOOLSETS to the tool scopes you want to use. You can find the available scopes in the [GitHub MCP Server documentation](https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration)
 
    ```sh
     ┌   goose-configure 
@@ -191,8 +202,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
     │
     ◇  Add another environment variable?
-    │  No 
+    │  Yes
+    │
+    ◇  Environment variable name:
+    │  GITHUB_GITHUB_TOOLSETS
+    │
+    ◇  Environment variable value:
+    │  repos,issues,pull_requests
+    │
+    ◇  Add another environment variable?
+    │  No
     // highlight-end
+    │
     └  Added github extension
   ```  
 
