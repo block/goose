@@ -12,6 +12,7 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
+use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -44,6 +45,7 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
 }
 
 impl Agent {
@@ -62,6 +64,23 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            tool_monitor: Mutex::new(None),
+        }
+    }
+
+    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
+        let mut tool_monitor = self.tool_monitor.lock().await;
+        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    }
+
+    pub async fn get_tool_stats(&self) -> Option<HashMap<String, u32>> {
+        let tool_monitor = self.tool_monitor.lock().await;
+        tool_monitor.as_ref().map(|monitor| monitor.get_stats())
+    }
+
+    pub async fn reset_tool_monitor(&self) {
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            monitor.reset();
         }
     }
 }
@@ -116,6 +135,20 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        // Check if this tool call should be allowed based on repetition monitoring
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
+
+            if !monitor.check_tool_call(tool_call_info) {
+                return (
+                    request_id,
+                    Err(ToolError::ExecutionError(
+                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
+                    )),
+                );
+            }
+        }
+
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
