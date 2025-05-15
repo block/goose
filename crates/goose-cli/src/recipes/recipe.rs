@@ -214,8 +214,13 @@ fn apply_values_to_parameters(
     enable_user_prompt: bool,
 ) -> Result<(HashMap<String, String>, Vec<String>)> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
-    let recipe_parent_dir_str = recipe_parent_dir.to_str().ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in recipe_dir"))?;
-    param_map.insert(BUILT_IN_RECIPE_DIR_PARAM.to_string(), recipe_parent_dir_str.to_string());
+    let recipe_parent_dir_str = recipe_parent_dir
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in recipe_dir"))?;
+    param_map.insert(
+        BUILT_IN_RECIPE_DIR_PARAM.to_string(),
+        recipe_parent_dir_str.to_string(),
+    );
     let mut missing_params: Vec<String> = Vec::new();
     for param in recipe_parameters.unwrap_or_default() {
         if !param_map.contains_key(&param.key) {

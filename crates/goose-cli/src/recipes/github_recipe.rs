@@ -30,7 +30,10 @@ pub fn retrieve_recipe_from_github(
             println!(
                 "retrieved recipe from github repo {}/{}",
                 recipe_repo_full_name,
-                candidate_file_path.strip_prefix(&download_dir).unwrap().display()
+                candidate_file_path
+                    .strip_prefix(&download_dir)
+                    .unwrap()
+                    .display()
             );
             return Ok((content, download_dir));
         }
@@ -112,10 +115,7 @@ fn fetch_origin(local_repo_path: &Path) -> Result<()> {
     }
 }
 
-fn get_folder_from_github(
-    local_repo_path: &Path,
-    recipe_name: &str,
-) -> Result<PathBuf> {
+fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<PathBuf> {
     let ref_and_path = format!("origin/lifei/test-recipe-dir:{}", recipe_name);
     let output_dir = env::temp_dir().join(recipe_name);
 
@@ -130,9 +130,9 @@ fn get_folder_from_github(
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let stdout = archive_output.stdout.ok_or_else(|| {
-        anyhow::anyhow!("Failed to capture stdout from git archive")
-    })?;
+    let stdout = archive_output
+        .stdout
+        .ok_or_else(|| anyhow::anyhow!("Failed to capture stdout from git archive"))?;
 
     let mut archive = Archive::new(stdout);
     archive.unpack(&output_dir)?;
