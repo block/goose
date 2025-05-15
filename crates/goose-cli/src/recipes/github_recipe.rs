@@ -1,4 +1,5 @@
 use anyhow::Result;
+use console::style;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -20,12 +21,10 @@ pub fn retrieve_recipe_from_github(
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
     let download_dir = get_folder_from_github(&local_repo_path, recipe_name)?;
-    println!("download_dir: {}", download_dir.display());
     let file_extensions = ["yaml", "json"];
 
     for ext in file_extensions {
         let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
-        println!("candidate_file_path: {}", candidate_file_path.display());
         if candidate_file_path.exists() {
             let content = std::fs::read_to_string(&candidate_file_path)?;
             println!(
@@ -120,13 +119,11 @@ fn get_folder_from_github(
     let ref_and_path = format!("origin/lifei/test-recipe-dir:{}", recipe_name);
     let output_dir = env::temp_dir().join(recipe_name);
 
-    // Ensure the output dir exists
     if output_dir.exists() {
         fs::remove_dir_all(&output_dir)?;
     }
     fs::create_dir_all(&output_dir)?;
 
-    // Run `git archive` and capture its stdout
     let archive_output = Command::new("git")
         .args(["archive", &ref_and_path])
         .current_dir(local_repo_path)
@@ -137,9 +134,21 @@ fn get_folder_from_github(
         anyhow::anyhow!("Failed to capture stdout from git archive")
     })?;
 
-    // Use Rust tar to extract to the output dir
     let mut archive = Archive::new(stdout);
     archive.unpack(&output_dir)?;
+    list_files(&output_dir)?;
 
     Ok(output_dir)
+}
+
+fn list_files(dir: &Path) -> Result<()> {
+    println!("{}", style("Files downloaded from github:").bold());
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            println!("  - {}", path.display());
+        }
+    }
+    Ok(())
 }
