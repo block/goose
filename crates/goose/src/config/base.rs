@@ -342,10 +342,43 @@ impl Config {
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
     pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut values = self.load_values()?;
+        // Open the file with write permissions, create if it doesn't exist
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&self.config_path)?;
+
+        // Acquire an exclusive lock for the entire operation
+        file.lock_exclusive()
+            .map_err(|e| ConfigError::LockError(e.to_string()))?;
+
+        // Load current values while holding the lock
+        let mut values = if self.config_path.exists() {
+            let file_content = std::fs::read_to_string(&self.config_path)?;
+            let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+            let json_value: Value = serde_json::to_value(yaml_value)?;
+            match json_value {
+                Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            }
+        } else {
+            HashMap::new()
+        };
+
+        // Modify values
         values.insert(key.to_string(), value);
 
-        self.save_values(values)
+        // Convert to YAML for storage
+        let yaml_value = serde_yaml::to_string(&values)?;
+
+        // Write the contents using the same file handle
+        file.set_len(0)?; // Clear the file
+        file.write_all(yaml_value.as_bytes())?;
+        file.sync_all()?;
+
+        // Unlock is handled automatically when file is dropped
+        Ok(())
     }
 
     /// Delete a configuration value in the config file.

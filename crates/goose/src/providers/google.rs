@@ -169,4 +169,24 @@ impl Provider for GoogleProvider {
         let provider_usage = ProviderUsage::new(model, usage);
         Ok((message, provider_usage))
     }
+
+    /// Fetch supported models from Google Generative Language API; returns Err on failure, Ok(None) if not present
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        // List models via the v1beta/models endpoint
+        let url = format!("{}/v1beta/models?key={}", self.host, self.api_key);
+        let response = self.client.get(&url).send().await?;
+        let json: serde_json::Value = response.json().await?;
+        // If 'models' field missing, return None
+        let arr = match json.get("models").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(None),
+        };
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("name").and_then(|v| v.as_str()))
+            .map(|name| name.split('/').next_back().unwrap_or(name).to_string())
+            .collect();
+        models.sort();
+        Ok(Some(models))
+    }
 }

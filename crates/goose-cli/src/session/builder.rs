@@ -35,6 +35,8 @@ pub struct SessionBuilderConfig {
     pub additional_system_prompt: Option<String>,
     /// Enable debug printing
     pub debug: bool,
+    /// Maximum number of consecutive identical tool calls allowed
+    pub max_tool_repetitions: Option<u32>,
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
@@ -54,6 +56,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let agent: Agent = Agent::new();
     let new_provider = create(&provider_name, model_config).unwrap();
     let _ = agent.update_provider(new_provider).await;
+
+    // Configure tool monitoring if max_tool_repetitions is set
+    if let Some(max_repetitions) = session_config.max_tool_repetitions {
+        agent.configure_tool_monitor(Some(max_repetitions)).await;
+    }
 
     // Handle session file resolution and resuming
     let session_file = if session_config.no_session {

@@ -23,6 +23,7 @@ pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 ];
 
 pub const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
+pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
@@ -156,7 +157,7 @@ impl Provider for AnthropicProvider {
 
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("x-api-key", self.api_key.parse().unwrap());
-        headers.insert("anthropic-version", "2023-06-01".parse().unwrap());
+        headers.insert("anthropic-version", ANTHROPIC_API_VERSION.parse().unwrap());
 
         let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
@@ -182,5 +183,37 @@ impl Provider for AnthropicProvider {
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    /// Fetch supported models from Anthropic; returns Err on failure, Ok(None) if not present
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let url = format!("{}/v1/models", self.host);
+        let response = self
+            .client
+            .get(&url)
+            .header("anthropic-version", ANTHROPIC_API_VERSION)
+            .header("x-api-key", self.api_key.clone())
+            .send()
+            .await?;
+        let json: serde_json::Value = response.json().await?;
+        // if 'models' key missing, return None
+        let arr = match json.get("models").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(None),
+        };
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| {
+                if let Some(s) = m.as_str() {
+                    Some(s.to_string())
+                } else if let Some(obj) = m.as_object() {
+                    obj.get("id").and_then(|v| v.as_str()).map(str::to_string)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        models.sort();
+        Ok(Some(models))
     }
 }

@@ -311,11 +311,10 @@ const createChat = async (
     if (existingWindows.length > 0) {
       // Get the config from localStorage through an existing window
       try {
-        const result = await existingWindows[0].webContents.executeJavaScript(
-          `localStorage.getItem('gooseConfig')`
+        const config = await existingWindows[0].webContents.executeJavaScript(
+          `window.electron.getConfig()`
         );
-        if (result) {
-          const config = JSON.parse(result);
+        if (config) {
           port = config.GOOSE_PORT;
           working_dir = config.GOOSE_WORKING_DIR;
         }

@@ -1078,29 +1078,30 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
-    let (reasoner_provider, reasoner_model) = match (
-        std::env::var("GOOSE_PLANNER_PROVIDER"),
-        std::env::var("GOOSE_PLANNER_MODEL"),
-    ) {
-        (Ok(provider), Ok(model)) => (provider, model),
-        _ => {
-            println!(
-                "WARNING: GOOSE_PLANNER_PROVIDER or GOOSE_PLANNER_MODEL is not set. \
-                 Using default model from config..."
-            );
-            let config = Config::global();
-            let provider = config
-                .get_param("GOOSE_PROVIDER")
-                .expect("No provider configured. Run 'goose configure' first");
-            let model = config
-                .get_param("GOOSE_MODEL")
-                .expect("No model configured. Run 'goose configure' first");
-            (provider, model)
-        }
+    let config = Config::global();
+
+    // Try planner-specific provider first, fallback to default provider
+    let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
+        provider
+    } else {
+        println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
+        config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .expect("No provider configured. Run 'goose configure' first")
     };
 
-    let model_config = ModelConfig::new(reasoner_model);
-    let reasoner = create(&reasoner_provider, model_config)?;
+    // Try planner-specific model first, fallback to default model
+    let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
+        model
+    } else {
+        println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");
+        config
+            .get_param::<String>("GOOSE_MODEL")
+            .expect("No model configured. Run 'goose configure' first")
+    };
+
+    let model_config = ModelConfig::new(model);
+    let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
 }
