@@ -1,19 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Alert, AlertType } from './types';
-
-interface AlertOptions {
-  type: AlertType;
-  message: string;
-  action?: {
-    text: string;
-    onClick: () => void;
-  };
-  autoShow?: boolean;
-}
+import { Alert } from './types';
 
 interface UseAlerts {
   alerts: Alert[];
-  addAlert: (options: AlertOptions) => void;
+  addAlert: (options: Alert) => void;
   removeAlert: (index: number) => void;
   clearAlerts: () => void;
 }
@@ -21,7 +11,7 @@ interface UseAlerts {
 export const useAlerts = (): UseAlerts => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
-  const addAlert = useCallback((options: AlertOptions) => {
+  const addAlert = useCallback((options: Alert) => {
     setAlerts((prev) => [...prev, options]);
   }, []);
 

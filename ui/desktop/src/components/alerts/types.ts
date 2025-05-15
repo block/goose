@@ -1,6 +1,7 @@
 export enum AlertType {
   Error = 'error',
   Warning = 'warning',
+  Info = 'info',
 }
 
 export interface Alert {
@@ -10,5 +11,9 @@ export interface Alert {
   action?: {
     text: string;
     onClick: () => void;
+  };
+  progress?: {
+    current: number;
+    total: number;
   };
 }
