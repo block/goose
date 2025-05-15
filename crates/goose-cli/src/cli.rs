@@ -340,7 +340,7 @@ enum Command {
         )]
         explain: bool,
 
-      /// Maximum number of consecutive identical tool calls allowed
+        /// Maximum number of consecutive identical tool calls allowed
         #[arg(
             long = "max-tool-repetitions",
             value_name = "NUMBER",
