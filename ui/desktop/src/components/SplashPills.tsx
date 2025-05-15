@@ -1,4 +1,5 @@
 import React from 'react';
+import MarkdownContent from './MarkdownContent';
 
 function truncateText(text: string, maxLength: number = 100): string {
   if (text.length <= maxLength) return text;
@@ -38,7 +39,7 @@ function ContextBlock({ content }: ContextBlockProps) {
 
   return (
     <div className="mb-6 p-4 bg-bgSubtle rounded-lg border border-borderStandard animate-[fadein_500ms_ease-in_forwards]">
-      <div className="text-sm text-textStandard whitespace-pre-wrap">{displayText}</div>
+      <MarkdownContent content={displayText} />
     </div>
   );
 }
@@ -60,16 +61,19 @@ export default function SplashPills({ append, activities = null }: SplashPillsPr
 
   const pills = activities || defaultPills;
 
-  // Check if the first pill starts with "message:"
-  const hasContextPill = pills.length > 0 && pills[0].toLowerCase().startsWith('message:');
+  // Find any pill that starts with "message:"
+  const messagePillIndex = pills.findIndex((pill) => pill.toLowerCase().startsWith('message:'));
 
-  // Extract the context pill and the remaining pills
-  const contextPill = hasContextPill ? pills[0] : null;
-  const remainingPills = hasContextPill ? pills.slice(1) : pills;
+  // Extract the message pill and the remaining pills
+  const messagePill = messagePillIndex >= 0 ? pills[messagePillIndex] : null;
+  const remainingPills =
+    messagePillIndex >= 0
+      ? [...pills.slice(0, messagePillIndex), ...pills.slice(messagePillIndex + 1)]
+      : pills;
 
   return (
     <div className="flex flex-col">
-      {contextPill && <ContextBlock content={contextPill} />}
+      {messagePill && <ContextBlock content={messagePill} />}
 
       <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
         {remainingPills.map((content, index) => (
