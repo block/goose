@@ -145,6 +145,7 @@ goose session list --format json
 # Sort sessions by date in ascending order.
 goose session list --ascending
 ```
+
 ---
 
 ### session remove [options]
