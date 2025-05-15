@@ -65,10 +65,7 @@ impl LinuxAutomation {
             DisplayServer::X11 => self.check_x11_dependencies()?,
             DisplayServer::Wayland => self.check_wayland_dependencies()?,
             DisplayServer::Unknown => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Unable to detect display server",
-                ));
+                return Err(std::io::Error::other("Unable to detect display server"));
             }
         }
 
@@ -106,10 +103,7 @@ impl LinuxAutomation {
         match self.display_server {
             DisplayServer::X11 => self.execute_x11_command(cmd),
             DisplayServer::Wayland => self.execute_wayland_command(cmd),
-            DisplayServer::Unknown => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Unknown display server",
-            )),
+            DisplayServer::Unknown => Err(std::io::Error::other("Unknown display server")),
         }
     }
 
@@ -236,8 +230,7 @@ impl SystemAutomation for LinuxAutomation {
             if output.status.success() {
                 Ok(String::from_utf8_lossy(&output.stdout).into_owned())
             } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                Err(std::io::Error::other(
                     String::from_utf8_lossy(&output.stderr).into_owned(),
                 ))
             }
