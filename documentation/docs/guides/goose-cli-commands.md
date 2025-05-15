@@ -123,6 +123,7 @@ List all saved sessions.
 
 - **`-v, --verbose`**: (Optional) Includes session file paths in the output.
 - **`-f, --format <format>`**: Specify output format (`text` or `json`). Default is `text`.
+- **`--ascending`**: Sort sessions by date in ascending order (oldest first). Default is descending order (newest first).
 
 **Usage:**
 
@@ -139,7 +140,10 @@ goose session list --verbose
 # List sessions in JSON format
 goose session list --format json
 ```
-
+```bash
+# Sort sessions by date in ascending order.
+goose session list --ascending
+```
 ---
 
 ### session remove [options]
