@@ -12,28 +12,25 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [Google Drive MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
 
 :::tip TLDR
-
-**Authentication Command**
-
-In your terminal, run the following:
-
-```sh
-GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
-GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
-npx -y @modelcontextprotocol/server-gdrive auth
-```
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-gdrive 
-```
-
-**Environment Variables**
-```
-GDRIVE_CREDENTIALS_PATH: ~/.config/.gdrive-server-credentials.json
-```
-```
-GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
+  GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
+  npx -y @modelcontextprotocol/server-gdrive auth
+  npx -y @modelcontextprotocol/server-gdrive 
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  GDRIVE_CREDENTIALS_PATH: ~/.config/.gdrive-server-credentials.json
+  GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json  
+  ```
 :::
 
 ## Configuration
@@ -111,7 +108,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -127,7 +124,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -144,7 +141,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -164,7 +161,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -187,7 +184,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -214,7 +211,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

@@ -17,32 +17,44 @@ use crate::{
     },
 };
 
+#[uniffi::export]
+pub fn print_messages(messages: Vec<Message>) {
+    for msg in messages {
+        println!("[{:?} @ {}] {:?}", msg.role, msg.created, msg.content);
+    }
+}
+
 /// Public API for the Goose LLM completion function
-pub async fn completion(req: CompletionRequest<'_>) -> Result<CompletionResponse, CompletionError> {
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, CompletionError> {
     let start_total = Instant::now();
 
-    let provider = create(req.provider_name, req.model_config)
-        .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
+    let provider = create(
+        &req.provider_name,
+        req.provider_config.clone(),
+        req.model_config.clone(),
+    )
+    .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
 
-    let system_prompt = construct_system_prompt(req.system_preamble, req.extensions)?;
-    let tools = collect_prefixed_tools(req.extensions);
+    let system_prompt = construct_system_prompt(&req.system_preamble, &req.extensions)?;
+    let tools = collect_prefixed_tools(&req.extensions);
 
     // Call the LLM provider
     let start_provider = Instant::now();
     let mut response = provider
-        .complete(&system_prompt, req.messages, &tools)
+        .complete(&system_prompt, &req.messages, &tools)
         .await?;
-    let provider_elapsed_ms = start_provider.elapsed().as_millis();
+    let provider_elapsed_sec = start_provider.elapsed().as_secs_f32();
     let usage_tokens = response.usage.total_tokens;
 
-    let tool_configs = collect_prefixed_tool_configs(req.extensions);
+    let tool_configs = collect_prefixed_tool_configs(&req.extensions);
     update_needs_approval_for_tool_calls(&mut response.message, &tool_configs)?;
 
     Ok(CompletionResponse::new(
         response.message,
         response.model,
         response.usage,
-        calculate_runtime_metrics(start_total, provider_elapsed_ms, usage_tokens),
+        calculate_runtime_metrics(start_total, provider_elapsed_sec, usage_tokens),
     ))
 }
 
@@ -81,8 +93,8 @@ pub fn update_needs_approval_for_tool_calls(
     tool_configs: &HashMap<String, ToolConfig>,
 ) -> Result<(), CompletionError> {
     for content in &mut message.content.iter_mut() {
-        if let MessageContent::ToolRequest(req) = content {
-            if let Ok(call) = &mut req.tool_call {
+        if let MessageContent::ToolReq(req) = content {
+            if let Ok(call) = &mut req.tool_call.0 {
                 // Provide a clear error message when the tool config is missing
                 let config = tool_configs.get(&call.name).ok_or_else(|| {
                     CompletionError::ToolNotFound(format!(
@@ -117,16 +129,16 @@ fn collect_prefixed_tool_configs(extensions: &[ExtensionConfig]) -> HashMap<Stri
 /// Compute runtime metrics for the request.
 fn calculate_runtime_metrics(
     total_start: Instant,
-    provider_elapsed_ms: u128,
+    provider_elapsed_sec: f32,
     token_count: Option<i32>,
 ) -> RuntimeMetrics {
-    let total_ms = total_start.elapsed().as_millis();
+    let total_ms = total_start.elapsed().as_secs_f32();
     let tokens_per_sec = token_count.and_then(|toks| {
-        if provider_elapsed_ms > 0 {
-            Some(toks as f64 / (provider_elapsed_ms as f64 / 1_000.0))
+        if provider_elapsed_sec > 0.0 {
+            Some(toks as f64 / (provider_elapsed_sec as f64))
         } else {
             None
         }
     });
-    RuntimeMetrics::new(total_ms, provider_elapsed_ms, tokens_per_sec)
+    RuntimeMetrics::new(total_ms, provider_elapsed_sec, tokens_per_sec)
 }

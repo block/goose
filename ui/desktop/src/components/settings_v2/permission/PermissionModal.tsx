@@ -182,13 +182,12 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                 </div>
               )}
             </div>
+            {footerContent && (
+              <div className="border-t border-borderSubtle bg-bgApp w-full rounded-b-xl overflow-hidden">
+                {footerContent}
+              </div>
+            )}
           </div>
-
-          {footerContent && (
-            <div className="border-t border-borderSubtle bg-bgApp w-full rounded-b-xl overflow-hidden">
-              {footerContent}
-            </div>
-          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

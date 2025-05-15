@@ -3,6 +3,7 @@ use std::vec;
 use anyhow::Result;
 use goose_llm::{
     completion,
+    extractors::generate_tooltip,
     types::completion::{
         CompletionRequest, CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig,
     },
@@ -13,8 +14,12 @@ use serde_json::json;
 #[tokio::main]
 async fn main() -> Result<()> {
     let provider = "databricks";
-    // let model_name = "goose-claude-3-5-sonnet"; // sequential tool calls
-    let model_name = "goose-gpt-4-1"; // parallel tool calls
+    let provider_config = json!({
+        "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
+        "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
+    });
+    // let model_name = "goose-gpt-4-1"; // parallel tool calls
+    let model_name = "claude-3-5-haiku";
     let model_config = ModelConfig::new(model_name.to_string());
 
     let calculator_tool = ToolConfig::new(
@@ -92,18 +97,26 @@ async fn main() -> Result<()> {
     ] {
         println!("\n---------------\n");
         println!("User Input: {text}");
-        let messages = vec![Message::user().with_text(text)];
+        let messages = vec![
+            Message::user().with_text("Hi there!"),
+            Message::assistant().with_text("How can I help?"),
+            Message::user().with_text(text),
+        ];
         let completion_response: CompletionResponse = completion(CompletionRequest::new(
-            provider,
+            provider.to_string(),
+            provider_config.clone(),
             model_config.clone(),
-            system_preamble,
-            &messages,
-            &extensions,
+            system_preamble.to_string(),
+            messages.clone(),
+            extensions.clone(),
         ))
         .await?;
         // Print the response
         println!("\nCompletion Response:");
         println!("{}", serde_json::to_string_pretty(&completion_response)?);
+
+        let tooltip = generate_tooltip(provider, provider_config.clone().into(), &messages).await?;
+        println!("\nTooltip: {}", tooltip);
     }
 
     Ok(())

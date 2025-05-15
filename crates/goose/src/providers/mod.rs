@@ -9,6 +9,7 @@ mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod githubcopilot;
 pub mod google;
 pub mod groq;
 pub mod oauth;
@@ -17,5 +18,6 @@ pub mod openai;
 pub mod openrouter;
 pub mod toolshim;
 pub mod utils;
+pub mod venice;
 
 pub use factory::{create, providers};

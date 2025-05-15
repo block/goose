@@ -6,6 +6,7 @@ import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
+import { Message } from '../types/message';
 
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -16,6 +17,9 @@ interface ChatInputProps {
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
+  hasMessages?: boolean;
+  messages?: Message[];
+  setMessages: (messages: Message[]) => void;
 }
 
 export default function ChatInput({
@@ -27,6 +31,8 @@ export default function ChatInput({
   setView,
   numTokens,
   droppedFiles = [],
+  messages = [],
+  setMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -281,7 +287,7 @@ export default function ChatInput({
             maxHeight: `${maxHeight}px`,
             overflowY: 'auto',
           }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder placeholder:opacity-50"
+          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
         />
 
         {isLoading ? (
@@ -304,10 +310,10 @@ export default function ChatInput({
             size="icon"
             variant="ghost"
             disabled={!displayValue.trim()}
-            className={`absolute right-3 top-2 transition-colors rounded-full hover:cursor w-7 h-7 [&_svg]:size-4 ${
+            className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
               !displayValue.trim()
                 ? 'text-textSubtle cursor-not-allowed'
-                : 'bg-bgAppInverse text-white'
+                : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
             }`}
           >
             <Send />
@@ -327,7 +333,13 @@ export default function ChatInput({
             <Attach />
           </Button>
 
-          <BottomMenu setView={setView} numTokens={numTokens} />
+          <BottomMenu
+            setView={setView}
+            numTokens={numTokens}
+            messages={messages}
+            isLoading={isLoading}
+            setMessages={setMessages}
+          />
         </div>
       </div>
     </div>

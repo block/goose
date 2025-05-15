@@ -80,8 +80,47 @@ You'll need to provide both instructions and activities for your Recipe.
    You can then edit the recipe file to include the following key information:
 
    - `instructions`: Add or modify the system instructions
+   - `prompt`: Add the initial message or question to start a Goose session with
    - `activities`: List the activities that can be performed
 
+
+   #### Recipe Parameters
+   
+   You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
+
+   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax. 
+
+   <details>
+      <summary>Example recipe with parameters</summary>
+      
+      ```yaml title="code-review.yaml"
+      version: 1.0.0
+      title: {{ project_name }} Code Review
+      description: Automated code review for {{ project_name }} with {{ language }} focus
+      instructions: |
+      You are a code reviewer specialized in {{ language }} development.
+      Apply the following standards:
+      - Complexity threshold: {{ complexity_threshold }}
+      - Required test coverage: {{ test_coverage }}%
+      - Style guide: {{ style_guide }}
+      activities:
+      - "Review {{ language }} code for complexity"
+      - "Check test coverage against {{ test_coverage }}% requirement"
+      - "Verify {{ style_guide }} compliance"
+      ```
+  
+   </details>
+
+   When someone runs a recipe that contains template parameters, they will need to provide the parameters:
+
+   ```sh
+   goose run --recipe code-review.yaml \
+  --params project_name=MyApp \
+  --params language=Python \
+  --params complexity_threshold=15 \
+  --params test_coverage=80 \
+  --params style_guide=PEP8
+  ```
 
    #### Validate the recipe
    
@@ -121,7 +160,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
   <TabItem value="cli" label="Goose CLI">
 
-   You can start a session with a recipe file in two ways:
+   You can start a session with a recipe file in the following ways:
 
    - Run the recipe once and exit:
 
@@ -135,6 +174,12 @@ You'll need to provide both instructions and activities for your Recipe.
    goose run --recipe recipe.yaml --interactive
    ```
 
+   - Run the recipe with parameters:
+
+   ```sh
+   goose run --recipe recipe.yaml --interactive --params language=Spanish --params style=formal --params name=Alice
+   ```
+
    :::info
    Be sure to use the exact filename of the recipe.
    :::
@@ -143,7 +188,7 @@ You'll need to provide both instructions and activities for your Recipe.
 </Tabs>
 
 
-### What's Included
+## What's Included
 
 A Recipe captures:
 
@@ -153,8 +198,6 @@ A Recipe captures:
 - Project folder or file context  
 - Initial setup (but not full conversation history)
 
-
-### What's *Not* Included
 
 To protect your privacy and system integrity, Goose excludes:
 

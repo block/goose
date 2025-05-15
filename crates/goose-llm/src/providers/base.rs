@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::ProviderError;
 use crate::{message::Message, types::core::Tool};
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, uniffi::Record)]
 pub struct Usage {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
@@ -26,7 +26,7 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderCompleteResponse {
     pub message: Message,
     pub model: String,

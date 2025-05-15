@@ -12,15 +12,21 @@ This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tiny
 
 :::tip TLDR
 
-**Command**
-```sh
-npx -y agentql-mcp
-```
-
-**Environment Variable**
-```
-AGENTQL_API_KEY: <YOUR_API_KEY>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y agentql-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  AGENTQL_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration
@@ -48,7 +54,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -64,7 +70,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -81,7 +87,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -101,7 +107,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -124,7 +130,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -152,7 +158,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 

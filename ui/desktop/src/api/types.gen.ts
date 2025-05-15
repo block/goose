@@ -196,6 +196,8 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (ContextLengthExceeded & {
     type: 'contextLengthExceeded';
+}) | (SummarizationRequested & {
+    type: 'summarizationRequested';
 });
 
 /**
@@ -358,6 +360,10 @@ export type SessionMetadata = {
      * Working directory for the session
      */
     working_dir: string;
+};
+
+export type SummarizationRequested = {
+    msg: string;
 };
 
 export type TextContent = {

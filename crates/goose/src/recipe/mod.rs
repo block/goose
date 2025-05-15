@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::agents::extension::ExtensionConfig;
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +24,7 @@ fn default_version() -> String {
 /// * `context` - Supplementary context information for the Recipe
 /// * `activities` - Activity labels that appear when loading the Recipe
 /// * `author` - Information about the Recipe's creator and metadata
+/// * `parameters` - Additional parameters for the Recipe
 ///
 /// # Example
 ///
@@ -47,6 +50,7 @@ fn default_version() -> String {
 ///     context: None,
 ///     activities: None,
 ///     author: None,
+///     parameters: None,
 /// };
 /// ```
 #[derive(Serialize, Deserialize, Debug)]
@@ -78,6 +82,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>, // any additional author information
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -87,6 +94,54 @@ pub struct Author {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>, // any additional metadata for the author
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterRequirement {
+    Required,
+    Optional,
+    UserPrompt,
+}
+
+impl fmt::Display for RecipeParameterRequirement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(self).unwrap().trim_matches('"')
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeParameterInputType {
+    String,
+    Number,
+    Boolean,
+    Date,
+    File,
+}
+
+impl fmt::Display for RecipeParameterInputType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(self).unwrap().trim_matches('"')
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipeParameter {
+    pub key: String,
+    pub input_type: RecipeParameterInputType,
+    pub requirement: RecipeParameterRequirement,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
 }
 
 /// Builder for creating Recipe instances
@@ -103,6 +158,7 @@ pub struct RecipeBuilder {
     context: Option<Vec<String>>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
+    parameters: Option<Vec<RecipeParameter>>,
 }
 
 impl Recipe {
@@ -131,6 +187,7 @@ impl Recipe {
             context: None,
             activities: None,
             author: None,
+            parameters: None,
         }
     }
 }
@@ -189,6 +246,12 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the parameters for the Recipe
+    pub fn parameters(mut self, parameters: Vec<RecipeParameter>) -> Self {
+        self.parameters = Some(parameters);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -210,6 +273,7 @@ impl RecipeBuilder {
             context: self.context,
             activities: self.activities,
             author: self.author,
+            parameters: self.parameters,
         })
     }
 }
