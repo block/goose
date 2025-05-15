@@ -2672,6 +2672,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "chrono",
+ "clap 4.5.31",
  "docx-rs",
  "etcetera",
  "google-docs1",
