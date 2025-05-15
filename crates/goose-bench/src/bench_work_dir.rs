@@ -207,7 +207,7 @@ impl BenchmarkWorkDir {
             Ok(())
         } else {
             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(io::Error::new(ErrorKind::Other, error_message))
+            Err(io::Error::other(error_message))
         }
     }
 
