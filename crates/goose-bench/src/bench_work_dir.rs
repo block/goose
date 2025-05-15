@@ -4,7 +4,6 @@ use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
-use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
