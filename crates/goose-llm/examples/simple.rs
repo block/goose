@@ -7,6 +7,7 @@ use goose_llm::{
     types::completion::{
         CompletionRequest, CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig,
     },
+    types::json_value_ffi::JsonValueFfi,
     Message, ModelConfig,
 };
 use serde_json::json;
@@ -104,7 +105,7 @@ async fn main() -> Result<()> {
         ];
         let completion_response: CompletionResponse = completion(CompletionRequest::new(
             provider.to_string(),
-            provider_config.clone(),
+            provider_config.clone().into(),
             model_config.clone(),
             system_preamble.to_string(),
             messages.clone(),
