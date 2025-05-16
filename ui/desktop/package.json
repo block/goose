@@ -100,7 +100,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "ai": "^3.4.33",
     "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.1",
+    "clsx": "^2.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "electron-log": "^5.2.2",
@@ -118,9 +118,10 @@
     "react-toastify": "^8.0.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^2.5.4",
+    "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.0.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "@radix-ui/react-slider": "^1.1.2"
   }
 }

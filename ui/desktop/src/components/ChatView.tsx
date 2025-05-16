@@ -35,6 +35,7 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
 } from '../types/message';
+import RSVPDisplay from './RSVPDisplay';
 
 export interface ChatType {
   id: string;
@@ -95,6 +96,8 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [isRSVPEnabled, setIsRSVPEnabled] = useState(false);
+  const [rsvpText, setRSVPText] = useState<string>('');
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -477,6 +480,27 @@ function ChatContent({
     e.preventDefault();
   };
 
+  const handleRSVPToggle = () => {
+    setIsRSVPEnabled(!isRSVPEnabled);
+  };
+
+  const handleRSVPClose = () => {
+    setIsRSVPEnabled(false);
+  };
+
+  // Update RSVP text when new messages arrive
+  useEffect(() => {
+    if (isRSVPEnabled && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant') {
+        const text = getTextContent(lastMessage);
+        if (text) {
+          setRSVPText(text);
+        }
+      }
+    }
+  }, [messages, isRSVPEnabled]);
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
@@ -603,6 +627,8 @@ function ChatContent({
             droppedFiles={droppedFiles}
             messages={messages}
             setMessages={setMessages}
+            onRSVPToggle={handleRSVPToggle}
+            isRSVPEnabled={isRSVPEnabled}
           />
         </div>
       </Card>
@@ -618,6 +644,8 @@ function ChatContent({
         }}
         summaryContent={summaryContent}
       />
+
+      {isRSVPEnabled && rsvpText && <RSVPDisplay text={rsvpText} onClose={handleRSVPClose} />}
     </div>
   );
 }
