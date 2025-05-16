@@ -132,7 +132,7 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
@@ -141,7 +141,7 @@ impl GithubCopilotProvider {
             .post(url)
             .headers(self.get_github_headers())
             .header("Authorization", format!("Bearer {}", token))
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
         handle_response_openai_compat(response).await
@@ -366,10 +366,10 @@ impl Provider for GithubCopilotProvider {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {

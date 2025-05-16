@@ -163,7 +163,7 @@ impl DatabricksProvider {
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
@@ -176,7 +176,7 @@ impl DatabricksProvider {
             .client
             .post(url)
             .header("Authorization", auth_header)
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
@@ -278,10 +278,10 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {
