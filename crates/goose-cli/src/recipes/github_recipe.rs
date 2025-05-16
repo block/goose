@@ -16,8 +16,8 @@ pub fn retrieve_recipe_from_github(
     recipe_repo_full_name: &str,
 ) -> Result<(String, PathBuf)> {
     println!(
-        "retrieving recipe from github repo {}",
-        recipe_repo_full_name
+        "📦 Looking for recipe \"{}\" in github repo: {}",
+        recipe_name, recipe_repo_full_name
     );
     ensure_gh_authenticated()?;
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
@@ -29,7 +29,7 @@ pub fn retrieve_recipe_from_github(
         if candidate_file_path.exists() {
             let content = std::fs::read_to_string(&candidate_file_path)?;
             println!(
-                "retrieved recipe from github repo {}/{}",
+                "⬇️  Retrieved recipe from github repo {}/{}",
                 recipe_repo_full_name,
                 candidate_file_path
                     .strip_prefix(&download_dir)
