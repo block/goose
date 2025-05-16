@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use goose::config::Config;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,17 +37,23 @@ fn configured_github_recipe_repo() -> Option<String> {
 fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<(String, PathBuf)> {
     let path = recipe_path.as_ref();
 
-    if path.exists() {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read recipe file: {}", path.display()))?;
-        let parent_dir = path
-            .parent()
-            .ok_or_else(|| anyhow!("Failed to get parent directory of recipe file"))?
-            .to_path_buf();
-        Ok((content, parent_dir))
-    } else {
-        Err(anyhow!("Recipe file not found: {}", path.display()))
-    }
+    let content = fs::read_to_string(path)
+        .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
+
+    let canonical = path.canonicalize().map_err(|e| {
+        anyhow!(
+            "Failed to resolve absolute path for {}: {}",
+            path.display(),
+            e
+        )
+    })?;
+
+    let parent_dir = canonical
+        .parent()
+        .ok_or_else(|| anyhow!("Resolved path has no parent: {}", canonical.display()))?
+        .to_path_buf();
+
+    Ok((content, parent_dir))
 }
 
 fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<(String, PathBuf)> {
