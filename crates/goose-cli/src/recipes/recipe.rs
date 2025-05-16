@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 
 use crate::recipes::print_recipe::{
-    missing_parameters_command_line, print_recipe_explanation,
+    missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
@@ -58,9 +58,7 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
 
     if !params_for_template.is_empty() {
         println!("{}", style("Parameters used to load this recipe:").bold());
-        for (key, value) in params_for_template {
-            println!("{}: {}", key, value);
-        }
+        print_parameters_with_values(params_for_template);
     }
     println!();
     Ok(recipe)
