@@ -34,6 +34,13 @@ let cfg = {
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
     teamId: process.env['APPLE_TEAM_ID']
   },
+  // Auto-update configuration
+  publish: {
+    provider: 'github',
+    owner: 'block',
+    repo: 'goose',
+    private: true,
+  },
 }
 
 if (process.env['APPLE_ID'] === undefined) {

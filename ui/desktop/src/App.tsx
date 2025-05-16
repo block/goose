@@ -9,6 +9,7 @@ import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails } from './sessions';
+import { UpdateNotifier } from './components/UpdateNotifier';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -517,6 +518,7 @@ export default function App() {
         />
       )}
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
+        <UpdateNotifier />
         <div className="titlebar-drag-region" />
         <div>
           {view === 'loading' && <SuspenseLoader />}
