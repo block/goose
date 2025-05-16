@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 /// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
 ///
 /// # Arguments
