@@ -26,8 +26,7 @@ export function ErrorUI({ error }) {
 
         {window?.appConfig?.get('GOOSE_VERSION') !== undefined && (
           <p className="text-base text-textSubtle dark:text-muted-foreground mb-2">
-            An error occurred in Goose v
-            {(window?.appConfig?.get('GOOSE_VERSION') as string) || ' unknown'}.
+            An error occurred in Goose v{window?.appConfig?.get('GOOSE_VERSION') as string}.
           </p>
         )}
 
