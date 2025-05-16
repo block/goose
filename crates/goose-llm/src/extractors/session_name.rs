@@ -1,5 +1,4 @@
-use crate::model::ModelConfig;
-use crate::providers::create;
+use crate::generate_structured_outputs;
 use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
 use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
@@ -54,15 +53,6 @@ pub async fn generate_session_name(
     provider_config: JsonValueFfi,
     messages: &[Message],
 ) -> Result<String, ProviderError> {
-    // Use OpenAI models specifically for this task
-    let model_name = if provider_name == "databricks" {
-        "goose-gpt-4-1"
-    } else {
-        "gpt-4.1"
-    };
-    let model_cfg = ModelConfig::new(model_name.to_string()).with_temperature(Some(0.0));
-    let provider = create(provider_name, provider_config.into(), model_cfg)?;
-
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages
         .iter()
@@ -96,10 +86,15 @@ pub async fn generate_session_name(
         "required": ["name"],
         "additionalProperties": false
     });
-    let user_msg = Message::user().with_text(&user_msg_text);
-    let resp = provider
-        .extract(&system_prompt, &[user_msg], &schema)
-        .await?;
+
+    let resp = generate_structured_outputs(
+        provider_name,
+        provider_config,
+        &system_prompt,
+        &[Message::user().with_text(&user_msg_text)],
+        schema,
+    )
+    .await?;
 
     let obj = resp
         .data
