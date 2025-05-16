@@ -13,13 +13,6 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'web',
-      testMatch: ['**/web/*.spec.ts'],
-      use: {
-        ...devices['Desktop Chrome'],
-      },
-    },
-    {
       name: 'electron',
       testMatch: ['**/electron/*.spec.ts'],
       use: {

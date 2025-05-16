@@ -21,13 +21,8 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
     "baseUrl": ".",
-    "paths": {
-      "@platform": ["src/services/platform/web"],
-      "@platform/*": ["src/services/platform/web/*"]
-    },
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src", "src/test/types.d.ts"],
-  "exclude": ["electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

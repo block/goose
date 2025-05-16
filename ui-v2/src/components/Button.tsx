@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { platformService } from '@platform';
+import { electronService } from '../services/electron';
 
 interface ButtonProps {
   onClick?: () => void;
@@ -21,7 +21,7 @@ export const Button: React.FC<ButtonProps> = ({
     if (copyText) {
       try {
         console.log('Attempting to copy text:', copyText);
-        await platformService.copyToClipboard(copyText);
+        await electronService.copyToClipboard(copyText);
         console.log('Text copied successfully');
       } catch (error) {
         console.error('Failed to copy:', error);

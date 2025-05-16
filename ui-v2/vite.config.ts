@@ -11,18 +11,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, './shared'),
-      '@platform': path.resolve(__dirname, './src/services/platform/web'),
     },
   },
   define: {
-    'process.env.IS_ELECTRON': JSON.stringify(false),
+    'process.env.IS_ELECTRON': JSON.stringify(true),
   },
   build: {
-    outDir: 'dist/web',
+    outDir: '.vite/build',
     emptyOutDir: true,
-  },
-  server: {
-    port: 3000,
-    strictPort: true,
   },
 });

@@ -1,5 +1,3 @@
-import { IPlatformService } from '../IPlatformService';
-
 declare global {
   interface Window {
     electronAPI: {
@@ -8,8 +6,10 @@ declare global {
   }
 }
 
-export class ElectronPlatformService implements IPlatformService {
+export class ElectronService {
   async copyToClipboard(text: string): Promise<void> {
     return window.electronAPI.copyToClipboard(text);
   }
 }
+
+export const electronService = new ElectronService();
