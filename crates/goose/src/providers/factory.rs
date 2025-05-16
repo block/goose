@@ -13,8 +13,8 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
-    venice::VeniceProvider,
     snowflake::SnowflakeProvider,
+    venice::VeniceProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
