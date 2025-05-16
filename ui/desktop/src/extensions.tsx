@@ -57,10 +57,22 @@ function sanitizeName(name: string) {
 
 export async function addExtension(
   extension: FullExtensionConfig,
-  silent: boolean = false
+  silent: boolean = false,
+  sessionId?: string
 ): Promise<Response> {
   try {
     console.log('Adding extension:', extension);
+
+    // Generate a session ID if not provided (useful for process tracking)
+    const processSessionId =
+      sessionId ||
+      `session-${window.performance.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // Create base environment variables with session tracking
+    const envs = {
+      GOOSE_SESSION_ID: processSessionId,
+    };
+
     // Create the config based on the extension type
     const config = {
       type: extension.type,
@@ -68,10 +80,12 @@ export async function addExtension(
         name: sanitizeName(extension.name),
         cmd: await replaceWithShims(extension.cmd),
         args: extension.args || [],
+        envs: envs,
       }),
       ...(extension.type === 'sse' && {
         name: sanitizeName(extension.name),
         uri: extension.uri,
+        envs: envs,
       }),
       ...(extension.type === 'builtin' && {
         name: sanitizeName(extension.name),
@@ -229,6 +243,11 @@ function storeExtensionConfig(config: FullExtensionConfig) {
 
 export async function loadAndAddStoredExtensions() {
   try {
+    // Get the current window's session ID
+    const sessionId =
+      localStorage.getItem('gooseSessionId') ||
+      `session-default-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
     const userSettingsStr = localStorage.getItem('user_settings');
 
     if (userSettingsStr) {
@@ -238,7 +257,8 @@ export async function loadAndAddStoredExtensions() {
       );
       console.log('Adding extensions from localStorage: ', enabledExtensions);
       for (const ext of enabledExtensions) {
-        await addExtension(ext, true);
+        // Pass the session ID for process tracking
+        await addExtension(ext, true, sessionId);
       }
     } else {
       console.log('Saving default builtin extensions to localStorage');
@@ -247,7 +267,8 @@ export async function loadAndAddStoredExtensions() {
       BUILT_IN_EXTENSIONS.forEach(async (extension: FullExtensionConfig) => {
         storeExtensionConfig(extension);
         if (extension.enabled) {
-          await addExtension(extension, true);
+          // Pass the session ID for process tracking
+          await addExtension(extension, true, sessionId);
         }
       });
     }
