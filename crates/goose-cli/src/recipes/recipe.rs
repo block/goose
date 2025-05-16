@@ -170,8 +170,7 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
         .unwrap_or(&vec![])
         .iter()
         .filter(|p| {
-            matches!(p.requirement, RecipeParameterRequirement::Optional)
-                && (p.default.is_none() || p.default.as_ref().map_or(true, |d| !d.is_empty()))
+            matches!(p.requirement, RecipeParameterRequirement::Optional) && p.default.is_none()
         })
         .map(|p| p.key.clone())
         .collect();
@@ -294,6 +293,13 @@ mod tests {
         params.insert("name".to_string(), "World".to_string());
         let result = render_content_with_params(content, &params).unwrap();
         assert_eq!(result, "Hello World!");
+
+        // Test empty parameter substitution
+        let content = "Hello {{ empty }}!";
+        let mut params = HashMap::new();
+        params.insert("empty".to_string(), "".to_string());
+        let result = render_content_with_params(content, &params).unwrap();
+        assert_eq!(result, "Hello !");
 
         // Test multiple parameters
         let content = "{{ greeting }} {{ name }}!";
@@ -445,29 +451,6 @@ mod tests {
     }
 
     #[test]
-    fn test_load_recipe_as_template_optional_parameters_without_default_values_in_recipe_file() {
-        let instructions_and_parameters = r#"
-            "instructions": "Test instructions with {{ optional_param }}",
-            "parameters": [
-                {
-                    "key": "optional_param",
-                    "input_type": "string",
-                    "requirement": "optional",
-                    "description": "A test parameter"
-                }
-            ]"#;
-        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
-
-        let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new());
-        assert!(load_recipe_result.is_err());
-        let err = load_recipe_result.unwrap_err();
-        println!("{}", err.to_string());
-        assert!(err.to_string().contains(
-            "Optional parameters missing default values in the recipe: optional_param. Please provide defaults."
-        ));
-    }
-
-    #[test]
     fn test_load_recipe_as_template_optional_parameters_with_empty_default_values_in_recipe_file() {
         let instructions_and_parameters = r#"
             "instructions": "Test instructions with {{ optional_param }}",
@@ -478,6 +461,29 @@ mod tests {
                     "requirement": "optional",
                     "description": "A test parameter",
                     "default": "",
+                }
+            ]"#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
+
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(
+            recipe.instructions.unwrap(),
+            "Test instructions with "
+        );
+    }
+
+    #[test]
+    fn test_load_recipe_as_template_optional_parameters_without_default_values_in_recipe_file() {
+        let instructions_and_parameters = r#"
+            "instructions": "Test instructions with {{ optional_param }}",
+            "parameters": [
+                {
+                    "key": "optional_param",
+                    "input_type": "string",
+                    "requirement": "optional",
+                    "description": "A test parameter"
                 }
             ]"#;
         let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
