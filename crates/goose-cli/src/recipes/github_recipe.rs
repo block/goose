@@ -116,7 +116,7 @@ fn fetch_origin(local_repo_path: &Path) -> Result<()> {
 }
 
 fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<PathBuf> {
-    let ref_and_path = format!("origin/lifei/test-recipe-dir:{}", recipe_name);
+    let ref_and_path = format!("origin/main:{}", recipe_name);
     let output_dir = env::temp_dir().join(recipe_name);
 
     if output_dir.exists() {
