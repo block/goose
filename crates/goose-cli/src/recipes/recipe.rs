@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 
 use crate::recipes::print_recipe::{
-    missing_parameters_command_line, print_recipe_explanation,
+    missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
@@ -11,7 +11,9 @@ use minijinja::{Environment, Error, Template, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
+pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 /// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
 ///
 /// # Arguments
@@ -29,12 +31,12 @@ use std::collections::{HashMap, HashSet};
 /// - Recipe is not valid
 /// - The required fields are missing
 pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
-    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
 
     let recipe = validate_recipe_file_parameters(&recipe_file_content)?;
 
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe.parameters, true)?;
+        apply_values_to_parameters(&params, recipe.parameters, recipe_parent_dir, true)?;
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
@@ -56,9 +58,7 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
 
     if !params_for_template.is_empty() {
         println!("{}", style("Parameters used to load this recipe:").bold());
-        for (key, value) in params_for_template {
-            println!("{}: {}", key, value);
-        }
+        print_parameters_with_values(params_for_template);
     }
     println!();
     Ok(recipe)
@@ -83,7 +83,7 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
 /// - The YAML/JSON is invalid
 /// - The parameter definition does not match the template variables in the recipe file
 pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
-    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
+    let (recipe_file_content, _) = retrieve_recipe_file(recipe_name)?;
 
     validate_recipe_file_parameters(&recipe_file_content)
 }
@@ -92,13 +92,13 @@ pub fn explain_recipe_with_parameters(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<()> {
-    let recipe_file_content = retrieve_recipe_file(recipe_name)?;
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
 
     let raw_recipe = validate_recipe_file_parameters(&recipe_file_content)?;
     print_recipe_explanation(&raw_recipe);
     let recipe_parameters = raw_recipe.parameters;
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe_parameters, false)?;
+        apply_values_to_parameters(&params, recipe_parameters, recipe_parent_dir, false)?;
     print_required_parameters_for_template(params_for_template, missing_params);
 
     Ok(())
@@ -115,7 +115,8 @@ fn validate_parameters_in_template(
     recipe_parameters: &Option<Vec<RecipeParameter>>,
     recipe_file_content: &str,
 ) -> Result<()> {
-    let template_variables = extract_template_variables(recipe_file_content)?;
+    let mut template_variables = extract_template_variables(recipe_file_content)?;
+    template_variables.remove(BUILT_IN_RECIPE_DIR_PARAM);
 
     let param_keys: HashSet<String> = recipe_parameters
         .as_ref()
@@ -207,9 +208,17 @@ fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
 fn apply_values_to_parameters(
     user_params: &[(String, String)],
     recipe_parameters: Option<Vec<RecipeParameter>>,
+    recipe_parent_dir: PathBuf,
     enable_user_prompt: bool,
 ) -> Result<(HashMap<String, String>, Vec<String>)> {
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
+    let recipe_parent_dir_str = recipe_parent_dir
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in recipe_dir"))?;
+    param_map.insert(
+        BUILT_IN_RECIPE_DIR_PARAM.to_string(),
+        recipe_parent_dir_str.to_string(),
+    );
     let mut missing_params: Vec<String> = Vec::new();
     for param in recipe_parameters.unwrap_or_default() {
         if !param_map.contains_key(&param.key) {
