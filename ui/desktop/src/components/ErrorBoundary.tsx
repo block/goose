@@ -24,9 +24,13 @@ export function ErrorUI({ error }) {
 
         <h1 className="text-2xl font-semibold text-foreground dark:text-white">Honk!</h1>
 
-        {window?.appConfig?.get('GOOSE_VERSION') !== undefined && (
+        {window?.appConfig?.get('GOOSE_VERSION') !== undefined ? (
           <p className="text-base text-textSubtle dark:text-muted-foreground mb-2">
             An error occurred in Goose v{window?.appConfig?.get('GOOSE_VERSION') as string}.
+          </p>
+        ) : (
+          <p className="text-base text-textSubtle dark:text-muted-foreground mb-2">
+            An error occurred.
           </p>
         )}
 
