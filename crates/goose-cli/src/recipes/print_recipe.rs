@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use console::style;
 use goose::recipe::Recipe;
 
+use crate::recipes::recipe::BUILT_IN_RECIPE_DIR_PARAM;
+
 pub fn print_recipe_explanation(recipe: &Recipe) {
     println!(
         "{} {}",
@@ -33,6 +35,17 @@ pub fn print_recipe_explanation(recipe: &Recipe) {
     }
 }
 
+pub fn print_parameters_with_values(params: HashMap<String, String>) {
+    for (key, value) in params {
+        let label = if key == BUILT_IN_RECIPE_DIR_PARAM {
+            " (built-in)"
+        } else {
+            ""
+        };
+        println!("   {}{}: {}", key, label, value);
+    }
+}
+
 pub fn print_required_parameters_for_template(
     params_for_template: HashMap<String, String>,
     missing_params: Vec<String>,
@@ -42,9 +55,7 @@ pub fn print_required_parameters_for_template(
             "{}",
             style("📥 Parameters used to load this recipe:").bold()
         );
-        for (key, value) in params_for_template {
-            println!("   {}: {}", key, value);
-        }
+        print_parameters_with_values(params_for_template)
     }
     if !missing_params.is_empty() {
         println!(
