@@ -1,29 +1,68 @@
 use anyhow::{anyhow, Result};
 use goose::config::Config;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
+
+use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 
 use super::github_recipe::{retrieve_recipe_from_github, GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY};
 
+const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
+
 pub fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
-    // If recipe_name ends with yaml or json, treat it as a direct path
-    if recipe_name.ends_with(".yaml") || recipe_name.ends_with(".json") {
+    // If recipe_name ends with yaml or json, treat it as a direct file path
+    if RECIPE_FILE_EXTENSIONS
+        .iter()
+        .any(|ext| recipe_name.ends_with(&format!(".{}", ext)))
+    {
         let path = PathBuf::from(recipe_name);
         return read_recipe_file(path);
     }
-
-    // First check current directory
-    let current_dir = std::env::current_dir()?;
-    if let Ok((content, recipe_parent_dir)) = read_recipe_in_dir(&current_dir, recipe_name) {
-        return Ok((content, recipe_parent_dir));
-    }
-    read_recipe_in_dir(&current_dir, recipe_name).or_else(|e| {
+    retrieve_recipe_from_local_path(recipe_name).or_else(|e| {
         if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
             retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
         } else {
             Err(e)
         }
     })
+}
+
+fn retrieve_recipe_from_local_path(recipe_name: &str) -> Result<(String, PathBuf)> {
+    println!(
+        "searching for recipe in paths defined in environment variable: {}",
+        GOOSE_RECIPE_PATH_ENV_VAR
+    );
+    let recipe_path_env = match env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
+        Ok(val) => val,
+        Err(_) => {
+            return Err(anyhow!(
+                "environment variable {} is not set. Skipping search for recipe in local paths.",
+                GOOSE_RECIPE_PATH_ENV_VAR
+            ));
+        }
+    };
+
+    println!(
+        "paths in environment variable {} : {}",
+        GOOSE_RECIPE_PATH_ENV_VAR, recipe_path_env
+    );
+    let path_separator = if cfg!(windows) { ';' } else { ':' };
+
+    let search_dirs: Vec<PathBuf> = recipe_path_env
+        .split(path_separator)
+        .map(PathBuf::from)
+        .collect();
+
+    for dir in &search_dirs {
+        for ext in RECIPE_FILE_EXTENSIONS {
+            println!("searching for recipe in: {}", dir.display());
+            let candidate = dir.join(recipe_name).join(format!("recipe.{}", ext));
+            if candidate.exists() && candidate.is_file() {
+                return read_recipe_file(candidate);
+            }
+        }
+    }
+    Err(anyhow!("Failed to retrieve {}/recipe.yaml or {}/recipe.json in path defined in environment variable: {}", recipe_name, recipe_name, GOOSE_RECIPE_PATH_ENV_VAR))
 }
 
 fn configured_github_recipe_repo() -> Option<String> {
@@ -54,18 +93,4 @@ fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<(String, PathBuf)>
         .to_path_buf();
 
     Ok((content, parent_dir))
-}
-
-fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<(String, PathBuf)> {
-    for ext in &["yaml", "json"] {
-        let recipe_path = dir.join(format!("{}.{}", recipe_name, ext));
-        match read_recipe_file(recipe_path) {
-            Ok((content, recipe_parent_dir)) => return Ok((content, recipe_parent_dir)),
-            Err(_) => continue,
-        }
-    }
-    Err(anyhow!(format!(
-        "No {}.yaml or {}.json recipe file found in current directory.",
-        recipe_name, recipe_name
-    )))
 }
