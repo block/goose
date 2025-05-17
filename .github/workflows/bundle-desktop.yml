@@ -21,6 +21,11 @@ on:
         required: false
         default: true
         type: boolean
+      ref:
+        description: 'Git ref to checkout (branch, tag, or SHA). Defaults to main branch if not specified.'
+        required: false
+        type: string
+        default: ''
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'
@@ -45,6 +50,30 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
     steps:
+      # Debug information about the workflow and inputs
+      - name: Debug workflow info
+        env:
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SIGNING: ${{ inputs.signing }}
+          INPUT_QUICK_TEST: ${{ inputs.quick_test }}
+        run: |
+          echo "=== Workflow Information ==="
+          echo "Workflow: ${WORKFLOW_NAME}"
+          echo "Ref: ${WORKFLOW_REF}"
+          echo "Event: ${EVENT_NAME}"
+          echo "Repo: ${REPOSITORY}"
+          echo ""
+          echo "=== Input Parameters ==="
+          echo "Build ref: ${INPUT_REF:-<default branch>}"
+          echo "Version: ${INPUT_VERSION:-not set}"
+          echo "Signing: ${INPUT_SIGNING:-false}"
+          echo "Quick test: ${INPUT_QUICK_TEST:-true}"
+
       # Check initial disk space
       - name: Check initial disk space
         run: df -h
@@ -52,43 +81,63 @@ jobs:
       # Validate Signing Secrets if signing is enabled
       - name: Validate Signing Secrets
         if: ${{ inputs.signing }}
+        env:
+          HAS_CERT: ${{ secrets.CERTIFICATE_OSX_APPLICATION != '' }}
+          HAS_CERT_PASS: ${{ secrets.CERTIFICATE_PASSWORD != '' }}
+          HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          HAS_APPLE_PASS: ${{ secrets.APPLE_ID_PASSWORD != '' }}
+          HAS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
         run: |
-          if [[ -z "${{ secrets.CERTIFICATE_OSX_APPLICATION }}" ]]; then
-            echo "Error: CERTIFICATE_OSX_APPLICATION secret is required for signing."
+          missing=()
+          [[ "${HAS_CERT}" != "true" ]] && missing+=("CERTIFICATE_OSX_APPLICATION")
+          [[ "${HAS_CERT_PASS}" != "true" ]] && missing+=("CERTIFICATE_PASSWORD")
+          [[ "${HAS_APPLE_ID}" != "true" ]] && missing+=("APPLE_ID")
+          [[ "${HAS_APPLE_PASS}" != "true" ]] && missing+=("APPLE_ID_PASSWORD")
+          [[ "${HAS_TEAM_ID}" != "true" ]] && missing+=("APPLE_TEAM_ID")
+          
+          if (( ${#missing[@]} > 0 )); then
+            echo "Error: Missing required signing secrets:"
+            printf '%s\n' "${missing[@]}"
             exit 1
           fi
-          if [[ -z "${{ secrets.CERTIFICATE_PASSWORD }}" ]]; then
-            echo "Error: CERTIFICATE_PASSWORD secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_ID }}" ]]; then
-            echo "Error: APPLE_ID secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_ID_PASSWORD }}" ]]; then
-            echo "Error: APPLE_ID_PASSWORD secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_TEAM_ID }}" ]]; then
-            echo "Error: APPLE_TEAM_ID secret is required for signing."
-            exit 1
-          fi
+          
           echo "All required signing secrets are present."
 
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
+          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
+          fetch-depth: 0
+
+      - name: Debug git status
+        run: |
+          echo "=== Git Status ==="
+          git status
+          echo ""
+          echo "=== Current Commit ==="
+          git rev-parse HEAD
+          git rev-parse --abbrev-ref HEAD
+          echo ""
+          echo "=== Recent Commits ==="
+          git log --oneline -n 5
+          echo ""
+          echo "=== Remote Branches ==="
+          git branch -r
 
       # Update versions before build
       - name: Update versions
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           # Update version in Cargo.toml
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
           # Update version in package.json 
           cd ui/desktop
-          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       # Pre-build cleanup to ensure enough disk space
       - name: Pre-build cleanup
@@ -194,6 +243,10 @@ jobs:
 
       - name: Make Signed App
         if: ${{ inputs.signing }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           attempt=0
           max_attempts=2
@@ -208,10 +261,6 @@ jobs:
             exit 1
           fi
         working-directory: ui/desktop
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Final cleanup before artifact upload
         run: |
