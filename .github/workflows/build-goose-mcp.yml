@@ -1,0 +1,35 @@
+name: Build Goose MCP
+
+on:
+  push:
+    branches: [ feat/lecat-mcp ]
+    paths:
+      - 'crates/goose-mcp/**'
+  pull_request:
+    branches: [ feat/lecat-mcp ]
+    paths:
+      - 'crates/goose-mcp/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build goose-mcp
+        run: cargo build -p goose-mcp --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goose-mcp
+          path: target/release/goose-mcp
