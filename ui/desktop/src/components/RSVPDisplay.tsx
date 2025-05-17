@@ -136,7 +136,19 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      // Skip structured content with Space when preview is shown
+      if (showStructuredPreview && e.code === 'Space') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowStructuredPreview(false);
+        setCurrentSectionIndex(currentSectionIndex + 1);
+        setCurrentWordIndex(0);
+        setIsPlaying(true);
+        return;
+      }
+
+      // Toggle play/pause with Space when not showing structured content
+      if (!showStructuredPreview && e.code === 'Space') {
         e.preventDefault();
         e.stopPropagation();
         setIsPlaying((prev) => !prev);
@@ -149,7 +161,7 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [onClose]);
+  }, [onClose, showStructuredPreview, currentSectionIndex]);
 
   const handleWPMChange = (delta: number) => {
     const newWPM = Math.max(100, Math.min(1000, wordsPerMinute + delta));
@@ -250,7 +262,9 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
         </div>
 
         <div className="text-center text-sm text-gray-500 mb-4">
-          Press space to {isPlaying ? 'pause' : 'play'} • Esc to close
+          {showStructuredPreview
+            ? 'Press space to skip • Esc to close'
+            : 'Press space to {isPlaying ? "pause" : "play"} • Esc to close'}
         </div>
 
         {showStructuredPreview && currentSection?.type !== 'none' ? (

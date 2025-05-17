@@ -96,8 +96,8 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
-  const [isRSVPEnabled, setIsRSVPEnabled] = useState(false);
-  const [rsvpText, setRSVPText] = useState<string>('');
+  const [isRSVPOpen, setIsRSVPOpen] = useState(false);
+  const [rsvpText, setRSVPText] = useState('');
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -480,26 +480,54 @@ function ChatContent({
     e.preventDefault();
   };
 
-  const handleRSVPToggle = () => {
-    setIsRSVPEnabled(!isRSVPEnabled);
+  const handleRSVP = (text: string) => {
+    setRSVPText(text);
+    setIsRSVPOpen(true);
   };
 
-  const handleRSVPClose = () => {
-    setIsRSVPEnabled(false);
-  };
-
-  // Update RSVP text when new messages arrive
+  // Add global hotkey for RSVP
   useEffect(() => {
-    if (isRSVPEnabled && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant') {
-        const text = getTextContent(lastMessage);
-        if (text) {
-          setRSVPText(text);
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      console.log(
+        'Key pressed:',
+        e.key,
+        'Alt:',
+        e.altKey,
+        'Meta:',
+        e.metaKey,
+        'Shift:',
+        e.shiftKey
+      );
+
+      // Cmd + Shift + Space to launch RSVP for the most recent message
+      if (e.metaKey && e.shiftKey && e.code === 'Space') {
+        console.log('RSVP hotkey detected');
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Find the most recent non-empty message
+        const lastMessage = [...messages].reverse().find((msg) => {
+          const text = getTextContent(msg);
+          return text && text.trim().length > 0;
+        });
+
+        if (lastMessage) {
+          const text = getTextContent(lastMessage);
+          if (text) {
+            console.log('Launching RSVP with message:', text.substring(0, 50) + '...');
+            setRSVPText(text);
+            setIsRSVPOpen(true);
+          }
         }
       }
-    }
-  }, [messages, isRSVPEnabled]);
+    };
+
+    // Use capture phase to ensure we get the event before other handlers
+    window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+    };
+  }, [messages]);
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -556,7 +584,7 @@ function ChatContent({
                           contextType={getContextHandlerType(message)}
                         />
                       ) : (
-                        <UserMessage message={message} />
+                        <UserMessage message={message} onRSVP={handleRSVP} />
                       )}
                     </>
                   ) : (
@@ -580,6 +608,7 @@ function ChatContent({
                             const updatedMessages = [...messages, newMessage];
                             setMessages(updatedMessages);
                           }}
+                          onRSVP={handleRSVP}
                         />
                       )}
                     </>
@@ -627,8 +656,6 @@ function ChatContent({
             droppedFiles={droppedFiles}
             messages={messages}
             setMessages={setMessages}
-            onRSVPToggle={handleRSVPToggle}
-            isRSVPEnabled={isRSVPEnabled}
           />
         </div>
       </Card>
@@ -645,7 +672,9 @@ function ChatContent({
         summaryContent={summaryContent}
       />
 
-      {isRSVPEnabled && rsvpText && <RSVPDisplay text={rsvpText} onClose={handleRSVPClose} />}
+      {isRSVPOpen && rsvpText && (
+        <RSVPDisplay text={rsvpText} onClose={() => setIsRSVPOpen(false)} />
+      )}
     </div>
   );
 }
