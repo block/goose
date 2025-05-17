@@ -15,6 +15,7 @@ import {
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
+import MessageRSVPLink from './MessageRSVPLink';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -25,6 +26,7 @@ interface GooseMessageProps {
   metadata?: string[];
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
+  onRSVP?: (text: string) => void;
 }
 
 export default function GooseMessage({
@@ -34,6 +36,7 @@ export default function GooseMessage({
   messages,
   append,
   appendMessage,
+  onRSVP,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -116,8 +119,9 @@ export default function GooseMessage({
                 </div>
               )}
               {textContent && message.content.every((content) => content.type === 'text') && (
-                <div className="absolute left-0 pt-1">
+                <div className="absolute left-0 pt-1 flex items-center">
                   <MessageCopyLink text={textContent} contentRef={contentRef} />
+                  {onRSVP && <MessageRSVPLink text={textContent} onRSVP={onRSVP} />}
                 </div>
               )}
             </div>

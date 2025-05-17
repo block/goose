@@ -4,13 +4,15 @@ import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
+import MessageRSVPLink from './MessageRSVPLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 
 interface UserMessageProps {
   message: Message;
+  onRSVP?: (text: string) => void;
 }
 
-export default function UserMessage({ message }: UserMessageProps) {
+export default function UserMessage({ message, onRSVP }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -38,8 +40,9 @@ export default function UserMessage({ message }: UserMessageProps) {
             <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
-            <div className="absolute right-0 pt-1">
+            <div className="absolute right-0 pt-1 flex items-center">
               <MessageCopyLink text={textContent} contentRef={contentRef} />
+              {onRSVP && <MessageRSVPLink text={textContent} onRSVP={onRSVP} />}
             </div>
           </div>
         </div>
