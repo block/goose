@@ -8,6 +8,75 @@ interface RSVPDisplayProps {
   onClose: () => void;
 }
 
+// Types of structured content we want to handle
+type StructuredContentType = 'table' | 'code' | 'list' | 'none';
+
+interface ContentSection {
+  type: StructuredContentType;
+  content: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+// Detect structured content in the text
+function detectStructuredContent(text: string): ContentSection[] {
+  const sections: ContentSection[] = [];
+
+  // Regular expressions for different types of structured content
+  const patterns = {
+    // More lenient table detection that matches any line starting with |
+    table: /(?:\|[^\n]*\|\n?)+/g,
+    code: /```[\s\S]*?```/g,
+    list: /(?:^|\n)(?:\s*[-*+]|\d+\.)\s+.*(?:\n(?:\s*[-*+]|\d+\.)\s+.*)*/g,
+  };
+
+  // Find all structured content
+  for (const [type, pattern] of Object.entries(patterns)) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      console.log(`Found ${type} at index ${match.index}:`, match[0]);
+      sections.push({
+        type: type as StructuredContentType,
+        content: match[0],
+        startIndex: match.index,
+        endIndex: match.index + match[0].length,
+      });
+    }
+  }
+
+  // Sort sections by start index
+  sections.sort((a, b) => a.startIndex - b.startIndex);
+
+  // Add non-structured content sections
+  const result: ContentSection[] = [];
+  let lastEnd = 0;
+
+  for (const section of sections) {
+    if (section.startIndex > lastEnd) {
+      result.push({
+        type: 'none',
+        content: text.slice(lastEnd, section.startIndex),
+        startIndex: lastEnd,
+        endIndex: section.startIndex,
+      });
+    }
+    result.push(section);
+    lastEnd = section.endIndex;
+  }
+
+  if (lastEnd < text.length) {
+    result.push({
+      type: 'none',
+      content: text.slice(lastEnd),
+      startIndex: lastEnd,
+      endIndex: text.length,
+    });
+  }
+
+  console.log('Final sections:', result);
+  return result;
+}
+
 export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -15,6 +84,9 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
   const [words, setWords] = useState<string[]>([]);
   const [wordsPerChunk, setWordsPerChunk] = useState(1);
   const [customWPM, setCustomWPM] = useState('');
+  const [contentSections, setContentSections] = useState<ContentSection[]>([]);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [showStructuredPreview, setShowStructuredPreview] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +182,57 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
 
   const progress = (currentWordIndex / words.length) * 100;
 
+  // Split text into words and detect structured content
+  useEffect(() => {
+    const sections = detectStructuredContent(text);
+    setContentSections(sections);
+    setCurrentSectionIndex(0);
+    setCurrentWordIndex(0);
+  }, [text]);
+
+  // RSVP playback logic
+  useEffect(() => {
+    if (isPlaying) {
+      const interval = setInterval(
+        () => {
+          setCurrentWordIndex((prevIndex) => {
+            const currentSection = contentSections[currentSectionIndex];
+            console.log('Current section:', currentSection);
+
+            // If we're at a structured content section
+            if (currentSection?.type !== 'none') {
+              console.log('Stopping at structured content:', currentSection.type);
+              setIsPlaying(false);
+              setShowStructuredPreview(true);
+              return prevIndex;
+            }
+
+            const words = currentSection.content.split(/\s+/);
+            if (prevIndex + wordsPerChunk >= words.length) {
+              // Move to next section if available
+              if (currentSectionIndex + 1 < contentSections.length) {
+                console.log('Moving to next section');
+                setCurrentSectionIndex(currentSectionIndex + 1);
+                return 0;
+              } else {
+                setIsPlaying(false);
+                return prevIndex;
+              }
+            }
+            return prevIndex + wordsPerChunk;
+          });
+        },
+        (60 * 1000) / wordsPerMinute
+      );
+
+      return () => clearInterval(interval);
+    }
+  }, [isPlaying, wordsPerMinute, wordsPerChunk, contentSections, currentSectionIndex]);
+
+  const currentSection = contentSections[currentSectionIndex];
+  const currentWords = currentSection?.content.split(/\s+/) || [];
+  const displayWords = currentWords.slice(currentWordIndex, currentWordIndex + wordsPerChunk);
+
   return (
     <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] pointer-events-none"
@@ -130,9 +253,48 @@ export default function RSVPDisplay({ text, onClose }: RSVPDisplayProps) {
           Press space to {isPlaying ? 'pause' : 'play'} • Esc to close
         </div>
 
-        <div className="h-[200px] flex items-center justify-center text-4xl font-bold mb-6">
-          {words.slice(currentWordIndex, currentWordIndex + wordsPerChunk).join(' ')}
-        </div>
+        {showStructuredPreview && currentSection?.type !== 'none' ? (
+          <div className="flex-1 overflow-auto mb-4">
+            <div className="bg-bgSubtle p-4 rounded-lg text-center">
+              <div className="text-lg mb-2">
+                {currentSection.type === 'table' && '📊 Table detected'}
+                {currentSection.type === 'code' && '💻 Code block detected'}
+                {currentSection.type === 'list' && '📝 List detected'}
+              </div>
+              <div className="text-sm text-textSubtle mb-4">
+                This section contains formatted content that may be difficult to read through RSVP
+              </div>
+              <div className="flex justify-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowStructuredPreview(false);
+                    setCurrentSectionIndex(currentSectionIndex + 1);
+                    setCurrentWordIndex(0);
+                    setIsPlaying(true);
+                  }}
+                >
+                  Skip and continue
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setShowStructuredPreview(false);
+                    setCurrentSectionIndex(currentSectionIndex + 1);
+                    setCurrentWordIndex(0);
+                    setIsPlaying(true);
+                  }}
+                >
+                  View in chat
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-4xl font-bold mb-6">
+            {displayWords.join(' ')}
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="flex items-center gap-4 justify-center">
