@@ -15,6 +15,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+
 use crate::config::{Config, ConfigError};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -132,7 +133,18 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, mut payload: Value) -> Result<Value, ProviderError> {
+        use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
+        use futures_util::StreamExt;
+        // Detect gpt-4.1 and stream
+        let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
+        let use_gpt41_stream = model_name == "gpt-4.1";
+        if use_gpt41_stream {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("stream".to_string(), serde_json::Value::Bool(true));
+        }
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
@@ -144,7 +156,34 @@ impl GithubCopilotProvider {
             .json(&payload)
             .send()
             .await?;
-        handle_response_openai_compat(response).await
+        if use_gpt41_stream {
+            let mut collector = OAIStreamCollector::new();
+            let mut stream = response.bytes_stream();
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+                let text = String::from_utf8_lossy(&chunk);
+                for line in text.lines() {
+                    let tline = line.trim();
+                    if !tline.starts_with("data: ") {
+                        continue;
+                    }
+                    let payload = &tline[6..];
+                    if payload == "[DONE]" {
+                        break;
+                    }
+                    match serde_json::from_str::<OAIStreamChunk>(payload) {
+                        Ok(ch) => collector.add_chunk(&ch),
+                        Err(_) => continue,
+                    }
+                }
+            }
+            let final_response = collector.build_response();
+            let value = serde_json::to_value(final_response)
+                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            Ok(value)
+        } else {
+            handle_response_openai_compat(response).await
+        }
     }
 
     async fn get_api_info(&self) -> Result<(String, String)> {
