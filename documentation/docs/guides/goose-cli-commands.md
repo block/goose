@@ -116,6 +116,18 @@ goose configure
     goose session --with-builtin computercontroller
     ```
 
+- Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
+
+    **Options:**
+
+    **`--debug`**
+
+    **Usage:**
+
+    ```bash
+    goose session --name my-session --debug
+    ```
+
 ---
 ### session list [options]
 
@@ -247,6 +259,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
+- **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
 
 **Usage:**
 
@@ -264,6 +277,9 @@ goose run --recipe recipe.yaml --interactive
 
 #Generates an error: no text provided for prompt in headless mode
 goose run --recipe recipe_no_prompt.yaml
+
+#Load a recipe in debug mode
+goose run --recipe recipe.yaml --debug
 
 ```
 
