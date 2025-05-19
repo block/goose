@@ -64,10 +64,19 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = context.payload.inputs?.pr_number || core.getInput('command_issue_number');
+            let prNumber;
+            
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = context.payload.inputs.pr_number;
+            } else {
+              prNumber = context.payload.issue.number;
+            }
+            
             if (!prNumber) {
               throw new Error('No PR number found');
             }
+            
+            console.log('Using PR number:', prNumber);
             
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -90,10 +99,6 @@ jobs:
             });
             
             core.setOutput('sha', pr.head.sha);
-          inputs: |
-            {
-              "command_issue_number": "${{ steps.command.outputs.issue_number }}"
-            }
 
   bundle-desktop:
     needs: [trigger-on-command]
@@ -124,17 +129,13 @@ jobs:
           path: arm64-dist
 
       - name: Comment on PR with ARM64 download link
-        env:
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          PR_NUMBER: ${{ needs.trigger-on-command.outputs.pr_number }}
         uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
             ### macOS ARM64 Desktop App (Apple Silicon)
 
-            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${REPOSITORY}/actions/runs/${RUN_ID}/Goose-darwin-arm64.zip)
+            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
             After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.

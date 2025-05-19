@@ -8,27 +8,28 @@ use std::process::Command;
 use std::process::Stdio;
 use tar::Archive;
 
+use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
+
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
 ) -> Result<(String, PathBuf)> {
     println!(
-        "retrieving recipe from github repo {}",
-        recipe_repo_full_name
+        "📦 Looking for recipe \"{}\" in github repo: {}",
+        recipe_name, recipe_repo_full_name
     );
     ensure_gh_authenticated()?;
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
     let download_dir = get_folder_from_github(&local_repo_path, recipe_name)?;
-    let file_extensions = ["yaml", "json"];
 
-    for ext in file_extensions {
+    for ext in RECIPE_FILE_EXTENSIONS {
         let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
         if candidate_file_path.exists() {
             let content = std::fs::read_to_string(&candidate_file_path)?;
             println!(
-                "retrieved recipe from github repo {}/{}",
+                "⬇️  Retrieved recipe from github repo {}/{}",
                 recipe_repo_full_name,
                 candidate_file_path
                     .strip_prefix(&download_dir)
