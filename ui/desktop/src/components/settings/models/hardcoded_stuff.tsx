@@ -1,41 +1,3 @@
-export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
-
-export const anthropic_models = [
-  'claude-3-5-sonnet-latest',
-  'claude-3-5-sonnet-2',
-  'claude-3-5-haiku-latest',
-  'claude-3-opus-latest',
-];
-
-export const google_models = [
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite-preview-02-05',
-  'gemini-2.0-flash-thinking-exp-01-21',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.5-pro-exp-03-25',
-];
-
-export const groq_models = ['llama-3.3-70b-versatile'];
-
-export const ollama_mdoels = ['qwen2.5'];
-
-export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
-
-export const azure_openai_models = ['gpt-4o'];
-
-export const gcp_vertex_ai_models = [
-  'claude-3-7-sonnet@20250219',
-  'claude-3-5-sonnet-v2@20241022',
-  'claude-3-5-sonnet@20240620',
-  'claude-3-5-haiku@20241022',
-  'gemini-1.5-pro-002',
-  'gemini-2.0-flash-001',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.5-pro-exp-03-25',
-];
-
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -47,13 +9,12 @@ export const default_models = {
   azure_openai: 'gpt-4o',
   gcp_vertex_ai: 'gemini-2.0-flash-001',
   aws_bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+  venice: 'llama-3.3-70b',
 };
 
 export function getDefaultModel(key: string): string | undefined {
   return default_models[key as keyof typeof default_models] || undefined;
 }
-
-export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];
 
 export const required_keys = {
   OpenAI: ['OPENAI_API_KEY', 'OPENAI_HOST', 'OPENAI_BASE_PATH'],
@@ -120,4 +81,5 @@ export const provider_aliases = [
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
   { provider: 'GCP Vertex AI', alias: 'gcp_vertex_ai' },
   { provider: 'AWS Bedrock', alias: 'aws_bedrock' },
+  { provider: 'Venice', alias: 'venice' },
 ];

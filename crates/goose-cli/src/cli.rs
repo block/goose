@@ -7,10 +7,11 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
+use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipe::load_recipe;
+use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
@@ -219,6 +220,15 @@ enum Command {
         )]
         debug: bool,
 
+        /// Maximum number of consecutive identical tool calls allowed
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Maximum number of consecutive identical tool calls allowed",
+            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+        )]
+        max_tool_repetitions: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -249,6 +259,14 @@ enum Command {
         )]
         builtins: Vec<String>,
     },
+
+    /// Open the last project directory
+    #[command(about = "Open the last project directory", visible_alias = "p")]
+    Project {},
+
+    /// List recent project directories
+    #[command(about = "List recent project directories", visible_alias = "ps")]
+    Projects,
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -305,6 +323,31 @@ enum Command {
             help = "Continue in interactive mode after processing initial input"
         )]
         interactive: bool,
+
+        /// Run without storing a session file
+        #[arg(
+            long = "no-session",
+            help = "Run without storing a session file",
+            long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
+            conflicts_with_all = ["resume", "name", "path"] 
+        )]
+        no_session: bool,
+
+        /// Show the recipe title, description, and parameters
+        #[arg(
+            long = "explain",
+            help = "Show the recipe title, description, and parameters"
+        )]
+        explain: bool,
+
+        /// Maximum number of consecutive identical tool calls allowed
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Maximum number of consecutive identical tool calls allowed",
+            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+        )]
+        max_tool_repetitions: Option<u32>,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -405,6 +448,11 @@ struct InputConfig {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Track the current directory in projects.json
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        eprintln!("Warning: Failed to update project tracker: {}", e);
+    }
+
     match cli.command {
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
@@ -423,6 +471,7 @@ pub async fn cli() -> Result<()> {
             resume,
             history,
             debug,
+            max_tool_repetitions,
             extensions,
             remote_extensions,
             builtins,
@@ -445,12 +494,14 @@ pub async fn cli() -> Result<()> {
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
                         resume,
+                        no_session: false,
                         extensions,
                         remote_extensions,
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
                         debug,
+                        max_tool_repetitions,
                     })
                     .await;
                     setup_logging(
@@ -468,6 +519,16 @@ pub async fn cli() -> Result<()> {
                 }
             };
         }
+        Some(Command::Project {}) => {
+            // Default behavior: offer to resume the last project
+            handle_project_default()?;
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // Interactive project selection
+            handle_projects_interactive()?;
+            return Ok(());
+        }
         Some(Command::Run {
             instructions,
             input_text,
@@ -475,14 +536,17 @@ pub async fn cli() -> Result<()> {
             interactive,
             identifier,
             resume,
+            no_session,
             debug,
+            max_tool_repetitions,
             extensions,
             remote_extensions,
             builtins,
             params,
+            explain,
         }) => {
-            let input_config = match (instructions, input_text, recipe) {
-                (Some(file), _, _) if file == "-" => {
+            let input_config = match (instructions, input_text, recipe, explain) {
+                (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
@@ -494,7 +558,7 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                     }
                 }
-                (Some(file), _, _) => {
+                (Some(file), _, _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
@@ -508,14 +572,18 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                     }
                 }
-                (_, Some(text), _) => InputConfig {
+                (_, Some(text), _, _) => InputConfig {
                     contents: Some(text),
                     extensions_override: None,
                     additional_system_prompt: None,
                 },
-                (_, _, Some(recipe_name)) => {
+                (_, _, Some(recipe_name), explain) => {
+                    if explain {
+                        explain_recipe_with_parameters(&recipe_name, params)?;
+                        return Ok(());
+                    }
                     let recipe =
-                        load_recipe(&recipe_name, true, Some(params)).unwrap_or_else(|err| {
+                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
@@ -525,7 +593,7 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: recipe.instructions,
                     }
                 }
-                (None, None, None) => {
+                (None, None, None, _) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }
@@ -534,12 +602,14 @@ pub async fn cli() -> Result<()> {
             let mut session = build_session(SessionBuilderConfig {
                 identifier: identifier.map(extract_identifier),
                 resume,
+                no_session,
                 extensions,
                 remote_extensions,
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
                 debug,
+                max_tool_repetitions,
             })
             .await;
 
@@ -601,7 +671,19 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let mut session = build_session(SessionBuilderConfig::default()).await;
+                let mut session = build_session(SessionBuilderConfig {
+                    identifier: None,
+                    resume: false,
+                    no_session: false,
+                    extensions: Vec::new(),
+                    remote_extensions: Vec::new(),
+                    builtins: Vec::new(),
+                    extensions_override: None,
+                    additional_system_prompt: None,
+                    debug: false,
+                    max_tool_repetitions: None,
+                })
+                .await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,

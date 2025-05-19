@@ -34,12 +34,14 @@ pub async fn agent_generator(
     let base_session = build_session(SessionBuilderConfig {
         identifier,
         resume: false,
+        no_session: false,
         extensions: requirements.external,
         remote_extensions: requirements.remote,
         builtins: requirements.builtin,
         extensions_override: None,
         additional_system_prompt: None,
         debug: false,
+        max_tool_repetitions: None,
     })
     .await;
 
