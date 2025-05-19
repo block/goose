@@ -28,9 +28,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
-      # Cannot use github.event.pull_request.number since the trigger is 'issue_comment'
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
+      pr_sha: ${{ steps.get_pr_info.outputs.sha }}
     steps:
+      - name: Debug workflow trigger
+        env:
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "=== Workflow Trigger Info ==="
+          echo "Workflow: ${WORKFLOW_NAME}"
+          echo "Ref: ${WORKFLOW_REF}"
+          echo "Event: ${EVENT_NAME}"
+          echo "Action: ${EVENT_ACTION}"
+          echo "Actor: ${ACTOR}"
+          echo "Repository: ${REPOSITORY}"
+
       - if: ${{ github.event_name == 'issue_comment' }}
         uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
         id: command
@@ -40,13 +57,51 @@ jobs:
           reaction: "eyes"
           allowed_contexts: pull_request
 
+      # Get the PR's SHA
+      - name: Get PR info
+        id: get_pr_info
+        if: ${{ steps.command.outputs.continue == 'true' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.inputs?.pr_number || core.getInput('command_issue_number');
+            if (!prNumber) {
+              throw new Error('No PR number found');
+            }
+            
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: parseInt(prNumber, 10)
+            });
+            
+            console.log('PR Details:', {
+              number: pr.number,
+              head: {
+                ref: pr.head.ref,
+                sha: pr.head.sha,
+                label: pr.head.label
+              },
+              base: {
+                ref: pr.base.ref,
+                sha: pr.base.sha,
+                label: pr.base.label
+              }
+            });
+            
+            core.setOutput('sha', pr.head.sha);
+          inputs: |
+            {
+              "command_issue_number": "${{ steps.command.outputs.issue_number }}"
+            }
+
   bundle-desktop:
-    # Only run this if ".bundle" command is detected.
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     with:
       signing: true
+      ref: ${{ needs.trigger-on-command.outputs.pr_sha }}
     secrets:
       CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
       CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
@@ -69,13 +124,17 @@ jobs:
           path: arm64-dist
 
       - name: Comment on PR with ARM64 download link
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PR_NUMBER: ${{ needs.trigger-on-command.outputs.pr_number }}
         uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
             ### macOS ARM64 Desktop App (Apple Silicon)
 
-            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
+            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${REPOSITORY}/actions/runs/${RUN_ID}/Goose-darwin-arm64.zip)
 
             **Instructions:**
             After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
