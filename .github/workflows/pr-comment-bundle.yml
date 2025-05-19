@@ -64,10 +64,19 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = context.payload.inputs?.pr_number || core.getInput('command_issue_number');
+            let prNumber;
+            
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = context.payload.inputs.pr_number;
+            } else {
+              prNumber = context.payload.issue.number;
+            }
+            
             if (!prNumber) {
               throw new Error('No PR number found');
             }
+            
+            console.log('Using PR number:', prNumber);
             
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -90,10 +99,6 @@ jobs:
             });
             
             core.setOutput('sha', pr.head.sha);
-          inputs: |
-            {
-              "command_issue_number": "${{ steps.command.outputs.issue_number }}"
-            }
 
   bundle-desktop:
     needs: [trigger-on-command]
