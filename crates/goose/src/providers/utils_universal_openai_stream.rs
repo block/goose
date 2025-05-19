@@ -23,6 +23,7 @@ pub struct OAIPromptFilterResult {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct OAIToolCallFunction {
     pub name: Option<String>,
+    #[serde(default, deserialize_with = "null_to_empty_string")]
     pub arguments: String,
 }
 
@@ -240,7 +241,13 @@ impl OAIStreamCollector {
         }
     }
 }
-
+fn null_to_empty_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,7 +374,7 @@ data: [DONE]
         let mut collector = OAIStreamCollector::new();
         for line in CLAUDE_STREAM.lines() {
             let line = line.trim();
-            if !line.starts_with(": ") {
+            if !line.starts_with("data: ") {
                 continue;
             }
             let payload = &line[6..];
@@ -386,10 +393,10 @@ data: [DONE]
         let resp = collector.build_response();
         assert_eq!(resp.choices.len(), 1);
         let choice = &resp.choices[0];
-        assert_eq!(choice.message.role, "");
+        assert_eq!(choice.message.role, "assistant");
         assert_eq!(
             choice.message.content.as_deref().unwrap_or(""),
-            "I'll help examine the most recent commit using the shell command `git show HEAD`."
+            "I'll help you examine the most recent commit using the shell command `git show HEAD`."
         );
         assert_eq!(choice.finish_reason, "tool_calls");
     }
