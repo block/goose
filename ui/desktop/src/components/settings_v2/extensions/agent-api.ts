@@ -1,4 +1,4 @@
-import { ExtensionConfig } from '../../../api/types.gen';
+import { ExtensionConfig, Tool } from '../../../api/types.gen';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { replaceWithShims } from './utils';
@@ -13,7 +13,7 @@ interface ApiResponse {
  */
 export async function extensionApiCall(
   endpoint: string,
-  payload: ExtensionConfig | string,
+  payload: ApiReadyExtensionConfig | string,
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   // Configure toast notifications
@@ -33,7 +33,7 @@ export async function extensionApiCall(
   let toastId;
 
   // Step 1: Show loading toast (only for activation of stdio)
-  if (isActivating && (payload as ExtensionConfig) && payload.type == 'stdio') {
+  if (isActivating && payload.type == 'stdio') {
     toastId = toastService.loading({
       title: extensionName,
       msg: `${action.verb} ${extensionName} extension...`,
@@ -147,7 +147,9 @@ export async function addToAgent(
 
     extension.name = sanitizeName(extension.name);
 
-    return await extensionApiCall('/extensions/add', extension, options);
+    const payload = transformExtensionConfig(extension);
+
+    return await extensionApiCall('/extensions/add', payload, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
@@ -178,4 +180,107 @@ export async function removeFromAgent(
 
 function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
+}
+
+// Define the API-ready types with env_keys as string array instead of envs
+export type ApiReadyExtensionConfig =
+  | {
+      /**
+       * Whether this extension is bundled with Goose
+       */
+      bundled?: boolean | null;
+      description?: string | null;
+      env_keys?: string[];
+      /**
+       * The name used to identify this extension
+       */
+      name: string;
+      timeout?: number | null;
+      type: 'sse';
+      uri: string;
+    }
+  | {
+      args: Array<string>;
+      /**
+       * Whether this extension is bundled with Goose
+       */
+      bundled?: boolean | null;
+      cmd: string;
+      description?: string | null;
+      env_keys?: string[];
+      /**
+       * The name used to identify this extension
+       */
+      name: string;
+      timeout?: number | null;
+      type: 'stdio';
+    }
+  | {
+      /**
+       * Whether this extension is bundled with Goose
+       */
+      bundled?: boolean | null;
+      display_name?: string | null;
+      /**
+       * The name used to identify this extension
+       */
+      name: string;
+      timeout?: number | null;
+      type: 'builtin';
+    }
+  | {
+      /**
+       * Whether this extension is bundled with Goose
+       */
+      bundled?: boolean | null;
+      /**
+       * Instructions for how to use these tools
+       */
+      instructions?: string | null;
+      /**
+       * The name used to identify this extension
+       */
+      name: string;
+      /**
+       * The tools provided by the frontend
+       */
+      tools: Array<Tool>;
+      type: 'frontend';
+    };
+
+/**
+ * Transforms ExtensionConfig to match the server's expected format
+ * Converting 'envs' object to 'env_keys' array of keys
+ */
+/**
+ * Transforms ExtensionConfig to match the server's expected format
+ * Converting 'envs' object to 'env_keys' array of keys
+ */
+export function transformExtensionConfig(config: ExtensionConfig): ApiReadyExtensionConfig {
+  // Use type narrowing to handle different variants of the union type
+  if ('type' in config) {
+    switch (config.type) {
+      case 'sse': {
+        const { envs, ...rest } = config;
+        return {
+          ...rest,
+          env_keys: envs ? Object.keys(envs) : undefined,
+        };
+      }
+      case 'stdio': {
+        const { envs, ...rest } = config;
+        return {
+          ...rest,
+          env_keys: envs ? Object.keys(envs) : undefined,
+        };
+      }
+      case 'builtin':
+      case 'frontend':
+        // These types don't have envs field, so just return as is
+        return config;
+    }
+  }
+
+  // This should never happen due to the union type constraint
+  throw new Error('Invalid extension configuration type');
 }
