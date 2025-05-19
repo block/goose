@@ -26,9 +26,12 @@ pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "gpt-4o",
     "o1",
     "o3-mini",
-    "claude-3-7-sonnet",
-    "claude-3-5-sonnet",
+    "claude-3.7-sonnet",
+    "claude-3.5-sonnet",
 ];
+
+pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] =
+    &["gpt-4.1", "claude-3.7-sonnet", "claude-3.5-sonnet"];
 
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
@@ -138,8 +141,10 @@ impl GithubCopilotProvider {
         use futures_util::StreamExt;
         // Detect gpt-4.1 and stream
         let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
-        let use_gpt41_stream = model_name == "gpt-4.1";
-        if use_gpt41_stream {
+        let stream_only_model = GITHUB_COPILOT_STREAM_MODELS
+            .iter()
+            .any(|prefix| model_name.starts_with(prefix));
+        if stream_only_model {
             payload
                 .as_object_mut()
                 .unwrap()
@@ -156,7 +161,7 @@ impl GithubCopilotProvider {
             .json(&payload)
             .send()
             .await?;
-        if use_gpt41_stream {
+        if stream_only_model {
             let mut collector = OAIStreamCollector::new();
             let mut stream = response.bytes_stream();
             while let Some(chunk) = stream.next().await {
