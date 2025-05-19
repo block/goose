@@ -31,7 +31,7 @@ pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, Co
 
     let provider = create(
         &req.provider_name,
-        req.provider_config.clone(),
+        req.provider_config.clone().into(),
         req.model_config.clone(),
     )
     .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
