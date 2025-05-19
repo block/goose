@@ -341,4 +341,56 @@ data: [DONE]
         );
         assert_eq!(choice.finish_reason, "stop");
     }
+    const CLAUDE_STREAM: &str = r#"
+data: {"choices":[{"index":0,"delta":{"content":"I","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":"'ll","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" help","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" you examine","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" the most","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" recent commit using","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" the shell","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":" comman","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":"d `git show HEAD","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":"`.","role":"assistant"}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"developer__shell"},"id":"tooluse_9eC8o8MvTN-KOWuDGXgq1Q","index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":""},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"{\"command"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\": "},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"git show H"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"EAD"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":"\"}"},"index":0,"type":"function"}]}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","model":"claude-3.5-sonnet"}
+data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{"content":null}}],"created":1747613682,"id":"938bb8e2-6276-4a58-bca3-c675cfe7f2f5","usage":{"completion_tokens":56,"prompt_tokens":2594,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":2650},"model":"claude-3.5-sonnet"}
+data: [DONE]
+"#;
+    #[test]
+    fn test_claude_streaming() {
+        let mut collector = OAIStreamCollector::new();
+        for line in CLAUDE_STREAM.lines() {
+            let line = line.trim();
+            if !line.starts_with(": ") {
+                continue;
+            }
+            let payload = &line[6..];
+            if payload == "[DONE]" {
+                break;
+            }
+            let chunk: OAIStreamChunk = match from_str(payload) {
+                Ok(c) => c,
+                Err(e) => {
+                    println!("JSON deserialize failed {} | payload: {}", e, payload);
+                    continue;
+                }
+            };
+            collector.add_chunk(&chunk);
+        }
+        let resp = collector.build_response();
+        assert_eq!(resp.choices.len(), 1);
+        let choice = &resp.choices[0];
+        assert_eq!(choice.message.role, "");
+        assert_eq!(
+            choice.message.content.as_deref().unwrap_or(""),
+            "I'll help examine the most recent commit using the shell command `git show HEAD`."
+        );
+        assert_eq!(choice.finish_reason, "tool_calls");
+    }
 }
