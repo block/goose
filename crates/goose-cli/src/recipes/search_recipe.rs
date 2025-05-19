@@ -20,7 +20,6 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
     }
     retrieve_recipe_from_local_path(recipe_name).or_else(|e| {
         if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
-            println!("{}", e);
             retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
         } else {
             Err(e)
@@ -28,42 +27,47 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
     })
 }
 
+fn read_recipe_in_dir(dir: &Path, recipe_name: &str) -> Result<(String, PathBuf)> {
+    for ext in RECIPE_FILE_EXTENSIONS {
+        let recipe_path = dir.join(format!("{}.{}", recipe_name, ext));
+        if let Ok(result) = read_recipe_file(recipe_path) {
+            return Ok(result);
+        }
+    }
+    Err(anyhow!(format!(
+        "No {}.yaml or {}.json recipe file found in directory: {}",
+        recipe_name,
+        recipe_name,
+        dir.display()
+    )))
+}
+
 fn retrieve_recipe_from_local_path(recipe_name: &str) -> Result<(String, PathBuf)> {
-    println!(
-        "📦 Looking for recipe \"{}\" using paths from environment variable: {}",
-        recipe_name, GOOSE_RECIPE_PATH_ENV_VAR
-    );
-    let recipe_path_env = match env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
-        Ok(val) => val,
-        Err(_) => {
-            return Err(anyhow!(
-                "ℹ️  Environment variable {} is not set. You can set it to search for the recipe in the paths you specify in the environment variable. eg: GOOSE_RECIPE_PATH=/path/to/path1:/path/to/path2",
-                GOOSE_RECIPE_PATH_ENV_VAR
-            ));
-        }
-    };
-
-    let path_separator = if cfg!(windows) { ';' } else { ':' };
-
-    let search_dirs: Vec<PathBuf> = recipe_path_env
-        .split(path_separator)
-        .map(PathBuf::from)
-        .collect();
-    println!("🔍 GOOSE_RECIPE_PATH includes:");
-    for path in &search_dirs {
-        println!("  - {}", path.display());
+    let mut search_dirs = vec![PathBuf::from(".")];
+    if let Ok(recipe_path_env) = env::var(GOOSE_RECIPE_PATH_ENV_VAR) {
+        let path_separator = if cfg!(windows) { ';' } else { ':' };
+        let recipe_path_env_dirs: Vec<PathBuf> = recipe_path_env
+            .split(path_separator)
+            .map(PathBuf::from)
+            .collect();
+        search_dirs.extend(recipe_path_env_dirs);
     }
-
     for dir in &search_dirs {
-        for ext in RECIPE_FILE_EXTENSIONS {
-            let candidate = dir.join(recipe_name).join(format!("recipe.{}", ext));
-            if candidate.exists() && candidate.is_file() {
-                println!("⬇️  Retrieve recipe from path: {}", candidate.display());
-                return read_recipe_file(candidate);
-            }
+        if let Ok(result) = read_recipe_in_dir(dir, recipe_name) {
+            return Ok(result);
         }
     }
-    Err(anyhow!("ℹ️  Failed to retrieve {}/recipe.yaml or {}/recipe.json in the paths from environment variable: {}", recipe_name, recipe_name, GOOSE_RECIPE_PATH_ENV_VAR))
+    let search_dirs_str = search_dirs
+        .iter()
+        .map(|p| p.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(":");
+    Err(anyhow!(
+        "ℹ️  Failed to retrieve {}.yaml or {}.json in {}",
+        recipe_name,
+        recipe_name,
+        search_dirs_str
+    ))
 }
 
 fn configured_github_recipe_repo() -> Option<String> {
