@@ -469,10 +469,7 @@ mod tests {
         let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
-        assert_eq!(
-            recipe.instructions.unwrap(),
-            "Test instructions with "
-        );
+        assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
     }
 
     #[test]
