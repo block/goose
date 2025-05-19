@@ -2533,6 +2533,7 @@ dependencies = [
  "etcetera",
  "fs2",
  "futures",
+ "futures-util",
  "include_dir",
  "indoc 2.0.6",
  "jsonwebtoken",
