@@ -32,6 +32,8 @@
     "prepare": "cd ../.. && husky install"
   },
   "dependencies": {
+    "@tanstack/react-router": "^1.120.5",
+    "@tanstack/router": "^0.0.1-beta.53",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
