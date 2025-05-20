@@ -14,10 +14,9 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
     // OpenAI models, https://platform.openai.com/docs/models#models-overview
     map.insert("gpt-4o", 128_000);
     map.insert("gpt-4-turbo", 128_000);
-    map.insert("o1-mini", 128_000);
-    map.insert("o1-preview", 128_000);
-    map.insert("o1", 200_000);
+    map.insert("o3", 200_000);
     map.insert("o3-mini", 200_000);
+    map.insert("o4-mini", 200_000);
     map.insert("gpt-4.1", 1_000_000);
     map.insert("gpt-4-1", 1_000_000);
 

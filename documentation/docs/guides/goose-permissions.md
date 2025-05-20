@@ -9,6 +9,18 @@ import TabItem from '@theme/TabItem';
 
 Goose’s permissions determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
 
+<details>
+  <summary>Permission Modes Video Walkthrough</summary>
+  <iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/bMVFFnPS_Uk"
+  title="Goose Permission Modes Explained"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+  ></iframe>
+</details>
+
 ## Permission Modes
 
 | Mode               | Description                                                                                           | Best For                                                                                   |

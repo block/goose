@@ -9,7 +9,7 @@ authors:
 
 # A Developer's Playbook: Using AI for Team Efficiency
 
-Development teams can operate like sports teams. Each member has a role and a shared playbook helps coordinate efforts. Let's explore how AI-driven "plays" can form a starter "playbook" for your dev team, helping with common technical tasks. You can use recipes with [Goose](/) to leverage the [Model Context Protocol (MCP)](https://modelcontextprofocol.io) to make you more productive.
+Development teams can operate like sports teams. Each member has a role and a shared playbook helps coordinate efforts. Let's explore how AI-driven "plays" can form a starter "playbook" for your dev team, helping with common technical tasks. You can use recipes with [Goose](/) to leverage the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) to make you more productive.
 
 <!-- truncate -->
 
