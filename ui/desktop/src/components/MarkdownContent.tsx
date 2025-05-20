@@ -77,7 +77,38 @@ const MarkdownCode = React.forwardRef(function MarkdownCode(
   );
 });
 
+// Function to detect if content contains HTML
+const containsHTML = (str: string) => {
+  const htmlRegex = /<[^>]*>/;
+  return htmlRegex.test(str);
+};
+
+// Function to wrap HTML content in code blocks
+const wrapHTMLInCodeBlock = (content: string) => {
+  if (containsHTML(content)) {
+    // Split content by code blocks to preserve existing ones
+    const parts = content.split(/(```[\s\S]*?```)/g);
+    return parts
+      .map((part) => {
+        // If part is already a code block, leave it as is
+        if (part.startsWith('```') && part.endsWith('```')) {
+          return part;
+        }
+        // If part contains HTML, wrap it in HTML code block
+        if (containsHTML(part)) {
+          return `\`\`\`html\n${part}\n\`\`\``;
+        }
+        return part;
+      })
+      .join('\n');
+  }
+  return content;
+};
+
 export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
+  // Process content before rendering
+  const processedContent = wrapHTMLInCodeBlock(content);
+
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
@@ -105,7 +136,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
           code: MarkdownCode,
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );
