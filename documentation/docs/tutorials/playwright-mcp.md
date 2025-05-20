@@ -165,16 +165,15 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-:::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
-:::
-
 Let's use Goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how Goose can help you:
 
 1. Test a web application across multiple browsers
 2. Generate maintainable test code
 3. Capture screenshots for visual comparison
 
+:::info LLM
+Anthropic's Claude 3.5 Sonnet was used for this task.
+:::
 
 ### Goose Prompt
 ```
