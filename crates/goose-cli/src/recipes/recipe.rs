@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 /// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
 ///
 /// # Arguments
@@ -294,6 +295,13 @@ mod tests {
         let result = render_content_with_params(content, &params).unwrap();
         assert_eq!(result, "Hello World!");
 
+        // Test empty parameter substitution
+        let content = "Hello {{ empty }}!";
+        let mut params = HashMap::new();
+        params.insert("empty".to_string(), "".to_string());
+        let result = render_content_with_params(content, &params).unwrap();
+        assert_eq!(result, "Hello !");
+
         // Test multiple parameters
         let content = "{{ greeting }} {{ name }}!";
         let mut params = HashMap::new();
@@ -441,6 +449,27 @@ mod tests {
             recipe.instructions.unwrap(),
             "Test instructions with my_default_value value1"
         );
+    }
+
+    #[test]
+    fn test_load_recipe_as_template_optional_parameters_with_empty_default_values_in_recipe_file() {
+        let instructions_and_parameters = r#"
+            "instructions": "Test instructions with {{ optional_param }}",
+            "parameters": [
+                {
+                    "key": "optional_param",
+                    "input_type": "string",
+                    "requirement": "optional",
+                    "description": "A test parameter",
+                    "default": "",
+                }
+            ]"#;
+        let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
+
+        let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
     }
 
     #[test]
