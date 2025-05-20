@@ -20,7 +20,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use crate::types::core::Role;
+use crate::types::{core::Role, json_value_ffi};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, uniffi::Record)]
 /// A message to or from an LLM
@@ -29,6 +29,24 @@ pub struct Message {
     pub role: Role,
     pub created: i64,
     pub content: Contents,
+}
+
+#[uniffi::export]
+pub fn serialize_message(message: &Message) -> String {
+    let result = serde_json::to_string(message);
+    match result {
+        Ok(json_str) => json_str,
+        Err(e) => panic!("Failed to serialize message: {}", e),
+    }
+}
+
+#[uniffi::export]
+pub fn deserialize_message(json_value: json_value_ffi::JsonValueFfi) -> Message {
+    let result = serde_json::from_value::<Message>(json_value.into());
+    match result {
+        Ok(message) => message,
+        Err(e) => panic!("Failed to deserialize message: {}", e),
+    }
 }
 
 impl Message {

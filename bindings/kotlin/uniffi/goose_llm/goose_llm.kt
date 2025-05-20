@@ -773,11 +773,15 @@ internal interface IntegrityCheckingUniffiLib : Library {
 
     fun uniffi_goose_llm_checksum_func_create_tool_config(): Short
 
+    fun uniffi_goose_llm_checksum_func_deserialize_message(): Short
+
     fun uniffi_goose_llm_checksum_func_generate_session_name(): Short
 
     fun uniffi_goose_llm_checksum_func_generate_tooltip(): Short
 
     fun uniffi_goose_llm_checksum_func_print_messages(): Short
+
+    fun uniffi_goose_llm_checksum_func_serialize_message(): Short
 
     fun ffi_goose_llm_uniffi_contract_version(): Int
 }
@@ -841,6 +845,11 @@ internal interface UniffiLib : Library {
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
+    fun uniffi_goose_llm_fn_func_deserialize_message(
+        `jsonValue`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     fun uniffi_goose_llm_fn_func_generate_session_name(
         `providerName`: RustBuffer.ByValue,
         `providerConfig`: RustBuffer.ByValue,
@@ -857,6 +866,11 @@ internal interface UniffiLib : Library {
         `messages`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): Unit
+
+    fun uniffi_goose_llm_fn_func_serialize_message(
+        `message`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
 
     fun ffi_goose_llm_rustbuffer_alloc(
         `size`: Long,
@@ -1096,6 +1110,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_goose_llm_checksum_func_create_tool_config() != 22809.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_goose_llm_checksum_func_deserialize_message() != 57344.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 9810.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1103,6 +1120,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_print_messages() != 30278.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_goose_llm_checksum_func_serialize_message() != 24354.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -2898,6 +2918,16 @@ fun `createToolConfig`(
         },
     )
 
+fun `deserializeMessage`(`jsonValue`: JsonValueFfi): Message =
+    FfiConverterTypeMessage.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_deserialize_message(
+                FfiConverterTypeJsonValueFfi.lower(`jsonValue`),
+                _status,
+            )
+        },
+    )
+
 /**
  * Generates a short (≤4 words) session name
  */
@@ -2956,3 +2986,13 @@ fun `printMessages`(`messages`: List<Message>) =
             _status,
         )
     }
+
+fun `serializeMessage`(`message`: Message): kotlin.String =
+    FfiConverterString.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_serialize_message(
+                FfiConverterTypeMessage.lower(`message`),
+                _status,
+            )
+        },
+    )

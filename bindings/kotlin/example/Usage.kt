@@ -135,6 +135,13 @@ fun main() = runBlocking {
     )
 
     val response = completion(req)
-    println("\nCompletion Response:")
-    println(response.message)
+    println("\nCompletion Response: $response")
+
+    println("\n---\n")
+
+    val serialized = serializeMessage(response.message)
+    println("Serialized Message: $serialized")
+
+    val deserialized = deserializeMessage(serialized)
+    println("Deserialized Message: $deserialized")
 }
