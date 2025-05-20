@@ -56,18 +56,19 @@ By default, this setup will not use authentication for MQTT, but in a production
 To make sure everything was working, I could run a few commands to test that I could subscribe to a channel on my MQTT Docker container and publish messages to it from another terminal window:
 
 ```sh Terminal 1
-# subscribe to a channel called "MBOT/TOPIC"
+# terminal 1: subscribe to a channel called "MBOT/TOPIC"
 mosquitto_sub -h localhost -p 1883 -t MBOT/TOPIC -v
 ```
 
 ```sh Terminal 2
-# publish a message to the channel "MBOT/TOPIC"
+# terminal 2: publish a message to the channel "MBOT/TOPIC"
 mosquitto_pub -h localhost -p 1883 -t MBOT/TOPIC -m "BEEP"
 ```
 
 We see the resulting message in termainl 1:
 
 ```sh
+# terminal 1 sees this output:
 MBOT/TOPIC BEEP
 ```
 
