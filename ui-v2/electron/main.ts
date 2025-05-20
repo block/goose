@@ -26,8 +26,12 @@ async function createWindow() {
 
   // Create the browser window with headless options when needed
   const mainWindow = new BrowserWindow({
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    frame: false,
     width: 1200,
     height: 800,
+    minWidth: 800,
     ...(isHeadless
       ? {
           show: false,
