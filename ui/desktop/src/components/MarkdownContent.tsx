@@ -76,13 +76,13 @@ const MarkdownCode = React.forwardRef(function MarkdownCode(
   );
 });
 
-// Function to detect if content contains HTML
+// Detect if content contains HTML
 const containsHTML = (str: string) => {
   const htmlRegex = /<[^>]*>/;
   return htmlRegex.test(str);
 };
 
-// Function to wrap HTML content in code blocks
+// Wrap HTML content in code blocks
 const wrapHTMLInCodeBlock = (content: string) => {
   if (containsHTML(content)) {
     // Split content by code blocks to preserve existing ones
