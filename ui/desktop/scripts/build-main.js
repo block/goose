@@ -25,14 +25,11 @@ async function buildMain() {
           },
           external: [
             'electron',
-            'electron-squirrel-startup',
             'path',
             'fs',
-            'url',
-            'child_process',
-            'crypto',
             'os',
-            'util'
+            'child_process',
+            'crypto'
           ]
         }
       }

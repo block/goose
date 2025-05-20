@@ -1,0 +1,4 @@
+owner: block
+repo: goose
+provider: github
+updaterCacheDirName: goose-updater

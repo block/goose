@@ -15,9 +15,10 @@
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "bundle:default": "npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
+    "bundle:default": "npm run make && electron-builder --mac --config.mac.identity=null && ./scripts/copy-update-files.sh && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
     "bundle:windows": "node scripts/build-main.js && node scripts/prepare-platform.js && npm run make -- --platform=win32 --arch=x64 && node scripts/copy-windows-dlls.js",
     "bundle:intel": "npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
+    "publish": "electron-forge publish",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "npm run generate-api && playwright test",
     "test-e2e:dev": "npm run generate-api && playwright test --reporter=list --retries=0 --max-failures=1",
@@ -42,6 +43,7 @@
     "@electron-forge/plugin-fuses": "^7.5.0",
     "@electron-forge/plugin-vite": "^7.5.0",
     "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^2.3.0",
     "@electron/remote": "^2.1.2",
     "@eslint/js": "^8.56.0",
     "@hey-api/openapi-ts": "^0.64.4",
@@ -58,6 +60,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
     "electron": "33.1.0",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -78,6 +81,32 @@
     "src/**/*.{css,json}": [
       "prettier --write"
     ]
+  },
+  "build": {
+    "appId": "com.block.goose",
+    "productName": "Goose",
+    "publish": [{
+      "provider": "github",
+      "owner": "block",
+      "repo": "goose",
+      "releaseType": "release"
+    }],
+    "mac": {
+      "target": ["zip", "dmg"],
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.plist",
+      "entitlementsInherit": "entitlements.plist",
+      "signIgnore": [
+        "node_modules/**/*",
+        ".vite/**/*"
+      ]
+    },
+    "win": {
+      "target": ["nsis", "zip"]
+    },
+    "afterSign": "scripts/notarize.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.72",
@@ -105,6 +134,7 @@
     "dotenv": "^16.4.5",
     "electron-log": "^5.2.2",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.2.1",
     "express": "^4.21.1",
     "framer-motion": "^11.11.11",
     "lodash": "^4.17.21",
@@ -121,6 +151,7 @@
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.0.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "yaml": "^2.8.0"
   }
 }

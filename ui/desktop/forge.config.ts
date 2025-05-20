@@ -34,6 +34,33 @@ let cfg = {
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
     teamId: process.env['APPLE_TEAM_ID']
   },
+  // Auto-update configuration
+  publish: [{
+    provider: 'github',
+    owner: 'block',
+    repo: 'goose',
+    releaseType: 'release'
+  }],
+  generateUpdatesFilesForAllChannels: true,
+  updateConfig: {
+    mac: {
+      url: 'https://github.com/block/goose/releases/latest/download',
+      updateInfoPath: 'latest-mac.yml'
+    },
+    win: {
+      url: 'https://github.com/block/goose/releases/latest/download',
+      updateInfoPath: 'latest-win.yml'
+    }
+  },
+  config: {
+    mac: {
+      target: ['zip', 'dmg'],
+      category: 'public.app-category.developer-tools'
+    },
+    win: {
+      target: ['nsis', 'zip']
+    }
+  },
 }
 
 if (process.env['APPLE_ID'] === undefined) {
