@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send } from './icons';
+import { Attach, Send, Eye } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -20,6 +20,8 @@ interface ChatInputProps {
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
+  onRSVPToggle?: () => void;
+  isRSVPEnabled?: boolean;
 }
 
 export default function ChatInput({
@@ -33,6 +35,8 @@ export default function ChatInput({
   droppedFiles = [],
   messages = [],
   setMessages,
+  onRSVPToggle,
+  isRSVPEnabled = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -267,72 +271,76 @@ export default function ChatInput({
           : 'border-borderSubtle hover:border-borderStandard'
       } bg-bgApp z-10`}
     >
-      <form onSubmit={onFormSubmit}>
-        <textarea
-          data-testid="chat-input"
-          autoFocus
-          id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
-          value={displayValue}
-          onChange={handleChange}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          ref={textAreaRef}
-          rows={1}
-          style={{
-            minHeight: `${minHeight}px`,
-            maxHeight: `${maxHeight}px`,
-            overflowY: 'auto',
-          }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-        />
+      <form onSubmit={onFormSubmit} className="relative">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 relative">
+            <textarea
+              data-testid="chat-input"
+              autoFocus
+              id="dynamic-textarea"
+              placeholder="What can goose help with?   ⌘↑/⌘↓"
+              value={displayValue}
+              onChange={handleChange}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              ref={textAreaRef}
+              rows={1}
+              style={{
+                minHeight: `${minHeight}px`,
+                maxHeight: `${maxHeight}px`,
+                overflowY: 'auto',
+              }}
+              className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            />
 
-        {isLoading ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onStop?.();
-            }}
-            className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-          >
-            <Stop size={24} />
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            variant="ghost"
-            disabled={!displayValue.trim()}
-            className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-              !displayValue.trim()
-                ? 'text-textSubtle cursor-not-allowed'
-                : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
-            }`}
-          >
-            <Send />
-          </Button>
-        )}
+            <div className="absolute right-2 bottom-1.5 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleFileSelect}
+                title="Attach File"
+                className="h-7 w-7"
+              >
+                <Attach className="h-4 w-4" />
+              </Button>
+              {isLoading ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStop?.();
+                  }}
+                  className="text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+                >
+                  <Stop size={24} />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!displayValue.trim()}
+                  className={`text-textProminentInverse hover:cursor-pointer h-7 w-7 ${
+                    !displayValue.trim() ? 'text-textSubtle cursor-not-allowed' : 'bg-bgAppInverse'
+                  }`}
+                  title="Send Message"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       </form>
 
       <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
         <div className="gap-1 flex items-center justify-between w-full">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={handleFileSelect}
-            className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-          >
-            <Attach />
-          </Button>
-
           <BottomMenu
             setView={setView}
             numTokens={numTokens}
@@ -340,6 +348,18 @@ export default function ChatInput({
             isLoading={isLoading}
             setMessages={setMessages}
           />
+          {onRSVPToggle && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onRSVPToggle}
+              className={`${isRSVPEnabled ? 'text-primary' : ''} h-6 w-6`}
+              title="Toggle RSVP Mode"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
