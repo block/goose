@@ -172,7 +172,7 @@ Let's use Goose with the Playwright extension to create a cross-browser testing 
 3. Capture screenshots for visual comparison
 
 
-#### Goose Prompt
+### Goose Prompt
 ```
 Test the random redesign generator app (https://blackgirlbytes.github.io/random-redesign-picker/) 
 in Chromium and WebKit. For each browser:
@@ -183,63 +183,55 @@ in Chromium and WebKit. For each browser:
 Then generate a Playwright test that works across all browsers.
 ```
 
-#### Goose Output
-
+### Goose Output
 ```
 Let's start with Chromium:
 
 Browser Navigate
 url: https://blackgirlbytes.github....
-Now let's wait for and click the button:
 
+Now let's wait for and click the button:
 
 Browser Click
 element, ref
 
 Let's capture the first combo and click again to verify it changes:
 
-
 Browser Click
 element, ref
 
 Let's take a screenshot of the Chromium view:
-
 
 Browser Take Screenshot
 filename: chromium-redesign.png
 
 Now let's test in Safari. I'll open a new tab for Safari:
 
-
 Browser Tab New
 url: https://blackgirlbytes.github....
 
 Let's click the button in Safari:
 
-
 Browser Click
 element, ref
-Let's click again to verify the text changes:
 
+Let's click again to verify the text changes:
 
 Browser Click
 element, ref
 
 Let's take a screenshot of the Safari view:
 
-
 Browser Take Screenshot
 filename: safari-redesign.png
 
 Now I'll generate a Playwright test that runs in all three browser environments. The test will verify the core functionality we just tested manually:
-
 
 Browser Generate Playwright Test
 description, name, steps
 
 Here's the generated Playwright test that will run across Chromium, Firefox, and Safari:
 
-```typescript
 import { test, expect } from '@playwright/test';
 
 test.describe('Random Redesign Picker', () => {
@@ -275,14 +267,12 @@ test.describe('Random Redesign Picker', () => {
     expect(secondComboText).not.toEqual(firstComboText);
   });
 });
-```
 
 To use this test, you would need to:
 
 1. Save it as `tests/random-redesign.spec.ts`
 2. Configure your `playwright.config.ts` to include all three browsers:
 
-```typescript
 import { PlaywrightTestConfig } from '@playwright/test';
 
 const config: PlaywrightTestConfig = {
@@ -303,13 +293,10 @@ const config: PlaywrightTestConfig = {
 };
 
 export default config;
-```
 
 You can then run the tests using:
 
-```bash
 npx playwright test
-```
 
 This will execute the test in all three browser environments. The test verifies:
 1. The page loads correctly
