@@ -10,13 +10,15 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 ## I taught Goose how to drive (a rover)
 
-I had the pleasure of assembling a [MakeBlock mbot2 rover](https://www.makeblock.com/products/buy-mbot2) after seeing [a demo video](https://x.com/deemkeen/status/1906692248206524806) put together by [deemkeen](https://github.com/deemkeen) using MQTT and MCP. The mbot2 has a CyberPi module that runs MicroPython, and with a few instructions to connect to MQTT, it can be controlled by a Java-based MCP server, which allows Goose to control the rover!
+Goose has no hands, no eyes, and no spatial awareness, but it can drive a rover!
+
+I came across [a demo video](https://x.com/deemkeen/status/1906692248206524806) from [Deemkeen](https://github.com/deemkeen), where he used [Goose](/) to control a [Makeblock mbot2 rover](https://www.makeblock.com/products/buy-mbot2) using natural language commands like "drive forward/backward", "beep," and "turn left/right” powered by a Java-based MCP server and MQTT.
+
+Inspired and excited to take it further, I taught the rover to spin, blink colorful lights, and help me take over the world!
 
 <!-- truncate -->
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/QKg2Q6YCzdw" />
-
-Deemkeen's instructions on getting started were pretty clear, and they did a great job of supplying some code to get started, but I wanted to take things a little further.
 
 ## Getting Started with MQTT
 
@@ -65,7 +67,7 @@ mosquitto_sub -h localhost -p 1883 -t MBOT/TOPIC -v
 mosquitto_pub -h localhost -p 1883 -t MBOT/TOPIC -m "BEEP"
 ```
 
-We see the resulting message in termainl 1:
+We see the resulting message in terminal 1:
 
 ```sh
 # terminal 1 sees this output:
@@ -80,7 +82,7 @@ Once the mbot2 rebooted to use the new code, I could reissue the "BEEP" command 
 
 ## Setting up the local MCP server
 
-Being more of a Python developer, I debated asking Goose to rewrite Deemkeen's Java-based MCP server aas a Python application, but I wanted to stick with the original code as much as possible. I was able to get the MCP server compiled by skipping the tests:
+I had some trouble compiling the Java MCP server (I'm a Python developer), but I was able to get the MCP server compiled by skipping the tests for the time being:
 
 ```sh
 mvn clean package -DskipTests
@@ -117,15 +119,15 @@ I didn't want my mbot2 rover to gain too much territory, so I decided to make so
 ### Modifications I made to the Python code
 
 Deemkeen's Python code allows for the following commands:
-- "turn left" or "turn right""
+- "turn left" or "turn right"
 - drive "forward" or "backward"
 - "explore" randomly
 - "stop" exploring
 - "beep"
 
-The default distance in Deemkeen's code seemed a little long, and the turn angles are set to 90 degrees. I shortened these distance the mbot could drive, and to turn at 45 degrees instead. I added a "spin" command for both clockwise and counter-clockwise, and a "blink" command to change the color of the lights on the mbot2. There are a large number of API calls available to access the mbot2 [motor hardware and sensors](https://www.yuque.com/makeblock-help-center-en/mcode/cyberpi-api-shields#9eo89).
+The default distance in Deemkeen's code seemed a little long, and the turn angles are set to 90 degrees. I shortened the distance the mbot could drive, and to turn at 45 degrees instead. I added a "spin" command for both clockwise and counter-clockwise, and a "blink" command to change the color of the lights on the mbot2. There are a large number of API calls available to access the mbot2 [motor hardware and sensors](https://www.yuque.com/makeblock-help-center-en/mcode/cyberpi-api-shields#9eo89).
 
-Next, I had to make sure my Java code was updated to include these new commands to send an appropriate "SPINLEFT" or "BLINKRED" commands to MQTT so the reover could respond to the commands properly.
+Next, I had to make sure my Java code was updated to include these new commands to send an appropriate "SPINLEFT" or "BLINKRED" commands to MQTT so the rover could respond to the commands properly.
 
 Finally, the rover includes an ultrasonic distance sensor, which look like "eyes" on the rover, which I felt was more appropriate to be the "front" of the rover, so I reversed Deemkeen's direction code in Python to move the wheels in the opposite direction from Deemkeen's original code.
 
