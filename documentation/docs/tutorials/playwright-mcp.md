@@ -12,12 +12,12 @@ This tutorial covers how to add the Playwright MCP Server as a Goose extension, 
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-playwright&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx -y @modelcontextprotocol/server-playwright
+  npx -y @playwright/mcp@latest
   ```
   </TabItem>
 </Tabs>
@@ -31,7 +31,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-playwright&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
   2. Press `Yes` to confirm the installation
   3. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
@@ -84,7 +84,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Playwright
     │
     ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-playwright
+    │  npx -y @playwright/mcp@latest
     └ 
   ```
 
@@ -102,7 +102,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Playwright
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-playwright
+    │  npx -y @playwright/mcp@latest
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -123,7 +123,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Playwright
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-playwright
+    │  npx -y @playwright/mcp@latest
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
@@ -147,7 +147,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Playwright
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-playwright
+    │  npx -y @playwright/mcp@latest
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
@@ -164,6 +164,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 </Tabs>
 
 ## Example Usage
+
+:::info LLM
+Anthropic's Claude 3.5 Sonnet was used for this task.
+:::
 
 Let's use Goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how Goose can help you:
 
@@ -187,48 +191,60 @@ Then generate a Playwright test that works across all browsers.
 ```
 Let's start with Chromium:
 
-Browser Navigate
+─── browser_navigate | playwright ──────────────────────────
 url: https://blackgirlbytes.github....
 
 Now let's wait for and click the button:
 
-Browser Click
-element, ref
+─── browser_click | playwright ──────────────────────────
+element: button with text "Pick My Combo"
+ref: <button>
 
 Let's capture the first combo and click again to verify it changes:
 
-Browser Click
-element, ref
+─── browser_click | playwright ──────────────────────────
+element: button with text "Pick My Combo"
+ref: <button>
 
 Let's take a screenshot of the Chromium view:
 
-Browser Take Screenshot
+─── browser_take_screenshot | playwright ──────────────────────────
 filename: chromium-redesign.png
 
 Now let's test in Safari. I'll open a new tab for Safari:
 
-Browser Tab New
+─── browser_tab_new | playwright ──────────────────────────
 url: https://blackgirlbytes.github....
 
 Let's click the button in Safari:
 
-Browser Click
-element, ref
+─── browser_click | playwright ──────────────────────────
+element: button with text "Pick My Combo"
+ref: <button>
 
 Let's click again to verify the text changes:
 
-Browser Click
-element, ref
+─── browser_click | playwright ──────────────────────────
+element: button with text "Pick My Combo"
+ref: <button>
 
 Let's take a screenshot of the Safari view:
 
-Browser Take Screenshot
+─── browser_take_screenshot | playwright ──────────────────────────
 filename: safari-redesign.png
 
 Now I'll generate a Playwright test that runs in all three browser environments. The test will verify the core functionality we just tested manually:
 
-Browser Generate Playwright Test
-description, name, steps
+─── browser_generate_playwright_test | playwright ──────────────────────────
+name: Random Redesign Picker Test
+description: Test the random redesign generator functionality across browsers
+steps: [
+  "Navigate to the application",
+  "Verify initial page content",
+  "Click button to generate first combination",
+  "Click button again to generate second combination",
+  "Verify combinations are different"
+]
 
 Here's the generated Playwright test that will run across Chromium, Firefox, and Safari:
 
