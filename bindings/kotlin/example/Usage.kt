@@ -135,6 +135,66 @@ fun main() = runBlocking {
     )
 
     val response = completion(req)
-    println("\nCompletion Response:")
-    println(response.message)
+    println("\nCompletion Response:\n${response.message}")
+    println()
+
+    // ---- UI Extraction (custom schema) ----
+    runUiExtraction(providerName, providerConfig)
+}
+
+
+suspend fun runUiExtraction(providerName: String, providerConfig: String) {
+    val systemPrompt = "You are a UI generator AI. Convert the user input into a JSON-driven UI."
+    val messages = listOf(
+        Message(
+            role = Role.USER,
+            created = System.currentTimeMillis() / 1000,
+            content = listOf(
+                MessageContent.Text(
+                    TextContent("Make a User Profile Form")
+                )
+            )
+        )
+    )
+    val schema = """{
+        "type": "object",
+        "properties": {
+            "type": {
+                "type": "string",
+                "enum": ["div","button","header","section","field","form"]
+            },
+            "label":   { "type": "string" },
+            "children": {
+                "type": "array",
+                "items": { "${'$'}ref": "#" }
+            },
+            "attributes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name":  { "type": "string" },
+                        "value": { "type": "string" }
+                    },
+                    "required": ["name","value"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["type","label","children","attributes"],
+        "additionalProperties": false
+    }""".trimIndent();
+
+    try {
+        val response = generateStructuredOutputs(
+            providerName = providerName,
+            providerConfig = providerConfig,
+            systemPrompt = systemPrompt,
+            messages = messages,
+            schema = schema
+        )
+        println("\nUI Extraction Output:\n${response}")
+    } catch (e: ProviderException) {
+        println("\nUI Extraction failed:\n${e.message}")
+    }
 }
