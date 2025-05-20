@@ -12,7 +12,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 Goose has no hands, no eyes, and no spatial awareness, but it can drive a rover!
 
-I came across [a demo video](https://x.com/deemkeen/status/1906692248206524806) from [Deemkeen](https://github.com/deemkeen), where he used [Goose](/) to control a [Makeblock mbot2 rover](https://www.makeblock.com/products/buy-mbot2) using natural language commands like "drive forward/backward", "beep," and "turn left/right” powered by a Java-based MCP server and MQTT.
+I came across [a demo video](https://x.com/deemkeen/status/1906692248206524806) from [Deemkeen](https://github.com/deemkeen), where he used [Goose](/) to control a [Makeblock mbot2 rover](https://www.makeblock.com/products/buy-mbot2) using natural language commands like "drive forward/backward," "beep," and "turn left/right" powered by a Java-based MCP server and MQTT.
 
 Inspired and excited to take it further, I taught the rover to spin, blink colorful lights, and help me take over the world!
 
@@ -144,7 +144,7 @@ For the video recording, I used a voice modifier to narrate Goose's response in 
 
 We want to extend a huge thank you to [deemkeen](https://x.com/deemkeen) for their open-source work which inspired this project, and to the Makeblock team for creating such a fun rover to work with.
 
-If you have a project you'd like to share, please reach out to us on [Discord](https://discord.gg/block-opensource) and let us know what you're building.
+We're always excited to see what the community is up to. If you're working on your own Goose-powered experiment, come share it with us on [Discord](https://discord.gg/block-opensource)!
 
 <head>
   <meta property="og:title" content="Goose Gets a Driver's License!" />
