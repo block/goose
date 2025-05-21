@@ -7,6 +7,7 @@ pub mod health;
 pub mod recipe;
 pub mod reply;
 pub mod session;
+pub mod schedule;
 pub mod utils;
 use std::sync::Arc;
 
@@ -23,4 +24,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(config_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
+        .merge(schedule::routes(state.clone()))
 }

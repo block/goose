@@ -534,6 +534,8 @@ mod tests {
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
+            let scheduler = crate::scheduler::Scheduler::new(state.clone()).await.unwrap();
+            state.set_scheduler(scheduler).await;
 
             // Build router
             let app = routes(state);

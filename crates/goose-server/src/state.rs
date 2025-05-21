@@ -1,5 +1,7 @@
 use goose::agents::Agent;
+use crate::scheduler::Scheduler;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Shared reference to an Agent that can be cloned cheaply
 /// without cloning the underlying Agent object
@@ -16,6 +18,7 @@ pub struct AppState {
     // agent: SharedAgentStore,
     agent: Option<AgentRef>,
     pub secret_key: String,
+    pub scheduler: Mutex<Option<Arc<Scheduler>>>,
 }
 
 impl AppState {
@@ -23,6 +26,7 @@ impl AppState {
         Arc::new(Self {
             agent: Some(agent.clone()),
             secret_key,
+            scheduler: Mutex::new(None),
         })
     }
 
@@ -30,5 +34,18 @@ impl AppState {
         self.agent
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Agent needs to be created first."))
+    }
+
+    pub async fn set_scheduler(&self, sched: Arc<Scheduler>) {
+        let mut guard = self.scheduler.lock().await;
+        *guard = Some(sched);
+    }
+
+    pub async fn scheduler(&self) -> Result<Arc<Scheduler>, anyhow::Error> {
+        self.scheduler
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
     }
 }
