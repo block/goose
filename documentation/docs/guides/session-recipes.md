@@ -88,7 +88,7 @@ You'll need to provide both instructions and activities for your Recipe.
    
    You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
 
-   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax. 
+   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax and define each of them in your yaml using `parameters`.
 
    <details>
       <summary>Example recipe with parameters</summary>
@@ -97,16 +97,37 @@ You'll need to provide both instructions and activities for your Recipe.
       version: 1.0.0
       title: {{ project_name }} Code Review
       description: Automated code review for {{ project_name }} with {{ language }} focus
+      parameters:
+         - key: project_name
+           input_type: string
+           description: Name of the project
+           requirement: required
+         - key: language
+           input_type: string
+           description: Language of the code change
+           requirement: required
+         - key: complexity_threshold
+           input_type: number
+           description: The complexity threshold
+           requirement: optional
+         - key: test_coverage
+           input_type: number
+           description: Percentage Test coverage 
+           requirement: optional
+         - key: style_guide
+           input_type: string
+           description: Style guide to use
+           requirement: user_prompt
       instructions: |
       You are a code reviewer specialized in {{ language }} development.
-      Apply the following standards:
-      - Complexity threshold: {{ complexity_threshold }}
-      - Required test coverage: {{ test_coverage }}%
-      - Style guide: {{ style_guide }}
+         Apply the following standards:
+         - Complexity threshold: {{ complexity_threshold }}
+         - Required test coverage: {{ test_coverage }}%
+         - Style guide: {{ style_guide }}
       activities:
-      - "Review {{ language }} code for complexity"
-      - "Check test coverage against {{ test_coverage }}% requirement"
-      - "Verify {{ style_guide }} compliance"
+         - "Review {{ language }} code for complexity"
+         - "Check test coverage against {{ test_coverage }}% requirement"
+         - "Verify {{ style_guide }} compliance"
       ```
   
    </details>

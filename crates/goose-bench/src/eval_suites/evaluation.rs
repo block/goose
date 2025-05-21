@@ -3,16 +3,28 @@ use crate::bench_work_dir::BenchmarkWorkDir;
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 pub type Model = (String, String);
 pub type Extension = String;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum EvalMetricValue {
     Integer(i64),
     Float(f64),
     String(String),
     Boolean(bool),
+}
+
+impl fmt::Display for EvalMetricValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvalMetricValue::Integer(i) => write!(f, "{}", i),
+            EvalMetricValue::Float(fl) => write!(f, "{:.2}", fl),
+            EvalMetricValue::String(s) => write!(f, "{}", s),
+            EvalMetricValue::Boolean(b) => write!(f, "{}", b),
+        }
+    }
 }
 #[derive(Debug, Serialize)]
 pub struct EvalMetric {
