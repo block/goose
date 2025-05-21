@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::configuration;
-use crate::state;
+use crate::{state, scheduler};
 use anyhow::Result;
 use goose::agents::Agent;
 use tower_http::cors::{Any, CorsLayer};
@@ -22,6 +22,10 @@ pub async fn run() -> Result<()> {
 
     // Create app state with agent
     let state = state::AppState::new(Arc::new(new_agent), secret_key.clone()).await;
+
+    // Start scheduler and attach to state
+    let scheduler = scheduler::Scheduler::new(state.clone()).await?;
+    state.set_scheduler(scheduler).await;
 
     // Create router with CORS support
     let cors = CorsLayer::new()

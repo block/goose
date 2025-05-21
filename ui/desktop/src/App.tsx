@@ -18,6 +18,7 @@ import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
+import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import { useChat } from './hooks/useChat';
@@ -39,6 +40,7 @@ export type View =
   | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions'
+  | 'schedules'
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
@@ -566,6 +568,7 @@ export default function App() {
             />
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
+          {view === 'schedules' && <SchedulesView setView={setView} />}
           {view === 'sharedSession' && (
             <SharedSessionView
               session={viewOptions?.sessionDetails}
