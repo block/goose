@@ -72,7 +72,7 @@ async function createWindow() {
                 style-src 'self' 'unsafe-inline';
                 connect-src 'self' ws://localhost:3001 http://localhost:3001;
                 img-src 'self' data: https:;
-                font-src 'self' data:;
+                font-src 'self' data: https://cash-f.squarecdn.com;
               `
                   .replace(/\s+/g, ' ')
                   .trim()
@@ -81,7 +81,7 @@ async function createWindow() {
                 script-src 'self';
                 style-src 'self' 'unsafe-inline';
                 img-src 'self' data: https:;
-                font-src 'self' data:;
+                font-src 'self' data: https://cash-f.squarecdn.com;
               `
                   .replace(/\s+/g, ' ')
                   .trim(),
