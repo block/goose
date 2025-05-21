@@ -233,7 +233,6 @@ You'll need to provide both instructions and activities for your Recipe.
    goose recipe deeplink my_recipe
    ```
    When you use the recipe name, Goose will search for the file in the following order:
-   When you use the recipe name, Goose will search for `my_recipe.yaml` or `my_recipe.json` in the following order:
    1. Local search:
       Goose will search for `my_recipe.yaml` or `my_recipe.json` in the following directories
       - in the current working directory
