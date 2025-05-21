@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    overflow: hidden;
     --spring-easing: linear(
             0,
             0.009,
