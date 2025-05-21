@@ -767,43 +767,38 @@ impl Session {
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
-                            match message {
-                                JsonRpcMessage::Notification(JsonRpcNotification{
+                                if let JsonRpcMessage::Notification(JsonRpcNotification{
                                     method,
                                     params: Some(Value::Object(o)),
                                     ..
-                                }) => {
-                                    match method.as_str() {
-                                        "notifications/message" => {
-                                            let data = o.get("data").unwrap_or(&Value::Null);
-                                            let message = match data {
-                                                Value::String(s) => s.clone(),
-                                                v => v.to_string(),
-                                            };
-                                            output::render_text(&message, None, true);
-                                        },
-                                        "notifications/progress" => {
-                                            let progress = o.get("progress").and_then(|v| v.as_f64());
-                                            let token = o.get("progressToken").map(|v| v.to_string());
-                                            let message = o
-                                                .get("message")
-                                                .map(|v| format!("{} ", v.to_string()));
-                                            let total = o
-                                                .get("total")
-                                                .and_then(|v| v.as_f64());
-                                            if let (Some(progress), Some(token)) = (progress, token) {
-                                                progress_bars.update(
-                                                    token.as_str(),
-                                                    progress,
-                                                    total,
-                                                    message.as_deref(),
-                                                );
-                                            }
-                                        },
-                                        _ => (),
-                                    }
-                                },
-                                _ => (),
+                                }) = message {
+                                match method.as_str() {
+                                    "notifications/message" => {
+                                        let data = o.get("data").unwrap_or(&Value::Null);
+                                        let message = match data {
+                                            Value::String(s) => s.clone(),
+                                            v => v.to_string(),
+                                        };
+                                        output::render_text(&message, None, true);
+                                    },
+                                    "notifications/progress" => {
+                                        let progress = o.get("progress").and_then(|v| v.as_f64());
+                                        let token = o.get("progressToken").map(|v| v.to_string());
+                                        let message = o.get("message").and_then(|v| v.as_str());
+                                        let total = o
+                                            .get("total")
+                                            .and_then(|v| v.as_f64());
+                                        if let (Some(progress), Some(token)) = (progress, token) {
+                                            progress_bars.update(
+                                                token.as_str(),
+                                                progress,
+                                                total,
+                                                message,
+                                            );
+                                        }
+                                    },
+                                    _ => (),
+                                }
                             }
                         }
                         Some(Err(e)) => {

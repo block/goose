@@ -49,7 +49,7 @@ impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
-        tool_futures: Arc<Mutex<Vec<(String, ToolStream<ToolResult<Vec<Content>>>)>>>,
+        tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {

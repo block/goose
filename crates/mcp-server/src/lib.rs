@@ -136,13 +136,10 @@ where
     }
 
     // TODO transport trait instead of byte transport if we implement others
-    pub async fn run<R: Send + 'static, W: Send + 'static>(
-        self,
-        mut transport: ByteTransport<R, W>,
-    ) -> Result<(), ServerError>
+    pub async fn run<R, W>(self, mut transport: ByteTransport<R, W>) -> Result<(), ServerError>
     where
-        R: AsyncRead + Unpin,
-        W: AsyncWrite + Unpin,
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
     {
         use futures::StreamExt;
         let mut service = self.service;
@@ -175,7 +172,7 @@ where
 
                             let transport_fut = tokio::spawn(async move {
                                 while let Some(notification) = notify_rx.recv().await {
-                                    if let Err(_) = transport.write_message(notification).await {
+                                    if transport.write_message(notification).await.is_err() {
                                         break;
                                     }
                                 }

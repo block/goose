@@ -107,17 +107,16 @@ pub enum ToolStreamItem<T> {
     Result(T),
 }
 
-pub type ToolStream<T> = Pin<Box<dyn Stream<Item = ToolStreamItem<T>> + Send>>;
+pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Content>>>> + Send>>;
 
 // tool_stream combines a stream of JsonRpcMessages with a future representing the
 // final result of the tool call. MCP notifications are not request-scoped, but
 // this lets us capture all notifications emitted during the tool call for
 // simpler consumption
-pub fn tool_stream<T, S, F>(rx: S, done: F) -> ToolStream<ToolResult<T>>
+pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
 where
-    T: Send + 'static,
     S: Stream<Item = JsonRpcMessage> + Send + Unpin + 'static,
-    F: Future<Output = ToolResult<T>> + Send + 'static,
+    F: Future<Output = ToolResult<Vec<Content>>> + Send + 'static,
 {
     Box::pin(async_stream::stream! {
         tokio::pin!(done);
@@ -496,7 +495,7 @@ impl Agent {
                                 self.provider().await?).await;
 
                             // Handle pre-approved and read-only tools in parallel
-                            let mut tool_futures: Vec<(String, ToolStream<ToolResult<Vec<Content>>>)> = Vec::new();
+                            let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
