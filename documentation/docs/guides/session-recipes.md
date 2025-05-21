@@ -94,7 +94,8 @@ You'll need to provide both instructions and activities for your Recipe.
    <summary>Example recipe with parameters</summary>
       
    ```yaml title="code-review.yaml"
-   title: {{ project_name }} Code Review
+   version: 1.0.0
+   title: '{{ project_name }} Code Review' # Wrap the value in quotes if it starts with {{ to avoid YAML parsing errors
    description: Automated code review for {{ project_name }} with {{ language }} focus
    instructions: |
       You are a code reviewer specialized in {{ language }} development.
@@ -108,7 +109,7 @@ You'll need to provide both instructions and activities for your Recipe.
    - "Verify {{ style_guide }} compliance"
    parameters:
    - key: project_name
-      input_type: string
+     input_type: string
      requirement: required # could be required, optional or user_prompt
      description: name of the project
    - key: language
@@ -118,7 +119,7 @@ You'll need to provide both instructions and activities for your Recipe.
    - key: complexity_threshold
      input_type: number
      requirement: optional
-     default: 20
+     default: 20 # default is required for optional parameters
      description: a threshold that defines the maximum allowed complexity
    - key: test_coverage
      input_type: number
@@ -146,7 +147,7 @@ You'll need to provide both instructions and activities for your Recipe.
   --params style_guide=PEP8
   ```
 
-  ##### Build-in Parameter
+  ##### Built-in Parameter
 The built-in `recipe_dir` is a default parameter that automatically provides the recipe's directory path, allowing you to reference files in the same directory without any configuration.
 
    #### Validate the recipe
