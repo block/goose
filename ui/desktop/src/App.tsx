@@ -568,7 +568,9 @@ export default function App() {
             />
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
-          {view === 'schedules' && <SchedulesView setView={setView} />}
+          {view === 'schedules' && (
+            <SchedulesView setView={setView} onClose={() => setView('chat')} />
+          )}
           {view === 'sharedSession' && (
             <SharedSessionView
               session={viewOptions?.sessionDetails}
