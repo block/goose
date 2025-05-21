@@ -54,7 +54,6 @@ export default {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
         'gradient-loader': 'loader 750ms ease-in-out infinite',
         indeterminate: 'indeterminate 1.5s infinite linear',
-
       },
       colors: {
         bgApp: 'var(--background-app)',
