@@ -9,7 +9,7 @@ use tokio::io::{stdin, stdout};
 
 pub async fn run(name: &str) -> Result<()> {
     // Initialize logging
-    crate::logging::setup_logging(Some(&format!("mcp-{name}")))?;
+    goose_server::logging::setup_logging(Some(&format!("mcp-{name}")))?;
 
     tracing::info!("Starting MCP server");
     let router: Option<Box<dyn BoundedService>> = match name {

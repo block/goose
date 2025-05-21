@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::{State, Path}, routing::{post, get, delete}, Json, Router, http::StatusCode};
 use serde::{Deserialize, Serialize};
 
-use crate::{scheduler::{ScheduledJob, Scheduler}, state::AppState};
+use crate::{scheduler::ScheduledJob, state::AppState};
 
 #[derive(Deserialize)]
 struct CreateScheduleRequest {
@@ -17,6 +17,7 @@ struct ListSchedulesResponse {
     jobs: Vec<ScheduledJob>,
 }
 
+#[axum::debug_handler]
 async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
@@ -32,12 +33,14 @@ async fn create_schedule(
     Ok(Json(job))
 }
 
+#[axum::debug_handler]
 async fn list_schedules(State(state): State<Arc<AppState>>) -> Result<Json<ListSchedulesResponse>, StatusCode> {
     let scheduler = state.scheduler().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let jobs = scheduler.list().await;
     Ok(Json(ListSchedulesResponse { jobs }))
 }
 
+#[axum::debug_handler]
 async fn delete_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -51,6 +54,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/schedule/create", post(create_schedule))
         .route("/schedule/list", get(list_schedules))
-        .route("/schedule/delete/:id", delete(delete_schedule))
+        .route("/schedule/delete/{id}", delete(delete_schedule))
         .with_state(state)
 }

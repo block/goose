@@ -483,7 +483,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/read", post(read_config))
         .route("/config/extensions", get(get_extensions))
         .route("/config/extensions", post(add_extension))
-        .route("/config/extensions/:name", delete(remove_extension))
+        .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))

@@ -12,10 +12,10 @@ goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
-axum = { version = "0.7.2", features = ["ws", "macros"] }
+axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"
-tokio-cron-scheduler = "0.9"
+tokio-cron-scheduler = "0.14.0"
 tower-http = { version = "0.5", features = ["cors"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -27,6 +27,7 @@ tokio-stream = "0.1"
 anyhow = "1.0"
 bytes = "1.5"
 http = "1.0"
+base64 = "0.21"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
