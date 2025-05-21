@@ -147,8 +147,7 @@ You'll need to provide both instructions and activities for your Recipe.
   ```
 
   ##### Build-in Parameter
-  Goose provides a built-in parameter called `recipe_dir`. It is automatically set to the directory path where the recipe file is located.
-  You do not need to declare `recipe_dir` in the `parameters` section of your recipe or pass this parameter in the command line — it is available by default and can be used directly within your recipe file to reference additional files located in the same directory.
+The built-in `recipe_dir` is a default parameter that automatically provides the recipe's directory path, allowing you to reference files in the same directory without any configuration.
 
    #### Validate the recipe
    
