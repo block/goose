@@ -11,7 +11,7 @@ This script:
 5. Creates a leaderboard.csv grouping by provider and model_name, averaging numeric columns
 
 Usage:
-    python generate_leaderboard_with_errors.py --benchmark-dir /path/to/benchmark-dir
+    python generate_leaderboard.py --benchmark-dir /path/to/benchmark-dir
 """
 
 import argparse

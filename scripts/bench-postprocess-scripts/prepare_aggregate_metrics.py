@@ -12,7 +12,7 @@ This script:
 6. Saves a aggregate_metrics.csv file with aggregated metrics
 
 Usage:
-    python prepare_aggregate_metrics_with_errors.py --benchmark-dir /path/to/benchmark-dir
+    python prepare_aggregate_metrics.py --benchmark-dir /path/to/benchmark-dir
 """
 
 import argparse
