@@ -100,24 +100,24 @@ You'll need to provide both instructions and activities for your Recipe.
       parameters:
          - key: project_name
            input_type: string
-           description: name of the project
+           description: Name of the project
            requirement: required
          - key: language
            input_type: string
-           description: language of the code change
+           description: Language of the code change
            requirement: required
          - key: complexity_threshold
-           input_type: string
+           input_type: number
            description: The complexity threshold
-           requirement: required
+           requirement: optional
          - key: test_coverage
-           input_type: string
+           input_type: number
            description: Percentage Test coverage 
-           requirement: required
+           requirement: optional
          - key: style_guide
            input_type: string
            description: Style guide to use
-           requirement: required
+           requirement: user_prompt
       instructions: |
       You are a code reviewer specialized in {{ language }} development.
          Apply the following standards:
