@@ -1,10 +1,7 @@
-@import url('../../node_modules/tailwindcss/dist/lib.d.mts');
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
   :root {

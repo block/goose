@@ -1,9 +1,9 @@
 import React, { useRef, useMemo, useEffect } from 'react';
-import ChartTile from './ChartTile';
-import HighlightTile from './HighlightTile';
-import PieChartTile from './PieChartTile';
-import ListTile from './ListTile';
-import ClockTile from './ClockTile';
+import ChartTile from './tiles/ChartTile.tsx';
+import HighlightTile from './tiles/HighlightTile.tsx';
+import PieChartTile from './tiles/PieChartTile.tsx';
+import ListTile from './tiles/ListTile.tsx';
+import ClockTile from './tiles/ClockTile.tsx';
 import TimelineDots from './TimelineDots';
 import {
   ChartLineIcon,

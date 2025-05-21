@@ -1,5 +1,5 @@
 {
-  "$schema": "https://ui.shadcn.com/schema.json",
+  "$schema": "http://localhost:3000/r/registry.json",
   "style": "new-york",
   "rsc": false,
   "tsx": true,
