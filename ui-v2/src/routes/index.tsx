@@ -1,28 +1,21 @@
 import { createRootRoute, createRoute } from '@tanstack/react-router';
 
 import App from '../App';
+import Timeline from '../components/Timeline';
+import { TimelineProvider } from '../components/TimelineContext';
 
 export const rootRoute = createRootRoute({
   component: App,
 });
 
-export const indexRoute = createRoute({
+export const timelineRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: () => (
-    <div className="p-5">
-      <h2>Welcome to Goose v2</h2>
-    </div>
-  ),
-});
-
-export const aboutRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/about',
-  component: () => (
-    <div className="p-5">
-      <h2>About Goose v2</h2>
-      <p>An AI assistant for developers</p>
-    </div>
+    <TimelineProvider>
+      <div className="flex flex-col h-full">
+        <Timeline />
+      </div>
+    </TimelineProvider>
   ),
 });
