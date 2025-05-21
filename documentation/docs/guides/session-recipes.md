@@ -242,8 +242,8 @@ You'll need to provide both instructions and activities for your Recipe.
          export GOOSE_RECIPE_PATH=~/workspace/recipes:~/Documents/recipes_directory
          ```
    2. Remote search (GitHub):
-   - If the `GOOSE_RECIPE_GITHUB_REPO` environment variable is set or configured in the `Goose Settings` via `goose configure`, Goose will search the specified GitHub repo. (eg: my_org/goose-recipes).
-   - Goose will look for `my_recipe/recipe.yaml` or `my_recipe/recipe.json` within that GitHub repository.
+      - If the `GOOSE_RECIPE_GITHUB_REPO` environment variable is set or configured in the `Goose Settings` via `goose configure`, Goose will search the specified GitHub repo. (eg: my_org/goose-recipes).
+      - Goose will look for `my_recipe/recipe.yaml` or `my_recipe/recipe.json` within that GitHub repository.
    </TabItem> 
 </Tabs>
 
