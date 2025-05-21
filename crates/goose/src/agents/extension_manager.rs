@@ -805,8 +805,8 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, ReadResourceResult,
+        CallToolResult, GetPromptResult, InitializeResult, JsonRpcMessage, ListPromptsResult,
+        ListResourcesResult, ListToolsResult, ReadResourceResult,
     };
     use serde_json::json;
     use tokio::sync::mpsc;
