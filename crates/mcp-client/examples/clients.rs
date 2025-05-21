@@ -1,7 +1,6 @@
 use mcp_client::{
     client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait},
     transport::{SseTransport, StdioTransport, Transport},
-    McpService,
 };
 use rand::Rng;
 use rand::SeedableRng;

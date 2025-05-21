@@ -53,7 +53,7 @@ pub struct Agent {
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, JsonRpcMessage)),

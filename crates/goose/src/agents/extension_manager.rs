@@ -836,12 +836,9 @@ impl ExtensionManager {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::AtomicU64;
-
     use super::*;
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
-    use mcp_client::client::SubscriptionHandle;
     use mcp_core::protocol::{
         CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
         ListToolsResult, ReadResourceResult,
@@ -1043,10 +1040,12 @@ mod tests {
 
         let result = extension_manager
             .dispatch_tool_call(invalid_tool_call)
-            .await
-            .unwrap()
-            .result
             .await;
-        assert!(matches!(result.err().unwrap(), ToolError::NotFound(_)));
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ToolError>().expect("Expected ToolError");
+            assert!(matches!(tool_err, ToolError::NotFound(_)));
+        } else {
+            panic!("Expected ToolError::NotFound");
+        }
     }
 }

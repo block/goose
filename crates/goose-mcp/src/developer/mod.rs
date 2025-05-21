@@ -1271,6 +1271,11 @@ mod tests {
             .await
     }
 
+    fn dummy_sender() -> mpsc::Sender<JsonRpcMessage> {
+        let (tx, _rx) = mpsc::channel(1);
+        tx
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_shell_missing_parameters() {
@@ -1278,7 +1283,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let router = get_router().await;
-        let result = router.call_tool("shell", json!({})).await;
+        let result = router.call_tool("shell", json!({}), dummy_sender()).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -1339,6 +1344,7 @@ mod tests {
                         "command": "view",
                         "path": large_file_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1364,6 +1370,7 @@ mod tests {
                         "command": "view",
                         "path": many_chars_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1395,6 +1402,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1407,6 +1415,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1445,6 +1454,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1459,6 +1469,7 @@ mod tests {
                     "old_str": "world",
                     "new_str": "Rust"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1483,6 +1494,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1520,6 +1532,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "First line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1534,6 +1547,7 @@ mod tests {
                     "old_str": "First line",
                     "new_str": "Second line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1546,6 +1560,7 @@ mod tests {
                     "command": "undo_edit",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1561,6 +1576,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1659,6 +1675,7 @@ mod tests {
                     "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1677,6 +1694,7 @@ mod tests {
                     "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1718,6 +1736,7 @@ mod tests {
                 json!({
                     "command": format!("cat {}", secret_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1734,6 +1753,7 @@ mod tests {
                 json!({
                     "command": format!("cat {}", allowed_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
             )
             .await;
 

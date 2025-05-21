@@ -106,11 +106,6 @@ pub trait McpClientTrait: Send + Sync {
     async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage>;
 }
 
-#[derive(Hash, Eq, PartialEq, Clone, Debug, Copy, Default)]
-pub struct SubscriptionHandle {
-    id: u64,
-}
-
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient<T>
 where
