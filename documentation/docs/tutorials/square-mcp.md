@@ -7,7 +7,18 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/ynoXx8aBP-4" />
+<details>
+  <summary> 🎥 Square MCP Server Video Walkthrough</summary>
+  <iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/y6pklrzhzNg"
+  title="Run your Business with AI | Square MCP Server"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+  ></iframe>
+</details>
+
 
 This tutorial will get you started with the Square MCP server to enable interactive and automated work for your Square seller account. The Square MCP server is an open source project that allows you to interact with the Square API using Goose.
 
