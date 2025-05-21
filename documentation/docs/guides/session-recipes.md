@@ -236,7 +236,7 @@ You'll need to provide both instructions and activities for your Recipe.
    1. Local search:
       Goose will search for `my_recipe.yaml` or `my_recipe.json` in the following directories
       - in the current working directory
-      - In paths specified by the `GOOSE_RECIPE_PATH` environment variable (colon-separated). Example:
+      - in paths specified by the `GOOSE_RECIPE_PATH` environment variable (colon-separated). Example:
 
          ```sh
          export GOOSE_RECIPE_PATH=~/workspace/recipes:~/Documents/recipes_directory
