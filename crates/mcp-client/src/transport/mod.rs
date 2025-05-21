@@ -64,7 +64,7 @@ pub async fn serialize_and_send(
     sender: &mpsc::Sender<String>,
     message: JsonRpcMessage,
 ) -> Result<(), Error> {
-    match serde_json::to_string(&message).map_err(|e| Error::Serialization(e)) {
+    match serde_json::to_string(&message).map_err(Error::Serialization) {
         Ok(msg) => sender.send(msg).await.map_err(|_| Error::ChannelClosed),
         Err(e) => {
             tracing::error!(error = ?e, "Error serializing message");

@@ -140,10 +140,7 @@ where
                             }
                             _ => {
                                 let mut subs = subscribers_ptr.lock().await;
-                                subs.retain(|sub| match sub.try_send(message.clone()) {
-                                    Ok(_) => true,
-                                    Err(_) => false,
-                                });
+                                subs.retain(|sub| sub.try_send(message.clone()).is_ok());
                             }
                         }
                     }
