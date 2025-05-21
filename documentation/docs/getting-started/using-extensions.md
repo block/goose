@@ -250,6 +250,7 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
 ### Deeplinks
 
 Extensions can be installed using Goose's deep link protocol. The URL format varies based on the extension type:
+
 <Tabs groupId="interface">
   <TabItem value="stdio" label="StandardIO" default>
 ```
@@ -257,7 +258,7 @@ goose://extension?cmd=<command>&arg=<argument>&id=<id>&name=<name>&description=<
 ```
 
 Required parameters:
-- `cmd`: The base command to run (e.g., `npx`, `uvx`)
+- `cmd`: The base command to run, one of `jbang`, `npx`, `uvx`, `goosed`, or `docker`
 - `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...`)
 - `timeout`: Maximum time (in seconds) to wait for extension responses
 - `id`: Unique identifier for the extension

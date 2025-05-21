@@ -97,6 +97,7 @@ function ChatContent({
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const hasSentPromptRef = useRef(false);
 
   const {
     summaryContent,
@@ -278,6 +279,14 @@ function ChatContent({
       setHasMessages(true);
     }
   }, [messages]);
+
+  useEffect(() => {
+    const prompt = recipeConfig?.prompt;
+    if (prompt && !hasSentPromptRef.current) {
+      append(prompt);
+      hasSentPromptRef.current = true;
+    }
+  }, [recipeConfig?.prompt, append]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {

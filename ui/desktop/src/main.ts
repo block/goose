@@ -285,10 +285,11 @@ const windowMap = new Map<number, BrowserWindow>();
 
 interface RecipeConfig {
   id: string;
-  name: string;
+  title: string;
   description: string;
   instructions: string;
   activities: string[];
+  prompt: string;
 }
 
 const createChat = async (

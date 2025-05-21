@@ -4,7 +4,6 @@ use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
-use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -207,7 +206,7 @@ impl BenchmarkWorkDir {
             Ok(())
         } else {
             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(io::Error::new(ErrorKind::Other, error_message))
+            Err(io::Error::other(error_message))
         }
     }
 

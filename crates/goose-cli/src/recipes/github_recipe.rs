@@ -1,34 +1,42 @@
 use anyhow::Result;
+use console::style;
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
+use tar::Archive;
+
+use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
-) -> Result<String> {
+) -> Result<(String, PathBuf)> {
     println!(
-        "retrieving recipe from github repo {}",
-        recipe_repo_full_name
+        "📦 Looking for recipe \"{}\" in github repo: {}",
+        recipe_name, recipe_repo_full_name
     );
     ensure_gh_authenticated()?;
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
-    let file_extensions = ["yaml", "json"];
+    let download_dir = get_folder_from_github(&local_repo_path, recipe_name)?;
 
-    for ext in file_extensions {
-        let file_path_in_repo = format!("{}/recipe.{}", recipe_name, ext);
-        match get_file_content_from_github(&local_repo_path, &file_path_in_repo) {
-            Ok(content) => {
-                println!(
-                    "retrieved recipe from github repo {}/{}",
-                    recipe_repo_full_name, file_path_in_repo
-                );
-                return Ok(content);
-            }
-            Err(_) => continue,
+    for ext in RECIPE_FILE_EXTENSIONS {
+        let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
+        if candidate_file_path.exists() {
+            let content = std::fs::read_to_string(&candidate_file_path)?;
+            println!(
+                "⬇️  Retrieved recipe from github repo {}/{}",
+                recipe_repo_full_name,
+                candidate_file_path
+                    .strip_prefix(&download_dir)
+                    .unwrap()
+                    .display()
+            );
+            return Ok((content, download_dir));
         }
     }
     Err(anyhow::anyhow!(
@@ -36,28 +44,6 @@ pub fn retrieve_recipe_from_github(
         recipe_name,
         recipe_repo_full_name,
     ))
-}
-
-pub fn get_file_content_from_github(
-    local_repo_path: &Path,
-    file_path_in_repo: &str,
-) -> Result<String> {
-    let ref_and_path = format!("origin/main:{}", file_path_in_repo);
-    let error_message: String = format!(
-        "Failed to get content from {} in github repo",
-        file_path_in_repo
-    );
-    let output = Command::new("git")
-        .args(["show", &ref_and_path])
-        .current_dir(local_repo_path)
-        .output()
-        .map_err(|_: std::io::Error| anyhow::anyhow!(error_message.clone()))?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        Err(anyhow::anyhow!(error_message.clone()))
-    }
 }
 
 fn ensure_gh_authenticated() -> Result<()> {
@@ -128,4 +114,42 @@ fn fetch_origin(local_repo_path: &Path) -> Result<()> {
     } else {
         Err(anyhow::anyhow!(error_message))
     }
+}
+
+fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<PathBuf> {
+    let ref_and_path = format!("origin/main:{}", recipe_name);
+    let output_dir = env::temp_dir().join(recipe_name);
+
+    if output_dir.exists() {
+        fs::remove_dir_all(&output_dir)?;
+    }
+    fs::create_dir_all(&output_dir)?;
+
+    let archive_output = Command::new("git")
+        .args(["archive", &ref_and_path])
+        .current_dir(local_repo_path)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let stdout = archive_output
+        .stdout
+        .ok_or_else(|| anyhow::anyhow!("Failed to capture stdout from git archive"))?;
+
+    let mut archive = Archive::new(stdout);
+    archive.unpack(&output_dir)?;
+    list_files(&output_dir)?;
+
+    Ok(output_dir)
+}
+
+fn list_files(dir: &Path) -> Result<()> {
+    println!("{}", style("Files downloaded from github:").bold());
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            println!("  - {}", path.display());
+        }
+    }
+    Ok(())
 }

@@ -113,6 +113,27 @@ goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instruct
 goose run --with-remote-extension "url" -t "your instructions"
 ```
 
+### Debug Mode
+
+When troubleshooting or developing complex workflows, you can enable debug mode to get more detailed information about tool execution. The `--debug` flag provides:
+
+- Complete tool responses
+- Detailed parameter values
+- Full file paths
+
+Debug mode can be useful when:
+- Developing new automation scripts
+- Troubleshooting extension behavior
+- Verifying tool parameters and responses
+
+```bash
+# Run a task with debug output enabled
+goose run --debug -t "your instructions"
+
+# Debug a recipe execution
+goose run --debug --recipe recipe.yaml
+```
+
 ## Common Use Cases
 
 ### Running Script Files
