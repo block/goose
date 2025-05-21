@@ -93,7 +93,7 @@ You'll need to provide both instructions and activities for your Recipe.
    <details>
    <summary>Example recipe with parameters</summary>
       
-   ```yaml
+   ```yaml title="code-review.yaml"
    title: {{ project_name }} Code Review
    description: Automated code review for {{ project_name }} with {{ language }} focus
    instructions: |
