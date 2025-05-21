@@ -3,12 +3,14 @@ use crate::eval_suites::EvaluationSuite;
 use crate::reporting::{BenchmarkResults, SuiteResult};
 use crate::runners::eval_runner::EvalRunner;
 use crate::utilities::{await_process_exits, parallel_bench_cmd};
+use anyhow::{Context, Result};
+use dotenvy::from_path_iter;
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use std::io::{self, BufRead};
 use std::path::PathBuf;
 use std::process::Child;
 use std::thread;
+use tracing;
 
 #[derive(Clone)]
 pub struct ModelRunner {
@@ -16,23 +18,27 @@ pub struct ModelRunner {
 }
 
 impl ModelRunner {
-    pub fn from(config: String) -> anyhow::Result<ModelRunner> {
-        let config = BenchRunConfig::from_string(config)?;
+    pub fn from(config: String) -> Result<ModelRunner> {
+        let config =
+            BenchRunConfig::from_string(config).context("Failed to parse configuration")?;
         Ok(ModelRunner { config })
     }
 
-    pub fn run(&self) -> anyhow::Result<()> {
-        let model = self.config.models.first().unwrap();
+    pub fn run(&self) -> Result<()> {
+        let model = self
+            .config
+            .models
+            .first()
+            .context("No model specified in config")?;
         let suites = self.collect_evals_for_run();
 
         let mut handles = vec![];
 
         for i in 0..self.config.repeat.unwrap_or(1) {
-            let mut self_copy = self.clone();
+            let self_copy = self.clone();
             let model_clone = model.clone();
             let suites_clone = suites.clone();
-            // create thread to handle launching parallel processes to run model's evals in parallel
-            let handle = thread::spawn(move || {
+            let handle = thread::spawn(move || -> Result<()> {
                 self_copy.run_benchmark(&model_clone, suites_clone, i.to_string())
             });
             handles.push(handle);
@@ -41,55 +47,32 @@ impl ModelRunner {
 
         let mut all_runs_results: Vec<BenchmarkResults> = Vec::new();
         for i in 0..self.config.repeat.unwrap_or(1) {
-            let run_results =
-                self.collect_run_results(model.clone(), suites.clone(), i.to_string())?;
-            all_runs_results.push(run_results);
+            match self.collect_run_results(model.clone(), suites.clone(), i.to_string()) {
+                Ok(run_results) => all_runs_results.push(run_results),
+                Err(e) => {
+                    tracing::error!("Failed to collect results for run {}: {}", i, e)
+                }
+            }
         }
-        // write summary file
 
         Ok(())
     }
 
-    fn load_env_file(&self, path: &PathBuf) -> anyhow::Result<Vec<(String, String)>> {
-        let file = std::fs::File::open(path)?;
-        let reader = io::BufReader::new(file);
-        let mut env_vars = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            // Skip empty lines and comments
-            if line.trim().is_empty() || line.trim_start().starts_with('#') {
-                continue;
-            }
-
-            // Split on first '=' only
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim().to_string();
-                // Remove quotes if present
-                let value = value
-                    .trim()
-                    .trim_matches('"')
-                    .trim_matches('\'')
-                    .to_string();
-                env_vars.push((key, value));
-            }
-        }
-
-        Ok(env_vars)
-    }
-
     fn run_benchmark(
-        &mut self,
+        &self,
         model: &BenchModel,
         suites: HashMap<String, Vec<BenchEval>>,
         run_id: String,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let mut results_handles = HashMap::<String, Vec<Child>>::new();
 
         // Load environment variables from file if specified
         let mut envs = self.toolshim_envs();
         if let Some(env_file) = &self.config.env_file {
-            let env_vars = self.load_env_file(env_file)?;
+            let env_vars = ModelRunner::load_env_file(env_file).context(format!(
+                "Failed to load environment file: {}",
+                env_file.display()
+            ))?;
             envs.extend(env_vars);
         }
         envs.push(("GOOSE_MODEL".to_string(), model.clone().name));
@@ -116,9 +99,13 @@ impl ModelRunner {
             // Run parallel-safe evaluations in parallel
             if !parallel_evals.is_empty() {
                 for eval_selector in &parallel_evals {
-                    self.config.run_id = Some(run_id.clone());
-                    self.config.evals = vec![(*eval_selector).clone()];
-                    let cfg = self.config.to_string()?;
+                    let mut config_copy = self.config.clone();
+                    config_copy.run_id = Some(run_id.clone());
+                    config_copy.evals = vec![(*eval_selector).clone()];
+                    let cfg = config_copy
+                        .to_string()
+                        .context("Failed to serialize configuration")?;
+
                     let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
                     results_handles.get_mut(suite).unwrap().push(handle);
                 }
@@ -126,9 +113,13 @@ impl ModelRunner {
 
             // Run non-parallel-safe evaluations sequentially
             for eval_selector in &sequential_evals {
-                self.config.run_id = Some(run_id.clone());
-                self.config.evals = vec![(*eval_selector).clone()];
-                let cfg = self.config.to_string()?;
+                let mut config_copy = self.config.clone();
+                config_copy.run_id = Some(run_id.clone());
+                config_copy.evals = vec![(*eval_selector).clone()];
+                let cfg = config_copy
+                    .to_string()
+                    .context("Failed to serialize configuration")?;
+
                 let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
 
                 // Wait for this process to complete before starting the next one
@@ -150,7 +141,7 @@ impl ModelRunner {
         model: BenchModel,
         suites: HashMap<String, Vec<BenchEval>>,
         run_id: String,
-    ) -> anyhow::Result<BenchmarkResults> {
+    ) -> Result<BenchmarkResults> {
         let mut results = BenchmarkResults::new(model.provider.clone());
 
         let mut summary_path: Option<PathBuf> = None;
@@ -161,7 +152,17 @@ impl ModelRunner {
                 let mut eval_path =
                     EvalRunner::path_for_eval(&model, eval_selector, run_id.clone());
                 eval_path.push(self.config.eval_result_filename.clone());
-                let eval_result = serde_json::from_str(&read_to_string(&eval_path)?)?;
+
+                let content = read_to_string(&eval_path).with_context(|| {
+                    format!(
+                        "Failed to read evaluation results from {}",
+                        eval_path.display()
+                    )
+                })?;
+
+                let eval_result = serde_json::from_str(&content)
+                    .context("Failed to parse evaluation results JSON")?;
+
                 suite_result.add_evaluation(eval_result);
 
                 // use current eval to determine where the summary should be written
@@ -180,12 +181,21 @@ impl ModelRunner {
             results.add_suite(suite_result);
         }
 
-        let mut run_summary = PathBuf::new();
-        run_summary.push(summary_path.clone().unwrap());
-        run_summary.push(&self.config.run_summary_filename);
+        if let Some(path) = summary_path {
+            let mut run_summary = PathBuf::new();
+            run_summary.push(path);
+            run_summary.push(&self.config.run_summary_filename);
 
-        let output_str = serde_json::to_string_pretty(&results)?;
-        std::fs::write(run_summary, &output_str)?;
+            let output_str = serde_json::to_string_pretty(&results)
+                .context("Failed to serialize benchmark results to JSON")?;
+
+            std::fs::write(&run_summary, &output_str).with_context(|| {
+                format!(
+                    "Failed to write results summary to {}",
+                    run_summary.display()
+                )
+            })?;
+        }
 
         Ok(results)
     }
@@ -210,20 +220,29 @@ impl ModelRunner {
 
     fn toolshim_envs(&self) -> Vec<(String, String)> {
         // read tool-shim preference from config, set respective env vars accordingly
-        let model = self.config.models.first().unwrap();
-
         let mut shim_envs: Vec<(String, String)> = Vec::new();
-        if let Some(shim_opt) = &model.tool_shim {
-            if shim_opt.use_tool_shim {
-                shim_envs.push(("GOOSE_TOOLSHIM".to_string(), "true".to_string()));
-                if let Some(shim_model) = &shim_opt.tool_shim_model {
-                    shim_envs.push((
-                        "GOOSE_TOOLSHIM_OLLAMA_MODEL".to_string(),
-                        shim_model.clone(),
-                    ));
+        if let Some(model) = self.config.models.first() {
+            if let Some(shim_opt) = &model.tool_shim {
+                if shim_opt.use_tool_shim {
+                    shim_envs.push(("GOOSE_TOOLSHIM".to_string(), "true".to_string()));
+                    if let Some(shim_model) = &shim_opt.tool_shim_model {
+                        shim_envs.push((
+                            "GOOSE_TOOLSHIM_OLLAMA_MODEL".to_string(),
+                            shim_model.clone(),
+                        ));
+                    }
                 }
             }
         }
         shim_envs
+    }
+
+    fn load_env_file(path: &PathBuf) -> Result<Vec<(String, String)>> {
+        let iter =
+            from_path_iter(path).context("Failed to read environment variables from file")?;
+        let env_vars = iter
+            .map(|item| item.context("Failed to parse environment variable"))
+            .collect::<Result<_, _>>()?;
+        Ok(env_vars)
     }
 }
