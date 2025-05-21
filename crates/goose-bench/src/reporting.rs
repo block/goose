@@ -98,17 +98,6 @@ impl BenchmarkResults {
     }
 }
 
-impl fmt::Display for EvalMetricValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EvalMetricValue::Integer(i) => write!(f, "{}", i),
-            EvalMetricValue::Float(fl) => write!(f, "{:.2}", fl),
-            EvalMetricValue::String(s) => write!(f, "{}", s),
-            EvalMetricValue::Boolean(b) => write!(f, "{}", b),
-        }
-    }
-}
-
 impl fmt::Display for BenchmarkResults {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Benchmark Results")?;
