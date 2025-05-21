@@ -88,7 +88,7 @@ You'll need to provide both instructions and activities for your Recipe.
    
    You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
 
-   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax. 
+   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax and define each of them in your yaml using `parameters`.
 
    <details>
    <summary>Example recipe with parameters</summary>
@@ -103,37 +103,36 @@ You'll need to provide both instructions and activities for your Recipe.
       - Complexity threshold: {{ complexity_threshold }}
       - Required test coverage: {{ test_coverage }}%
       - Style guide: {{ style_guide }}
-   activities:
-   - "Review {{ language }} code for complexity"
-   - "Check test coverage against {{ test_coverage }}% requirement"
-   - "Verify {{ style_guide }} compliance"
-   parameters:
-   - key: project_name
-     input_type: string
-     requirement: required # could be required, optional or user_prompt
-     description: name of the project
-   - key: language
-     input_type: string
-     requirement: required
-     description: language of the code
-   - key: complexity_threshold
-     input_type: number
-     requirement: optional
-     default: 20 # default is required for optional parameters
-     description: a threshold that defines the maximum allowed complexity
-   - key: test_coverage
-     input_type: number
-     requirement: optional
-     default: 80
-     description: the minimum test coverage threshold in percentage
-   - key: style_guide
-     input_type: string
-     description: style guide name
-     requirement: user_prompt
-   # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
- 
-```
-
+      activities:
+      - "Review {{ language }} code for complexity"
+      - "Check test coverage against {{ test_coverage }}% requirement"
+      - "Verify {{ style_guide }} compliance"
+      parameters:
+      - key: project_name
+        input_type: string
+        requirement: required # could be required, optional or user_prompt
+        description: name of the project
+      - key: language
+        input_type: string
+        requirement: required
+        description: language of the code
+      - key: complexity_threshold
+        input_type: number
+        requirement: optional
+        default: 20 # default is required for optional parameters
+        description: a threshold that defines the maximum allowed complexity
+      - key: test_coverage
+        input_type: number
+        requirement: optional
+        default: 80
+        description: the minimum test coverage threshold in percentage
+      - key: style_guide
+        input_type: string
+        description: style guide name
+        requirement: user_prompt
+         # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
+      ```
+  
    </details>
 
    When someone runs a recipe that contains template parameters, they will need to provide the parameters:
