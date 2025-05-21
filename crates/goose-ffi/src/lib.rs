@@ -263,8 +263,8 @@ pub unsafe extern "C" fn goose_agent_send_message(
                         full_response.push_str(&json);
                     }
                 }
-                Ok(AgentEvent::McpNotification(n)) => {
-                    println!("Handle notification: {:?}", n);
+                Ok(AgentEvent::McpNotification(_)) => {
+                    // TODO: Handle MCP notifications.
                 }
                 Err(e) => {
                     full_response.push_str(&format!("\nError in message stream: {}", e));

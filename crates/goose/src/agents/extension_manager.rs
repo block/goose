@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use mcp_core::protocol::{GetPromptResult, JsonRpcMessage, JsonRpcNotification};
+use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -268,43 +268,8 @@ impl ExtensionManager {
                 .insert(sanitized_name.clone());
         }
 
-        let mut notification_stream = client.subscribe().await;
-
         self.clients
             .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
-
-        tokio::spawn(async move {
-            while let Some(notification) = notification_stream.recv().await {
-                match notification {
-                    JsonRpcMessage::Notification(JsonRpcNotification {
-                        method,
-                        params: Some(Value::Object(o)),
-                        ..
-                    }) => {
-                        if method == "notifications/message" {
-                            let data = o.get("data").unwrap_or(&Value::Null);
-                            let message = match data {
-                                Value::String(s) => s.clone(),
-                                v => v.to_string(),
-                            };
-                            println!("[{}] {}", config_name, message);
-                        } else if method == "notifications/progress" {
-                            let message = o
-                                .get("message")
-                                .map(|v| format!("{} ", v.to_string()))
-                                .unwrap_or_default();
-                            let progress = o.get("progress").unwrap_or(&Value::Null);
-                            let total = o
-                                .get("total")
-                                .map(|v| v.to_string())
-                                .unwrap_or_else(|| "?".to_string());
-                            println!("[{}] {}({}/{})", config_name, message, progress, total);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
 
         Ok(())
     }

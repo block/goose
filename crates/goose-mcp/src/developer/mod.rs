@@ -524,8 +524,7 @@ impl DeveloperRouter {
             loop {
                 tokio::select! {
                     n = stdout_reader.read_until(b'\n', &mut stdout_buf) => {
-                        let n = n?;
-                        if n == 0 {
+                        if n? == 0 {
                             break;
                         }
                         let line = String::from_utf8_lossy(&stdout_buf);
@@ -547,8 +546,7 @@ impl DeveloperRouter {
                         stdout_buf.clear();
                     }
                     n = stderr_reader.read_until(b'\n', &mut stderr_buf) => {
-                        let n = n?;
-                        if n == 0 {
+                        if n? == 0 {
                             break;
                         }
                         let line = String::from_utf8_lossy(&stderr_buf);
@@ -1272,8 +1270,7 @@ mod tests {
     }
 
     fn dummy_sender() -> mpsc::Sender<JsonRpcMessage> {
-        let (tx, _rx) = mpsc::channel(1);
-        tx
+        mpsc::channel(1).0
     }
 
     #[tokio::test]

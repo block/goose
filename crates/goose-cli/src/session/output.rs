@@ -2,6 +2,7 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use indicatif::{ProgressBar, ProgressStyle};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
@@ -560,6 +561,35 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
 
 pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+}
+
+pub struct McpProgressBars {
+    bars: HashMap<String, ProgressBar>,
+}
+
+impl McpProgressBars {
+    pub fn new() -> Self {
+        McpProgressBars {
+            bars: HashMap::new(),
+        }
+    }
+
+    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+        let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
+            if let Some(total) = total {
+                ProgressBar::new((total * 100.0) as u64).with_style(
+                    ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
+                        .unwrap(),
+                )
+            } else {
+                ProgressBar::new_spinner()
+            }
+        });
+        bar.set_position((value * 100.0) as u64);
+        if let Some(msg) = message {
+            bar.set_message(msg.to_string());
+        }
+    }
 }
 
 #[cfg(test)]

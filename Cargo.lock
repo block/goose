@@ -2611,6 +2611,7 @@ dependencies = [
  "goose",
  "goose-bench",
  "goose-mcp",
+ "indicatif",
  "mcp-client",
  "mcp-core",
  "mcp-server",

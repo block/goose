@@ -27,6 +27,8 @@ use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
 
+use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::protocol::JsonRpcNotification;
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -678,6 +680,8 @@ impl Session {
             )
             .await?;
 
+        let mut progress_bars = output::McpProgressBars::new();
+
         use futures::StreamExt;
         loop {
             tokio::select! {
@@ -762,8 +766,45 @@ impl Session {
                                 if interactive {output::show_thinking()};
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification(n))) => {
-                            println!("Handle notification: {:?}", n);
+                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                            match message {
+                                JsonRpcMessage::Notification(JsonRpcNotification{
+                                    method,
+                                    params: Some(Value::Object(o)),
+                                    ..
+                                }) => {
+                                    match method.as_str() {
+                                        "notifications/message" => {
+                                            let data = o.get("data").unwrap_or(&Value::Null);
+                                            let message = match data {
+                                                Value::String(s) => s.clone(),
+                                                v => v.to_string(),
+                                            };
+                                            output::render_text(&message, None, true);
+                                        },
+                                        "notifications/progress" => {
+                                            let progress = o.get("progress").and_then(|v| v.as_f64());
+                                            let token = o.get("progressToken").map(|v| v.to_string());
+                                            let message = o
+                                                .get("message")
+                                                .map(|v| format!("{} ", v.to_string()));
+                                            let total = o
+                                                .get("total")
+                                                .and_then(|v| v.as_f64());
+                                            if let (Some(progress), Some(token)) = (progress, token) {
+                                                progress_bars.update(
+                                                    token.as_str(),
+                                                    progress,
+                                                    total,
+                                                    message.as_deref(),
+                                                );
+                                            }
+                                        },
+                                        _ => (),
+                                    }
+                                },
+                                _ => (),
+                            }
                         }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
@@ -791,6 +832,7 @@ impl Session {
                 }
             }
         }
+
         Ok(())
     }
 

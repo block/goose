@@ -109,6 +109,10 @@ pub enum ToolStreamItem<T> {
 
 pub type ToolStream<T> = Pin<Box<dyn Stream<Item = ToolStreamItem<T>> + Send>>;
 
+// tool_stream combines a stream of JsonRpcMessages with a future representing the
+// final result of the tool call. MCP notifications are not request-scoped, but
+// this lets us capture all notifications emitted during the tool call for
+// simpler consumption
 pub fn tool_stream<T, S, F>(rx: S, done: F) -> ToolStream<ToolResult<T>>
 where
     T: Send + 'static,
