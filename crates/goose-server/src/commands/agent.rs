@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::configuration;
-use crate::{state, scheduler};
+use goose_server::configuration;
+use goose_server::{state, scheduler, logging, routes};
 use anyhow::Result;
 use goose::agents::Agent;
 use tower_http::cors::{Any, CorsLayer};
@@ -9,7 +9,7 @@ use tracing::info;
 
 pub async fn run() -> Result<()> {
     // Initialize logging
-    crate::logging::setup_logging(Some("goosed"))?;
+    logging::setup_logging(Some("goosed"))?;
 
     // Load configuration
     let settings = configuration::Settings::new()?;
@@ -33,7 +33,7 @@ pub async fn run() -> Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = crate::routes::configure(state).layer(cors);
+    let app = routes::configure(state).layer(cors);
 
     // Run server
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;

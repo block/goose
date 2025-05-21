@@ -18,7 +18,7 @@ pub struct AppState {
     // agent: SharedAgentStore,
     agent: Option<AgentRef>,
     pub secret_key: String,
-    pub scheduler: Mutex<Option<Arc<Scheduler>>>,
+    pub scheduler: Arc<Mutex<Option<Arc<Scheduler>>>>,
 }
 
 impl AppState {
@@ -26,7 +26,7 @@ impl AppState {
         Arc::new(Self {
             agent: Some(agent.clone()),
             secret_key,
-            scheduler: Mutex::new(None),
+            scheduler: Arc::new(Mutex::new(None)),
         })
     }
 

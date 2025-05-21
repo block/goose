@@ -108,6 +108,6 @@ async fn get_session_history(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
-        .route("/sessions/:session_id", get(get_session_history))
+        .route("/sessions/{session_id}", get(get_session_history))
         .with_state(state)
 }

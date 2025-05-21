@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use etcetera::AppStrategy;
 
 use anyhow::Result;
 use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use chrono::{DateTime, Utc};
-use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use tokio_cron_scheduler::{Job, JobId, JobScheduler};
+use tokio_cron_scheduler::{job::JobId, Job, JobScheduler};
 
 use etcetera::choose_app_strategy;
 
@@ -31,7 +31,7 @@ pub struct ScheduledJob {
 
 pub struct Scheduler {
     scheduler: JobScheduler,
-    jobs: Mutex<HashMap<String, (JobId, ScheduledJob)>>,
+    jobs: Arc<Mutex<HashMap<String, (JobId, ScheduledJob)>>>,
     state: Arc<AppState>,
     storage: std::path::PathBuf,
 }
@@ -45,7 +45,7 @@ impl Scheduler {
 
         let sched = Arc::new(Self {
             scheduler,
-            jobs: Mutex::new(HashMap::new()),
+            jobs: Arc::new(Mutex::new(HashMap::new())),
             state,
             storage,
         });
@@ -57,8 +57,10 @@ impl Scheduler {
     async fn load_jobs(self: &Arc<Self>) -> Result<()> {
         if let Ok(data) = tokio::fs::read_to_string(&self.storage).await {
             if let Ok(list) = serde_json::from_str::<Vec<ScheduledJob>>(&data) {
-                for job in list {
-                    let _ = self.add(job).await;
+                for job_to_load in list {
+                    // Clone job_to_load as self.add will consume it if we don't want to pass a reference or re-clone inside add.
+                    // However, self.add already expects ownership of 'job: ScheduledJob'.
+                    let _ = self.add(job_to_load).await; 
                 }
             }
         }
@@ -66,8 +68,8 @@ impl Scheduler {
     }
 
     async fn persist(&self) -> Result<()> {
-        let jobs = self.jobs.lock().await;
-        let list: Vec<ScheduledJob> = jobs.values().map(|(_, j)| j.clone()).collect();
+        let jobs_guard = self.jobs.lock().await;
+        let list: Vec<ScheduledJob> = jobs_guard.values().map(|(_, j)| j.clone()).collect();
         if let Some(parent) = self.storage.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -77,31 +79,34 @@ impl Scheduler {
     }
 
     pub async fn add(self: &Arc<Self>, job: ScheduledJob) -> Result<()> {
-        let id = job.id.clone();
+        let job_id_str_for_closure = job.id.clone(); // Clone for the closure to capture
         let cron = job.cron.clone();
         let state = self.state.clone();
-        let jobs_ref = self.jobs.clone();
-        let job_clone = job.clone();
-        let mut cron_job = Job::new_async(cron.as_str(), move |_uuid, _l| {
-            let state = state.clone();
-            let jobs_ref = jobs_ref.clone();
-            let id = id.clone();
-            let job_run = job_clone.clone();
+        let jobs_arc = self.jobs.clone(); // Arc clone, cheap
+        let job_for_closure = job.clone(); // Clone the whole job for the closure
+
+        let cron_task = Job::new_async(cron.as_str(), move |_uuid, _l| {
+            let state_clone_for_async = state.clone();
+            let jobs_arc_clone_for_async = jobs_arc.clone();
+            let captured_job_id_str = job_id_str_for_closure.clone(); // Clone the string ID again for the async block
+            let job_to_run = job_for_closure.clone();
             Box::pin(async move {
                 {
-                    let mut jobs = jobs_ref.lock().await;
-                    if let Some((_, j)) = jobs.get_mut(&id) {
-                        j.last_run = Some(Utc::now());
+                    let mut jobs_map_guard = jobs_arc_clone_for_async.lock().await;
+                    if let Some((_, scheduled_job_in_map)) = jobs_map_guard.get_mut(&captured_job_id_str) {
+                        scheduled_job_in_map.last_run = Some(Utc::now());
                     }
                 }
-                if let Err(e) = run_job(state.clone(), job_run).await {
+                if let Err(e) = run_job(state_clone_for_async, job_to_run).await {
                     tracing::error!("scheduled job error: {:?}", e);
                 }
             })
         })?;
-        cron_job.set_id(JobId::from_string(&id)?);
-        let job_id = self.scheduler.add(cron_job).await?;
-        self.jobs.lock().await.insert(id, (job_id, job));
+        
+        let scheduler_internal_uuid = self.scheduler.add(cron_task).await?;
+        // Insert the original 'job' (which contains the 'id' String) into the map.
+        // The key is job.id (String), the value is (scheduler's JobId (Uuid), original ScheduledJob struct)
+        self.jobs.lock().await.insert(job.id.clone(), (scheduler_internal_uuid, job));
         self.persist().await?;
         Ok(())
     }
@@ -154,8 +159,8 @@ fn parse_recipe(content: &str) -> Result<Recipe> {
 }
 
 async fn execute_recipe(state: Arc<AppState>, recipe: Recipe) -> Result<()> {
-    use goose::providers::create;
-    use goose::config::Config;
+    
+    
     use futures::StreamExt as _;
 
     let agent = state.get_agent().await?;
