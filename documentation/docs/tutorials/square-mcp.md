@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <details>
-  <summary>Square MCP Server Video Walkthrough</summary>
+  <summary> 🎥 Square MCP Server Video Walkthrough</summary>
   <iframe
   class="aspect-ratio"
   src="https://www.youtube.com/embed/y6pklrzhzNg"
