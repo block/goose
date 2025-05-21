@@ -54,6 +54,7 @@ base64 = "0.22.1"
 regex = "1.11.1"
 minijinja = "2.8.0"
 nix = { version = "0.30.1", features = ["process", "signal"] }
+tar = "0.4"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
