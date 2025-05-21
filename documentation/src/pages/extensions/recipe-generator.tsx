@@ -11,7 +11,6 @@ export default function RecipeGenerator() {
   const [instructions, setInstructions] = useState('');
   const [activities, setActivities] = useState([]);
   const [newActivity, setNewActivity] = useState('');
-  const [prompt, setPrompt] = useState('');
   const [copied, setCopied] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -59,7 +58,6 @@ export default function RecipeGenerator() {
         title,
         description,
         instructions,
-        prompt: prompt || undefined,
         activities: activities.length > 0 ? activities : undefined
       };
 
@@ -76,7 +74,7 @@ export default function RecipeGenerator() {
       console.error('Error generating recipe URL:', error);
       return '';
     }
-  }, [title, description, instructions, prompt, activities]);
+  }, [title, description, instructions, activities]);
 
   // Copy handler
   const handleCopy = useCallback(() => {
@@ -103,19 +101,19 @@ export default function RecipeGenerator() {
         </div>
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4">Recipe Generator</h1>
-          <p className="text-lg">
+          <h1 className="text-4xl font-bold mb-4 text-textProminent">Recipe Generator</h1>
+          <p className="text-lg text-textSubtle">
             Create a shareable Goose recipe URL that others can use to launch a session with your predefined settings.
           </p>
         </div>
 
-        <div className="bg-white border rounded-lg p-6 mb-8 shadow-sm">
-          <h2 className="text-2xl font-medium mb-6">Recipe Details</h2>
+        <div className="bg-bgApp border border-borderSubtle rounded-lg p-6 mb-8 shadow-sm">
+          <h2 className="text-2xl font-medium mb-6 text-textProminent">Recipe Details</h2>
           
           <div className="space-y-6">
             {/* Title */}
             <div>
-              <label htmlFor="title" className="block text-sm font-medium mb-2">
+              <label htmlFor="title" className="block text-sm font-medium text-textStandard mb-2">
                 Title <span className="text-red-500">*</span>
               </label>
               <input
@@ -124,8 +122,8 @@ export default function RecipeGenerator() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={validateForm}
-                className={`w-full p-3 border rounded-lg ${
-                  errors.title ? 'border-red-500' : 'border-gray-300'
+                className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard ${
+                  errors.title ? 'border-red-500' : 'border-borderSubtle'
                 }`}
                 placeholder="Enter a title for your recipe"
               />
@@ -134,7 +132,7 @@ export default function RecipeGenerator() {
 
             {/* Description */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium mb-2">
+              <label htmlFor="description" className="block text-sm font-medium text-textStandard mb-2">
                 Description <span className="text-red-500">*</span>
               </label>
               <input
@@ -143,8 +141,8 @@ export default function RecipeGenerator() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={validateForm}
-                className={`w-full p-3 border rounded-lg ${
-                  errors.description ? 'border-red-500' : 'border-gray-300'
+                className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard ${
+                  errors.description ? 'border-red-500' : 'border-borderSubtle'
                 }`}
                 placeholder="Enter a description for your recipe"
               />
@@ -153,7 +151,7 @@ export default function RecipeGenerator() {
 
             {/* Instructions */}
             <div>
-              <label htmlFor="instructions" className="block text-sm font-medium mb-2">
+              <label htmlFor="instructions" className="block text-sm font-medium text-textStandard mb-2">
                 Instructions <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -161,43 +159,29 @@ export default function RecipeGenerator() {
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
                 onBlur={validateForm}
-                className={`w-full p-3 border rounded-lg min-h-[150px] ${
-                  errors.instructions ? 'border-red-500' : 'border-gray-300'
+                className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard min-h-[150px] ${
+                  errors.instructions ? 'border-red-500' : 'border-borderSubtle'
                 }`}
                 placeholder="Enter instructions for the AI (these will be added to the system prompt)"
               />
               {errors.instructions && <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>}
             </div>
 
-            {/* Initial Prompt */}
-            <div>
-              <label htmlFor="prompt" className="block text-sm font-medium mb-2">
-                Initial Message (optional)
-              </label>
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg min-h-[100px]"
-                placeholder="Enter an initial message to start the session with (optional)"
-              />
-            </div>
-
             {/* Activities */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium text-textStandard mb-2">
                 Activities (optional)
               </label>
               <div className="flex flex-wrap gap-2 mb-4">
                 {activities.map((activity, index) => (
                   <div
                     key={index}
-                    className="inline-flex items-center bg-gray-100 border border-gray-300 rounded-full px-4 py-2 text-sm"
+                    className="inline-flex items-center bg-bgSubtle border border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
                   >
                     <span>{activity}</span>
                     <button
                       onClick={() => handleRemoveActivity(index)}
-                      className="ml-2 text-gray-500 hover:text-red-500 transition-colors"
+                      className="ml-2 text-textSubtle hover:text-red-500 transition-colors"
                       aria-label="Remove activity"
                     >
                       <X className="h-4 w-4" />
@@ -217,7 +201,7 @@ export default function RecipeGenerator() {
                       handleAddActivity();
                     }
                   }}
-                  className="flex-1 p-3 border border-gray-300 rounded-lg"
+                  className="flex-1 p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
                   placeholder="Enter an activity"
                 />
                 <Button
@@ -234,11 +218,11 @@ export default function RecipeGenerator() {
         </div>
 
         {/* Generated URL */}
-        <div className="bg-white border rounded-lg p-6 shadow-sm">
-          <h2 className="text-2xl font-medium mb-4">Generated Recipe URL</h2>
+        <div className="bg-bgApp border border-borderSubtle rounded-lg p-6 shadow-sm">
+          <h2 className="text-2xl font-medium mb-4 text-textProminent">Generated Recipe URL</h2>
           
-          <div className="bg-gray-100 rounded-lg p-4 mb-4 overflow-x-auto">
-            <code className="text-sm font-mono break-all">
+          <div className="bg-bgSubtle rounded-lg p-4 mb-4 overflow-x-auto">
+            <code className="text-sm text-textStandard font-mono break-all">
               {recipeUrl || 'Fill in the required fields to generate a URL'}
             </code>
           </div>
@@ -265,9 +249,9 @@ export default function RecipeGenerator() {
         </div>
 
         {/* Instructions for Use */}
-        <div className="mt-8 bg-white border rounded-lg p-6 shadow-sm">
-          <h2 className="text-2xl font-medium mb-4">How to Use</h2>
-          <ol className="list-decimal pl-6 space-y-2">
+        <div className="mt-8 bg-bgApp border border-borderSubtle rounded-lg p-6 shadow-sm">
+          <h2 className="text-2xl font-medium mb-4 text-textProminent">How to Use</h2>
+          <ol className="list-decimal pl-6 space-y-2 text-textStandard">
             <li>Fill in the required fields above to generate a recipe URL.</li>
             <li>Copy the generated URL using the "Copy URL" button.</li>
             <li>Share the URL with others who have Goose Desktop installed.</li>
