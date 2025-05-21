@@ -4,12 +4,14 @@ use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{EvaluationSuite, ExtensionRequirements};
 use crate::reporting::EvaluationResult;
 use crate::utilities::await_process_exits;
+use anyhow::{bail, Context, Result};
 use std::env;
 use std::fs;
 use std::future::Future;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing;
 
 #[derive(Clone)]
 pub struct EvalRunner {
@@ -17,13 +19,17 @@ pub struct EvalRunner {
 }
 
 impl EvalRunner {
-    pub fn from(config: String) -> anyhow::Result<EvalRunner> {
-        let config = BenchRunConfig::from_string(config)?;
+    pub fn from(config: String) -> Result<EvalRunner> {
+        let config = BenchRunConfig::from_string(config)
+            .context("Failed to parse evaluation configuration")?;
         Ok(EvalRunner { config })
     }
 
-    fn create_work_dir(&self, config: &BenchRunConfig) -> anyhow::Result<BenchmarkWorkDir> {
-        let goose_model = config.models.first().unwrap();
+    fn create_work_dir(&self, config: &BenchRunConfig) -> Result<BenchmarkWorkDir> {
+        let goose_model = config
+            .models
+            .first()
+            .context("No model specified in configuration")?;
         let model_name = goose_model.name.clone();
         let provider_name = goose_model.provider.clone();
 
@@ -48,13 +54,21 @@ impl EvalRunner {
         let work_dir = BenchmarkWorkDir::new(work_dir_name, include_dir);
         Ok(work_dir)
     }
-    pub async fn run<F, Fut>(&mut self, agent_generator: F) -> anyhow::Result<()>
+
+    pub async fn run<F, Fut>(&mut self, agent_generator: F) -> Result<()>
     where
         F: Fn(ExtensionRequirements, String) -> Fut,
         Fut: Future<Output = BenchAgent> + Send,
     {
-        let mut work_dir = self.create_work_dir(&self.config)?;
-        let bench_eval = self.config.evals.first().unwrap();
+        let mut work_dir = self
+            .create_work_dir(&self.config)
+            .context("Failed to create evaluation work directory")?;
+
+        let bench_eval = self
+            .config
+            .evals
+            .first()
+            .context("No evaluations specified in configuration")?;
 
         let run_id = &self
             .config
@@ -65,41 +79,89 @@ impl EvalRunner {
 
         // create entire dir subtree for eval and cd into dir for running eval
         work_dir.set_eval(&bench_eval.selector, run_id);
+        tracing::info!("Set evaluation directory for {}", bench_eval.selector);
 
         if let Some(eval) = EvaluationSuite::from(&bench_eval.selector) {
-            let now_stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+            let now_stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .context("Failed to get current timestamp")?
+                .as_nanos();
+
             let session_id = format!("{}-{}", bench_eval.selector.clone(), now_stamp);
             let mut agent = agent_generator(eval.required_extensions(), session_id).await;
+            tracing::info!("Agent created for {}", eval.name());
 
             let mut result = EvaluationResult::new(eval.name().to_string());
 
-            if let Ok(metrics) = eval.run(&mut agent, &mut work_dir).await {
-                for (name, metric) in metrics {
-                    result.add_metric(name, metric);
+            match eval.run(&mut agent, &mut work_dir).await {
+                Ok(metrics) => {
+                    tracing::info!("Evaluation run successful with {} metrics", metrics.len());
+                    for (name, metric) in metrics {
+                        result.add_metric(name, metric);
+                    }
                 }
-
-                // Add any errors that occurred
-                for error in agent.get_errors().await {
-                    result.add_error(error);
+                Err(e) => {
+                    tracing::error!("Evaluation run failed: {}", e);
                 }
             }
 
-            let eval_results = serde_json::to_string_pretty(&result)?;
+            // Add any errors that occurred
+            let errors = agent.get_errors().await;
+            tracing::info!("Agent reported {} errors", errors.len());
+            for error in errors {
+                result.add_error(error);
+            }
 
-            let eval_results_file = env::current_dir()?.join(&self.config.eval_result_filename);
-            fs::write(&eval_results_file, &eval_results)?;
+            // Write results to file
+            let eval_results = serde_json::to_string_pretty(&result)
+                .context("Failed to serialize evaluation results to JSON")?;
+
+            let eval_results_file = env::current_dir()
+                .context("Failed to get current directory")?
+                .join(&self.config.eval_result_filename);
+
+            fs::write(&eval_results_file, &eval_results).with_context(|| {
+                format!(
+                    "Failed to write evaluation results to {}",
+                    eval_results_file.display()
+                )
+            })?;
+
+            tracing::info!(
+                "Wrote evaluation results to {}",
+                eval_results_file.display()
+            );
+
             self.config.save("config.cfg".to_string());
             work_dir.save();
 
             // handle running post-process cmd if configured
             if let Some(cmd) = &bench_eval.post_process_cmd {
-                let handle = Command::new(cmd).arg(&eval_results_file).spawn()?;
+                tracing::info!("Running post-process command: {:?}", cmd);
+
+                let handle = Command::new(cmd)
+                    .arg(&eval_results_file)
+                    .spawn()
+                    .with_context(|| {
+                        format!("Failed to execute post-process command: {:?}", cmd)
+                    })?;
+
                 await_process_exits(&mut [handle], Vec::new());
             }
 
             // copy session file into eval-dir
-            let here = env::current_dir()?.canonicalize()?;
-            BenchmarkWorkDir::deep_copy(agent.session_file().as_path(), here.as_path(), false)?;
+            let here = env::current_dir()
+                .context("Failed to get current directory")?
+                .canonicalize()
+                .context("Failed to canonicalize current directory path")?;
+
+            BenchmarkWorkDir::deep_copy(agent.session_file().as_path(), here.as_path(), false)
+                .context("Failed to copy session file to evaluation directory")?;
+
+            tracing::info!("Evaluation completed successfully");
+        } else {
+            tracing::error!("No evaluation found for selector: {}", bench_eval.selector);
+            bail!("No evaluation found for selector: {}", bench_eval.selector);
         }
 
         Ok(())

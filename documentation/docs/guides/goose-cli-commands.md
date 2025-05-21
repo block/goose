@@ -260,6 +260,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--explain`**: Show a recipe's title, description, and parameters.
 
 **Usage:**
 
@@ -281,6 +282,8 @@ goose run --recipe recipe_no_prompt.yaml
 #Load a recipe in debug mode
 goose run --recipe recipe.yaml --debug
 
+#Show recipe details
+goose run --recipe recipe.yaml --explain
 ```
 
 ---

@@ -34,6 +34,7 @@
   "dependencies": {
     "@tanstack/react-router": "^1.120.5",
     "@tanstack/router": "^0.0.1-beta.53",
+    "clsx": "^2.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -74,7 +75,10 @@
     "prettier": "^3.5.3",
     "stylelint": "^16.19.1",
     "stylelint-config-standard": "^38.0.0",
+    "@tailwindcss/typography": "^0.5.16",
+    "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.7",
+    "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
