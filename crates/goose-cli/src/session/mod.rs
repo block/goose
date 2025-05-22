@@ -706,15 +706,44 @@ impl Session {
                                 let prompt = "Goose would like to call the above tool, do you allow?".to_string();
 
                                 // Get confirmation from user
-                                let permission = cliclack::select(prompt)
+                                let permission_result = cliclack::select(prompt)
                                     .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
                                     .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
                                     .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                    .interact()?;
-                                self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission,
-                                },).await;
+                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                    .interact();
+
+                                let permission = match permission_result {
+                                    Ok(p) => p, // If Ok, use the selected permission
+                                    Err(e) => {
+                                        // Check if the error is an interruption (Ctrl+C/Cmd+C, Escape)
+                                        if e.kind() == std::io::ErrorKind::Interrupted {
+                                            Permission::Cancel // If interrupted, set permission to Cancel
+                                        } else {
+                                            return Err(e.into()); // Otherwise, convert and propagate the original error
+                                        }
+                                    }
+                                };
+
+                                if permission == Permission::Cancel {
+                                    output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+
+                                    let mut response_message = Message::user();
+                                    response_message.content.push(MessageContent::tool_response(
+                                        confirmation.id.clone(),
+                                        Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
+                                    ));
+                                    self.messages.push(response_message);
+                                    session::persist_messages(&self.session_file, &self.messages, None).await?;
+
+                                    drop(stream);
+                                    break;
+                                } else {
+                                    self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission,
+                                    },).await;
+                                }
                             } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
                                 output::hide_thinking();
 
