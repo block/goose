@@ -285,10 +285,11 @@ const windowMap = new Map<number, BrowserWindow>();
 
 interface RecipeConfig {
   id: string;
-  name: string;
+  title: string;
   description: string;
   instructions: string;
   activities: string[];
+  prompt: string;
 }
 
 const createChat = async (
@@ -761,6 +762,44 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Add CSP headers to all sessions
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self';" +
+            // Allow inline styles since we use them in our React components
+            "style-src 'self' 'unsafe-inline';" +
+            // Scripts only from our app
+            "script-src 'self';" +
+            // Images from our app and data: URLs (for base64 images)
+            "img-src 'self' data: https:;" +
+            // Connect to our local API and specific external services
+            "connect-src 'self' http://127.0.0.1:*" +
+            // Don't allow any plugins
+            "object-src 'none';" +
+            // Don't allow any frames
+            "frame-src 'none';" +
+            // Font sources
+            "font-src 'self';" +
+            // Media sources
+            "media-src 'none';" +
+            // Form actions
+            "form-action 'none';" +
+            // Base URI restriction
+            "base-uri 'self';" +
+            // Manifest files
+            "manifest-src 'self';" +
+            // Worker sources
+            "worker-src 'self';" +
+            // Upgrade insecure requests
+            'upgrade-insecure-requests;',
+        ],
+      },
+    });
+  });
+
   // Register the default global hotkey
   registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
 

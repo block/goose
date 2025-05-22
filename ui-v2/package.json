@@ -34,8 +34,12 @@
   "dependencies": {
     "@tanstack/react-router": "^1.120.5",
     "@tanstack/router": "^0.0.1-beta.53",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.511.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.3"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.1",
@@ -47,6 +51,7 @@
     "@electron-forge/shared-types": "^7.8.1",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.1.7",
+    "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -74,8 +79,11 @@
     "prettier": "^3.5.3",
     "stylelint": "^16.19.1",
     "stylelint-config-standard": "^38.0.0",
+    "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.7",
+    "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
+    "tw-animate-css": "^1.3.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vitest": "^3.1.3"

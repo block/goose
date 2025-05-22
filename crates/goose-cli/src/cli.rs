@@ -18,6 +18,7 @@ use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
+use goose_bench::runners::metric_aggregator::MetricAggregator;
 use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
@@ -142,6 +143,19 @@ pub enum BenchCommand {
     ExecEval {
         #[arg(short, long, help = "A serialized config file for the eval only.")]
         config: String,
+    },
+
+    #[command(
+        name = "generate-leaderboard",
+        about = "Generate a leaderboard CSV from benchmark results"
+    )]
+    GenerateLeaderboard {
+        #[arg(
+            short,
+            long,
+            help = "Path to the benchmark directory containing model evaluation results"
+        )]
+        benchmark_dir: PathBuf,
     },
 }
 
@@ -663,6 +677,9 @@ pub async fn cli() -> Result<()> {
                 BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
                 BenchCommand::ExecEval { config } => {
                     EvalRunner::from(config)?.run(agent_generator).await?
+                }
+                BenchCommand::GenerateLeaderboard { benchmark_dir } => {
+                    MetricAggregator::generate_csv_from_benchmark_dir(&benchmark_dir)?
                 }
             }
             return Ok(());

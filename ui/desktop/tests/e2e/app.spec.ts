@@ -248,10 +248,13 @@ test.describe('Goose App', () => {
     test('dark mode toggle', async () => {
       console.log('Testing dark mode toggle...');
 
-      await selectProvider(mainWindow, providers[0]);
-  
-      // Click the three dots menu button in the top right
-      await mainWindow.waitForSelector('div[class*="bg-bgSubtle border-b border-borderSubtle"]');
+      const chatTextarea = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
+        timeout: 2000
+      }).catch(() => null);
+      if (!chatTextarea) {
+        await selectProvider(mainWindow, providers[0]);
+      }
+
       const menuButton = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
         timeout: 5000,
         state: 'visible'
