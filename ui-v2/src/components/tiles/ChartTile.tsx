@@ -35,11 +35,11 @@ export default function ChartTile({
     point: `P${index + 1}`
   }));
 
-  // Chart configuration
+  // Chart configuration with proper color variables
   const chartConfig = {
     value: {
       label: title,
-      color: variant === 'line' ? 'var(--chart-1)' : 'var(--chart-2)'
+      color: 'var(--chart-1)'
     }
   } satisfies ChartConfig;
 
@@ -54,66 +54,83 @@ export default function ChartTile({
         overflow-hidden
         transition-all duration-200
         hover:scale-[1.02]
+        bg-background-default text-text-default
       `}
     >
       {/* Header section with icon */}
       <div className="p-4 space-y-4">
-        <div className="w-6 h-6">
+        <div className="w-6 h-6 text-text-default">
           {icon}
         </div>
 
         <div>
-          <div className="text-gray-600 dark:text-white/40 text-sm mb-1">{title}</div>
-          <div className="text-gray-900 dark:text-white text-2xl font-semibold">
+          <div className="text-text-muted text-sm mb-1">{title}</div>
+          <div className="text-text-default text-2xl font-semibold">
             {value}
-            {trend && <span className="ml-1 text-sm">{trend}</span>}
+            {trend && <span className="ml-1 text-sm text-text-muted">{trend}</span>}
           </div>
         </div>
       </div>
 
       {/* Chart Container */}
       <div className="w-full h-[200px] px-4 pb-6">
-        <ChartContainer config={chartConfig}>
+        <ChartContainer 
+          config={chartConfig}
+          className="[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-tooltip-wrapper]:!pointer-events-none"
+        >
           <ResponsiveContainer width="100%" height="100%">
             {variant === 'line' ? (
               <LineChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
-                <CartesianGrid vertical={false} />
+                <CartesianGrid vertical={false} className="stroke-border/50" />
                 <XAxis
                   dataKey="point"
                   tickLine={false}
                   tickMargin={10}
                   axisLine={false}
                   height={40}
+                  tick={{ fill: 'var(--text-muted)' }}
                 />
                 <ChartTooltip
-                  content={<ChartTooltipContent />}
+                  content={
+                    <ChartTooltipContent 
+                      className="border-border/50 bg-background-default text-text-default"
+                    />
+                  }
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="var(--color-value)"
+                  stroke="var(--chart-1)"
                   strokeWidth={2}
-                  dot={{ fill: 'var(--color-value)', r: 4 }}
+                  dot={{ fill: 'var(--chart-1)', r: 4 }}
                 />
               </LineChart>
             ) : (
-              <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
-                <CartesianGrid vertical={false} />
+              <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
+                <CartesianGrid vertical={false} className="stroke-border/50" />
                 <XAxis
                   dataKey="point"
                   tickLine={false}
                   tickMargin={10}
                   axisLine={false}
                   height={40}
+                  tick={{ fill: 'var(--text-muted)' }}
+                  interval={0}
                 />
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent />}
+                  content={
+                    <ChartTooltipContent 
+                      indicator="dashed"
+                      className="border-border/50 bg-background-default text-text-default"
+                    />
+                  }
                 />
                 <Bar
                   dataKey="value"
-                  fill="var(--color-value)"
+                  fill="var(--chart-1)"
                   radius={4}
+                  maxBarSize={32}
                 />
               </BarChart>
             )}
