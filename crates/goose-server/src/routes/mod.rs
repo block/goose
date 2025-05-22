@@ -6,8 +6,8 @@ pub mod extension;
 pub mod health;
 pub mod recipe;
 pub mod reply;
-pub mod session;
 pub mod schedule;
+pub mod session;
 pub mod utils;
 use std::sync::Arc;
 

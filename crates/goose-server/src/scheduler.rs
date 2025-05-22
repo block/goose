@@ -1,7 +1,7 @@
+use etcetera::AppStrategy;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use etcetera::AppStrategy;
 
 use anyhow::Result;
 use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
@@ -12,12 +12,7 @@ use tokio_cron_scheduler::{job::JobId, Job, JobScheduler};
 
 use etcetera::choose_app_strategy;
 
-use goose::{
-    message::Message,
-    recipe::Recipe,
-    agents::{SessionConfig},
-    session,
-};
+use goose::{agents::SessionConfig, message::Message, recipe::Recipe, session};
 
 use crate::{state::AppState, APP_STRATEGY};
 
@@ -60,7 +55,7 @@ impl Scheduler {
                 for job_to_load in list {
                     // Clone job_to_load as self.add will consume it if we don't want to pass a reference or re-clone inside add.
                     // However, self.add already expects ownership of 'job: ScheduledJob'.
-                    let _ = self.add(job_to_load).await; 
+                    let _ = self.add(job_to_load).await;
                 }
             }
         }
@@ -93,7 +88,9 @@ impl Scheduler {
             Box::pin(async move {
                 {
                     let mut jobs_map_guard = jobs_arc_clone_for_async.lock().await;
-                    if let Some((_, scheduled_job_in_map)) = jobs_map_guard.get_mut(&captured_job_id_str) {
+                    if let Some((_, scheduled_job_in_map)) =
+                        jobs_map_guard.get_mut(&captured_job_id_str)
+                    {
                         scheduled_job_in_map.last_run = Some(Utc::now());
                     }
                 }
@@ -102,11 +99,14 @@ impl Scheduler {
                 }
             })
         })?;
-        
+
         let scheduler_internal_uuid = self.scheduler.add(cron_task).await?;
         // Insert the original 'job' (which contains the 'id' String) into the map.
         // The key is job.id (String), the value is (scheduler's JobId (Uuid), original ScheduledJob struct)
-        self.jobs.lock().await.insert(job.id.clone(), (scheduler_internal_uuid, job));
+        self.jobs
+            .lock()
+            .await
+            .insert(job.id.clone(), (scheduler_internal_uuid, job));
         self.persist().await?;
         Ok(())
     }
@@ -159,8 +159,6 @@ fn parse_recipe(content: &str) -> Result<Recipe> {
 }
 
 async fn execute_recipe(state: Arc<AppState>, recipe: Recipe) -> Result<()> {
-    
-    
     use futures::StreamExt as _;
 
     let agent = state.get_agent().await?;

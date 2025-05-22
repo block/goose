@@ -503,7 +503,9 @@ mod tests {
             "test".to_string(),
         )
         .await;
-        let sched = crate::scheduler::Scheduler::new(test_state.clone()).await.unwrap();
+        let sched = crate::scheduler::Scheduler::new(test_state.clone())
+            .await
+            .unwrap();
         test_state.set_scheduler(sched).await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
