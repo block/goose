@@ -92,7 +92,7 @@ The model correctly infers the path from previous context and uses the read tool
 
 ---
 
-If the model passes this multi-turn prompt sequence, it's safe to assume the model is capable of being used for agentic AI.
+If a model passes this multi-turn prompt sequence, it's safe to assume that it is suitable for agentic AI.
 
 <head>
   <meta property="og:title" content="3 Prompts to Test for Agent Readiness" />
