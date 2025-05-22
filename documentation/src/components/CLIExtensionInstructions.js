@@ -127,6 +127,34 @@ export default function CLIExtensionInstructions({
         <li>{envStepText}</li>
       </ol>
 
+      {!hasEnvVars && (
+        <CodeBlock language="sh">{`┌   goose-configure 
+│
+◇  What would you like to configure?
+│  Add Extension (Connect to a new extension) 
+│
+◇  What type of extension would you like to add?
+│  Command-line Extension 
+│
+◇  What would you like to call this extension?
+│  ${name}
+│
+◇  What command should be run?
+│  ${command}
+│
+◇  Please set the timeout for this tool (in secs):
+│  ${timeout}
+│
+◇  Would you like to add a description?
+│  No
+│
+// highlight-start
+◆  Would you like to add environment variables?
+│  No
+// highlight-end
+└  Added ${name} extension`}</CodeBlock>
+      )}
+
       {hasEnvVars && (
         <>
           {infoNote && <div className="alert alert--info">{infoNote}</div>}
