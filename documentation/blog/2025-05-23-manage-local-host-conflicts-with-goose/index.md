@@ -81,7 +81,7 @@ The command executed successfully, freeing up ports 3000, 3001, and 3002.
 
 ## Why Use AI for Simple Tasks
 
-Freeing up ports is something I know how to do. But I use AI tools like Goose for small tasks like this because they create friction and slow me down. I'm not trying to cram more work into the day. My goal is to work efficiently, make a positive impact, and still have time for my personal life.
+Freeing up ports is something I know how to do. But I use AI tools like Goose for small tasks that create friction and slow me down. I'm not trying to cram more work into the day. My goal is to work efficiently, make a positive impact, and still have time for my personal life.
 
 <head>
   <meta property="og:title" content="How I Manage Localhost Port Conflicts With an AI Agent" />
