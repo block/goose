@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTimelineStyles } from '../hooks/useTimelineStyles';
+import { useTimelineStyles } from '../../hooks/useTimelineStyles.ts';
 
 interface ListItem {
   text: string;
