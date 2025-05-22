@@ -20,11 +20,17 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
 
   const handleSubmit = (paramValues: Record<string, string>) => {
     if (config) {
+      // Log the collected parameter values
+      console.log('Recipe parameters collected:', paramValues);
+      
       // Update the recipe config with parameter values
       const enhancedConfig = {
         ...config,
         _paramValues: paramValues
       };
+      
+      // Log the enhanced config for debugging
+      console.log('Storing enhanced recipe config:', enhancedConfig);
       
       // Store the enhanced config in appConfig
       window.appConfig.set('recipeConfig', enhancedConfig);

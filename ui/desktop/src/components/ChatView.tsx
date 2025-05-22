@@ -288,16 +288,41 @@ function ChatContent({
       let processedPrompt = prompt;
       
       if (recipeConfig?._paramValues) {
+        // Log the parameter values to verify they're available
+        console.log('Applying parameter values:', recipeConfig._paramValues);
+        
         // Simple template substitution with {{param}} syntax
         Object.entries(recipeConfig._paramValues).forEach(([key, value]) => {
-          processedPrompt = processedPrompt.replace(new RegExp(`{{${key}}}`, 'g'), value);
+          // Use a proper regex with trimmed whitespace to ensure reliable replacements
+          const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+          processedPrompt = processedPrompt.replace(regex, value);
+          console.log(`Replaced {{${key}}} with "${value}"`);
         });
+        
+        // Log the processed prompt for debugging
+        console.log('Processed prompt:', processedPrompt);
       }
       
-      append(processedPrompt);
+      // Start the power save blocker to keep session active
+      window.electron.startPowerSaveBlocker();
+      setLastInteractionTime(Date.now());
+
+      // Ensure we disable the ref before trying to append
       hasSentPromptRef.current = true;
+      
+      // Use setTimeout to ensure the UI is ready before sending the message
+      setTimeout(() => {
+        // Use createUserMessage to ensure it's handled just like a manual submission
+        const message = createUserMessage(processedPrompt);
+        
+        // Log this event for debugging
+        console.log('Sending recipe prompt as user message');
+        
+        // Use append to send the message, which should trigger the AI response
+        append(message);
+      }, 100);
     }
-  }, [recipeConfig?.prompt, append]);
+  }, [recipeConfig, append, setLastInteractionTime]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
