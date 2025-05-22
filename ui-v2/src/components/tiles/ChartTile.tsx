@@ -1,7 +1,12 @@
 import React from 'react';
 import { useTimelineStyles } from '../../hooks/useTimelineStyles.ts';
-import { ChartConfig, ChartContainer } from "@/components/ui/chart.tsx";
-import { BarChart, Bar, LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, ResponsiveContainer } from 'recharts';
 
 interface ChartTileProps {
   title: string;
@@ -27,17 +32,14 @@ export default function ChartTile({
   // Convert the data array to the format expected by recharts
   const chartData = data.map((value, index) => ({
     value,
-    index: `Point ${index + 1}`
+    point: `P${index + 1}`
   }));
 
   // Chart configuration
   const chartConfig = {
     value: {
       label: title,
-      theme: {
-        light: variant === 'line' ? '#0B54DE' : '#4CAF50',
-        dark: variant === 'line' ? '#00CAF7' : '#4CAF50'
-      }
+      color: variant === 'line' ? 'var(--chart-1)' : 'var(--chart-2)'
     }
   } satisfies ChartConfig;
 
@@ -45,7 +47,7 @@ export default function ChartTile({
     <div 
       className={`
         flex flex-col justify-between
-        w-[320px] h-[380px] 
+        w-[320px] min-h-[380px] 
         ${contentCardStyle}
         rounded-[18px]
         relative
@@ -70,29 +72,52 @@ export default function ChartTile({
       </div>
 
       {/* Chart Container */}
-      <div className="w-full h-[160px] px-4">
+      <div className="w-full h-[200px] px-4 pb-6">
         <ChartContainer config={chartConfig}>
-          {variant === 'line' ? (
-            <LineChart data={chartData}>
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="var(--color-value)"
-                strokeWidth={2}
-                dot={{ fill: 'var(--color-value)', r: 4 }}
-              />
-              <Tooltip />
-            </LineChart>
-          ) : (
-            <BarChart data={chartData}>
-              <Bar
-                dataKey="value"
-                fill="var(--color-value)"
-                radius={[4, 4, 0, 0]}
-              />
-              <Tooltip />
-            </BarChart>
-          )}
+          <ResponsiveContainer width="100%" height="100%">
+            {variant === 'line' ? (
+              <LineChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="point"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  height={40}
+                />
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="var(--color-value)"
+                  strokeWidth={2}
+                  dot={{ fill: 'var(--color-value)', r: 4 }}
+                />
+              </LineChart>
+            ) : (
+              <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="point"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  height={40}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent />}
+                />
+                <Bar
+                  dataKey="value"
+                  fill="var(--color-value)"
+                  radius={4}
+                />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
         </ChartContainer>
       </div>
     </div>
