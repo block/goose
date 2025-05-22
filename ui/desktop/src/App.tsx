@@ -177,6 +177,35 @@ export default function App() {
             recipeConfig.parameters.length > 0 && 
             !('_paramValues' in recipeConfig)) {
           console.log('Recipe has parameters, showing parameter collection view');
+          
+          // Still need to initialize the system even though we're showing parameters first
+          const config = window.electron.getConfig();
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            try {
+              await initializeSystem(provider, model, {
+                getExtensions,
+                addExtension,
+              });
+              console.log('System initialized for recipe with parameters');
+            } catch (error) {
+              console.error('Error in initialization for recipe with parameters:', error);
+              
+              if (error instanceof MalformedConfigError) {
+                throw error;
+              }
+              
+              setView('welcome');
+              return;
+            }
+          } else {
+            console.log('Missing required configuration, showing onboarding');
+            setView('welcome');
+            return;
+          }
+          
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
         }
