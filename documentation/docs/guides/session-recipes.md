@@ -95,7 +95,7 @@ You'll need to provide both instructions and activities for your Recipe.
       
    ```yaml title="code-review.yaml"
    version: 1.0.0
-   title: '{{ project_name }} Code Review' # Wrap the value in quotes if it starts with {{ to avoid YAML parsing errors
+   title: "{{ project_name }} Code Review" # Wrap the value in quotes if it starts with template syntax to avoid YAML parsing errors
    description: Automated code review for {{ project_name }} with {{ language }} focus
    instructions: |
       You are a code reviewer specialized in {{ language }} development.
@@ -103,36 +103,36 @@ You'll need to provide both instructions and activities for your Recipe.
       - Complexity threshold: {{ complexity_threshold }}
       - Required test coverage: {{ test_coverage }}%
       - Style guide: {{ style_guide }}
-      activities:
-      - "Review {{ language }} code for complexity"
-      - "Check test coverage against {{ test_coverage }}% requirement"
-      - "Verify {{ style_guide }} compliance"
-      parameters:
-      - key: project_name
-        input_type: string
-        requirement: required # could be required, optional or user_prompt
-        description: name of the project
-      - key: language
-        input_type: string
-        requirement: required
-        description: language of the code
-      - key: complexity_threshold
-        input_type: number
-        requirement: optional
-        default: 20 # default is required for optional parameters
-        description: a threshold that defines the maximum allowed complexity
-      - key: test_coverage
-        input_type: number
-        requirement: optional
-        default: 80
-        description: the minimum test coverage threshold in percentage
-      - key: style_guide
-        input_type: string
-        description: style guide name
-        requirement: user_prompt
-         # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
-      ```
-  
+   activities:
+   - "Review {{ language }} code for complexity"
+   - "Check test coverage against {{ test_coverage }}% requirement"
+   - "Verify {{ style_guide }} compliance"
+   parameters:
+   - key: project_name
+     input_type: string
+     requirement: required # could be required, optional or user_prompt
+     description: name of the project
+   - key: language
+     input_type: string
+     requirement: required
+     description: language of the code
+   - key: complexity_threshold
+     input_type: number
+     requirement: optional
+     default: 20 # default is required for optional parameters
+     description: a threshold that defines the maximum allowed complexity
+   - key: test_coverage
+     input_type: number
+     requirement: optional
+     default: 80
+     description: the minimum test coverage threshold in percentage
+   - key: style_guide
+     input_type: string
+     description: style guide name
+     requirement: user_prompt
+     # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
+   ```
+
    </details>
 
    When someone runs a recipe that contains template parameters, they will need to provide the parameters:
