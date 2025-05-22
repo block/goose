@@ -8,7 +8,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{scheduler::ScheduledJob, state::AppState};
+use crate::state::AppState;
+use goose::scheduler::ScheduledJob;
 
 #[derive(Deserialize)]
 struct CreateScheduleRequest {
