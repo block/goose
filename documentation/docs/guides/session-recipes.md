@@ -146,9 +146,6 @@ You'll need to provide both instructions and activities for your Recipe.
   --params style_guide=PEP8
   ```
 
-  ##### Built-in Parameter
-The built-in `recipe_dir` is a default parameter that automatically provides the recipe's directory path, allowing you to reference files in the same directory without any configuration.
-
    #### Validate the recipe
    
    [Exit the session](/docs/guides/managing-goose-sessions/#exit-session) and run:
