@@ -2,6 +2,7 @@ mod agent;
 mod context;
 pub mod extension;
 pub mod extension_manager;
+mod large_response_handler;
 pub mod platform_tools;
 pub mod prompt_manager;
 mod reply_parts;
