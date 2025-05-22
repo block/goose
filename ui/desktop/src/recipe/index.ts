@@ -2,6 +2,14 @@ import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
+export interface RecipeParameter {
+  key: string;
+  input_type: 'string' | 'number' | 'boolean' | 'date' | 'file';
+  requirement: 'required' | 'optional' | 'user_prompt';
+  description: string;
+  default?: string;
+}
+
 export interface Recipe {
   title: string;
   description: string;
@@ -14,6 +22,8 @@ export interface Recipe {
   extensions?: FullExtensionConfig[];
   goosehints?: string;
   context?: string[];
+  parameters?: RecipeParameter[];
+  _paramValues?: Record<string, string>; // Filled at runtime
 }
 
 export interface CreateRecipeRequest {

@@ -60,6 +60,13 @@ struct ProviderList {
 struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
+    recipe_config: Option<RecipeWithParams>,
+}
+
+#[derive(Deserialize)]
+struct RecipeWithParams {
+    config: goose::recipe::Recipe,
+    parameters: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -187,19 +194,29 @@ async fn update_agent_provider(
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, StatusCode> {
     // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state
         .get_agent()
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Process recipe parameters if provided
+    if let Some(recipe_with_params) = payload.recipe_config {
+        let mut recipe = recipe_with_params.config;
+        
+        // Only process if we have parameters
+        if !recipe_with_params.parameters.is_empty() {
+            // Apply parameter substitution to recipe
+            apply_parameters(&mut recipe, &recipe_with_params.parameters)
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
+        }
+        
+        // Apply recipe to agent (set instructions, etc.)
+        if let Some(instructions) = recipe.instructions.clone() {
+            agent.extend_system_prompt(instructions).await;
+        }
+    }
 
     let config = Config::global();
     let model = payload.model.unwrap_or_else(|| {
@@ -215,6 +232,45 @@ async fn update_agent_provider(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
+}
+
+// Helper function to apply parameters to a recipe
+fn apply_parameters(recipe: &mut goose::recipe::Recipe, params: &HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
+    // Helper function to apply template substitution
+    fn replace_template_vars(text: &str, params: &HashMap<String, String>) -> String {
+        let mut result = text.to_string();
+        for (key, value) in params {
+            let pattern = format!("{{{{{}}}}}", key);
+            result = result.replace(&pattern, value);
+        }
+        result
+    }
+    
+    // Apply to instructions if present
+    if let Some(ref mut instructions) = recipe.instructions {
+        *instructions = replace_template_vars(instructions, params);
+    }
+    
+    // Apply to prompt if present
+    if let Some(ref mut prompt) = recipe.prompt {
+        *prompt = replace_template_vars(prompt, params);
+    }
+    
+    // Apply to activities if present
+    if let Some(ref mut activities) = recipe.activities {
+        for activity in activities.iter_mut() {
+            *activity = replace_template_vars(activity, params);
+        }
+    }
+    
+    // Apply to context if present
+    if let Some(ref mut context) = recipe.context {
+        for ctx in context.iter_mut() {
+            *ctx = replace_template_vars(ctx, params);
+        }
+    }
+    
+    Ok(())
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

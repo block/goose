@@ -132,6 +132,20 @@ const appConfigAPI: AppConfigAPI = {
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);
 
+// Add recipe parameter related APIs
+contextBridge.exposeInMainWorld('api', {
+  receive: (channel: string, func: (...args: any[]) => void) => {
+    if (channel === 'load-recipe-parameters') {
+      ipcRenderer.on(channel, (_, ...args) => func(...args));
+    }
+  },
+  send: (channel: string, data: any) => {
+    if (channel === 'recipe-parameters-submitted' || channel === 'recipe-parameters-cancelled') {
+      ipcRenderer.send(channel, data);
+    }
+  }
+});
+
 // Type declaration for TypeScript
 declare global {
   interface Window {

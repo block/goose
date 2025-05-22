@@ -1,0 +1,56 @@
+version: 1.0.0
+title: Sample Recipe with Parameters
+description: A test recipe showcasing parameter functionality
+
+instructions: |-
+  You are a helpful assistant specialized in {{domain}} topics. 
+  Your tone should be {{tone}} and you should address the user as {{user_name}}.
+  {{#if include_examples}}
+  Here are some examples of your responses:
+  - Example 1: {{example_1}}
+  - Example 2: {{example_2}}
+  {{/if}}
+
+prompt: Hello! I'm your {{domain}} assistant. What can I help you with today, {{user_name}}?
+
+activities:
+  - "Ask about {{domain}} basics"
+  - "Request a {{tone}} explanation"
+  - "Get help with {{domain}} problems"
+
+parameters:
+  - key: domain
+    input_type: string
+    requirement: required
+    description: "Specialization domain"
+    default: "general knowledge"
+  
+  - key: tone
+    input_type: string
+    requirement: required
+    description: "Communication style"
+    default: "friendly"
+  
+  - key: user_name
+    input_type: string
+    requirement: optional
+    description: "User's name for personalization"
+    default: "friend"
+  
+  - key: include_examples
+    input_type: boolean
+    requirement: optional
+    description: "Whether to include examples in instructions"
+    default: "false"
+  
+  - key: example_1
+    input_type: string
+    requirement: optional
+    description: "First example response"
+    default: "This is a sample response in {{domain}}."
+  
+  - key: example_2
+    input_type: string
+    requirement: optional
+    description: "Second example response"
+    default: "Here's another way to explain {{domain}} concepts." 

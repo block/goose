@@ -135,11 +135,18 @@ export const initializeSystem = async (
 ) => {
   try {
     console.log('initializing agent with provider', provider, 'model', model);
-    await initializeAgent({ provider, model });
-
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = recipeConfig?.instructions;
+    const paramValues = recipeConfig?._paramValues || {};
+    
+    // Initialize agent with recipe config and parameters
+    await initializeAgent({
+      provider, 
+      model,
+      recipeConfig,
+      recipeParams: paramValues
+    });
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {

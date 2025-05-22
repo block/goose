@@ -152,6 +152,12 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     if (configParam) {
       try {
         recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        
+        // Check if recipe has parameters that need values
+        if (recipeConfig.parameters && recipeConfig.parameters.length > 0) {
+          showParametersCollectionWindow(recipeConfig);
+          return;
+        }
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -160,6 +166,28 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
+}
+
+// Function to show parameter collection window
+function showParametersCollectionWindow(recipeConfig) {
+  const paramWindow = new BrowserWindow({
+    width: 500,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  });
+  
+  // Load the parameters HTML page
+  const parametersHtmlPath = path.join(__dirname, 'recipe-parameters.html');
+  paramWindow.loadFile(parametersHtmlPath);
+  
+  // Pass the recipeConfig to the renderer when it's ready
+  paramWindow.webContents.once('did-finish-load', () => {
+    paramWindow.webContents.send('load-recipe-parameters', recipeConfig);
+  });
 }
 
 app.on('open-url', async (event, url) => {
@@ -175,6 +203,12 @@ app.on('open-url', async (event, url) => {
       if (configParam) {
         try {
           recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          
+          // Check if recipe has parameters that need values
+          if (recipeConfig.parameters && recipeConfig.parameters.length > 0) {
+            showParametersCollectionWindow(recipeConfig);
+            return; // Skip the rest of the handler
+          }
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
@@ -1226,6 +1260,34 @@ app.whenReady().then(async () => {
       }
     } catch (error) {
       console.error('Error opening URL in Chrome:', error);
+    }
+  });
+
+  // Add IPC handlers for recipe parameter collection
+  ipcMain.on('recipe-parameters-submitted', (event, { paramValues, recipeConfig }) => {
+    // Store parameters with the recipe config
+    const enhancedConfig = {
+      ...recipeConfig,
+      _paramValues: paramValues
+    };
+    
+    // Close the parameter window
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      win.close();
+    }
+    
+    // Create a new window with the enhanced config
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    createChat(app, undefined, openDir, undefined, undefined, enhancedConfig);
+  });
+
+  ipcMain.on('recipe-parameters-cancelled', (event) => {
+    // Just close the parameter window without creating a chat
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      win.close();
     }
   });
 });
