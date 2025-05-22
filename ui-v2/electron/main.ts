@@ -26,8 +26,12 @@ async function createWindow() {
 
   // Create the browser window with headless options when needed
   const mainWindow = new BrowserWindow({
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    frame: false,
     width: 1200,
     height: 800,
+    minWidth: 800,
     ...(isHeadless
       ? {
           show: false,
@@ -68,7 +72,7 @@ async function createWindow() {
                 style-src 'self' 'unsafe-inline';
                 connect-src 'self' ws://localhost:3001 http://localhost:3001;
                 img-src 'self' data: https:;
-                font-src 'self' data:;
+                font-src 'self' data: https://cash-f.squarecdn.com;
               `
                   .replace(/\s+/g, ' ')
                   .trim()
@@ -77,7 +81,7 @@ async function createWindow() {
                 script-src 'self';
                 style-src 'self' 'unsafe-inline';
                 img-src 'self' data: https:;
-                font-src 'self' data:;
+                font-src 'self' data: https://cash-f.squarecdn.com;
               `
                   .replace(/\s+/g, ' ')
                   .trim(),
