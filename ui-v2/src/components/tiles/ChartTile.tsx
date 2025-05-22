@@ -43,6 +43,9 @@ export default function ChartTile({
     }
   } satisfies ChartConfig;
 
+  // Custom tooltip styles for better spacing
+  const tooltipContentStyles = "border-border/50 bg-background-default text-text-default min-w-[180px] [&_.flex.flex-1]:gap-4 [&_.flex.flex-1>span]:whitespace-nowrap";
+
   return (
     <div 
       className={`
@@ -93,7 +96,7 @@ export default function ChartTile({
                 <ChartTooltip
                   content={
                     <ChartTooltipContent 
-                      className="border-border/50 bg-background-default text-text-default"
+                      className={tooltipContentStyles}
                     />
                   }
                 />
@@ -122,7 +125,7 @@ export default function ChartTile({
                   content={
                     <ChartTooltipContent 
                       indicator="dashed"
-                      className="border-border/50 bg-background-default text-text-default"
+                      className={tooltipContentStyles}
                     />
                   }
                 />
