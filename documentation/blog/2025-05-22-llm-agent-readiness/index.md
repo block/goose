@@ -97,7 +97,7 @@ If the model passes this multi-turn prompt sequence, it's safe to assume the mod
 <head>
   <meta property="og:title" content="3 Prompts to Test for Agent Readiness" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/06/goose-gets-a-drivers-license" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/22/llm-agent-readiness" />
   <meta property="og:description" content="A series of prompts to test an LLM's capabilities to be used with AI agents" />
   <meta property="og:image" content="http://localhost:3000/goose/assets/images/llm-agent-test-86ce2379ce4dde48ae1448f0f9d75c1f.png" />
   <meta name="twitter:card" content="summary_large_image" />
