@@ -122,6 +122,21 @@ impl Session {
         }
     }
 
+    /// Helper function to summarize context messages
+    async fn summarize_context_messages(
+        messages: &mut Vec<Message>,
+        agent: &Agent,
+        message_suffix: &str,
+    ) -> Result<()> {
+        // Summarize messages to fit within context length
+        let (summarized_messages, _) = agent.summarize_context(messages).await?;
+        let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
+        output::render_text(&msg, Some(Color::Yellow), true);
+        *messages = summarized_messages;
+
+        Ok(())
+    }
+
     /// Add a stdio extension to the session
     ///
     /// # Arguments
@@ -728,11 +743,8 @@ impl Session {
                                             self.messages = truncated_messages;
                                         }
                                         "summarize" => {
-                                            // Summarize messages to fit within context length
-                                            let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
-                                            let msg = format!("Context maxed out\n{}\nGoose summarized messages for you.", "-".repeat(50));
-                                            output::render_text(&msg, Some(Color::Yellow), true);
-                                            self.messages = summarized_messages;
+                                            // Use the helper function to summarize context
+                                            Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose summarized messages for you.").await?;
                                         }
                                         _ => {
                                             unreachable!()
@@ -740,10 +752,7 @@ impl Session {
                                     }
                                 } else {
                                     // In headless mode (goose run), automatically use summarize
-                                    let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
-                                    let msg = format!("Context maxed out\n{}\nGoose automatically summarized messages to continue processing.", "-".repeat(50));
-                                    output::render_text(&msg, Some(Color::Yellow), true);
-                                    self.messages = summarized_messages;
+                                    Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose automatically summarized messages to continue processing.").await?;
                                 }
 
                                 // Restart the stream after handling ContextLengthExceeded
