@@ -197,7 +197,7 @@ impl Agent {
 
         // Process the response to handle large text content
         let processed_result = super::large_response_handler::process_tool_response(result);
-        
+
         (request_id, processed_result)
     }
 
