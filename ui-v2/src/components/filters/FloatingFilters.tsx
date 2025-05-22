@@ -23,17 +23,8 @@ const getBarColor = (filters: FilterOption[], isDarkMode: boolean): string => {
 
 export function FloatingFilters({ children }: FloatingFiltersProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(isHovering);
-    }, isHovering ? 0 : 300); // Increased delay for smoother mouseout
-
-    return () => clearTimeout(timer);
-  }, [isHovering]);
 
   useEffect(() => {
     const filterPills = React.Children.toArray(children)[0] as React.ReactElement;
@@ -66,17 +57,21 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
 
   return (
     <div 
-      className="fixed left-0 right-0 z-50 top-[56px]"
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      className="fixed left-0 right-0 z-40"
+      style={{ top: 0 }}
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
     >
-      {/* Hover trigger area with colored bar indicator */}
-      <div className="absolute top-0 left-0 right-0 h-16 bg-transparent flex justify-center">
+      {/* Spacer for the titlebar area */}
+      <div className="h-[56px]" />
+
+      {/* Indicator bar */}
+      <div className="absolute left-0 right-0 h-16 bg-transparent flex justify-center">
         <div 
           className={`
             w-[200px] h-[6px]
             rounded-b-[24px]
-            transition-all duration-500 ease-in-out
+            transition-all duration-300
             absolute top-0
             ${isVisible ? 'opacity-0 transform -translate-y-1' : 'opacity-100 transform translate-y-0'}
           `}
@@ -84,19 +79,17 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
         />
       </div>
 
-      {/* Filters container with transition */}
+      {/* Filters container */}
       <div 
         className={`
-          transform transition-all duration-500 ease-in-out w-full bg-transparent
+          transform transition-all duration-300 ease-out w-full
           ${isVisible 
             ? 'translate-y-0 opacity-100 scale-y-100 origin-top' 
             : 'translate-y-[calc(-100%+6px)] opacity-0 scale-y-95 origin-top'
           }
         `}
       >
-        <div className="filter-container px-4">
-          {children}
-        </div>
+        {children}
       </div>
     </div>
   );
