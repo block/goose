@@ -306,6 +306,25 @@ html[data-theme="light"] .hide-in-light {
   align-items: center;
 }
 
+/* Dropdown styles */
+.navbar__link--active {
+  color: var(--text-prominent);
+}
+
+.dropdown__menu {
+  background-color: var(--background-app);
+  border-color: var(--border-subtle);
+}
+
+.dropdown__link {
+  color: var(--text-standard);
+}
+
+.dropdown__link:hover {
+  background-color: var(--background-subtle);
+  color: var(--text-prominent);
+}
+
 .iconExternalLink_nPIU {
   margin-left: 8px !important;
 }

@@ -4,6 +4,8 @@ import type { MCPServer } from "@site/src/types/server";
 import { fetchMCPServers, searchMCPServers } from "@site/src/utils/mcp-servers";
 import { motion } from "framer-motion";
 import Layout from "@theme/Layout";
+import Link from "@docusaurus/Link";
+import { Wand2 } from "lucide-react";
 
 export default function HomePage() {
   const [servers, setServers] = useState<MCPServer[]>([]);
@@ -52,13 +54,21 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="search-container">
-          <input
-            className="bg-bgApp font-light text-textProminent placeholder-textPlaceholder w-full px-3 py-3 text-[40px] leading-[52px] border-b border-borderSubtle focus:outline-none focus:ring-purple-500 focus:border-borderProminent caret-[#FF4F00] pl-0"
-            placeholder="Search for extensions"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex justify-between items-center mb-8">
+          <div className="search-container flex-1">
+            <input
+              className="bg-bgApp font-light text-textProminent placeholder-textPlaceholder w-full px-3 py-3 text-[40px] leading-[52px] border-b border-borderSubtle focus:outline-none focus:ring-purple-500 focus:border-borderProminent caret-[#FF4F00] pl-0"
+              placeholder="Search for extensions"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Link to="/recipe-generator" className="no-underline ml-4">
+            <div className="flex items-center gap-2 bg-bgAppInverse text-textProminentInverse px-4 py-3 rounded-lg hover:bg-opacity-90 transition-all">
+              <Wand2 className="h-5 w-5" />
+              <span>Recipe Generator</span>
+            </div>
+          </Link>
         </div>
 
         {error && (
