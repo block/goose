@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use goose_server::configuration;
-use goose_server::{state, scheduler, logging, routes};
 use anyhow::Result;
 use goose::agents::Agent;
+use goose_server::configuration;
+use goose_server::{logging, routes, scheduler, state};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 

@@ -1,5 +1,5 @@
-use goose::agents::Agent;
 use crate::scheduler::Scheduler;
+use goose::agents::Agent;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
