@@ -171,14 +171,6 @@ instructions: ${instructions}
   return (
     <Layout>
       <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="mb-6">
-          <Link to="/extensions" className="no-underline">
-            <Button className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Extensions
-            </Button>
-          </Link>
-        </div>
 
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-4 text-textProminent">Recipe Generator</h1>
@@ -349,7 +341,7 @@ instructions: ${instructions}
                     <span>{activity}</span>
                     <button
                       onClick={() => handleRemoveActivity(index)}
-                      className="ml-2 text-textSubtle hover:text-red-500 transition-colors"
+                      className="ml-2 text-textSubtle hover:text-red-500 transition-colors bg-transparent border-none"
                       aria-label="Remove activity"
                     >
                       <X className="h-4 w-4" />
