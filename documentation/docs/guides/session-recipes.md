@@ -233,13 +233,8 @@ The built-in `recipe_dir` is a default parameter that automatically provides the
    ```
    When you use the recipe name, Goose will search for the file in the following order:
    1. Local search:
-      Goose will search for `my_recipe.yaml` or `my_recipe.json` in the following directories
-      - in the current working directory
-      - in paths specified by the `GOOSE_RECIPE_PATH` environment variable (colon-separated). Example:
-
-         ```sh
-         export GOOSE_RECIPE_PATH=~/workspace/recipes:~/Documents/recipes_directory
-         ```
+      Goose will search for `my_recipe.yaml` or `my_recipe.json` in the current working directory
+      
    2. Remote search (GitHub):
       - If the `GOOSE_RECIPE_GITHUB_REPO` environment variable is set or configured in the `Goose Settings` via `goose configure`, Goose will search the specified GitHub repo. (eg: my_org/goose-recipes).
       - Goose will look for `my_recipe/recipe.yaml` or `my_recipe/recipe.json` within that GitHub repository.
