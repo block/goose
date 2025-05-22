@@ -31,11 +31,7 @@ import {
 } from './utils/settings';
 import * as crypto from 'crypto';
 import * as electron from 'electron';
-import { exec as execCallback } from 'child_process';
-import { promisify } from 'util';
 import * as yaml from 'yaml';
-
-const exec = promisify(execCallback);
 
 if (started) app.quit();
 
@@ -645,30 +641,56 @@ ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {
       // Run `ps` and filter for "ollama"
-      exec('ps aux | grep -iw "[o]llama"', (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error executing ps command:', error);
-          return resolve(false); // Process is not running
+      const ps = spawn('ps', ['aux']);
+      const grep = spawn('grep', ['-iw', '[o]llama']);
+
+      let output = '';
+      let errorOutput = '';
+
+      // Pipe ps output to grep
+      ps.stdout.pipe(grep.stdin);
+
+      grep.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      grep.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      grep.on('close', (code) => {
+        if (code !== null && code !== 0 && code !== 1) {
+          // grep returns 1 when no matches found
+          console.error('Error executing grep command:', errorOutput);
+          return resolve(false);
         }
 
-        if (stderr) {
-          console.error('Standard error output from ps command:', stderr);
-          return resolve(false); // Process is not running
-        }
-
-        console.log('Raw stdout from ps command:', stdout);
-
-        // Trim and check if output contains a match
-        const trimmedOutput = stdout.trim();
+        console.log('Raw stdout from ps|grep command:', output);
+        const trimmedOutput = output.trim();
         console.log('Trimmed stdout:', trimmedOutput);
 
-        const isRunning = trimmedOutput.length > 0; // True if there's any output
-        resolve(isRunning); // Resolve true if running, false otherwise
+        const isRunning = trimmedOutput.length > 0;
+        resolve(isRunning);
+      });
+
+      ps.on('error', (error) => {
+        console.error('Error executing ps command:', error);
+        resolve(false);
+      });
+
+      grep.on('error', (error) => {
+        console.error('Error executing grep command:', error);
+        resolve(false);
+      });
+
+      // Close ps stdin when done
+      ps.stdout.on('end', () => {
+        grep.stdin.end();
       });
     });
   } catch (err) {
     console.error('Error checking for Ollama:', err);
-    return false; // Return false on error
+    return false;
   }
 });
 
@@ -679,36 +701,46 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
-    exec(`cat ${filePath}`, (error, stdout, stderr) => {
-      if (error) {
-        // File not found
-        resolve({ file: '', filePath, error: null, found: false });
+    const cat = spawn('cat', [filePath]);
+    let output = '';
+    let errorOutput = '';
+
+    cat.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    cat.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    cat.on('close', (code) => {
+      if (code !== 0) {
+        // File not found or error
+        resolve({ file: '', filePath, error: errorOutput || null, found: false });
+        return;
       }
-      if (stderr) {
-        console.error('Error output:', stderr);
-        resolve({ file: '', filePath, error, found: false });
-      }
-      resolve({ file: stdout, filePath, error: null, found: true });
+      resolve({ file: output, filePath, error: null, found: true });
+    });
+
+    cat.on('error', (error) => {
+      console.error('Error reading file:', error);
+      resolve({ file: '', filePath, error, found: false });
     });
   });
 });
 
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
-    const command = `cat << 'EOT' > ${filePath}
-${content}
-EOT`;
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error('Error writing to file:', error);
-        resolve(false);
-      }
-      if (stderr) {
-        console.error('Error output:', stderr);
-        resolve(false);
-      }
+    // Create a write stream to the file
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    try {
+      fs.writeFileSync(filePath, content, { encoding: 'utf8' });
       resolve(true);
-    });
+    } catch (error) {
+      console.error('Error writing to file:', error);
+      resolve(false);
+    }
   });
 });
 
@@ -1037,12 +1069,62 @@ app.whenReady().then(async () => {
   );
 
   ipcMain.on('notify', (_event, data) => {
-    console.log('NOTIFY', data);
-    new Notification({ title: data.title, body: data.body }).show();
+    try {
+      // Validate notification data
+      if (!data || typeof data !== 'object') {
+        console.error('Invalid notification data');
+        return;
+      }
+
+      // Validate title and body
+      if (typeof data.title !== 'string' || typeof data.body !== 'string') {
+        console.error('Invalid notification title or body');
+        return;
+      }
+
+      // Limit the length of title and body
+      const MAX_LENGTH = 1000;
+      if (data.title.length > MAX_LENGTH || data.body.length > MAX_LENGTH) {
+        console.error('Notification title or body too long');
+        return;
+      }
+
+      // Remove any HTML tags for security
+      const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
+
+      console.log('NOTIFY', data);
+      new Notification({
+        title: sanitizeText(data.title),
+        body: sanitizeText(data.body),
+      }).show();
+    } catch (error) {
+      console.error('Error showing notification:', error);
+    }
   });
 
   ipcMain.on('logInfo', (_event, info) => {
-    log.info('from renderer:', info);
+    try {
+      // Validate log info
+      if (info === undefined || info === null) {
+        console.error('Invalid log info: undefined or null');
+        return;
+      }
+
+      // Convert to string if not already
+      const logMessage = String(info);
+
+      // Limit log message length
+      const MAX_LENGTH = 10000; // 10KB limit
+      if (logMessage.length > MAX_LENGTH) {
+        console.error('Log message too long');
+        return;
+      }
+
+      // Log the sanitized message
+      log.info('from renderer:', logMessage);
+    } catch (error) {
+      console.error('Error logging info:', error);
+    }
   });
 
   ipcMain.on('reload-app', (event) => {
@@ -1084,6 +1166,14 @@ app.whenReady().then(async () => {
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
+      // Validate URL
+      const parsedUrl = new URL(url);
+
+      // Only allow http and https protocols
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new Error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
+      }
+
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; Goose/1.0)',
@@ -1094,7 +1184,19 @@ app.whenReady().then(async () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.text();
+      // Set a reasonable size limit (e.g., 10MB)
+      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      const contentLength = parseInt(response.headers.get('content-length') || '0');
+      if (contentLength > MAX_SIZE) {
+        throw new Error('Response too large');
+      }
+
+      const text = await response.text();
+      if (text.length > MAX_SIZE) {
+        throw new Error('Response too large');
+      }
+
+      return text;
     } catch (error) {
       console.error('Error fetching metadata:', error);
       throw error;
@@ -1102,15 +1204,28 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on('open-in-chrome', (_event, url) => {
-    // On macOS, use the 'open' command with Chrome
-    if (process.platform === 'darwin') {
-      spawn('open', ['-a', 'Google Chrome', url]);
-    } else if (process.platform === 'win32') {
-      // On Windows, start is built-in command of cmd.exe
-      spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);
-    } else {
-      // On Linux, use xdg-open with chrome
-      spawn('xdg-open', [url]);
+    try {
+      // Validate URL
+      const parsedUrl = new URL(url);
+
+      // Only allow http and https protocols
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
+        return;
+      }
+
+      // On macOS, use the 'open' command with Chrome
+      if (process.platform === 'darwin') {
+        spawn('open', ['-a', 'Google Chrome', url]);
+      } else if (process.platform === 'win32') {
+        // On Windows, start is built-in command of cmd.exe
+        spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);
+      } else {
+        // On Linux, use xdg-open with chrome
+        spawn('xdg-open', [url]);
+      }
+    } catch (error) {
+      console.error('Error opening URL in Chrome:', error);
     }
   });
 });
