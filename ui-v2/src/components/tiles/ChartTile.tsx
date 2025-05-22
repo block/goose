@@ -39,12 +39,9 @@ export default function ChartTile({
   const chartConfig = {
     value: {
       label: title,
-      color: 'var(--chart-1)'
+      color: variant === 'line' ? 'var(--chart-2)' : 'var(--chart-1)'
     }
   } satisfies ChartConfig;
-
-  // Custom tooltip styles for better spacing
-  const tooltipContentStyles = "border-border/50 bg-background-default text-text-default min-w-[180px] [&_.flex.flex-1]:gap-4 [&_.flex.flex-1>span]:whitespace-nowrap";
 
   return (
     <div 
@@ -96,16 +93,16 @@ export default function ChartTile({
                 <ChartTooltip
                   content={
                     <ChartTooltipContent 
-                      className={tooltipContentStyles}
+                      className="border-border/50 bg-background-default text-text-default min-w-[180px] [&_.flex.flex-1]:gap-4 [&_.flex.flex-1>span]:whitespace-nowrap"
                     />
                   }
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="var(--chart-1)"
+                  stroke="var(--chart-2)"
                   strokeWidth={2}
-                  dot={{ fill: 'var(--chart-1)', r: 4 }}
+                  dot={{ fill: 'var(--chart-2)', r: 4 }}
                 />
               </LineChart>
             ) : (
@@ -125,7 +122,7 @@ export default function ChartTile({
                   content={
                     <ChartTooltipContent 
                       indicator="dashed"
-                      className={tooltipContentStyles}
+                      className="border-border/50 bg-background-default text-text-default min-w-[180px] [&_.flex.flex-1]:gap-4 [&_.flex.flex-1>span]:whitespace-nowrap"
                     />
                   }
                 />

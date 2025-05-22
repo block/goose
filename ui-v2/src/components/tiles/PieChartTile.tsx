@@ -26,7 +26,6 @@ const renderCustomizedLabel = ({
   percent,
   payload,
   fill,
-  index,
 }: any) => {
   const RADIAN = Math.PI / 180;
   const sin = Math.sin(-RADIAN * midAngle);
@@ -110,13 +109,14 @@ export default function PieChartTile({
   const { contentCardStyle } = useTimelineStyles(date);
   const [activeIndex, setActiveIndex] = useState<number>(0);
 
-  // Convert segments to the format expected by recharts
-  const chartData = segments.map(segment => ({
+  // Convert segments to the format expected by recharts and assign chart colors
+  const chartData = segments.map((segment, index) => ({
     name: segment.label,
-    value: segment.value
+    value: segment.value,
+    chartColor: `var(--chart-${index + 1})`  // Use chart-1, chart-2, chart-3, etc.
   }));
 
-  // Create chart configuration to match the nahiyan styling
+  // Create chart configuration using the chart color variables
   const chartConfig = {
     [segments[0].label.toLowerCase()]: {
       label: segments[0].label,
@@ -187,7 +187,7 @@ export default function PieChartTile({
                   {chartData.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={`var(--color-${segments[index].label.toLowerCase()})`}
+                      fill={entry.chartColor}
                       stroke="var(--background-default)"
                       strokeWidth={2}
                     />
