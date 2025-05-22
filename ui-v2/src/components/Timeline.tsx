@@ -269,7 +269,7 @@ export default function Timeline() {
   }, []);
 
   // Function to center the timeline in a section
-  const centerTimeline = (sectionElement: HTMLDivElement) => {
+  const centerTimeline = (sectionElement: HTMLDivElement, animate: boolean = true) => {
     if (!sectionElement) return;
 
     requestAnimationFrame(() => {
@@ -277,10 +277,14 @@ export default function Timeline() {
       const viewportWidth = sectionElement.clientWidth;
       const scrollToX = Math.max(0, (totalWidth - viewportWidth) / 2);
 
-      sectionElement.scrollTo({
-        left: scrollToX,
-        behavior: 'smooth',
-      });
+      if (animate) {
+        sectionElement.scrollTo({
+          left: scrollToX,
+          behavior: 'smooth'
+        });
+      } else {
+        sectionElement.scrollLeft = scrollToX;
+      }
     });
   };
 
@@ -289,10 +293,10 @@ export default function Timeline() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.intersectionRatio > 0.15) {  // Much lower threshold for earlier triggering
-            const section = entry.target as HTMLDivElement;
-            centerTimeline(section);
-            
+          const section = entry.target as HTMLDivElement;
+          
+          // When section comes into view
+          if (entry.isIntersecting) {
             // Update current date
             const sectionIndex = sectionRefs.current.indexOf(section);
             if (sectionIndex !== -1) {
@@ -300,11 +304,16 @@ export default function Timeline() {
               setCurrentDate(date);
             }
           }
+          
+          // When section is fully visible and centered
+          if (entry.intersectionRatio > 0.8) {
+            centerTimeline(section, true);
+          }
         });
       },
       {
-        threshold: [0.05, 0.15, 0.3],  // More aggressive thresholds
-        rootMargin: '-30% 0px',  // Increased negative margin for even earlier detection
+        threshold: [0, 0.8, 1],  // Track when section is hidden, mostly visible, and fully visible
+        rootMargin: '-10% 0px',  // Slightly reduced margin for more natural triggering
       }
     );
 
@@ -339,13 +348,12 @@ export default function Timeline() {
     };
 
     // Add scroll event listener with throttling
-    let scrollTimeout: number;
+    let lastScrollTime = 0;
     const throttledScrollHandler = () => {
-      if (!scrollTimeout) {
-        scrollTimeout = window.setTimeout(() => {
-          handleScroll();
-          scrollTimeout = 0;
-        }, 16); // Reduced to roughly 1 frame (60fps)
+      const now = Date.now();
+      if (now - lastScrollTime >= 150) {  // Throttle to ~6-7 times per second
+        handleScroll();
+        lastScrollTime = now;
       }
     };
 
@@ -362,7 +370,7 @@ export default function Timeline() {
       });
 
       if (visibleSection) {
-        centerTimeline(visibleSection);
+        centerTimeline(visibleSection, true); // Animate on resize
       }
     };
 
@@ -373,7 +381,7 @@ export default function Timeline() {
     sectionRefs.current.forEach((section) => {
       if (section) {
         observer.observe(section);
-        centerTimeline(section);
+        centerTimeline(section, false); // No animation on initial load
       }
     });
 
@@ -415,7 +423,7 @@ export default function Timeline() {
         <div
           key={index}
           ref={(el) => (sectionRefs.current[index] = el)}
-          className="h-screen relative snap-center snap-always overflow-y-hidden overflow-x-scroll snap-x snap-mandatory scrollbar-hide"
+          className="h-screen relative snap-center snap-always overflow-y-hidden overflow-x-scroll snap-x snap-mandatory scrollbar-hide animate-[fadein_300ms_ease-in-out]"
         >
           <div className="relative min-w-[calc(200vw+100px)] h-full flex items-center">
             {/* Main flex container */}

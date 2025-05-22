@@ -32,10 +32,12 @@
     "prepare": "cd ../.. && husky install"
   },
   "dependencies": {
+    "@radix-ui/react-tooltip": "^1.2.7",
     "@tanstack/react-router": "^1.120.5",
     "@tanstack/router": "^0.0.1-beta.53",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.12.1",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
