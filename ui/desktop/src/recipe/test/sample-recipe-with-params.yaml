@@ -28,29 +28,29 @@ parameters:
   - key: tone
     input_type: string
     requirement: required
-    description: "Communication style"
+    description: "Communication tone"
     default: "friendly"
   
   - key: user_name
     input_type: string
-    requirement: optional
-    description: "User's name for personalization"
-    default: "friend"
+    requirement: required
+    description: "User's name"
+    default: "there"
   
   - key: include_examples
     input_type: boolean
     requirement: optional
-    description: "Whether to include examples in instructions"
+    description: "Include example responses"
     default: "false"
   
   - key: example_1
     input_type: string
     requirement: optional
     description: "First example response"
-    default: "This is a sample response in {{domain}}."
+    default: "Here's a detailed explanation of the topic."
   
   - key: example_2
     input_type: string
     requirement: optional
     description: "Second example response"
-    default: "Here's another way to explain {{domain}} concepts." 
+    default: "Let me solve this problem step by step." 

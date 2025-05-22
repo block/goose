@@ -35,6 +35,7 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
 } from '../types/message';
+import { RecipeParametersModal } from './RecipeParametersModal';
 
 export interface ChatType {
   id: string;
@@ -95,6 +96,8 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [showParametersModal, setShowParametersModal] = useState(false);
+  const [recipeParameterValues, setRecipeParameterValues] = useState<Record<string, string>>({});
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const hasSentPromptRef = useRef(false);
@@ -120,6 +123,46 @@ function ChatContent({
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+
+  // Check if there are parameters that need to be collected
+  useEffect(() => {
+    if (recipeConfig?.parameters && recipeConfig.parameters.length > 0 && !recipeConfig._paramValues) {
+      // Show parameters modal if recipe has parameters and they haven't been filled yet
+      setShowParametersModal(true);
+    }
+  }, [recipeConfig]);
+
+  // Handle parameter submission
+  const handleParametersSubmit = (paramValues: Record<string, string>) => {
+    // Store parameter values
+    setRecipeParameterValues(paramValues);
+    
+    // Update the recipeConfig with the parameter values
+    if (recipeConfig) {
+      const enhancedConfig = {
+        ...recipeConfig,
+        _paramValues: paramValues
+      };
+      window.appConfig.set('recipeConfig', enhancedConfig);
+    }
+    
+    // Close the modal
+    setShowParametersModal(false);
+    
+    // If we have a prompt, automatically send it
+    if (recipeConfig?.prompt) {
+      // Apply parameter substitution to the prompt in client
+      let processedPrompt = recipeConfig.prompt;
+      
+      // Simple template substitution with {{param}} syntax
+      Object.entries(paramValues).forEach(([key, value]) => {
+        processedPrompt = processedPrompt.replace(new RegExp(`{{${key}}}`, 'g'), value);
+      });
+      
+      // Set the prompt and send it
+      append(processedPrompt);
+    }
+  };
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -267,11 +310,13 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages, setChat]);
+    // Create a new ChatType object with the updated messages
+    const updatedChat: ChatType = {
+      ...chat,
+      messages
+    };
+    setChat(updatedChat);
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -460,7 +505,9 @@ function ChatContent({
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+        if (sessionDetails.metadata.total_tokens !== null) {
+          setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        }
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -487,6 +534,16 @@ function ChatContent({
   };
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
+      {/* Parameters Modal */}
+      {showParametersModal && recipeConfig && (
+        <RecipeParametersModal 
+          isOpen={showParametersModal}
+          recipeConfig={recipeConfig}
+          onClose={() => setShowParametersModal(false)}
+          onSubmit={handleParametersSubmit}
+        />
+      )}
+      
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
       <MoreMenuLayout

@@ -14,6 +14,7 @@ export interface Recipe {
   title: string;
   description: string;
   instructions: string;
+  prompt?: string;
   activities?: string[];
   author?: {
     contact?: string;
@@ -24,6 +25,9 @@ export interface Recipe {
   context?: string[];
   parameters?: RecipeParameter[];
   _paramValues?: Record<string, string>; // Filled at runtime
+  profile?: string;
+  mcps?: number;
+  [key: string]: unknown; // Index signature for compatibility with RecipeConfig
 }
 
 export interface CreateRecipeRequest {
