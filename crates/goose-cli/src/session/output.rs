@@ -366,7 +366,6 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
         }
         _ => print_params(&call.arguments, 0, debug),
     }
-    println!();
 }
 
 fn render_default_request(call: &ToolCall, debug: bool) {
