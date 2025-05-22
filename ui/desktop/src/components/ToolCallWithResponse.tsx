@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -87,13 +87,19 @@ interface Progress {
 
 const logToString = (logMessage: NotificationEvent) => {
   const params = logMessage.message.params;
-  if (params && params.data && typeof params.data === 'object' && 'output' in params.data) {
-    if (params.data.output) {
-      return params.data.output;
-    }
-    return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
+
+  // Special case for the developer system shell logs
+  if (
+    params &&
+    params.data &&
+    typeof params.data === 'object' &&
+    'output' in params.data &&
+    'stream' in params.data
+  ) {
+    return `[${params.data.stream}] ${params.data.output}`;
   }
-  return '';
+
+  return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
 };
 
 const notificationToProgress = (notification: NotificationEvent): Progress =>
@@ -207,6 +213,24 @@ function ToolCallView({
         </div>
       )}
 
+      {logs && logs.length > 0 && (
+        <div className="bg-bgStandard mt-1">
+          <ToolLogsView
+            logs={logs}
+            working={toolResults.length === 0}
+            isStartExpanded={toolResults.length === 0}
+          />
+        </div>
+      )}
+
+      {toolResults.length === 0 &&
+        progressEntries.length > 0 &&
+        progressEntries.map((entry, index) => (
+          <div className="p-2" key={index}>
+            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+          </div>
+        ))}
+
       {/* Tool Output */}
       {!isCancelledMessage && (
         <>
@@ -226,18 +250,6 @@ function ToolCallView({
           })}
         </>
       )}
-
-      {logs && logs.length > 0 && (
-        <ToolLogsView logs={logs} isStartExpanded={toolResults.length === 0} />
-      )}
-
-      {toolResults.length === 0 &&
-        progressEntries.length > 0 &&
-        progressEntries.map((entry, index) => (
-          <div className="p-2" key={index}>
-            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
-          </div>
-        ))}
     </ToolCallExpandable>
   );
 }
@@ -298,18 +310,53 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   );
 }
 
-function ToolLogsView({ logs, isStartExpanded }: { logs: string[]; isStartExpanded?: boolean }) {
+function ToolLogsView({
+  logs,
+  working,
+  isStartExpanded,
+}: {
+  logs: string[];
+  working: boolean;
+  isStartExpanded?: boolean;
+}) {
+  const boxRef = useRef(null);
+
+  // Whenever logs update, jump to the newest entry
+  useEffect(() => {
+    if (boxRef.current) {
+      boxRef.current.scrollTop = boxRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   return (
     <ToolCallExpandable
-      label="Logs"
-      className="bg-bgStandard pl-[19px] mt-1"
+      label={
+        <span className="pl-[19px] py-1">
+          <span>Logs</span>
+          {working && (
+            <div className="mx-2 inline-block">
+              <span
+                className="inline-block animate-spin rounded-full border-2 border-t-transparent border-current"
+                style={{ width: 8, height: 8 }}
+                role="status"
+                aria-label="Loading spinner"
+              />
+            </div>
+          )}
+        </span>
+      }
       isStartExpanded={isStartExpanded}
     >
-      {logs.map((log, index) => (
-        <div key={index} className="text-sm font-mono bg-bgApp p-[2px] max-h-[10vh] overflow-auto">
-          {log}
-        </div>
-      ))}
+      <div
+        ref={boxRef}
+        className={`flex flex-col items-start space-y-2 overflow-y-auto max-h-[${working ? 4 : 20}rem] bg-bgApp`}
+      >
+        {logs.map((log, i) => (
+          <span key={i} className="font-mono text-sm text-textSubtle">
+            {log}
+          </span>
+        ))}
+      </div>
     </ToolCallExpandable>
   );
 }
