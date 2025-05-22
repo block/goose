@@ -20,7 +20,9 @@ import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
+import { RecipeParametersView } from './components/RecipeParametersView';
 import { useChat } from './hooks/useChat';
+import { Recipe } from './recipe';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
@@ -42,7 +44,8 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
-  | 'permission';
+  | 'permission'
+  | 'recipeParameters';
 
 export type ViewOptions =
   | SettingsViewOptions
@@ -163,6 +166,18 @@ export default function App() {
         // note: if in a non recipe session, recipeConfig is undefined, otherwise null if error
         if (recipeConfig === null) {
           setFatalError('Cannot read recipe config. Please check the deeplink and try again.');
+          return;
+        }
+
+        // Check if we have a recipe with parameters that need to be filled
+        if (recipeConfig && 
+            typeof recipeConfig === 'object' && 
+            'parameters' in recipeConfig && 
+            Array.isArray(recipeConfig.parameters) &&
+            recipeConfig.parameters.length > 0 && 
+            !('_paramValues' in recipeConfig)) {
+          console.log('Recipe has parameters, showing parameter collection view');
+          setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
         }
 
@@ -607,6 +622,12 @@ export default function App() {
           {view === 'permission' && (
             <PermissionSettingsView
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}
+            />
+          )}
+          {view === 'recipeParameters' && (
+            <RecipeParametersView
+              onClose={() => setView('chat')}
+              config={viewOptions?.config || window.electron.getConfig().recipeConfig}
             />
           )}
         </div>

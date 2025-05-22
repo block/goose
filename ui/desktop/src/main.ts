@@ -322,7 +322,7 @@ const createChat = async (
   let working_dir = '';
   let goosedProcess = null;
 
-  if (viewType === 'recipeEditor') {
+  if (viewType) {
     // For recipeEditor, get the port from existing windows' config
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
@@ -465,6 +465,19 @@ const createChat = async (
     queryParams = queryParams
       ? `${queryParams}&view=${encodeURIComponent(viewType)}`
       : `?view=${encodeURIComponent(viewType)}`;
+  }
+
+  // Check if this is a recipe with parameters that need filling
+  if (recipeConfig && 
+      typeof recipeConfig === 'object' && 
+      'parameters' in recipeConfig && 
+      Array.isArray(recipeConfig.parameters) &&
+      recipeConfig.parameters.length > 0 && 
+      !('_paramValues' in recipeConfig)) {
+    // Set the view to recipeParameters by default
+    queryParams = queryParams
+      ? `${queryParams}&view=recipeParameters`
+      : `?view=recipeParameters`;
   }
 
   const primaryDisplay = electron.screen.getPrimaryDisplay();
