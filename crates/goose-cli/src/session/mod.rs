@@ -796,9 +796,18 @@ impl Session {
                                         let data = o.get("data").unwrap_or(&Value::Null);
                                         let message = match data {
                                             Value::String(s) => s.clone(),
-                                            v => v.to_string(),
+                                            Value::Object(o) => {
+                                                if let Some(Value::String(output)) = o.get("output") {
+                                                    output.to_owned()
+                                                } else {
+                                                    data.to_string()
+                                                }
+                                            },
+                                            v => {
+                                                    v.to_string()
+                                            },
                                         };
-                                        output::render_text(&message, None, true);
+                                        output::render_text_no_newlines(&message, None, true);
                                     },
                                     "notifications/progress" => {
                                         let progress = o.get("progress").and_then(|v| v.as_f64());

@@ -145,6 +145,10 @@ pub fn render_message(message: &Message, debug: bool) {
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
+    render_text_no_newlines(format!("\n{}\n\n", text).as_str(), color, dim);
+}
+
+pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -154,7 +158,7 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
     } else {
         styled_text = styled_text.green();
     }
-    println!("\n{}\n", styled_text);
+    print!("{}", styled_text);
 }
 
 pub fn render_enter_plan_mode() {
