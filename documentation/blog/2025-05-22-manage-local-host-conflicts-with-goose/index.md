@@ -86,7 +86,7 @@ Freeing up ports is something I know how to do. But I use AI tools like Goose fo
 <head>
   <meta property="og:title" content="How I Manage Localhost Port Conflicts With an AI Agent" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/23/manage-local-host-conflicts-with-goose" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/05/22/manage-local-host-conflicts-with-goose" />
   <meta property="og:description" content="Learn how I use Goose, an open source AI agent, to manage conflicting ports without breaking my flow." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/hoarders-753809f09399a9e4f734006a8d74218d.png" />
   <meta name="twitter:card" content="summary_large_image" />
