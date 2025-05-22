@@ -66,7 +66,7 @@ The agent appends the new line directly to the same file, without needing a remi
 
 ## File system reasoning
 
-The last prompt tests if the model can infer where to write/read files based on context by resolving relative and absolute paths. You don't want the agent deleting important directories because the model is hallucinating about where it is.
+The last prompt tests whether the model can infer file locations by resolving relative and absolute paths based on context. You don't want the agent deleting important directories because the model is hallucinating about where it is.
 
 ```bash
 What is the current content of tool-test.txt?
