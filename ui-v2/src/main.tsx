@@ -5,7 +5,7 @@ import ReactDOM from 'react-dom/client';
 
 import { router } from './routeTree';
 
-import './index.css';
+import './styles/main.css';
 
 // Initialize the router
 await router.load();

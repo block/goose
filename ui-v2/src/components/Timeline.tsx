@@ -1,17 +1,25 @@
 import React, { useRef, useMemo, useEffect } from 'react';
-import ChartTile from './ChartTile';
-import HighlightTile from './HighlightTile';
-import PieChartTile from './PieChartTile';
-import ListTile from './ListTile';
-import ClockTile from './ClockTile';
+import ChartTile from './tiles/ChartTile.tsx';
+import HighlightTile from './tiles/HighlightTile.tsx';
+import PieChartTile from './tiles/PieChartTile.tsx';
+import ListTile from './tiles/ListTile.tsx';
+import ClockTile from './tiles/ClockTile.tsx';
 import TimelineDots from './TimelineDots';
-import { ChartLineIcon, ChartBarIcon, PieChartIcon, ListIcon, StarIcon, TrendingUpIcon } from './icons';
+import {
+  ChartLineIcon,
+  ChartBarIcon,
+  PieChartIcon,
+  ListIcon,
+  StarIcon,
+  TrendingUpIcon,
+} from './icons';
 
-const generateRandomData = (length: number) => Array.from({ length }, () => Math.floor(Math.random() * 100));
+const generateRandomData = (length: number) =>
+  Array.from({ length }, () => Math.floor(Math.random() * 100));
 
 const generateTileData = (date: Date) => {
   const isToday = new Date().toDateString() === date.toDateString();
-  
+
   return {
     left: [
       // Performance metrics
@@ -24,8 +32,8 @@ const generateTileData = (date: Date) => {
           data: generateRandomData(7),
           icon: <ChartLineIcon />,
           variant: 'line' as const,
-          date
-        }
+          date,
+        },
       },
       {
         type: 'highlight' as const,
@@ -35,8 +43,8 @@ const generateTileData = (date: Date) => {
           icon: <StarIcon />,
           subtitle: isToday ? 'Personal best today' : 'Keep it up',
           date,
-          accentColor: '#FFB800'
-        }
+          accentColor: '#FFB800',
+        },
       },
       {
         type: 'pie' as const,
@@ -46,10 +54,10 @@ const generateTileData = (date: Date) => {
           segments: [
             { value: 45, color: '#00CAF7', label: 'Completed' },
             { value: 35, color: '#FFB800', label: 'In Progress' },
-            { value: 20, color: '#FF4444', label: 'Pending' }
+            { value: 20, color: '#FF4444', label: 'Pending' },
           ],
-          date
-        }
+          date,
+        },
       },
       // Additional metrics
       {
@@ -61,8 +69,8 @@ const generateTileData = (date: Date) => {
           data: generateRandomData(7),
           icon: <ChartBarIcon />,
           variant: 'bar' as const,
-          date
-        }
+          date,
+        },
       },
       {
         type: 'highlight' as const,
@@ -72,8 +80,8 @@ const generateTileData = (date: Date) => {
           icon: <StarIcon />,
           subtitle: 'Based on feedback',
           date,
-          accentColor: '#4CAF50'
-        }
+          accentColor: '#4CAF50',
+        },
       },
       {
         type: 'list' as const,
@@ -84,10 +92,10 @@ const generateTileData = (date: Date) => {
             { text: 'Project Alpha', value: '87%', color: '#00CAF7' },
             { text: 'Team Meeting', value: '2:30 PM' },
             { text: 'Review Code', value: '13', color: '#FFB800' },
-            { text: 'Deploy Update', value: 'Done', color: '#4CAF50' }
+            { text: 'Deploy Update', value: 'Done', color: '#4CAF50' },
           ],
-          date
-        }
+          date,
+        },
       },
       // System metrics
       {
@@ -99,8 +107,8 @@ const generateTileData = (date: Date) => {
           data: generateRandomData(7),
           icon: <ChartLineIcon />,
           variant: 'line' as const,
-          date
-        }
+          date,
+        },
       },
       {
         type: 'pie' as const,
@@ -110,11 +118,11 @@ const generateTileData = (date: Date) => {
           segments: [
             { value: 60, color: '#4CAF50', label: 'Free' },
             { value: 25, color: '#FFB800', label: 'Used' },
-            { value: 15, color: '#FF4444', label: 'System' }
+            { value: 15, color: '#FF4444', label: 'System' },
           ],
-          date
-        }
-      }
+          date,
+        },
+      },
     ],
     right: [
       // Performance metrics
@@ -127,16 +135,16 @@ const generateTileData = (date: Date) => {
           data: generateRandomData(7),
           icon: <ChartBarIcon />,
           variant: 'bar' as const,
-          date
-        }
+          date,
+        },
       },
       // Clock tile
       {
         type: 'clock' as const,
         props: {
           title: 'Current Time',
-          date
-        }
+          date,
+        },
       },
       {
         type: 'highlight' as const,
@@ -146,8 +154,8 @@ const generateTileData = (date: Date) => {
           icon: <TrendingUpIcon />,
           subtitle: 'Above target',
           date,
-          accentColor: '#4CAF50'
-        }
+          accentColor: '#4CAF50',
+        },
       },
       {
         type: 'pie' as const,
@@ -157,10 +165,10 @@ const generateTileData = (date: Date) => {
           segments: [
             { value: 55, color: '#4CAF50', label: 'Available' },
             { value: 30, color: '#FFB800', label: 'In Use' },
-            { value: 15, color: '#FF4444', label: 'Reserved' }
+            { value: 15, color: '#FF4444', label: 'Reserved' },
           ],
-          date
-        }
+          date,
+        },
       },
       // Updates and notifications
       {
@@ -172,10 +180,10 @@ const generateTileData = (date: Date) => {
             { text: 'System Update', value: 'Complete', color: '#4CAF50' },
             { text: 'New Features', value: '3', color: '#00CAF7' },
             { text: 'Bug Fixes', value: '7', color: '#FFB800' },
-            { text: 'Performance', value: '+15%', color: '#4CAF50' }
+            { text: 'Performance', value: '+15%', color: '#4CAF50' },
           ],
-          date
-        }
+          date,
+        },
       },
       // Additional metrics
       {
@@ -187,8 +195,8 @@ const generateTileData = (date: Date) => {
           data: generateRandomData(7),
           icon: <ChartLineIcon />,
           variant: 'line' as const,
-          date
-        }
+          date,
+        },
       },
       {
         type: 'highlight' as const,
@@ -198,8 +206,8 @@ const generateTileData = (date: Date) => {
           icon: <TrendingUpIcon />,
           subtitle: 'Last 24 hours',
           date,
-          accentColor: '#00CAF7'
-        }
+          accentColor: '#00CAF7',
+        },
       },
       // System health
       {
@@ -210,10 +218,10 @@ const generateTileData = (date: Date) => {
           segments: [
             { value: 75, color: '#4CAF50', label: 'Healthy' },
             { value: 20, color: '#FFB800', label: 'Warning' },
-            { value: 5, color: '#FF4444', label: 'Critical' }
+            { value: 5, color: '#FF4444', label: 'Critical' },
           ],
-          date
-        }
+          date,
+        },
       },
       {
         type: 'list' as const,
@@ -224,12 +232,12 @@ const generateTileData = (date: Date) => {
             { text: 'Main API', value: 'Online', color: '#4CAF50' },
             { text: 'Database', value: '98%', color: '#00CAF7' },
             { text: 'Cache', value: 'Synced', color: '#4CAF50' },
-            { text: 'CDN', value: 'Active', color: '#4CAF50' }
+            { text: 'CDN', value: 'Active', color: '#4CAF50' },
           ],
-          date
-        }
-      }
-    ]
+          date,
+        },
+      },
+    ],
   };
 };
 
@@ -240,7 +248,7 @@ export default function Timeline() {
   const sections = useMemo(() => {
     const result = [];
     const today = new Date();
-    
+
     for (let i = 0; i <= 29; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
@@ -251,10 +259,10 @@ export default function Timeline() {
         date,
         isToday: i === 0,
         leftTiles: tileData.left,
-        rightTiles: tileData.right
+        rightTiles: tileData.right,
       });
     }
-    
+
     return result;
   }, []);
 
@@ -269,7 +277,7 @@ export default function Timeline() {
 
       sectionElement.scrollTo({
         left: scrollToX,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     });
   };
@@ -287,14 +295,14 @@ export default function Timeline() {
       },
       {
         threshold: 0.5,
-        rootMargin: '0px'
+        rootMargin: '0px',
       }
     );
 
     // Add resize handler
     const handleResize = () => {
       // Find the currently visible section
-      const visibleSection = sectionRefs.current.find(section => {
+      const visibleSection = sectionRefs.current.find((section) => {
         if (!section) return false;
         const rect = section.getBoundingClientRect();
         const viewportHeight = window.innerHeight;
@@ -347,23 +355,25 @@ export default function Timeline() {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="h-screen overflow-y-scroll overflow-x-hidden snap-y snap-mandatory relative scrollbar-hide"
     >
       {sections.map((section, index) => (
-        <div 
+        <div
           key={index}
-          ref={el => sectionRefs.current[index] = el}
-          className="h-screen relative snap-center snap-always overflow-x-scroll snap-x snap-mandatory scrollbar-hide"
+          ref={(el) => (sectionRefs.current[index] = el)}
+          className="h-screen relative snap-center snap-always overflow-y-hidden overflow-x-scroll snap-x snap-mandatory scrollbar-hide"
         >
           <div className="relative min-w-[calc(200vw+100px)] h-full flex items-center">
             {/* Main flex container */}
             <div className="w-full h-full flex">
-
               {/* Left Grid */}
               <div className="w-screen p-4 mt-6 overflow-hidden">
-                <div className="ml-auto mr-0 flex flex-wrap gap-4 content-start justify-end" style={{ width: 'min(720px, 90%)' }}>
+                <div
+                  className="ml-auto mr-0 flex flex-wrap gap-4 content-start justify-end"
+                  style={{ width: 'min(720px, 90%)' }}
+                >
                   {section.leftTiles.map((tile, i) => (
                     <div key={i} className="w-[calc(50%-8px)]">
                       {renderTile(tile, i)}
@@ -375,28 +385,45 @@ export default function Timeline() {
               {/* Center Timeline */}
               <div className="w-100px relative flex flex-col items-center h-screen">
                 {/* Upper Timeline Dots */}
-                <TimelineDots height="calc(50vh - 96px)" isUpper={true} isCurrentDay={section.isToday} />
+                <TimelineDots
+                  height="calc(50vh - 96px)"
+                  isUpper={true}
+                  isCurrentDay={section.isToday}
+                />
 
                 {/* Date Display */}
                 <div className="bg-white p-4 rounded z-[3] flex flex-col items-center transition-opacity">
-                  <div className={`font-['Cash_Sans'] text-3xl font-light ${section.isToday ? 'opacity-100' : 'opacity-20'}`}>
+                  <div
+                    className={`font-['Cash_Sans'] text-3xl font-light ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                  >
                     {section.date.toLocaleString('default', { month: 'short' })}
                   </div>
-                  <div className={`font-['Cash_Sans'] text-[64px] font-light leading-none ${section.isToday ? 'opacity-100' : 'opacity-20'}`}>
+                  <div
+                    className={`font-['Cash_Sans'] text-[64px] font-light leading-none ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                  >
                     {section.date.getDate()}
                   </div>
-                  <div className={`font-['Cash_Sans'] text-sm font-light mt-1 ${section.isToday ? 'opacity-100' : 'opacity-20'}`}>
+                  <div
+                    className={`font-['Cash_Sans'] text-sm font-light mt-1 ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                  >
                     {section.date.toLocaleString('default', { weekday: 'long' })}
                   </div>
                 </div>
 
                 {/* Lower Timeline Dots */}
-                <TimelineDots height="calc(50vh - 96px)" isUpper={false} isCurrentDay={section.isToday} />
+                <TimelineDots
+                  height="calc(50vh - 96px)"
+                  isUpper={false}
+                  isCurrentDay={section.isToday}
+                />
               </div>
 
               {/* Right Grid */}
               <div className="w-screen p-4 mt-6 overflow-hidden">
-                <div className="flex flex-wrap gap-4 content-start" style={{ width: 'min(720px, 90%)' }}>
+                <div
+                  className="flex flex-wrap gap-4 content-start"
+                  style={{ width: 'min(720px, 90%)' }}
+                >
                   {section.rightTiles.map((tile, i) => (
                     <div key={i} className="w-[calc(50%-8px)]">
                       {renderTile(tile, i)}
