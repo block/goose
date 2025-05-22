@@ -309,7 +309,7 @@ goose recipe <COMMAND>
 
 - **`--help, -h`**: Print this message or the help for the subcommand
 
-**Command Usage:**
+**Usage:**
 
 ```bash
 # Validate a recipe file
@@ -321,6 +321,59 @@ goose recipe deeplink $FILE.yaml
 # Print this message or the help for the given command
 goose recipe help
 ```
+
+---
+### project
+
+Start working on your last project or create a new one.
+
+A project is a record of a working directory and recent session metadata. Note that any directory where you run `goose project` becomes a tracked project, so you might want to run the command from the directory where you want to work.
+
+**Alias**: `p`
+
+**Usage:**
+```bash
+goose project
+```
+
+The command provides three options:
+1. **Resume project with session**: Continue the last session in the project
+2. **Resume project with fresh session**: Start a new session in the project
+3. **Start new project in current directory**: Create a new project in the current directory
+
+:::note
+Goose stores your project history in `~/.local/share/goose/projects.json`.
+:::
+
+---
+### projects
+
+Choose one of your projects to start working on.
+
+**Alias**: `ps`
+
+**Usage:**
+```bash
+goose projects
+```
+
+Example output:
+```bash
+┌  Goose Project Manager
+│
+◆  Select a project:
+│  ● .../Users/svera (2025-05-21 18:42:05)
+│  ○ .../Development/goose (2025-05-21 18:38:26)
+│  ○ .../Documents/goose-recipes (2025-05-21q 18:29:15)
+│  ○ .../Desktop/temp (2025-05-21 15:13:48)q
+│  ○ .../doc_projects/shared (2025-05-21 14:32:22)
+│  ○ Cancel
+└
+```
+
+After selecting a project, you'll be asked to either:
+- **Resume previous session**: Continue the last session in the selected project
+- **Start new session**: Start a new session in the selected project
 
 ---
 ## Prompt Completion
