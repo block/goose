@@ -25,10 +25,10 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ children }) => {
       onMouseLeave={() => setIsHovering(false)}
     >
       {/* Hover trigger area with black bar indicator */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-transparent flex justify-center">
+      <div className="absolute bottom-0 left-0 right-0 h-20 bg-transparent flex justify-center">
         <div 
           className={`
-            w-[600px] h-[3px]
+            w-[600px] h-[15px]
             bg-black dark:bg-white
             rounded-t-[24px]
             transition-all duration-300
@@ -52,7 +52,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ children }) => {
         }}
       >
         <div className="flex justify-center w-full px-4 pb-4">
-          <div className="w-[600px] flex flex-col">
+          <div className="w-[600px]">
             <ChatIcons className="mb-1" />
             {children}
           </div>
