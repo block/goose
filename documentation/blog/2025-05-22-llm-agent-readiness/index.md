@@ -42,7 +42,7 @@ The model emits a structured tool call in JSON.
 
 ## Memory Awareness
 
-Next, I test to see if the agent can recall what it's doing. It's critical that the model can remember previous actions and continues logically.
+Next, test whether the agent can recall what it’s doing. It's critical that the model can remember previous actions and continues logically.
 
 ```bash
 Now append a new line that says: "I know what I'm doing"
