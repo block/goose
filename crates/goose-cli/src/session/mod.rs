@@ -1072,6 +1072,25 @@ impl Session {
 
         Ok(path)
     }
+
+    /// Lists available tools from the agent, optionally filtered by extension
+    ///
+    /// # Arguments
+    /// * `extension` - Optional filter to only show tools from a specific extension
+    ///
+    /// # Returns
+    /// A vector of tools that can be used in the current session
+    pub async fn list_tools(&self, extension: Option<String>) -> Vec<mcp_core::tool::Tool> {
+        self.agent.list_tools(extension).await
+    }
+
+    /// Returns a list of all extension names currently loaded in the session
+    ///
+    /// # Returns
+    /// A vector of extension names as strings
+    pub async fn list_extension_names(&self) -> Vec<String> {
+        self.agent.list_extensions().await
+    }
 }
 
 fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {

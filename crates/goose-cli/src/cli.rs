@@ -10,6 +10,7 @@ use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::tools::handle_tools;
 use crate::logging::setup_logging;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
 use crate::session;
@@ -430,6 +431,18 @@ enum Command {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
+
+    /// List available extensions and their tools
+    #[command(about = "List available extensions and their tools")]
+    Tools {
+        /// The extension to display detailed tool info for (only this extension)
+        #[arg(
+            long,
+            help = "Show tools for one extension only",
+            value_name = "EXTENSION_NAME"
+        )]
+        extension: Option<String>,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -663,6 +676,10 @@ pub async fn cli() -> Result<()> {
                     handle_deeplink(&recipe_name)?;
                 }
             }
+            return Ok(());
+        }
+        Some(Command::Tools { extension }) => {
+            handle_tools(extension).await?;
             return Ok(());
         }
         None => {
