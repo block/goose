@@ -2527,6 +2527,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokenizers",
  "tokio",
+ "tokio-cron-scheduler",
  "tracing",
  "tracing-subscriber",
  "url",
