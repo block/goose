@@ -59,15 +59,15 @@ export default function ChartTile({
     >
       {/* Header section with icon */}
       <div className="p-4 space-y-4">
-        <div className="w-6 h-6 text-text-default">
+        <div className="w-6 h-6 text-text-default dark:text-white">
           {icon}
         </div>
 
         <div>
-          <div className="text-text-muted text-sm mb-1">{title}</div>
-          <div className="text-text-default text-2xl font-semibold">
+          <div className="text-text-muted dark:text-white/60 text-sm mb-1">{title}</div>
+          <div className="text-text-default dark:text-white text-2xl font-semibold">
             {value}
-            {trend && <span className="ml-1 text-sm text-text-muted">{trend}</span>}
+            {trend && <span className="ml-1 text-sm text-text-muted dark:text-white/60">{trend}</span>}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useRef, useMemo, useEffect } from 'react';
+import { useTimeline } from '../contexts/TimelineContext';
 import ChartTile from './tiles/ChartTile.tsx';
 import HighlightTile from './tiles/HighlightTile.tsx';
 import PieChartTile from './tiles/PieChartTile.tsx';
@@ -244,6 +245,7 @@ const generateTileData = (date: Date) => {
 export default function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const { setCurrentDate } = useTimeline();
 
   const sections = useMemo(() => {
     const result = [];
@@ -287,17 +289,67 @@ export default function Timeline() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
+          if (entry.intersectionRatio > 0.15) {  // Much lower threshold for earlier triggering
             const section = entry.target as HTMLDivElement;
             centerTimeline(section);
+            
+            // Update current date
+            const sectionIndex = sectionRefs.current.indexOf(section);
+            if (sectionIndex !== -1) {
+              const date = sections[sectionIndex].date;
+              setCurrentDate(date);
+            }
           }
         });
       },
       {
-        threshold: 0.5,
-        rootMargin: '0px',
+        threshold: [0.05, 0.15, 0.3],  // More aggressive thresholds
+        rootMargin: '-30% 0px',  // Increased negative margin for even earlier detection
       }
     );
+
+    // Add scroll handler for even faster updates
+    const handleScroll = () => {
+      if (!containerRef.current) return;
+      
+      // Find the section closest to the middle of the viewport
+      const viewportMiddle = window.innerHeight / 2;
+      let closestSection: HTMLDivElement | null = null;
+      let closestDistance = Infinity;
+
+      sectionRefs.current.forEach((section) => {
+        if (!section) return;
+        const rect = section.getBoundingClientRect();
+        const sectionMiddle = rect.top + rect.height / 2;
+        const distance = Math.abs(sectionMiddle - viewportMiddle);
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestSection = section;
+        }
+      });
+
+      if (closestSection) {
+        const sectionIndex = sectionRefs.current.indexOf(closestSection);
+        if (sectionIndex !== -1) {
+          const date = sections[sectionIndex].date;
+          setCurrentDate(date);
+        }
+      }
+    };
+
+    // Add scroll event listener with throttling
+    let scrollTimeout: number;
+    const throttledScrollHandler = () => {
+      if (!scrollTimeout) {
+        scrollTimeout = window.setTimeout(() => {
+          handleScroll();
+          scrollTimeout = 0;
+        }, 16); // Reduced to roughly 1 frame (60fps)
+      }
+    };
+
+    containerRef.current?.addEventListener('scroll', throttledScrollHandler, { passive: true });
 
     // Add resize handler
     const handleResize = () => {
@@ -306,7 +358,6 @@ export default function Timeline() {
         if (!section) return false;
         const rect = section.getBoundingClientRect();
         const viewportHeight = window.innerHeight;
-        // Check if the section is mostly visible in the viewport
         return rect.top >= -viewportHeight / 2 && rect.bottom <= viewportHeight * 1.5;
       });
 
@@ -329,6 +380,7 @@ export default function Timeline() {
     // Cleanup function
     return () => {
       window.removeEventListener('resize', handleResize);
+      containerRef.current?.removeEventListener('scroll', throttledScrollHandler);
       sectionRefs.current.forEach((section) => {
         if (section) {
           observer.unobserve(section);
@@ -392,19 +444,31 @@ export default function Timeline() {
                 />
 
                 {/* Date Display */}
-                <div className="bg-white p-4 rounded z-[3] flex flex-col items-center transition-opacity">
+                <div className="bg-white dark:bg-black shadow-[0_0_13.7px_rgba(0,0,0,0.04)] dark:shadow-[0_0_24px_rgba(255,255,255,0.08)] p-4 rounded-xl z-[3] flex flex-col items-center transition-all">
                   <div
-                    className={`font-['Cash_Sans'] text-3xl font-light ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-3xl font-light transition-colors ${
+                      section.isToday 
+                        ? 'text-black dark:text-white' 
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.toLocaleString('default', { month: 'short' })}
                   </div>
                   <div
-                    className={`font-['Cash_Sans'] text-[64px] font-light leading-none ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-[64px] font-light leading-none transition-colors ${
+                      section.isToday 
+                        ? 'text-black dark:text-white' 
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.getDate()}
                   </div>
                   <div
-                    className={`font-['Cash_Sans'] text-sm font-light mt-1 ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-sm font-light mt-1 transition-colors ${
+                      section.isToday 
+                        ? 'text-black dark:text-white' 
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.toLocaleString('default', { weekday: 'long' })}
                   </div>
