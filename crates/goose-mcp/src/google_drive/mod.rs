@@ -5,6 +5,7 @@ use anyhow::{Context, Error};
 use base64::Engine;
 use indoc::indoc;
 use lazy_static::lazy_static;
+use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
@@ -12,6 +13,7 @@ use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 use storage::CredentialsManager;
+use tokio::sync::mpsc;
 
 use mcp_core::content::Content;
 use mcp_core::{
@@ -2924,6 +2926,7 @@ impl Router for GoogleDriveRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

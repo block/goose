@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use mcp_client::{
-    ClientCapabilities, ClientInfo, Error as ClientError, McpClient, McpClientTrait, McpService,
+    ClientCapabilities, ClientInfo, Error as ClientError, McpClient, McpClientTrait,
     StdioTransport, Transport,
 };
 use std::time::Duration;
@@ -25,11 +25,8 @@ async fn main() -> Result<(), ClientError> {
     // 2) Start the transport to get a handle
     let transport_handle = transport.start().await?;
 
-    // 3) Create the service with timeout middleware
-    let service = McpService::with_timeout(transport_handle, Duration::from_secs(10));
-
-    // 4) Create the client with the middleware-wrapped service
-    let mut client = McpClient::new(service);
+    // 3) Create the client with the middleware-wrapped service
+    let mut client = McpClient::connect(transport_handle, Duration::from_secs(10)).await?;
 
     // Initialize
     let server_info = client

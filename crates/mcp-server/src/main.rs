@@ -2,12 +2,14 @@ use anyhow::Result;
 use mcp_core::content::Content;
 use mcp_core::handler::{PromptError, ResourceError};
 use mcp_core::prompt::{Prompt, PromptArgument};
+use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
 use serde_json::Value;
 use std::{future::Future, pin::Pin, sync::Arc};
+use tokio::sync::mpsc;
 use tokio::{
     io::{stdin, stdout},
     sync::Mutex,
@@ -124,6 +126,7 @@ impl Router for CounterRouter {
         &self,
         tool_name: &str,
         _arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

@@ -11,14 +11,15 @@ use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::{Prompt, PromptMessage, PromptMessageRole},
     protocol::{
-        CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcRequest,
-        JsonRpcResponse, ListPromptsResult, ListResourcesResult, ListToolsResult,
+        CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcMessage,
+        JsonRpcRequest, JsonRpcResponse, ListPromptsResult, ListResourcesResult, ListToolsResult,
         PromptsCapability, ReadResourceResult, ResourcesCapability, ServerCapabilities,
         ToolsCapability,
     },
     ResourceContents,
 };
 use serde_json::Value;
+use tokio::sync::mpsc;
 use tower_service::Service;
 
 use crate::{BoxError, RouterError};
@@ -91,6 +92,7 @@ pub trait Router: Send + Sync + 'static {
         &self,
         tool_name: &str,
         arguments: Value,
+        notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
     fn list_resources(&self) -> Vec<mcp_core::resource::Resource>;
     fn read_resource(
@@ -159,6 +161,7 @@ pub trait Router: Send + Sync + 'static {
     fn handle_tools_call(
         &self,
         req: JsonRpcRequest,
+        notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
             let params = req
@@ -172,7 +175,7 @@ pub trait Router: Send + Sync + 'static {
 
             let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
 
-            let result = match self.call_tool(name, arguments).await {
+            let result = match self.call_tool(name, arguments, notifier).await {
                 Ok(result) => CallToolResult {
                     content: result,
                     is_error: None,
@@ -394,7 +397,12 @@ pub trait Router: Send + Sync + 'static {
 
 pub struct RouterService<T>(pub T);
 
-impl<T> Service<JsonRpcRequest> for RouterService<T>
+pub struct McpRequest {
+    pub request: JsonRpcRequest,
+    pub notifier: mpsc::Sender<JsonRpcMessage>,
+}
+
+impl<T> Service<McpRequest> for RouterService<T>
 where
     T: Router + Clone + Send + Sync + 'static,
 {
@@ -406,21 +414,21 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: JsonRpcRequest) -> Self::Future {
+    fn call(&mut self, req: McpRequest) -> Self::Future {
         let this = self.0.clone();
 
         Box::pin(async move {
-            let result = match req.method.as_str() {
-                "initialize" => this.handle_initialize(req).await,
-                "tools/list" => this.handle_tools_list(req).await,
-                "tools/call" => this.handle_tools_call(req).await,
-                "resources/list" => this.handle_resources_list(req).await,
-                "resources/read" => this.handle_resources_read(req).await,
-                "prompts/list" => this.handle_prompts_list(req).await,
-                "prompts/get" => this.handle_prompts_get(req).await,
+            let result = match req.request.method.as_str() {
+                "initialize" => this.handle_initialize(req.request).await,
+                "tools/list" => this.handle_tools_list(req.request).await,
+                "tools/call" => this.handle_tools_call(req.request, req.notifier).await,
+                "resources/list" => this.handle_resources_list(req.request).await,
+                "resources/read" => this.handle_resources_read(req.request).await,
+                "prompts/list" => this.handle_prompts_list(req.request).await,
+                "prompts/get" => this.handle_prompts_get(req.request).await,
                 _ => {
-                    let mut response = this.create_response(req.id);
-                    response.error = Some(RouterError::MethodNotFound(req.method).into());
+                    let mut response = this.create_response(req.request.id);
+                    response.error = Some(RouterError::MethodNotFound(req.request.method).into());
                     Ok(response)
                 }
             };
