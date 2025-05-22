@@ -695,12 +695,13 @@ impl Session {
             )
             .await?;
 
-        let mut progress_bars = output::McpProgressBars::new();
+        let mut progress_bars = output::McpSpinners::new();
 
         use futures::StreamExt;
         loop {
             tokio::select! {
                 result = stream.next() => {
+                    let _ = progress_bars.hide();
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
                             // If it's a confirmation request, get approval but otherwise do not render/persist
@@ -807,7 +808,8 @@ impl Session {
                                                     v.to_string()
                                             },
                                         };
-                                        output::render_text_no_newlines(&message, None, true);
+                                        // output::render_text_no_newlines(&message, None, true);
+                                        progress_bars.log(&message);
                                     },
                                     "notifications/progress" => {
                                         let progress = o.get("progress").and_then(|v| v.as_f64());
