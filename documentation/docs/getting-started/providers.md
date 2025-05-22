@@ -32,7 +32,178 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`                                                                                                                                                                |
 
 
-   
+## Supported Models by Provider
+
+Below is a list of models officially supported by Goose for each provider. You can use these model names when configuring Goose through the CLI or Desktop interface.
+
+:::tip Google Gemini vs. GCP Vertex AI
+Google offers two separate providers with different models and configuration requirements:
+
+- **Google Gemini** - Direct API with simple API key setup, focused on Gemini models only
+- **GCP Vertex AI** - Enterprise platform requiring GCP project setup, offering both Google models AND third-party models like Claude
+
+Choose Google Gemini for simpler setup or GCP Vertex AI for enterprise features and additional model options.
+:::
+
+:::tip Anthropic vs. AWS Bedrock
+You can access Claude models in two ways:
+
+- **Anthropic** - Direct API from Anthropic, requires an Anthropic API key
+- **AWS Bedrock** - Access through AWS, requires AWS credentials and uses different model names
+
+Choose based on your existing infrastructure and API key availability.
+:::
+
+:::tip OpenAI vs. Azure OpenAI
+You can access OpenAI models in two ways:
+
+- **OpenAI** - Direct API from OpenAI, requires an OpenAI API key
+- **Azure OpenAI** - Access through Microsoft Azure, requires Azure setup and supports Azure credential chain
+
+Use Azure OpenAI for enterprise compliance, data residency requirements, or if you already have Azure infrastructure.
+:::
+
+### OpenAI
+- **Default Model:** `gpt-4o`
+- **Supported Models:**
+  - `gpt-4o`
+  - `gpt-4o-mini`
+  - `gpt-4-turbo`
+  - `gpt-3.5-turbo`
+  - `o1`
+  - `o3`
+  - `o4-mini`
+  - `gpt-4.1`
+  - `gpt-4-1`
+
+### Anthropic
+- **Default Model:** `claude-3-5-sonnet-latest`
+- **Supported Models:**
+  - `claude-3.5-sonnet-2` (Same as `claude-3-5-sonnet-latest`)
+  - `claude-3-5-haiku-latest`
+  - `claude-3-opus-latest`
+  - `claude-3-7-sonnet-20250219`
+  - `claude-3-7-sonnet-latest`
+
+:::note Model Naming
+Anthropic models may use either hyphen format (`claude-3-5-sonnet-latest`) or dot format (`claude-3.5-sonnet-2`). Both formats work but the exact name might vary based on API version.
+:::
+
+### Google Gemini
+- **Default Model:** `gemini-1.5-flash`
+- **Supported Models:**
+  - `gemini-1.5-flash` (Recommended for general use)
+  - `gemini-2.0-flash`
+  - `gemini-2.0-flash-lite-preview-02-05`
+  - `gemini-2.0-flash-thinking-exp-01-21`
+  - `gemini-2.0-pro-exp-02-05`
+  - `gemini-2.5-pro-exp-03-25`
+  - `gemini-2.5-flash-preview-04-17`
+
+:::note Gemini Versions
+Google frequently updates Gemini models. The version numbers may change (1.5, 2.0, 2.5), and newer versions may become available after this documentation was written.
+:::
+
+### GitHub Copilot
+- **Default Model:** `gpt-4o`
+- **Supported Models:**
+  - `gpt-4o`
+  - `o1`
+  - `o3-mini`
+  - `claude-3.7-sonnet`
+  - `claude-3.5-sonnet`
+
+### Azure OpenAI
+- **Default Model:** `gpt-4o`
+- **Supported Models:**
+  - `gpt-4o`
+  - `gpt-4o-mini`
+  - `gpt-4`
+
+### Ollama
+- **Default Model:** You need to specify the model you have installed locally.
+- **Recommended Models with Tool Support:**
+  - `qwen2.5` (Recommended for best performance)
+  - `llama3.2`
+  - `phi3:mini`
+  - `michaelneale/deepseek-r1-goose` (Custom model with Goose-specific tool support)
+
+### AWS Bedrock
+- **Default Model:** You need to specify the model ID for AWS Bedrock.
+- **Supported Models:**
+  - `us.anthropic.claude-3-7-sonnet-20250219-v1:0` (Recommended)
+  - `anthropic.claude-3-haiku-20240307-v1:0`
+  - `anthropic.claude-3-sonnet-20240229-v1:0`
+  - `anthropic.claude-3-opus-20240229-v1:0`
+  - `anthropic.claude-v2:1`
+  - `anthropic.claude-instant-v1`
+
+:::note Model ID Format
+AWS Bedrock model IDs may include a region prefix (`us.` or other region code) or omit it depending on your configuration. Check the AWS Bedrock console for the exact model IDs available in your region.
+:::
+
+### Databricks
+- **Default Model:** `goose`
+- **Supported Models:**
+  - `goose` (Recommended for Goose)
+  - `databricks-dbrx-instruct`
+  - `databricks-claude-3-sonnet-20240229`
+  - `databricks-mpt-30b-instruct`
+  - `o1`, `o3`, `o3-mini` (with optional reasoning suffixes)
+
+:::note Databricks O1/O3 Models
+For O1 and O3 models, you can specify reasoning effort by adding `-low`, `-medium`, or `-high` to the model name. For example:
+- `o1-medium` (medium reasoning effort, default if not specified)
+- `o3-high` (high reasoning effort)
+- `o3-mini-low` (low reasoning effort)
+
+For Claude 3.7 models, you can enable thinking capabilities with the `CLAUDE_THINKING_ENABLED=1` environment variable.
+:::
+
+### GCP Vertex AI
+- **Default Model:** `gemini-1.5-pro-002`
+- **Supported Models:**
+  - `gemini-1.5-pro-002`
+  - `gemini-1.5-flash`
+  - `gemini-2.0-flash-001`
+  - `gemini-2.0-pro-exp-02-05`
+  - `gemini-2.5-pro-exp-03-25`
+  - `claude-3-5-haiku@20241022`
+  - `claude-3-5-sonnet@20240620`
+  - `claude-3-5-sonnet-v2@20241022`
+  - `claude-3-7-sonnet@20250219`
+
+:::note Vertex AI Model Names
+Vertex AI model names often include date stamps or version numbers. The available models may change as Google and Anthropic release updates.
+
+Vertex AI models are also region-specific:
+- Claude models default to the Ohio region (us-east5)
+- Gemini models default to the Iowa region (us-central1)
+:::
+
+### Groq
+- **Default Model:** `llama-3.3-70b-versatile`
+- **Supported Models:**
+  - `llama-3.3-70b-versatile` (Recommended for general use)
+  - `llama3-8b-8192`
+  - `llama3-70b-8192`
+  - `mixtral-8x7b-32768`
+  - `gemma-7b-it`
+
+### OpenRouter
+- **Default Model:** `openai/gpt-4o`
+- **Supported Models:**
+  - `openai/gpt-4o`
+  - `anthropic/claude-3-opus`
+  - `anthropic/claude-3-sonnet`
+  - `meta-llama/llama-3-70b-instruct`
+  - Many more models are available through OpenRouter
+
+:::info More Models
+For each provider, you can use additional models beyond those listed here but this list should get you started. Model availability and naming may change over time as providers update their offerings.
+:::
+
+
 ## Configure Provider
 
 To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Settings` page in the Goose Desktop.
