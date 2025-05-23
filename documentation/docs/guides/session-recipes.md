@@ -68,11 +68,17 @@ You'll need to provide both instructions and activities for your Recipe.
    - $extensions
    context:
    - $context
-   activities:
+   activities:                 # example prompts to display in the Desktop app
    - $activities
    author:
-   contact: $contact
-   metadata: $metadata
+     contact: $contact
+     metadata: $metadata
+   parameters:                 # required if recipe uses {{ variables }}
+   - key: $param_key
+     input_type: $type         # string, number, etc
+     requirement: $req         # required, optional, or user_prompt
+     description: $description
+     default: $value           # required for optional parameters
    ```
 
    </details>
@@ -81,14 +87,14 @@ You'll need to provide both instructions and activities for your Recipe.
 
    - `instructions`: Add or modify the system instructions
    - `prompt`: Add the initial message or question to start a Goose session with
-   - `activities`: List the activities that can be performed
+   - `activities`: List the activities that can be performed, which are displayed as prompts in the Desktop app
 
 
    #### Recipe Parameters
    
-   You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
+   You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
 
-   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax and define each of them in your yaml using `parameters`.
+   To use parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax and define each of them in your yaml using `parameters`.
 
    <details>
    <summary>Example recipe with parameters</summary>
@@ -212,7 +218,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
    #### Discover recipes
    When using recipe-related CLI commands, there are a few ways to specify which recipe to use:
-   ##### Options 1: Provide the full file path
+   ##### Option 1: Provide the full file path
    Use the exact path to the recipe file:
       
    ```sh
