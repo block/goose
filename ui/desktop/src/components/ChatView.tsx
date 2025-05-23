@@ -321,7 +321,12 @@ function ChatContent({
     console.log('hasSentPromptRef.current:', hasSentPromptRef.current);
 
     const prompt = recipeConfig?.prompt;
-    if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
+    // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
+    // This is because the recipe config and parameters are available before full app initialization
+    const hasParameterValues = recipeConfig?._paramValues;
+    const shouldProceed = readyForAutoUserPrompt || hasParameterValues;
+
+    if (prompt && !hasSentPromptRef.current && shouldProceed) {
       console.log('Starting recipe prompt process...');
       console.log('Original prompt:', prompt);
 
