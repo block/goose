@@ -170,11 +170,13 @@ instructions: ${instructions}
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 md:p-24">
 
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4 text-textProminent">Recipe Generator</h1>
-          <p className="text-lg text-textSubtle">
+        <div className="pb-8 md:pb-16">
+          <h1 className="text-4xl md:text-[64px] font-medium text-textProminent">
+            Recipe Generator
+          </h1>
+          <p className="text-textProminent">
             Create a shareable Goose recipe URL that others can use to launch a session with your predefined settings.
           </p>
         </div>
