@@ -191,10 +191,16 @@ impl SnowflakeProvider {
         if status == StatusCode::OK {
             if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
                 if payload.get("code").is_some() {
+                    let code = payload.get("code")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("Unknown code");
+                    let message = payload.get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown message");
                     return Err(ProviderError::RequestFailed(format!(
                         "{} - {}",
-                        payload.get("code").unwrap(),
-                        payload.get("message").unwrap()
+                        code,
+                        message
                     )));
                 }
             }
@@ -210,40 +216,151 @@ impl SnowflakeProvider {
             if line.is_empty() {
                 continue;
             }
-            let json_line: Value =
-                serde_json::from_str(line.strip_prefix("data: ").unwrap()).unwrap();
-            let choices = json_line.get("choices").unwrap();
-            let choice = choices.get(0).unwrap();
-            let delta = choice.get("delta").unwrap();
-            let content_list = delta.get("content_list").unwrap();
-            let content = content_list.get(0).unwrap();
-            if delta.get("type").unwrap() == "text" {
-                text.push_str(content.get("text").unwrap().as_str().unwrap());
-            } else if delta.get("type").unwrap() == "tool_use" {
-                if content.get("tool_use_id").is_some() {
-                    tool_name.push_str(content.get("name").unwrap().as_str().unwrap());
-                    tool_use_id.push_str(content.get("tool_use_id").unwrap().as_str().unwrap());
+            
+            // Skip lines that don't start with "data: "
+            let json_str = match line.strip_prefix("data: ") {
+                Some(s) => s,
+                None => continue,
+            };
+            
+            // Parse JSON line
+            let json_line: Value = match serde_json::from_str(json_str) {
+                Ok(json) => json,
+                Err(e) => {
+                    eprintln!("Failed to parse JSON line: {}: {}", e, json_str);
+                    continue;
                 }
-                if content.get("input").is_some() {
-                    tool_input.push_str(content.get("input").unwrap().as_str().unwrap());
+            };
+            
+            // Extract choices array
+            let choices = match json_line.get("choices").and_then(|c| c.as_array()) {
+                Some(choices) => choices,
+                None => {
+                    eprintln!("No choices array found in JSON: {}", json_line);
+                    continue;
+                }
+            };
+            
+            // Get first choice
+            let choice = match choices.get(0) {
+                Some(choice) => choice,
+                None => {
+                    eprintln!("No first choice found in choices array");
+                    continue;
+                }
+            };
+            
+            // Extract delta
+            let delta = match choice.get("delta") {
+                Some(delta) => delta,
+                None => {
+                    eprintln!("No delta found in choice: {}", choice);
+                    continue;
+                }
+            };
+            
+            // Track if we found text in content_list to avoid duplication
+            let mut found_text_in_content_list = false;
+            
+            // Handle content_list array first
+            if let Some(content_list) = delta.get("content_list").and_then(|cl| cl.as_array()) {
+                for content_item in content_list {
+                    match content_item.get("type").and_then(|t| t.as_str()) {
+                        Some("text") => {
+                            if let Some(text_content) = content_item.get("text").and_then(|t| t.as_str()) {
+                                text.push_str(text_content);
+                                found_text_in_content_list = true;
+                            }
+                        }
+                        Some("tool_use") => {
+                            if let Some(tool_id) = content_item.get("tool_use_id").and_then(|id| id.as_str()) {
+                                tool_use_id.push_str(tool_id);
+                            }
+                            if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                tool_name.push_str(name);
+                            }
+                            if let Some(input) = content_item.get("input").and_then(|i| i.as_str()) {
+                                tool_input.push_str(input);
+                            }
+                        }
+                        _ => {
+                            // Handle content items without explicit type but with tool information
+                            if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                tool_name.push_str(name);
+                            }
+                            if let Some(tool_id) = content_item.get("tool_use_id").and_then(|id| id.as_str()) {
+                                tool_use_id.push_str(tool_id);
+                            }
+                            if let Some(input) = content_item.get("input").and_then(|i| i.as_str()) {
+                                tool_input.push_str(input);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Handle direct content field (for text) only if we didn't find text in content_list
+            if !found_text_in_content_list {
+                if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                    text.push_str(content);
                 }
             }
         }
 
-        let answer_payload = json!(
-            {
-                "role": "assistant",
-                "content": text,
-                "content_list": [
-                    {
-                        "type": "tool_use",
-                        "tool_use_id": tool_use_id,
-                        "name": tool_name,
-                        "input": tool_input
+        // Build the appropriate response structure
+        let mut content_list = Vec::new();
+        
+        // Add text content if available
+        if !text.is_empty() {
+            content_list.push(json!({
+                "type": "text",
+                "text": text
+            }));
+        }
+        
+        // Add tool use content only if we have complete tool information
+        if !tool_use_id.is_empty() && !tool_name.is_empty() {
+            eprintln!("Tool use detected - ID: {}, Name: {}, Input: {}", tool_use_id, tool_name, tool_input);
+            
+            // Parse tool input as JSON if it's not empty
+            let parsed_input = if tool_input.is_empty() {
+                json!({})
+            } else {
+                match serde_json::from_str::<Value>(&tool_input) {
+                    Ok(json_value) => {
+                        eprintln!("Successfully parsed tool input: {:?}", json_value);
+                        json_value
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to parse tool input as JSON: {}: {}", e, tool_input);
+                        json!({"raw_input": tool_input})
                     }
-                ]
-            }
-        );
+                }
+            };
+            
+            content_list.push(json!({
+                "type": "tool_use",
+                "tool_use_id": tool_use_id,
+                "name": tool_name,
+                "input": parsed_input
+            }));
+        }
+        
+        // Ensure we always have at least some content
+        if content_list.is_empty() {
+            content_list.push(json!({
+                "type": "text",
+                "text": ""
+            }));
+        }
+
+        eprintln!("Final answer_payload content_list: {:?}", content_list);
+        
+        let answer_payload = json!({
+            "role": "assistant",
+            "content": text,
+            "content_list": content_list
+        });
 
         match status {
             StatusCode::OK => Ok(answer_payload),
