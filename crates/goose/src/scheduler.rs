@@ -16,6 +16,7 @@ use crate::config;
 use crate::message::Message;
 use crate::recipe::Recipe;
 use crate::session;
+use crate::session::storage::SessionMetadata; // Added for sessions() method
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
@@ -173,7 +174,7 @@ impl Scheduler {
             original_recipe_path.display(),
             destination_recipe_path.display()
         );
-        fs::copy(&original_recipe_path, &destination_recipe_path).map_err(|e| {
+        fs::copy(original_recipe_path, &destination_recipe_path).map_err(|e| {
             SchedulerError::StorageError(io::Error::new(
                 e.kind(),
                 format!(
@@ -202,7 +203,7 @@ impl Scheduler {
                         current_job_in_map.last_run = Some(Utc::now());
                     }
                 }
-
+                // We don't need the returned session_id here, just the success/failure.
                 if let Err(e) = run_scheduled_job_internal(task_job).await {
                     tracing::error!(
                         "Scheduled job '{}' execution failed: {}",
@@ -258,6 +259,7 @@ impl Scheduler {
                             stored_job.last_run = Some(Utc::now());
                         }
                     }
+                    // We don't need the returned session_id here, just the success/failure.
                     if let Err(e) = run_scheduled_job_internal(task_job).await {
                         tracing::error!(
                             "Scheduled job '{}' execution failed: {}",
@@ -311,7 +313,7 @@ impl Scheduler {
 
             let recipe_path = Path::new(&scheduled_job.source);
             if recipe_path.exists() {
-                fs::remove_file(&recipe_path).map_err(SchedulerError::StorageError)?;
+                fs::remove_file(recipe_path).map_err(SchedulerError::StorageError)?;
             }
 
             self.persist_jobs_to_storage(&jobs_guard).await?;
@@ -319,6 +321,70 @@ impl Scheduler {
         } else {
             Err(SchedulerError::JobNotFound(id.to_string()))
         }
+    }
+
+    /// List sessions for a schedule (latest first)
+    pub async fn sessions(
+        &self,
+        sched_id: &str,
+        limit: usize,
+    ) -> Result<Vec<SessionMetadata>, SchedulerError> {
+        let all_session_files = session::storage::list_sessions()
+            .map_err(|e| SchedulerError::StorageError(io::Error::new(io::ErrorKind::Other, e)))?;
+
+        let mut schedule_sessions: Vec<(String, SessionMetadata)> = Vec::new();
+
+        for (session_name, session_path) in all_session_files {
+            match session::storage::read_metadata(&session_path) {
+                Ok(metadata) => {
+                    if metadata.schedule_id.as_deref() == Some(sched_id) {
+                        // Store the session name (ID) along with metadata for sorting
+                        schedule_sessions.push((session_name, metadata));
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to read metadata for session file {}: {}. Skipping.",
+                        session_path.display(),
+                        e
+                    );
+                    // Decide if this error should propagate or just be logged. For now, logging.
+                }
+            }
+        }
+
+        // Sort by session name (timestamp based, e.g., yyyymmdd_hhmmss) descending for "latest first"
+        schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Take the limit and map to just SessionMetadata
+        let result_metadata: Vec<SessionMetadata> = schedule_sessions
+            .into_iter()
+            .map(|(_, metadata)| metadata)
+            .take(limit)
+            .collect();
+
+        Ok(result_metadata)
+    }
+
+    /// Execute a scheduled job immediately and return the new session-id
+    pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
+        let job_to_run: ScheduledJob = {
+            let jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get(sched_id) {
+                Some((_, job_def)) => job_def.clone(),
+                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
+            }
+        };
+
+        run_scheduled_job_internal(job_to_run.clone())
+            .await
+            .map_err(|e| {
+                SchedulerError::AnyhowError(anyhow::anyhow!(
+                    "Failed to execute job '{}' immediately: {}",
+                    sched_id,
+                    e.error
+                ))
+            })
     }
 }
 
@@ -329,15 +395,16 @@ struct JobExecutionError {
 }
 
 async fn run_scheduled_job_internal(
-    job: ScheduledJob, 
-) -> std::result::Result<(), JobExecutionError> {
+    job: ScheduledJob,
+) -> std::result::Result<String, JobExecutionError> {
+    // Return String (session_id)
     tracing::info!("Executing job: {} (Source: {})", job.id, job.source);
 
     let recipe_content = match fs::read_to_string(&job.source) {
         Ok(content) => content,
         Err(e) => {
             return Err(JobExecutionError {
-                job_id: job.id,
+                job_id: job.id.clone(),
                 error: format!("Failed to load recipe file '{}': {}", job.source, e),
             });
         }
@@ -347,37 +414,34 @@ async fn run_scheduled_job_internal(
         Ok(r) => r,
         Err(e) => {
             return Err(JobExecutionError {
-                job_id: job.id,
+                job_id: job.id.clone(),
                 error: format!("Failed to parse recipe '{}': {}", job.source, e),
             });
         }
     };
 
     let agent: Agent = Agent::new();
+    let session_id_for_return = session::generate_session_id(); // Generate ID to be returned
 
     if let Some(prompt_text) = recipe.prompt {
         let messages = vec![Message::user().with_text(prompt_text)];
-        let session_id = session::generate_session_id();
         let current_dir = match std::env::current_dir() {
             Ok(cd) => cd,
             Err(e) => {
                 return Err(JobExecutionError {
-                    job_id: job.id,
+                    job_id: job.id.clone(),
                     error: format!("Failed to get current directory for job execution: {}", e),
                 });
             }
         };
 
-        match agent
-            .reply(
-                &messages,
-                Some(SessionConfig {
-                    id: session::Identifier::Name(session_id),
-                    working_dir: current_dir,
-                }),
-            )
-            .await
-        {
+        let session_config = SessionConfig {
+            id: session::Identifier::Name(session_id_for_return.clone()),
+            working_dir: current_dir,
+            schedule_id: Some(job.id.clone()),
+        };
+
+        match agent.reply(&messages, Some(session_config)).await {
             Ok(mut stream) => {
                 use futures::StreamExt;
                 while let Some(message_result) = stream.next().await {
@@ -393,6 +457,9 @@ async fn run_scheduled_job_internal(
                                 job.id,
                                 e
                             );
+                            // Even if streaming errors, the session was initiated.
+                            // Consider if error should prevent returning session_id.
+                            // For now, we proceed to return session_id as the session was started.
                             break;
                         }
                     }
@@ -400,7 +467,7 @@ async fn run_scheduled_job_internal(
             }
             Err(e) => {
                 return Err(JobExecutionError {
-                    job_id: job.id,
+                    job_id: job.id.clone(),
                     error: format!("Agent failed to reply for recipe '{}': {}", job.source, e),
                 });
             }
@@ -411,8 +478,91 @@ async fn run_scheduled_job_internal(
             job.id,
             job.source
         );
+        // Even if no prompt, a session file might be created by persist_messages if called by agent.reply
+        // or if an empty session is meaningful. Assuming session_id is still relevant.
     }
 
     tracing::info!("Finished job: {}", job.id);
-    Ok(())
+    Ok(session_id_for_return) // Return the generated session_id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recipe::Recipe; // Ensure Recipe is in scope
+    use crate::session::storage::{get_most_recent_session, read_metadata};
+    use std::fs::{self, File};
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_scheduled_session_has_schedule_id() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = tempdir()?;
+        let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler"); // Unique name
+        fs::create_dir_all(&recipe_dir)?;
+
+        // Ensure the main session directory for goose app exists, as get_most_recent_session will look there.
+        let _ = session::storage::ensure_session_dir().expect("Failed to ensure app session dir");
+
+        let schedule_id_str = "test_schedule_001_scheduler_check".to_string();
+        let recipe_filename = recipe_dir.join(format!("{}.json", schedule_id_str));
+
+        // Create a dummy recipe file
+        let dummy_recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test Schedule ID Recipe".to_string(),
+            description: "A recipe for testing schedule_id propagation.".to_string(),
+            instructions: None,
+            prompt: Some("This is a test prompt for a scheduled job.".to_string()),
+            extensions: None,
+            context: None,
+            activities: None,
+            author: None,
+            parameters: None,
+        };
+        let mut recipe_file = File::create(&recipe_filename)?;
+        writeln!(
+            recipe_file,
+            "{}",
+            serde_json::to_string_pretty(&dummy_recipe)?
+        )?;
+        recipe_file.flush()?;
+        drop(recipe_file); // Ensure file is closed
+
+        let dummy_job = ScheduledJob {
+            id: schedule_id_str.clone(),
+            source: recipe_filename.to_string_lossy().into_owned(),
+            cron: "* * * * * * ".to_string(), // Not critical for this test
+            last_run: None,
+        };
+
+        // Run the internal job execution logic
+        let created_session_id = run_scheduled_job_internal(dummy_job.clone())
+            .await
+            .expect("run_scheduled_job_internal failed");
+
+        // Construct the expected session path from the returned ID
+        let session_dir = session::storage::ensure_session_dir()?;
+        let expected_session_path = session_dir.join(format!("{}.jsonl", created_session_id));
+
+        assert!(
+            expected_session_path.exists(),
+            "Expected session file {} was not created",
+            expected_session_path.display()
+        );
+
+        // Read its metadata
+        let metadata = read_metadata(&expected_session_path)?;
+
+        assert_eq!(
+            metadata.schedule_id,
+            Some(schedule_id_str.clone()),
+            "Session metadata schedule_id ({:?}) does not match the job ID ({}). File: {}",
+            metadata.schedule_id,
+            schedule_id_str,
+            expected_session_path.display()
+        );
+
+        Ok(())
+    }
 }

@@ -228,14 +228,8 @@ export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type ProviderDetails = {
-    /**
-     * Indicates whether the provider is fully configured
-     */
     is_configured: boolean;
     metadata: ProviderMetadata;
-    /**
-     * Unique identifier and name of the provider
-     */
     name: string;
 };
 
@@ -353,6 +347,10 @@ export type SessionMetadata = {
      */
     output_tokens?: number | null;
     /**
+     * ID of the schedule that triggered this session, if any
+     */
+    schedule_id?: string | null;
+    /**
      * The total number of tokens used in the session. Retrieved from the provider's last usage.
      */
     total_tokens?: number | null;
@@ -464,9 +462,6 @@ export type ToolInfo = {
 
 export type ToolPermission = {
     permission: PermissionLevel;
-    /**
-     * Unique identifier and name of the tool, format <extension_name>__<tool_name>
-     */
     tool_name: string;
 };
 

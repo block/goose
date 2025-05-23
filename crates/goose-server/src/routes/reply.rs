@@ -167,6 +167,7 @@ async fn handler(
                 Some(SessionConfig {
                     id: session::Identifier::Name(session_id.clone()),
                     working_dir: PathBuf::from(session_working_dir),
+                    schedule_id: None,
                 }),
             )
             .await
@@ -299,6 +300,7 @@ async fn ask_handler(
             Some(SessionConfig {
                 id: session::Identifier::Name(session_id.clone()),
                 working_dir: PathBuf::from(session_working_dir),
+                schedule_id: None,
             }),
         )
         .await

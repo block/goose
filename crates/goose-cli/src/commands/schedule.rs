@@ -79,10 +79,8 @@ pub async fn handle_schedule_add(
                 SchedulerError::JobIdExists(job_id) => {
                     bail!("Error: Job with ID '{}' already exists.", job_id);
                 }
-                _ => {
-                    Err(anyhow::Error::new(e))
-                        .context(format!("Failed to add job '{}' to scheduler", id))
-                }
+                _ => Err(anyhow::Error::new(e))
+                    .context(format!("Failed to add job '{}' to scheduler", id)),
             }
         }
     }
@@ -126,16 +124,12 @@ pub async fn handle_schedule_remove(id: String) -> Result<()> {
             println!("Scheduled job '{}' and its associated recipe removed.", id);
             Ok(())
         }
-        Err(e) => {
-            match e {
-                SchedulerError::JobNotFound(job_id) => {
-                    bail!("Error: Job with ID '{}' not found.", job_id);
-                }
-                _ => {
-                    Err(anyhow::Error::new(e))
-                        .context(format!("Failed to remove job '{}' from scheduler", id))
-                }
+        Err(e) => match e {
+            SchedulerError::JobNotFound(job_id) => {
+                bail!("Error: Job with ID '{}' not found.", job_id);
             }
-        }
+            _ => Err(anyhow::Error::new(e))
+                .context(format!("Failed to remove job '{}' from scheduler", id)),
+        },
     }
 }

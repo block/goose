@@ -1334,15 +1334,13 @@
         ],
         "properties": {
           "is_configured": {
-            "type": "boolean",
-            "description": "Indicates whether the provider is fully configured"
+            "type": "boolean"
           },
           "metadata": {
             "$ref": "#/components/schemas/ProviderMetadata"
           },
           "name": {
-            "type": "string",
-            "description": "Unique identifier and name of the provider"
+            "type": "string"
           }
         }
       },
@@ -1579,6 +1577,11 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
+          "schedule_id": {
+            "type": "string",
+            "description": "ID of the schedule that triggered this session, if any",
+            "nullable": true
+          },
           "total_tokens": {
             "type": "integer",
             "format": "int32",
@@ -1757,8 +1760,7 @@
             "$ref": "#/components/schemas/PermissionLevel"
           },
           "tool_name": {
-            "type": "string",
-            "description": "Unique identifier and name of the tool, format <extension_name>__<tool_name>"
+            "type": "string"
           }
         }
       },
