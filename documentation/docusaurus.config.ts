@@ -141,17 +141,30 @@ const config: Config = {
           position: "left",
           label: "Tutorials",
         },
-        {
-          to: "/prompt-library",
-          position: "left",
-          label: "Prompts",
-        },
-        {
-          to: "/extensions",
-          label: "Extensions",
-          position: "left",
-        },
         { to: "/blog", label: "Blog", position: "left" },
+        {
+          type: 'dropdown',
+          label: 'Resources',
+          position: 'left',
+          items: [
+            {
+              to: '/extensions',
+              label: 'Extensions',
+            },
+            {
+              to: '/recipe-generator',
+              label: 'Recipe Generator',
+            },
+            {
+              to: '/prompt-library',
+              label: 'Prompt Library',
+            },
+            {
+              href: 'https://block.github.io/goose/install-link-generator/',
+              label: 'Install Link Generator',
+            },
+          ],
+        },
 
         {
           href: "https://discord.gg/block-opensource",
