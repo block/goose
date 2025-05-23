@@ -9,6 +9,11 @@ use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
+// Import the new handlers from commands::schedule
+use crate::commands::schedule::{
+    handle_schedule_add, handle_schedule_list, handle_schedule_remove, handle_schedule_run_now,
+    handle_schedule_sessions,
+};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
@@ -117,7 +122,24 @@ enum SchedulerCommand {
     List {},
     #[command(about = "Remove a scheduled job by ID")]
     Remove {
-        #[arg(help = "ID of the job to remove")]
+        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
+        id: String,
+    },
+    /// List sessions created by a specific schedule
+    #[command(about = "List sessions created by a specific schedule")]
+    Sessions {
+        /// ID of the schedule
+        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
+        id: String,
+        /// Maximum number of sessions to return
+        #[arg(long, help = "Maximum number of sessions to return")]
+        limit: Option<u32>,
+    },
+    /// Run a scheduled job immediately
+    #[command(about = "Run a scheduled job immediately")]
+    RunNow {
+        /// ID of the schedule to run
+        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
         id: String,
     },
 }
@@ -675,13 +697,21 @@ pub async fn cli() -> Result<()> {
                     cron,
                     recipe_source,
                 } => {
-                    crate::commands::schedule::handle_schedule_add(id, cron, recipe_source).await?;
+                    handle_schedule_add(id, cron, recipe_source).await?;
                 }
                 SchedulerCommand::List {} => {
-                    crate::commands::schedule::handle_schedule_list().await?;
+                    handle_schedule_list().await?;
                 }
                 SchedulerCommand::Remove { id } => {
-                    crate::commands::schedule::handle_schedule_remove(id).await?;
+                    handle_schedule_remove(id).await?;
+                }
+                SchedulerCommand::Sessions { id, limit } => {
+                    // New arm
+                    handle_schedule_sessions(id, limit).await?;
+                }
+                SchedulerCommand::RunNow { id } => {
+                    // New arm
+                    handle_schedule_run_now(id).await?;
                 }
             }
             return Ok(());

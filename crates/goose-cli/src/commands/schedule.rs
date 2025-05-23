@@ -4,57 +4,32 @@ use goose::scheduler::{
     get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
 };
-use std::fs;
 use std::path::Path;
 
-async fn read_recipe_content(source: &str) -> Result<String> {
-    if Path::new(source).exists() {
-        fs::read_to_string(source)
-            .with_context(|| format!("Failed to read recipe file from path: {}", source))
-    } else {
-        let bytes = BASE64_STANDARD
-            .decode(source.as_bytes())
-            .with_context(|| "Recipe source is not a valid path and not valid Base64.")?;
-        String::from_utf8(bytes).with_context(|| "Decoded Base64 recipe source is not valid UTF-8.")
-    }
+// Base64 decoding function - might be needed if recipe_source_arg can be base64
+// For now, handle_schedule_add will assume it's a path.
+async fn _decode_base64_recipe(source: &str) -> Result<String> {
+    let bytes = BASE64_STANDARD
+        .decode(source.as_bytes())
+        .with_context(|| "Recipe source is not a valid path and not valid Base64.")?;
+    String::from_utf8(bytes).with_context(|| "Decoded Base64 recipe source is not valid UTF-8.")
 }
 
 pub async fn handle_schedule_add(
     id: String,
     cron: String,
-    recipe_source_arg: String,
+    recipe_source_arg: String, // This is expected to be a file path by the Scheduler
 ) -> Result<()> {
-    let scheduled_recipes_dir =
-        get_default_scheduled_recipes_dir().context("Failed to get scheduled recipes directory")?;
-    fs::create_dir_all(&scheduled_recipes_dir).with_context(|| {
-        format!(
-            "Failed to create scheduled recipes directory at {:?}",
-            scheduled_recipes_dir
-        )
-    })?;
+    println!(
+        "[CLI Debug] Scheduling job ID: {}, Cron: {}, Recipe Source Path: {}",
+        id, cron, recipe_source_arg
+    );
 
-    let recipe_content = read_recipe_content(&recipe_source_arg)
-        .await
-        .context("Failed to read or decode recipe source")?;
-
-    let extension = Path::new(&recipe_source_arg)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("yaml");
-
-    let recipe_filename_in_store = format!("{}.{}", id, extension);
-    let recipe_path_in_store = scheduled_recipes_dir.join(&recipe_filename_in_store);
-
-    fs::write(&recipe_path_in_store, &recipe_content).with_context(|| {
-        format!(
-            "Failed to write recipe to central store at {:?}",
-            recipe_path_in_store
-        )
-    })?;
-
+    // The Scheduler's add_scheduled_job will handle copying the recipe from recipe_source_arg
+    // to its internal storage and validating the path.
     let job = ScheduledJob {
         id: id.clone(),
-        source: recipe_path_in_store.to_string_lossy().to_string(),
+        source: recipe_source_arg.clone(), // Pass the original user-provided path
         cron,
         last_run: None,
     };
@@ -65,19 +40,36 @@ pub async fn handle_schedule_add(
         .await
         .context("Failed to initialize scheduler")?;
 
-    match scheduler.add_scheduled_job(job.clone()).await {
+    match scheduler.add_scheduled_job(job).await {
         Ok(_) => {
+            // The scheduler has copied the recipe to its internal directory.
+            // We can reconstruct the likely path for display if needed, or adjust success message.
+            let scheduled_recipes_dir = get_default_scheduled_recipes_dir()
+                .unwrap_or_else(|_| Path::new("./.goose_scheduled_recipes").to_path_buf()); // Fallback for display
+            let extension = Path::new(&recipe_source_arg)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("yaml");
+            let final_recipe_path = scheduled_recipes_dir.join(format!("{}.{}", id, extension));
+
             println!(
-                "Scheduled job '{}' added. Recipe stored at {:?}",
-                id, recipe_path_in_store
+                "Scheduled job '{}' added. Recipe expected at {:?}",
+                id, final_recipe_path
             );
             Ok(())
         }
         Err(e) => {
-            let _ = fs::remove_file(&recipe_path_in_store);
+            // No local file to clean up by the CLI in this revised flow.
             match e {
                 SchedulerError::JobIdExists(job_id) => {
                     bail!("Error: Job with ID '{}' already exists.", job_id);
+                }
+                SchedulerError::RecipeLoadError(msg) => {
+                    bail!(
+                        "Error with recipe source: {}. Path: {}",
+                        msg,
+                        recipe_source_arg
+                    );
                 }
                 _ => Err(anyhow::Error::new(e))
                     .context(format!("Failed to add job '{}' to scheduler", id)),
@@ -100,10 +92,10 @@ pub async fn handle_schedule_list() -> Result<()> {
         println!("Scheduled Jobs:");
         for job in jobs {
             println!(
-                "- ID: {}\n  Cron: {}\n  Recipe Source: {}\n  Last Run: {}",
+                "- ID: {}\n  Cron: {}\n  Recipe Source (in store): {}\n  Last Run: {}",
                 job.id,
                 job.cron,
-                job.source,
+                job.source, // This source is now the path within scheduled_recipes_dir
                 job.last_run
                     .map_or_else(|| "Never".to_string(), |dt| dt.to_rfc3339())
             );
@@ -132,4 +124,59 @@ pub async fn handle_schedule_remove(id: String) -> Result<()> {
                 .context(format!("Failed to remove job '{}' from scheduler", id)),
         },
     }
+}
+
+pub async fn handle_schedule_sessions(id: String, limit: Option<u32>) -> Result<()> {
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let scheduler = Scheduler::new(scheduler_storage_path)
+        .await
+        .context("Failed to initialize scheduler")?;
+
+    match scheduler.sessions(&id, limit.unwrap_or(50) as usize).await {
+        Ok(sessions) => {
+            if sessions.is_empty() {
+                println!("No sessions found for schedule ID '{}'.", id);
+            } else {
+                println!("Sessions for schedule ID '{}':", id);
+                for session_meta in sessions {
+                    println!(
+                        "  - Session working_dir: {}, Description: \"{}\", Messages: {}, Schedule ID: {:?}",
+                        session_meta.working_dir.display(),
+                        session_meta.description,
+                        session_meta.message_count,
+                        session_meta.schedule_id.as_deref().unwrap_or("N/A")
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            bail!("Failed to get sessions for schedule '{}': {:?}", id, e);
+        }
+    }
+    Ok(())
+}
+
+pub async fn handle_schedule_run_now(id: String) -> Result<()> {
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let scheduler = Scheduler::new(scheduler_storage_path)
+        .await
+        .context("Failed to initialize scheduler")?;
+
+    match scheduler.run_now(&id).await {
+        Ok(session_id) => {
+            println!(
+                "Successfully triggered schedule '{}'. New session ID: {}",
+                id, session_id
+            );
+        }
+        Err(e) => match e {
+            SchedulerError::JobNotFound(job_id) => {
+                bail!("Error: Job with ID '{}' not found.", job_id);
+            }
+            _ => bail!("Failed to run schedule '{}' now: {:?}", id, e),
+        },
+    }
+    Ok(())
 }

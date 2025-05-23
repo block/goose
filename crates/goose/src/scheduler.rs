@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
@@ -12,11 +12,12 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 
 use crate::agents::{Agent, SessionConfig};
-use crate::config;
+use crate::config::{self, Config};
 use crate::message::Message;
+use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::session;
-use crate::session::storage::SessionMetadata; // Added for sessions() method
+use crate::session::storage::SessionMetadata;
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
@@ -107,6 +108,20 @@ pub struct ScheduledJob {
     pub last_run: Option<DateTime<Utc>>,
 }
 
+async fn persist_jobs_from_arc(
+    storage_path: &Path,
+    jobs_arc: &Arc<Mutex<HashMap<String, (JobId, ScheduledJob)>>>,
+) -> Result<(), SchedulerError> {
+    let jobs_guard = jobs_arc.lock().await;
+    let list: Vec<ScheduledJob> = jobs_guard.values().map(|(_, j)| j.clone()).collect();
+    if let Some(parent) = storage_path.parent() {
+        fs::create_dir_all(parent).map_err(SchedulerError::StorageError)?;
+    }
+    let data = serde_json::to_string_pretty(&list).map_err(SchedulerError::from)?;
+    fs::write(storage_path, data).map_err(SchedulerError::StorageError)?;
+    Ok(())
+}
+
 pub struct Scheduler {
     internal_scheduler: TokioJobScheduler,
     jobs: Arc<Mutex<HashMap<String, (JobId, ScheduledJob)>>>,
@@ -191,20 +206,39 @@ impl Scheduler {
         tracing::info!("Updated job source path to: {}", stored_job.source);
 
         let job_for_task = stored_job.clone();
-        let jobs_clone_for_task = self.jobs.clone();
+        let jobs_arc_for_task = self.jobs.clone();
+        let storage_path_for_task = self.storage_path.clone();
 
         let cron_task = Job::new_async(&stored_job.cron, move |_uuid, _l| {
-            let task_job = job_for_task.clone();
-            let jobs_map_for_update = jobs_clone_for_task.clone();
+            let task_job_id = job_for_task.id.clone();
+            let current_jobs_arc = jobs_arc_for_task.clone();
+            let local_storage_path = storage_path_for_task.clone();
+            let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
+
             Box::pin(async move {
+                let current_time = Utc::now();
+                let mut needs_persist = false;
                 {
-                    let mut jobs_map = jobs_map_for_update.lock().await;
-                    if let Some((_, current_job_in_map)) = jobs_map.get_mut(&task_job.id) {
-                        current_job_in_map.last_run = Some(Utc::now());
+                    let mut jobs_map_guard = current_jobs_arc.lock().await;
+                    if let Some((_, current_job_in_map)) = jobs_map_guard.get_mut(&task_job_id) {
+                        current_job_in_map.last_run = Some(current_time);
+                        needs_persist = true;
                     }
                 }
-                // We don't need the returned session_id here, just the success/failure.
-                if let Err(e) = run_scheduled_job_internal(task_job).await {
+
+                if needs_persist {
+                    if let Err(e) =
+                        persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                    {
+                        tracing::error!(
+                            "Failed to persist last_run update for job {}: {}",
+                            &task_job_id,
+                            e
+                        );
+                    }
+                }
+
+                if let Err(e) = run_scheduled_job_internal(job_to_execute).await {
                     tracing::error!(
                         "Scheduled job '{}' execution failed: {}",
                         &e.job_id,
@@ -222,7 +256,8 @@ impl Scheduler {
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
 
         jobs_guard.insert(stored_job.id.clone(), (job_uuid, stored_job));
-        self.persist_jobs_to_storage(&jobs_guard).await?;
+        // Pass the jobs_guard by reference for the initial persist after adding a job
+        self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
         Ok(())
     }
 
@@ -247,20 +282,39 @@ impl Scheduler {
             }
 
             let job_for_task = job_to_load.clone();
-            let jobs_clone_for_task = self.jobs.clone();
+            let jobs_arc_for_task = self.jobs.clone();
+            let storage_path_for_task = self.storage_path.clone();
 
             let cron_task = Job::new_async(&job_to_load.cron, move |_uuid, _l| {
-                let task_job = job_for_task.clone();
-                let jobs_map_for_update = jobs_clone_for_task.clone();
+                let task_job_id = job_for_task.id.clone();
+                let current_jobs_arc = jobs_arc_for_task.clone();
+                let local_storage_path = storage_path_for_task.clone();
+                let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
+
                 Box::pin(async move {
+                    let current_time = Utc::now();
+                    let mut needs_persist = false;
                     {
-                        let mut jobs_map = jobs_map_for_update.lock().await;
-                        if let Some((_, stored_job)) = jobs_map.get_mut(&task_job.id) {
-                            stored_job.last_run = Some(Utc::now());
+                        let mut jobs_map_guard = current_jobs_arc.lock().await;
+                        if let Some((_, stored_job)) = jobs_map_guard.get_mut(&task_job_id) {
+                            stored_job.last_run = Some(current_time);
+                            needs_persist = true;
                         }
                     }
-                    // We don't need the returned session_id here, just the success/failure.
-                    if let Err(e) = run_scheduled_job_internal(task_job).await {
+
+                    if needs_persist {
+                        if let Err(e) =
+                            persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                        {
+                            tracing::error!(
+                                "Failed to persist last_run update for loaded job {}: {}",
+                                &task_job_id,
+                                e
+                            );
+                        }
+                    }
+
+                    if let Err(e) = run_scheduled_job_internal(job_to_execute).await {
                         tracing::error!(
                             "Scheduled job '{}' execution failed: {}",
                             &e.job_id,
@@ -281,7 +335,8 @@ impl Scheduler {
         Ok(())
     }
 
-    async fn persist_jobs_to_storage(
+    // Renamed and kept for direct use when a guard is already held (e.g. add/remove)
+    async fn persist_jobs_to_storage_with_guard(
         &self,
         jobs_guard: &tokio::sync::MutexGuard<'_, HashMap<String, (JobId, ScheduledJob)>>,
     ) -> Result<(), SchedulerError> {
@@ -292,6 +347,11 @@ impl Scheduler {
         let data = serde_json::to_string_pretty(&list)?;
         fs::write(&self.storage_path, data)?;
         Ok(())
+    }
+
+    // New function that locks and calls the helper, for run_now and potentially other places
+    async fn persist_jobs(&self) -> Result<(), SchedulerError> {
+        persist_jobs_from_arc(&self.storage_path, &self.jobs).await
     }
 
     pub async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
@@ -316,14 +376,13 @@ impl Scheduler {
                 fs::remove_file(recipe_path).map_err(SchedulerError::StorageError)?;
             }
 
-            self.persist_jobs_to_storage(&jobs_guard).await?;
+            self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
             Ok(())
         } else {
             Err(SchedulerError::JobNotFound(id.to_string()))
         }
     }
 
-    /// List sessions for a schedule (latest first)
     pub async fn sessions(
         &self,
         sched_id: &str,
@@ -338,7 +397,6 @@ impl Scheduler {
             match session::storage::read_metadata(&session_path) {
                 Ok(metadata) => {
                     if metadata.schedule_id.as_deref() == Some(sched_id) {
-                        // Store the session name (ID) along with metadata for sorting
                         schedule_sessions.push((session_name, metadata));
                     }
                 }
@@ -348,15 +406,12 @@ impl Scheduler {
                         session_path.display(),
                         e
                     );
-                    // Decide if this error should propagate or just be logged. For now, logging.
                 }
             }
         }
 
-        // Sort by session name (timestamp based, e.g., yyyymmdd_hhmmss) descending for "latest first"
         schedule_sessions.sort_by(|a, b| b.0.cmp(&a.0));
 
-        // Take the limit and map to just SessionMetadata
         let result_metadata: Vec<SessionMetadata> = schedule_sessions
             .into_iter()
             .map(|(_, metadata)| metadata)
@@ -366,7 +421,6 @@ impl Scheduler {
         Ok(result_metadata)
     }
 
-    /// Execute a scheduled job immediately and return the new session-id
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
         let job_to_run: ScheduledJob = {
             let jobs_guard = self.jobs.lock().await;
@@ -376,15 +430,26 @@ impl Scheduler {
             }
         };
 
-        run_scheduled_job_internal(job_to_run.clone())
+        let session_id = run_scheduled_job_internal(job_to_run.clone())
             .await
             .map_err(|e| {
-                SchedulerError::AnyhowError(anyhow::anyhow!(
+                SchedulerError::AnyhowError(anyhow!(
                     "Failed to execute job '{}' immediately: {}",
                     sched_id,
                     e.error
                 ))
-            })
+            })?;
+
+        {
+            let mut jobs_guard = self.jobs.lock().await;
+            if let Some((_tokio_job_id, job_in_map)) = jobs_guard.get_mut(sched_id) {
+                job_in_map.last_run = Some(Utc::now());
+            } // MutexGuard is dropped here
+        }
+        // Persist after the lock is released and update is made.
+        self.persist_jobs().await?;
+
+        Ok(session_id)
     }
 }
 
@@ -397,10 +462,11 @@ struct JobExecutionError {
 async fn run_scheduled_job_internal(
     job: ScheduledJob,
 ) -> std::result::Result<String, JobExecutionError> {
-    // Return String (session_id)
     tracing::info!("Executing job: {} (Source: {})", job.id, job.source);
 
-    let recipe_content = match fs::read_to_string(&job.source) {
+    let recipe_path = Path::new(&job.source);
+
+    let recipe_content = match fs::read_to_string(recipe_path) {
         Ok(content) => content,
         Err(e) => {
             return Err(JobExecutionError {
@@ -410,18 +476,87 @@ async fn run_scheduled_job_internal(
         }
     };
 
-    let recipe: Recipe = match serde_json::from_str::<Recipe>(&recipe_content) {
-        Ok(r) => r,
+    let recipe: Recipe = {
+        let extension = recipe_path
+            .extension()
+            .and_then(|os_str| os_str.to_str())
+            .unwrap_or("yaml")
+            .to_lowercase();
+
+        match extension.as_str() {
+            "json" | "jsonl" => {
+                serde_json::from_str::<Recipe>(&recipe_content).map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to parse JSON recipe '{}': {}", job.source, e),
+                })
+            }
+            "yaml" | "yml" => {
+                serde_yaml::from_str::<Recipe>(&recipe_content).map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to parse YAML recipe '{}': {}", job.source, e),
+                })
+            }
+            _ => Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!(
+                    "Unsupported recipe file extension '{}' for: {}",
+                    extension, job.source
+                ),
+            }),
+        }
+    }?;
+
+    let agent: Agent = Agent::new();
+
+    let global_config = Config::global();
+    let provider_name: String =
+        match global_config.get_param("GOOSE_PROVIDER") {
+            Ok(name) => name,
+            Err(_) => return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error:
+                    "GOOSE_PROVIDER not configured globally. Run 'goose configure' or set env var."
+                        .to_string(),
+            }),
+        };
+    let model_name: String = match global_config.get_param("GOOSE_MODEL") {
+        Ok(name) => name,
+        Err(_) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: "GOOSE_MODEL not configured globally. Run 'goose configure' or set env var."
+                    .to_string(),
+            })
+        }
+    };
+    let model_config = crate::model::ModelConfig::new(model_name);
+
+    match create(&provider_name, model_config) {
+        Ok(provider_instance) => {
+            if let Err(e) = agent.update_provider(provider_instance).await {
+                return Err(JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to set provider on agent: {}", e),
+                });
+            }
+            tracing::info!(
+                "Agent configured with provider '{}' for job '{}'",
+                provider_name,
+                job.id
+            );
+        }
         Err(e) => {
             return Err(JobExecutionError {
                 job_id: job.id.clone(),
-                error: format!("Failed to parse recipe '{}': {}", job.source, e),
+                error: format!(
+                    "Failed to create provider instance '{}': {}",
+                    provider_name, e
+                ),
             });
         }
-    };
+    }
 
-    let agent: Agent = Agent::new();
-    let session_id_for_return = session::generate_session_id(); // Generate ID to be returned
+    let session_id_for_return = session::generate_session_id();
 
     if let Some(prompt_text) = recipe.prompt {
         let messages = vec![Message::user().with_text(prompt_text)];
@@ -457,9 +592,6 @@ async fn run_scheduled_job_internal(
                                 job.id,
                                 e
                             );
-                            // Even if streaming errors, the session was initiated.
-                            // Consider if error should prevent returning session_id.
-                            // For now, we proceed to return session_id as the session was started.
                             break;
                         }
                     }
@@ -478,36 +610,37 @@ async fn run_scheduled_job_internal(
             job.id,
             job.source
         );
-        // Even if no prompt, a session file might be created by persist_messages if called by agent.reply
-        // or if an empty session is meaningful. Assuming session_id is still relevant.
     }
 
     tracing::info!("Finished job: {}", job.id);
-    Ok(session_id_for_return) // Return the generated session_id
+    Ok(session_id_for_return)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::recipe::Recipe; // Ensure Recipe is in scope
+    use crate::recipe::Recipe;
     use crate::session::storage::{get_most_recent_session, read_metadata};
+    use std::env;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_scheduled_session_has_schedule_id() -> Result<(), Box<dyn std::error::Error>> {
+        // Set environment variables for the test
+        env::set_var("GOOSE_PROVIDER", "test_provider");
+        env::set_var("GOOSE_MODEL", "test_model");
+
         let temp_dir = tempdir()?;
-        let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler"); // Unique name
+        let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
         fs::create_dir_all(&recipe_dir)?;
 
-        // Ensure the main session directory for goose app exists, as get_most_recent_session will look there.
         let _ = session::storage::ensure_session_dir().expect("Failed to ensure app session dir");
 
         let schedule_id_str = "test_schedule_001_scheduler_check".to_string();
         let recipe_filename = recipe_dir.join(format!("{}.json", schedule_id_str));
 
-        // Create a dummy recipe file
         let dummy_recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Test Schedule ID Recipe".to_string(),
@@ -527,21 +660,19 @@ mod tests {
             serde_json::to_string_pretty(&dummy_recipe)?
         )?;
         recipe_file.flush()?;
-        drop(recipe_file); // Ensure file is closed
+        drop(recipe_file);
 
         let dummy_job = ScheduledJob {
             id: schedule_id_str.clone(),
             source: recipe_filename.to_string_lossy().into_owned(),
-            cron: "* * * * * * ".to_string(), // Not critical for this test
+            cron: "* * * * * * ".to_string(),
             last_run: None,
         };
 
-        // Run the internal job execution logic
         let created_session_id = run_scheduled_job_internal(dummy_job.clone())
             .await
             .expect("run_scheduled_job_internal failed");
 
-        // Construct the expected session path from the returned ID
         let session_dir = session::storage::ensure_session_dir()?;
         let expected_session_path = session_dir.join(format!("{}.jsonl", created_session_id));
 
@@ -551,7 +682,6 @@ mod tests {
             expected_session_path.display()
         );
 
-        // Read its metadata
         let metadata = read_metadata(&expected_session_path)?;
 
         assert_eq!(
@@ -562,6 +692,10 @@ mod tests {
             schedule_id_str,
             expected_session_path.display()
         );
+
+        // Clean up environment variables
+        env::remove_var("GOOSE_PROVIDER");
+        env::remove_var("GOOSE_MODEL");
 
         Ok(())
     }

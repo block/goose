@@ -135,8 +135,8 @@ async fn sessions_handler(
         Ok(sessions) => Ok(Json(sessions)),
         Err(e) => {
             eprintln!("Error fetching sessions for schedule '{}': {:?}", id, e); // Log error
-            // Assuming JobNotFound isn't directly applicable here, as sessions can be empty for a valid job.
-            // Other errors from scheduler.sessions might be SchedulerError::StorageError
+                                                                                 // Assuming JobNotFound isn't directly applicable here, as sessions can be empty for a valid job.
+                                                                                 // Other errors from scheduler.sessions might be SchedulerError::StorageError
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -147,7 +147,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/schedule/create", post(create_schedule))
         .route("/schedule/list", get(list_schedules))
         .route("/schedule/delete/{id}", delete(delete_schedule)) // Corrected
-        .route("/schedule/{id}/run_now", post(run_now_handler))    // Corrected
-        .route("/schedule/{id}/sessions", get(sessions_handler))  // Corrected
+        .route("/schedule/{id}/run_now", post(run_now_handler)) // Corrected
+        .route("/schedule/{id}/sessions", get(sessions_handler)) // Corrected
         .with_state(state)
 }
