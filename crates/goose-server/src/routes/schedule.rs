@@ -39,7 +39,7 @@ async fn create_schedule(
         last_run: None,
     };
     scheduler
-        .add(job.clone())
+        .add_scheduled_job(job.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(job))
@@ -53,7 +53,7 @@ async fn list_schedules(
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let jobs = scheduler.list().await;
+    let jobs = scheduler.list_scheduled_jobs().await;
     Ok(Json(ListSchedulesResponse { jobs }))
 }
 
@@ -67,7 +67,7 @@ async fn delete_schedule(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     scheduler
-        .remove(&id)
+        .remove_scheduled_job(&id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(StatusCode::NO_CONTENT)

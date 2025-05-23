@@ -99,6 +99,29 @@ enum SessionCommand {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum SchedulerCommand {
+    #[command(about = "Add a new scheduled job")]
+    Add {
+        #[arg(long, help = "Unique ID for the job")]
+        id: String,
+        #[arg(long, help = "Cron string for the schedule (e.g., '0 0 * * * *')")]
+        cron: String,
+        #[arg(
+            long,
+            help = "Recipe source (path to file, or base64 encoded recipe string)"
+        )]
+        recipe_source: String,
+    },
+    #[command(about = "List all scheduled jobs")]
+    List {},
+    #[command(about = "Remove a scheduled job by ID")]
+    Remove {
+        #[arg(help = "ID of the job to remove")]
+        id: String,
+    },
+}
+
 #[derive(Subcommand)]
 pub enum BenchCommand {
     #[command(name = "init-config", about = "Create a new starter-config")]
@@ -418,6 +441,13 @@ enum Command {
         command: RecipeCommand,
     },
 
+    /// Manage scheduled jobs
+    #[command(about = "Manage scheduled jobs", visible_alias = "sched")]
+    Schedule {
+        #[command(subcommand)]
+        command: SchedulerCommand,
+    },
+
     /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
     Update {
@@ -636,6 +666,24 @@ pub async fn cli() -> Result<()> {
                 std::process::exit(1);
             }
 
+            return Ok(());
+        }
+        Some(Command::Schedule { command }) => {
+            match command {
+                SchedulerCommand::Add {
+                    id,
+                    cron,
+                    recipe_source,
+                } => {
+                    crate::commands::schedule::handle_schedule_add(id, cron, recipe_source).await?;
+                }
+                SchedulerCommand::List {} => {
+                    crate::commands::schedule::handle_schedule_list().await?;
+                }
+                SchedulerCommand::Remove { id } => {
+                    crate::commands::schedule::handle_schedule_remove(id).await?;
+                }
+            }
             return Ok(());
         }
         Some(Command::Update {
