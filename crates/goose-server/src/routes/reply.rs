@@ -1,7 +1,7 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -85,7 +85,6 @@ enum MessageEvent {
     Message { message: Message },
     Error { error: String },
     Finish { reason: String },
-    Status { status: String },
 }
 
 // Stream a message as an SSE event
@@ -103,10 +102,9 @@ async fn stream_event(
 }
 
 async fn handler(
-    Query(params): Query<SessionIdParam>,
-    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
-    Json(request): Json<ReplyRequest>,
+    headers: HeaderMap,
+    Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
@@ -114,10 +112,10 @@ async fn handler(
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
 
-    // Get session parameters
-    let session_working_dir = params
-        .session_working_dir
-        .unwrap_or_else(|| ".".to_string());
+    let messages = request.messages;
+    let session_working_dir = request.session_working_dir;
+
+    // Generate a new session ID if not provided in the request
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
@@ -140,8 +138,8 @@ async fn handler(
                         .await;
 
                         let _ = stream_event(
-                            MessageEvent::Status {
-                                status: "disconnected".to_string(),
+                            MessageEvent::Finish {
+                                reason: "error".to_string(),
                             },
                             &tx,
                         )
@@ -160,8 +158,8 @@ async fn handler(
                 .await;
 
                 let _ = stream_event(
-                    MessageEvent::Status {
-                        status: "disconnected".to_string(),
+                    MessageEvent::Finish {
+                        reason: "error".to_string(),
                     },
                     &tx,
                 )
@@ -173,12 +171,13 @@ async fn handler(
         // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
-        let reply_stream = match agent
+        let mut stream = match agent
             .reply(
-                request.messages,
-                session_id.clone(),
-                &session_working_dir,
-                provider.ok(),
+                &messages,
+                Some(SessionConfig {
+                    id: session::Identifier::Name(session_id.clone()),
+                    working_dir: PathBuf::from(session_working_dir),
+                }),
             )
             .await
         {
@@ -194,8 +193,8 @@ async fn handler(
                 .await;
 
                 let _ = stream_event(
-                    MessageEvent::Status {
-                        status: "disconnected".to_string(),
+                    MessageEvent::Finish {
+                        reason: "error".to_string(),
                     },
                     &tx,
                 )
@@ -205,12 +204,12 @@ async fn handler(
         };
 
         // Collect all messages for storage
-        let mut all_messages = request.messages.clone();
+        let mut all_messages = messages.clone();
         let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
-                response = timeout(Duration::from_millis(500), reply_stream.next()) => {
+                response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
                             all_messages.push(message.clone());
