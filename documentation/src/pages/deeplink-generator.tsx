@@ -234,10 +234,12 @@ export default function DeeplinkGenerator() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4 text-textProminent">Deeplink Generator</h1>
-          <p className="text-lg text-textSubtle">
+      <div className="container mx-auto px-4 py-8 md:p-24">
+        <div className="pb-8 md:pb-16">
+          <h1 className="text-4xl md:text-[64px] font-medium text-textProminent">
+            Deeplink Generator
+          </h1>
+          <p className="text-textProminent">
             Generate installation deeplinks for Goose extensions that can be shared with others.
           </p>
         </div>
