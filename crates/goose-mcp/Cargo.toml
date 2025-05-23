@@ -55,7 +55,7 @@ keyring = { version = "3.6.1", features = [
     "vendored",
 ] }
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
-utoipa = { version = "4", optional = true }
+utoipa = { version = "4.1", optional = true }
 hyper = "1"
 serde_with = "3"
 
