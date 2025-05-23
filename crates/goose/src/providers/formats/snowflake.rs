@@ -21,7 +21,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         };
 
         let mut text_content = String::new();
-        let mut has_tool_request = false;
         
         for msg_content in &message.content {
             match msg_content {
@@ -31,16 +30,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }
                     text_content.push_str(&text.text);
                 }
-                MessageContent::ToolRequest(tool_request) => {
-                    // Include tool requests in the conversation context to maintain flow
-                    has_tool_request = true;
-                    if let Ok(tool_call) = &tool_request.tool_call {
-                        if !text_content.is_empty() {
-                            text_content.push('\n');
-                        }
-                        text_content.push_str(&format!("Using tool: {} with arguments: {}", 
-                            tool_call.name, tool_call.arguments));
-                    }
+                MessageContent::ToolRequest(_tool_request) => {
+                    // Skip tool requests in message formatting - tools are handled separately
+                    // through the tools parameter in the API request
+                    continue;
                 }
                 MessageContent::ToolResponse(tool_response) => {
                     if let Ok(result) = &tool_response.tool_result {
@@ -83,12 +76,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             }
         }
 
-        // Always add messages to maintain conversation continuity
-        // If no text content but has tool request, use a placeholder
-        if text_content.is_empty() && has_tool_request {
-            text_content = "Tool execution in progress".to_string();
-        }
-        
+        // Add message if it has text content
         if !text_content.is_empty() {
             snowflake_messages.push(json!({
                 "role": role,
@@ -744,5 +732,39 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         assert!(request.get("tools").is_none());
         
         Ok(())
+    }
+
+    #[test]
+    fn test_message_formatting_skips_tool_requests() {
+        use mcp_core::tool::ToolCall;
+        
+        // Create a conversation with text, tool requests, and tool responses
+        let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));
+        
+        let messages = vec![
+            Message::user().with_text("Calculate 2 + 2"),
+            Message::assistant()
+                .with_text("I'll help you calculate that.")
+                .with_tool_request("tool_1", Ok(tool_call)),
+            Message::user().with_text("Thanks!"),
+        ];
+
+        let spec = format_messages(&messages);
+
+        // Should only have 3 messages - the tool request should be skipped
+        assert_eq!(spec.len(), 3);
+        assert_eq!(spec[0]["role"], "user");
+        assert_eq!(spec[0]["content"], "Calculate 2 + 2");
+        assert_eq!(spec[1]["role"], "assistant");
+        assert_eq!(spec[1]["content"], "I'll help you calculate that.");
+        assert_eq!(spec[2]["role"], "user");
+        assert_eq!(spec[2]["content"], "Thanks!");
+        
+        // Verify no tool request content is in the message history
+        for message in &spec {
+            let content = message["content"].as_str().unwrap();
+            assert!(!content.contains("Using tool:"));
+            assert!(!content.contains("calculator"));
+        }
     }
 }
