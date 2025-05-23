@@ -115,6 +115,30 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
+  // Get recipeConfig directly from appConfig and make it reactive
+  const [recipeConfig, setRecipeConfig] = useState<Recipe | null>(
+    window.appConfig.get('recipeConfig') as Recipe | null
+  );
+
+  // Listen for recipe config updates
+  useEffect(() => {
+    const updateRecipeConfig = () => {
+      const updatedConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+      console.log('Recipe config updated:', updatedConfig);
+      setRecipeConfig(updatedConfig);
+    };
+
+    // Check for config updates periodically or on window focus
+    window.addEventListener('focus', updateRecipeConfig);
+
+    // Also check immediately
+    updateRecipeConfig();
+
+    return () => {
+      window.removeEventListener('focus', updateRecipeConfig);
+    };
+  }, []);
+
   useEffect(() => {
     // Log all messages when the component first mounts
     window.electron.logInfo(
@@ -122,9 +146,6 @@ function ChatContent({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount;
-
-  // Get recipeConfig directly from appConfig
-  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -153,6 +174,7 @@ function ChatContent({
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
+      console.log('Message stream finished successfully');
       window.electron.stopPowerSaveBlocker();
 
       setTimeout(() => {
@@ -170,6 +192,14 @@ function ChatContent({
           body: 'Click here to expand.',
         });
       }
+    },
+    onError: (error) => {
+      console.error('Message stream error:', error);
+      window.electron.logInfo('Message stream error: ' + error.message);
+      window.electron.stopPowerSaveBlocker();
+    },
+    onResponse: (response) => {
+      console.log('Message stream response received:', response.status, response.statusText);
     },
   });
 
@@ -272,11 +302,13 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages, setChat]);
+    // Create a new ChatType object with the updated messages
+    const updatedChat: ChatType = {
+      ...chat,
+      messages,
+    };
+    setChat(updatedChat);
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -285,12 +317,80 @@ function ChatContent({
   }, [messages]);
 
   useEffect(() => {
+    console.log('Recipe prompt useEffect triggered, recipeConfig:', recipeConfig);
+    console.log('hasSentPromptRef.current:', hasSentPromptRef.current);
+
     const prompt = recipeConfig?.prompt;
     if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
-      append(prompt);
+      console.log('Starting recipe prompt process...');
+      console.log('Original prompt:', prompt);
+
+      // Apply parameter substitution if we have parameters
+      let processedPrompt = prompt;
+
+      if (recipeConfig?._paramValues) {
+        // Log the parameter values to verify they're available
+        console.log('Applying parameter values:', recipeConfig._paramValues);
+
+        // Simple template substitution with {{param}} syntax
+        Object.entries(recipeConfig._paramValues).forEach(([key, value]) => {
+          // Use a proper regex with trimmed whitespace to ensure reliable replacements
+          const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+          const beforeReplace = processedPrompt;
+          processedPrompt = processedPrompt.replace(regex, value);
+          console.log(`Replaced {{${key}}} with "${value}"`);
+          console.log('Before:', beforeReplace.substring(0, 100) + '...');
+          console.log('After:', processedPrompt.substring(0, 100) + '...');
+        });
+
+        // Log the processed prompt for debugging
+        console.log('Processed prompt:', processedPrompt);
+      } else {
+        console.log('No parameter values found, using original prompt');
+      }
+
+      // Start the power save blocker to keep session active
+      console.log('Starting power save blocker...');
+      window.electron.startPowerSaveBlocker();
+      setLastInteractionTime(Date.now());
+
+      // Ensure we disable the ref before trying to append
       hasSentPromptRef.current = true;
+      console.log('Set hasSentPromptRef to true');
+
+      // Use setTimeout to ensure the UI is ready before sending the message
+      setTimeout(() => {
+        console.log('Timeout reached, creating user message...');
+
+        try {
+          // Use createUserMessage to ensure it's handled just like a manual submission
+          const message = createUserMessage(processedPrompt);
+          console.log('Created user message:', message);
+
+          // Log this event for debugging
+          console.log('About to call append with recipe prompt...');
+
+          // Use append to send the message, which should trigger the AI response
+          append(message)
+            .then(() => {
+              console.log('append() completed successfully');
+            })
+            .catch((error) => {
+              console.error('append() failed:', error);
+            });
+        } catch (error) {
+          console.error('Error in recipe prompt sending:', error);
+        }
+      }, 100);
+    } else {
+      if (!prompt) {
+        console.log('No prompt found in recipe config');
+      }
+      if (hasSentPromptRef.current) {
+        console.log('Prompt already sent, skipping');
+      }
     }
-  }, [recipeConfig?.prompt, append, readyForAutoUserPrompt]);
+  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -465,7 +565,9 @@ function ChatContent({
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+        if (sessionDetails.metadata.total_tokens !== null) {
+          setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        }
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }

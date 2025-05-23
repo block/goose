@@ -1,11 +1,23 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 interface RecipeConfig {
-  id: string;
-  name: string;
-  description: string;
+  id?: string;
+  name?: string;
+  title?: string;
+  description?: string;
   instructions?: string;
   activities?: string[];
+  prompt?: string;
+  parameters?: Array<{
+    key: string;
+    input_type: string;
+    requirement: string;
+    description: string;
+    default?: string;
+  }>;
+  _paramValues?: Record<string, string>;
+  profile?: string;
+  mcps?: number;
   [key: string]: unknown;
 }
 
@@ -66,6 +78,7 @@ type ElectronAPI = {
 type AppConfigAPI = {
   get: (key: string) => unknown;
   getAll: () => Record<string, unknown>;
+  set: (key: string, value: unknown) => void;
 };
 
 const electronAPI: ElectronAPI = {
@@ -126,6 +139,9 @@ const electronAPI: ElectronAPI = {
 const appConfigAPI: AppConfigAPI = {
   get: (key: string) => config[key],
   getAll: () => config,
+  set: (key: string, value: unknown) => {
+    config[key] = value;
+  },
 };
 
 // Expose the APIs

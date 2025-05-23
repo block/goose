@@ -108,6 +108,9 @@ async fn handler(
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
+    tracing::info!("Reply handler called with session_id: {:?}, messages count: {}", 
+                   request.session_id, request.messages.len());
+
     // Create channel for streaming
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
@@ -120,15 +123,24 @@ async fn handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
+    tracing::info!("Using session_id: {}, working_dir: {}", session_id, session_working_dir);
+
     // Spawn task to handle streaming
     tokio::spawn(async move {
+        tracing::info!("Starting reply stream processing for session: {}", session_id);
+        
         let agent = state.get_agent().await;
         let agent = match agent {
             Ok(agent) => {
+                tracing::info!("Agent retrieved successfully for session: {}", session_id);
                 let provider = agent.provider().await;
                 match provider {
-                    Ok(_) => agent,
-                    Err(_) => {
+                    Ok(provider_ref) => {
+                        tracing::info!("Provider configured successfully for session: {}", session_id);
+                        agent
+                    },
+                    Err(provider_err) => {
+                        tracing::error!("No provider configured for session: {}, error: {:?}", session_id, provider_err);
                         let _ = stream_event(
                             MessageEvent::Error {
                                 error: "No provider configured".to_string(),
@@ -147,7 +159,8 @@ async fn handler(
                     }
                 }
             }
-            Err(_) => {
+            Err(agent_err) => {
+                tracing::error!("No agent configured for session: {}, error: {:?}", session_id, agent_err);
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "No agent configured".to_string(),
@@ -166,6 +179,8 @@ async fn handler(
             }
         };
 
+        tracing::info!("About to call agent.reply for session: {}", session_id);
+
         // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
@@ -179,9 +194,12 @@ async fn handler(
             )
             .await
         {
-            Ok(stream) => stream,
+            Ok(stream) => {
+                tracing::info!("Reply stream started successfully for session: {}", session_id);
+                stream
+            },
             Err(e) => {
-                tracing::error!("Failed to start reply stream: {:?}", e);
+                tracing::error!("Failed to start reply stream for session: {}, error: {:?}", session_id, e);
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: e.to_string(),
