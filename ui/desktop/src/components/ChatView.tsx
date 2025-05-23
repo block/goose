@@ -55,11 +55,13 @@ const isUserMessage = (message: Message): boolean => {
 };
 
 export default function ChatView({
+  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
   setIsGoosehintsModalOpen,
 }: {
+  readyForAutoUserPrompt: boolean;
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -68,6 +70,7 @@ export default function ChatView({
   return (
     <ChatContextManagerProvider>
       <ChatContent
+        readyForAutoUserPrompt={readyForAutoUserPrompt}
         chat={chat}
         setChat={setChat}
         setView={setView}
@@ -78,11 +81,13 @@ export default function ChatView({
 }
 
 function ChatContent({
+  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
   setIsGoosehintsModalOpen,
 }: {
+  readyForAutoUserPrompt: boolean;
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -125,7 +130,7 @@ function ChatContent({
 
     // Check for config updates periodically or on window focus
     window.addEventListener('focus', updateRecipeConfig);
-    
+
     // Also check immediately
     updateRecipeConfig();
 
@@ -300,7 +305,7 @@ function ChatContent({
     // Create a new ChatType object with the updated messages
     const updatedChat: ChatType = {
       ...chat,
-      messages
+      messages,
     };
     setChat(updatedChat);
   }, [messages, setChat, chat]);
@@ -314,19 +319,19 @@ function ChatContent({
   useEffect(() => {
     console.log('Recipe prompt useEffect triggered, recipeConfig:', recipeConfig);
     console.log('hasSentPromptRef.current:', hasSentPromptRef.current);
-    
+
     const prompt = recipeConfig?.prompt;
-    if (prompt && !hasSentPromptRef.current) {
+    if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
       console.log('Starting recipe prompt process...');
       console.log('Original prompt:', prompt);
-      
+
       // Apply parameter substitution if we have parameters
       let processedPrompt = prompt;
-      
+
       if (recipeConfig?._paramValues) {
         // Log the parameter values to verify they're available
         console.log('Applying parameter values:', recipeConfig._paramValues);
-        
+
         // Simple template substitution with {{param}} syntax
         Object.entries(recipeConfig._paramValues).forEach(([key, value]) => {
           // Use a proper regex with trimmed whitespace to ensure reliable replacements
@@ -337,13 +342,13 @@ function ChatContent({
           console.log('Before:', beforeReplace.substring(0, 100) + '...');
           console.log('After:', processedPrompt.substring(0, 100) + '...');
         });
-        
+
         // Log the processed prompt for debugging
         console.log('Processed prompt:', processedPrompt);
       } else {
         console.log('No parameter values found, using original prompt');
       }
-      
+
       // Start the power save blocker to keep session active
       console.log('Starting power save blocker...');
       window.electron.startPowerSaveBlocker();
@@ -352,25 +357,27 @@ function ChatContent({
       // Ensure we disable the ref before trying to append
       hasSentPromptRef.current = true;
       console.log('Set hasSentPromptRef to true');
-      
+
       // Use setTimeout to ensure the UI is ready before sending the message
       setTimeout(() => {
         console.log('Timeout reached, creating user message...');
-        
+
         try {
           // Use createUserMessage to ensure it's handled just like a manual submission
           const message = createUserMessage(processedPrompt);
           console.log('Created user message:', message);
-          
+
           // Log this event for debugging
           console.log('About to call append with recipe prompt...');
-          
+
           // Use append to send the message, which should trigger the AI response
-          append(message).then(() => {
-            console.log('append() completed successfully');
-          }).catch((error) => {
-            console.error('append() failed:', error);
-          });
+          append(message)
+            .then(() => {
+              console.log('append() completed successfully');
+            })
+            .catch((error) => {
+              console.error('append() failed:', error);
+            });
         } catch (error) {
           console.error('Error in recipe prompt sending:', error);
         }
@@ -383,7 +390,7 @@ function ChatContent({
         console.log('Prompt already sent, skipping');
       }
     }
-  }, [recipeConfig, append, setLastInteractionTime]);
+  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {

@@ -90,6 +90,7 @@ const getInitialView = (): ViewConfig => {
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [appInitialized, setAppInitialized] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
@@ -170,14 +171,16 @@ export default function App() {
         }
 
         // Check if we have a recipe with parameters that need to be filled
-        if (recipeConfig && 
-            typeof recipeConfig === 'object' && 
-            'parameters' in recipeConfig && 
-            Array.isArray(recipeConfig.parameters) &&
-            recipeConfig.parameters.length > 0 && 
-            !('_paramValues' in recipeConfig)) {
+        if (
+          recipeConfig &&
+          typeof recipeConfig === 'object' &&
+          'parameters' in recipeConfig &&
+          Array.isArray(recipeConfig.parameters) &&
+          recipeConfig.parameters.length > 0 &&
+          !('_paramValues' in recipeConfig)
+        ) {
           console.log('Recipe has parameters, showing parameter collection view');
-          
+
           // Still need to initialize the system even though we're showing parameters first
           const config = window.electron.getConfig();
           const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
@@ -192,11 +195,11 @@ export default function App() {
               console.log('System initialized for recipe with parameters');
             } catch (error) {
               console.error('Error in initialization for recipe with parameters:', error);
-              
+
               if (error instanceof MalformedConfigError) {
                 throw error;
               }
-              
+
               setView('welcome');
               return;
             }
@@ -205,7 +208,7 @@ export default function App() {
             setView('welcome');
             return;
           }
-          
+
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
         }
@@ -249,10 +252,15 @@ export default function App() {
       toastService.configure({ silent: false });
     };
 
-    initializeApp().catch((error) => {
-      console.error('Unhandled error in initialization:', error);
-      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
-    });
+    (async () => {
+      try {
+        await initializeApp();
+        setAppInitialized(true);
+      } catch (error) {
+        console.error('Unhandled error in initialization:', error);
+        setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array since we only want this to run once
 
@@ -596,6 +604,7 @@ export default function App() {
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
+              readyForAutoUserPrompt={appInitialized}
               chat={chat}
               setChat={setChat}
               setView={setView}
