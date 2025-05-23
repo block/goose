@@ -45,7 +45,9 @@ jobs:
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
         run: |
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          # Update version in Cargo.toml safely using sed with properly quoted variables
+          VERSION='${{ inputs.version }}'
+          sed -i.bak "s/^version = \".*\"/version = \"${VERSION//\//\\/}\"/" Cargo.toml
           rm -f Cargo.toml.bak
 
       - name: Setup Rust
