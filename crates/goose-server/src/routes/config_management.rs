@@ -402,7 +402,6 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
-
 #[utoipa::path(
     post,
     path = "/config/backup",
