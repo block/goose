@@ -368,8 +368,12 @@ impl GetToken for PkceOAuth2Client {
                     }
                 }
             }
-
-            // If we get here, just use the original scopes
+            // If we get here, either:
+            // 1. The project ID didn't match
+            // 2. Token refresh failed
+            // 3. There are no valid tokens yet
+            // 4. We didn't have to change the scopes of an existing token
+            // Fallback: perform interactive OAuth flow
             self.perform_oauth_flow(scopes)
                 .await
                 .map(Some)
