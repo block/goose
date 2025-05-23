@@ -3,41 +3,107 @@
 <head>
     <meta charset="utf-8">
     <title>Goose LLM WebAssembly Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <h1>Goose LLM WebAssembly Test</h1>
-    <div id="output"></div>
+    
+    <div class="section">
+        <h2>ModelConfig Test</h2>
+        <div id="modelConfigOutput"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Message Test</h2>
+        <div id="messageOutput"></div>
+    </div>
 
     <script type="module">
-        import init, { WasmModelConfig } from './pkg/goose_llm.js';
+        import init, { WasmModelConfig, WasmMessage, WasmRole } from './pkg/goose_llm.js';
 
         async function run() {
             await init();
 
             try {
-                // Create a new ModelConfig
+                // Test ModelConfig
                 const config = new WasmModelConfig("gpt-4-turbo");
-                
-                // Test the methods
                 const configWithSettings = config
                     .with_temperature(0.7)
                     .with_context_limit(128000)
                     .with_max_tokens(2000);
 
-                // Get values
-                const output = document.getElementById('output');
-                output.innerHTML = `
-                    <h2>ModelConfig Test</h2>
+                document.getElementById('modelConfigOutput').innerHTML = `
                     <p>Model Name: ${configWithSettings.model_name()}</p>
                     <p>Context Limit: ${configWithSettings.context_limit()}</p>
                 `;
+
+                // Test Message
+                const userMessage = WasmMessage.user().with_text("Hello, AI assistant!");
+                const assistantMessage = WasmMessage.assistant().with_text("Hello! How can I help you today?");
+                
+                const userJson = userMessage.to_json();
+                const assistantJson = assistantMessage.to_json();
+                
+                // Parse the JSON back to a message
+                const parsedMessage = WasmMessage.from_json(assistantJson);
+                
+                document.getElementById('messageOutput').innerHTML = `
+                    <h3>User Message</h3>
+                    <p>Role: ${userMessage.role() === 0 ? 'User' : 'Assistant'}</p>
+                    <p>Created: ${new Date(userMessage.created_ms()).toISOString()}</p>
+                    <p>Content: ${userMessage.content_text()}</p>
+                    <h4>JSON:</h4>
+                    <pre>${JSON.stringify(JSON.parse(userJson), null, 2)}</pre>
+                    
+                    <h3>Assistant Message</h3>
+                    <p>Role: ${assistantMessage.role() === 0 ? 'User' : 'Assistant'}</p>
+                    <p>Created: ${new Date(assistantMessage.created_ms()).toISOString()}</p>
+                    <p>Content: ${assistantMessage.content_text()}</p>
+                    <h4>JSON:</h4>
+                    <pre>${JSON.stringify(JSON.parse(assistantJson), null, 2)}</pre>
+                    
+                    <h3>Parsed Message</h3>
+                    <p>Role: ${parsedMessage.role() === 0 ? 'User' : 'Assistant'}</p>
+                    <p>Created: ${new Date(parsedMessage.created_ms()).toISOString()}</p>
+                    <p>Content: ${parsedMessage.content_text()}</p>
+                `;
             } catch (e) {
                 console.error("Error:", e);
-                document.getElementById('output').innerHTML = `<p style="color: red">Error: ${e.message}</p>`;
+                document.getElementById('messageOutput').innerHTML = `<p class="error">Error: ${e.message || e}</p>`;
             }
         }
 
-        run().catch(console.error);
+        run().catch(e => {
+            console.error("Unhandled error:", e);
+            document.body.innerHTML += `<div class="error">Unhandled error: ${e.message || e}</div>`;
+        });
     </script>
 </body>
 </html>
