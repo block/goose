@@ -44,9 +44,25 @@
         <h2>Message Test</h2>
         <div id="messageOutput"></div>
     </div>
+    
+    <div class="section">
+        <h2>CompletionRequest Test</h2>
+        <div id="completionRequestOutput"></div>
+    </div>
 
     <script type="module">
-        import init, { WasmModelConfig, WasmMessage, WasmRole } from './pkg/goose_llm.js';
+        import init, { 
+            WasmModelConfig, 
+            WasmMessage, 
+            WasmRole, 
+            WasmToolConfig,
+            WasmToolApprovalMode,
+            WasmExtensionConfig,
+            WasmCompletionRequest,
+            WasmUsage,
+            WasmRuntimeMetrics,
+            WasmCompletionResponse
+        } from './pkg/goose_llm.js';
 
         async function run() {
             await init();
@@ -94,9 +110,86 @@
                     <p>Created: ${new Date(parsedMessage.created_ms()).toISOString()}</p>
                     <p>Content: ${parsedMessage.content_text()}</p>
                 `;
+                
+                // Test CompletionRequest
+                const providerConfig = {
+                    api_key: "dummy-api-key",
+                    host: "https://api.openai.com",
+                    timeout: 60
+                };
+                
+                // Create a tool config
+                const toolSchema = {
+                    type: "object",
+                    properties: {
+                        query: {
+                            type: "string",
+                            description: "The search query"
+                        }
+                    },
+                    required: ["query"]
+                };
+                
+                const searchTool = new WasmToolConfig(
+                    "search", 
+                    "Search the web for information", 
+                    JSON.stringify(toolSchema),
+                    WasmToolApprovalMode.Manual
+                );
+                
+                // Create an extension config
+                const searchExtension = new WasmExtensionConfig("search_extension", "Search extension for finding information");
+                searchExtension.add_tool(searchTool);
+                
+                // Create the completion request
+                const completionRequest = new WasmCompletionRequest(
+                    "openai",
+                    JSON.stringify(providerConfig),
+                    configWithSettings,
+                    "You are a helpful assistant."
+                );
+                
+                // Add messages and extension
+                completionRequest.add_message(userMessage);
+                completionRequest.add_extension(searchExtension);
+                
+                // Serialize to JSON
+                const requestJson = completionRequest.to_json();
+                
+                document.getElementById('completionRequestOutput').innerHTML = `
+                    <h3>Completion Request</h3>
+                    <p>Provider: ${completionRequest.provider_name()}</p>
+                    <p>System Preamble: ${completionRequest.system_preamble()}</p>
+                    <h4>JSON:</h4>
+                    <pre>${JSON.stringify(JSON.parse(requestJson), null, 2)}</pre>
+                    
+                    <h3>Mock Completion Response</h3>
+                `;
+                
+                // Create a mock completion response
+                const usage = new WasmUsage(10, 20, 30);
+                const metrics = new WasmRuntimeMetrics(0.5, 0.4, 75.0);
+                const response = new WasmCompletionResponse(
+                    assistantMessage,
+                    "gpt-4-turbo",
+                    usage,
+                    metrics
+                );
+                
+                const responseJson = response.to_json();
+                
+                document.getElementById('completionRequestOutput').innerHTML += `
+                    <p>Model: ${response.model()}</p>
+                    <p>Message: ${response.message().content_text()}</p>
+                    <p>Total Tokens: ${response.usage().total_tokens()}</p>
+                    <p>Tokens/sec: ${response.runtime_metrics().tokens_per_second()}</p>
+                    <h4>JSON:</h4>
+                    <pre>${JSON.stringify(JSON.parse(responseJson), null, 2)}</pre>
+                `;
+                
             } catch (e) {
                 console.error("Error:", e);
-                document.getElementById('messageOutput').innerHTML = `<p class="error">Error: ${e.message || e}</p>`;
+                document.body.innerHTML += `<div class="error">Error: ${e.message || e}</div>`;
             }
         }
 
