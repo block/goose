@@ -195,7 +195,10 @@ impl Agent {
             "output" = serde_json::to_string(&result).unwrap(),
         );
 
-        (request_id, result)
+        // Process the response to handle large text content
+        let processed_result = super::large_response_handler::process_tool_response(result);
+
+        (request_id, processed_result)
     }
 
     pub(super) async fn manage_extensions(
