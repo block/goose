@@ -6,6 +6,7 @@ import ModelsSection from './models/ModelsSection';
 import { ModeSection } from './mode/ModeSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import { ResponseStylesSection } from './response_styles/ResponseStylesSection';
+import NotificationsSection from './notifications/NotificationsSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
@@ -50,6 +51,8 @@ export default function SettingsView({
               <SessionSharingSection />
               {/* Response Styles */}
               <ResponseStylesSection />
+              {/* Notifications */}
+              <NotificationsSection />
             </div>
           </div>
         </div>

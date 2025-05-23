@@ -32,6 +32,7 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+import { DarwinUtils } from './utils/darwin-utils';
 
 if (started) app.quit();
 
@@ -1068,6 +1069,154 @@ app.whenReady().then(async () => {
     }
   );
 
+  // === Notification Management ===
+  const notificationManager = new (class NotificationManager {
+    private activeNotifications = new Map<
+      string,
+      {
+        notification: ElectronNotification;
+        sourceWindow: BrowserWindow;
+        windowId: number;
+      }
+    >();
+
+    private getNotificationIcon(): string {
+      const isDev = process.env.NODE_ENV === 'development';
+      return path.join(isDev ? process.cwd() : process.resourcesPath, 'images', 'icon.png');
+    }
+
+    private handleNotificationClick(title: string, sourceWindow: BrowserWindow) {
+      const notificationData = this.activeNotifications.get(title);
+      if (!notificationData) return;
+
+      const window = !sourceWindow.isDestroyed()
+        ? sourceWindow
+        : BrowserWindow.getAllWindows().find((w) => w.id === notificationData.windowId) ||
+          BrowserWindow.getAllWindows()[0];
+
+      if (window) {
+        if (window.isMinimized()) window.restore();
+        window.show();
+        window.focus();
+      }
+    }
+
+    cleanupNotifications(windowId: number) {
+      for (const [title, data] of this.activeNotifications.entries()) {
+        if (data.windowId === windowId) {
+          data.notification.close();
+          this.activeNotifications.delete(title);
+        }
+      }
+    }
+
+    async showNotification(event: Electron.IpcMainEvent, data: NotificationData) {
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender);
+      if (!sourceWindow) {
+        throw new Error('Could not find source window');
+      }
+
+      try {
+        const notification = new Notification({
+          title: data.title,
+          body: data.body,
+          silent: data.sound && data.sound !== 'default' ? true : false,
+          icon: this.getNotificationIcon(),
+          urgency: data.type === 'error' ? 'critical' : 'normal',
+          subtitle: 'Goose Desktop',
+          hasReply: false,
+          timeoutType: 'default',
+          actions: (data.actions || []).map((a) => ({ type: 'button', text: a.text })),
+        });
+
+        if (process.platform === 'darwin' && data.sound && data.sound !== 'default') {
+          await DarwinUtils.playSound(data.sound);
+        }
+
+        this.activeNotifications.set(data.title, {
+          notification,
+          sourceWindow,
+          windowId: sourceWindow.id,
+        });
+
+        notification.on('click', () => {
+          this.handleNotificationClick(data.title, sourceWindow);
+          if (data.onClick) {
+            data.onClick();
+          }
+        });
+
+        notification.on('close', () => {
+          this.activeNotifications.delete(data.title);
+        });
+
+        notification.show();
+      } catch (error) {
+        console.error('[Notifications] Show error:', error);
+        throw error;
+      }
+    }
+
+    closeNotification(title: string) {
+      const notificationData = this.activeNotifications.get(title);
+      if (notificationData) {
+        notificationData.notification.close();
+        this.activeNotifications.delete(title);
+      }
+    }
+  })();
+
+  // === IPC Handlers ===
+
+  app.on('browser-window-closed', (_event: unknown, window: BrowserWindow) => {
+    notificationManager.cleanupNotifications(window.id);
+  });
+
+  ipcMain.on('notify', async (event, data: NotificationData) => {
+    try {
+      await notificationManager.showNotification(event, data);
+    } catch (error) {
+      console.error('[Notifications] Failed to show notification:', error);
+    }
+  });
+
+  ipcMain.on('close-notification', (_event, title: string) => {
+    notificationManager.closeNotification(title);
+  });
+
+  ipcMain.handle('check-system-notifications', async () => {
+    if (process.platform === 'darwin') {
+      try {
+        const { checkSystemPermissions } = await import('./notifications/system');
+        const permissions = await checkSystemPermissions();
+        return {
+          enabled: permissions.system,
+          reason: permissions.system ? undefined : 'app_disabled',
+        };
+      } catch (error) {
+        console.error('[Notifications] Permission check error:', error);
+        return { enabled: false, reason: 'unknown' };
+      }
+    }
+
+    try {
+      new Notification({ title: 'Test', body: 'Test' });
+      return { enabled: true };
+    } catch {
+      return { enabled: false, reason: 'unknown' };
+    }
+  });
+
+  ipcMain.handle('is-any-window-focused', () => {
+    return BrowserWindow.getAllWindows().some((window) => window.isFocused());
+  });
+
+  ipcMain.on('open-system-notification-settings', () => {
+    if (process.platform === 'darwin') {
+      spawn('open', ['x-apple.systempreferences:com.apple.preference.notifications']);
+    }
+  });
+
   ipcMain.on('notify', (_event, data) => {
     try {
       // Validate notification data
@@ -1125,6 +1274,10 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error('Error logging info:', error);
     }
+  });
+
+  ipcMain.on('logInfo', (_event, info) => {
+    log.info('from renderer:', info);
   });
 
   ipcMain.on('reload-app', (event) => {
