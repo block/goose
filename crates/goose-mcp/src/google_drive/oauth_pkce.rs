@@ -46,6 +46,7 @@ struct TokenData {
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_at: Option<u64>,
     project_id: String,
+    scopes: Vec<String>,
 }
 
 /// PkceOAuth2Client implements the GetToken trait required by DriveHub
@@ -56,6 +57,7 @@ pub struct PkceOAuth2Client {
     credentials_manager: Arc<CredentialsManager>,
     http_client: reqwest::Client,
     project_id: String,
+    scopes: Vec<String>,
 }
 
 impl PkceOAuth2Client {
@@ -69,6 +71,7 @@ impl PkceOAuth2Client {
 
         // Extract the project_id from the config
         let project_id = config.installed.project_id.clone();
+        let scopes = vec![];
 
         // Create OAuth URLs
         let auth_url =
@@ -97,6 +100,7 @@ impl PkceOAuth2Client {
             credentials_manager,
             http_client,
             project_id,
+            scopes,
         })
     }
 
@@ -185,6 +189,7 @@ impl PkceOAuth2Client {
                 refresh_token: refresh_token_str.clone(),
                 expires_at,
                 project_id: self.project_id.clone(),
+                scopes: scopes.iter().map(|s| s.to_string()).collect(),
             };
 
             // Store updated token data
@@ -239,6 +244,7 @@ impl PkceOAuth2Client {
             refresh_token: new_refresh_token.clone(),
             expires_at,
             project_id: self.project_id.clone(),
+            scopes: self.scopes.clone(),
         };
 
         // Store updated token data
@@ -315,37 +321,66 @@ impl GetToken for PkceOAuth2Client {
             if let Ok(token_data) = self.credentials_manager.read_credentials::<TokenData>() {
                 // Verify the project_id matches
                 if token_data.project_id == self.project_id {
-                    // Check if the token is expired or expiring within a 5-min buffer
-                    if !self.is_token_expired(token_data.expires_at, 300) {
-                        return Ok(Some(token_data.access_token));
-                    }
+                    // Convert stored scopes to &str slices for comparison
+                    let stored_scope_refs: Vec<&str> =
+                        token_data.scopes.iter().map(|s| s.as_str()).collect();
 
-                    // Token is expired or will expire soon, try to refresh it
-                    debug!("Token is expired or will expire soon, refreshing...");
+                    // Check if we need additional scopes
+                    let needs_additional_scopes = scopes.iter().any(|&scope| {
+                        !stored_scope_refs
+                            .iter()
+                            .any(|&stored| stored.contains(scope))
+                    });
 
-                    // Try to refresh the token
-                    if let Ok(access_token) = self.refresh_token(&token_data.refresh_token).await {
-                        debug!("Successfully refreshed access token");
-                        return Ok(Some(access_token));
+                    if !needs_additional_scopes {
+                        // Check if the token is expired or expiring within a 5-min buffer
+                        if !self.is_token_expired(token_data.expires_at, 300) {
+                            return Ok(Some(token_data.access_token));
+                        }
+
+                        // Token is expired or will expire soon, try to refresh it
+                        debug!("Token is expired or will expire soon, refreshing...");
+
+                        // Try to refresh the token
+                        if let Ok(access_token) =
+                            self.refresh_token(&token_data.refresh_token).await
+                        {
+                            debug!("Successfully refreshed access token");
+                            return Ok(Some(access_token));
+                        }
+                    } else {
+                        // Only allocate new strings when we need to combine scopes
+                        let mut combined_scopes: Vec<&str> =
+                            Vec::with_capacity(scopes.len() + stored_scope_refs.len());
+                        combined_scopes.extend(scopes);
+                        combined_scopes.extend(stored_scope_refs.iter().filter(|&&stored| {
+                            !scopes.iter().any(|&scope| stored.contains(scope))
+                        }));
+
+                        return self
+                            .perform_oauth_flow(&combined_scopes)
+                            .await
+                            .map(Some)
+                            .map_err(|e| {
+                                error!("OAuth flow failed: {}", e);
+                                e
+                            });
                     }
                 }
             }
-
             // If we get here, either:
             // 1. The project ID didn't match
             // 2. Token refresh failed
             // 3. There are no valid tokens yet
+            // 4. We didn't have to change the scopes of an existing token
             // Fallback: perform interactive OAuth flow
-            match self.perform_oauth_flow(scopes).await {
-                Ok(token) => {
-                    debug!("Successfully obtained new access token through OAuth flow");
-                    Ok(Some(token))
-                }
-                Err(e) => {
+            self.perform_oauth_flow(scopes)
+                .await
+                .map(Some)
+                .map_err(|e| {
                     error!("OAuth flow failed: {}", e);
-                    Err(e)
-                }
-            }
+                    e
+                })
         })
     }
 }
