@@ -511,7 +511,9 @@ mod tests {
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
-            let scheduler = goose::scheduler::Scheduler::new(state.clone())
+            let scheduler_path = goose::scheduler::get_default_scheduler_storage_path()
+                .expect("Failed to get default scheduler storage path");
+            let scheduler = goose::scheduler::Scheduler::new(scheduler_path)
                 .await
                 .unwrap();
             state.set_scheduler(scheduler).await;
