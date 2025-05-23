@@ -26,7 +26,7 @@ pub async fn run() -> Result<()> {
         .data_dir()
         .join("schedules.json");
 
-    let scheduler_instance = GooseScheduler::new(agent_ref.clone(), storage_path).await?;
+    let scheduler_instance = GooseScheduler::new(storage_path).await?;
     app_state.set_scheduler(scheduler_instance).await;
 
     let cors = CorsLayer::new()

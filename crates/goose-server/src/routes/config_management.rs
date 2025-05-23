@@ -6,7 +6,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::config::Config;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
@@ -15,7 +15,6 @@ use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
@@ -403,11 +402,6 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
-pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
-    top_level_domain: "Block".to_string(),
-    author: "Block".to_string(),
-    app_name: "goose".to_string(),
-});
 
 #[utoipa::path(
     post,
@@ -423,7 +417,7 @@ pub async fn backup_config(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+    let config_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir();
 
@@ -474,7 +468,11 @@ mod tests {
             "test".to_string(),
         )
         .await;
-        let sched = goose::scheduler::Scheduler::new(test_state.clone())
+        let sched_storage_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .unwrap()
+            .data_dir()
+            .join("schedules.json");
+        let sched = goose::scheduler::Scheduler::new(sched_storage_path)
             .await
             .unwrap();
         test_state.set_scheduler(sched).await;
