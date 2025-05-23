@@ -48,8 +48,6 @@ export interface CreateRecipeResponse {
 
 export async function createRecipe(request: CreateRecipeRequest): Promise<CreateRecipeResponse> {
   const url = getApiUrl('/recipe/create');
-  console.log('Creating recipe at:', url);
-  console.log('Request:', JSON.stringify(request, null, 2));
 
   const response = await fetch(url, {
     method: 'POST',

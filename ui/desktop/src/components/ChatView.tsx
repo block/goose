@@ -124,7 +124,6 @@ function ChatContent({
   useEffect(() => {
     const updateRecipeConfig = () => {
       const updatedConfig = window.appConfig.get('recipeConfig') as Recipe | null;
-      console.log('Recipe config updated:', updatedConfig);
       setRecipeConfig(updatedConfig);
     };
 
@@ -174,7 +173,6 @@ function ChatContent({
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
-      console.log('Message stream finished successfully');
       window.electron.stopPowerSaveBlocker();
 
       setTimeout(() => {
@@ -197,9 +195,6 @@ function ChatContent({
       console.error('Message stream error:', error);
       window.electron.logInfo('Message stream error: ' + error.message);
       window.electron.stopPowerSaveBlocker();
-    },
-    onResponse: (response) => {
-      console.log('Message stream response received:', response.status, response.statusText);
     },
   });
 
@@ -273,7 +268,6 @@ function ChatContent({
         }
 
         // Create a new window for the recipe editor
-        console.log('Opening recipe editor with config:', response.recipe);
         window.electron.createChatWindow(
           undefined, // query
           undefined, // dir
@@ -282,8 +276,6 @@ function ChatContent({
           response.recipe, // recipe config
           'recipeEditor' // view type
         );
-
-        window.electron.logInfo('Opening recipe editor window');
       } catch (error) {
         window.electron.logInfo('Failed to create recipe:');
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -317,9 +309,6 @@ function ChatContent({
   }, [messages]);
 
   useEffect(() => {
-    console.log('Recipe prompt useEffect triggered, recipeConfig:', recipeConfig);
-    console.log('hasSentPromptRef.current:', hasSentPromptRef.current);
-
     const prompt = recipeConfig?.prompt;
     // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
     // This is because the recipe config and parameters are available before full app initialization
@@ -327,73 +316,39 @@ function ChatContent({
     const shouldProceed = readyForAutoUserPrompt || hasParameterValues;
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {
-      console.log('Starting recipe prompt process...');
-      console.log('Original prompt:', prompt);
-
       // Apply parameter substitution if we have parameters
       let processedPrompt = prompt;
 
       if (recipeConfig?._paramValues) {
-        // Log the parameter values to verify they're available
-        console.log('Applying parameter values:', recipeConfig._paramValues);
-
         // Simple template substitution with {{param}} syntax
         Object.entries(recipeConfig._paramValues).forEach(([key, value]) => {
           // Use a proper regex with trimmed whitespace to ensure reliable replacements
           const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-          const beforeReplace = processedPrompt;
           processedPrompt = processedPrompt.replace(regex, value);
-          console.log(`Replaced {{${key}}} with "${value}"`);
-          console.log('Before:', beforeReplace.substring(0, 100) + '...');
-          console.log('After:', processedPrompt.substring(0, 100) + '...');
         });
-
-        // Log the processed prompt for debugging
-        console.log('Processed prompt:', processedPrompt);
-      } else {
-        console.log('No parameter values found, using original prompt');
       }
 
       // Start the power save blocker to keep session active
-      console.log('Starting power save blocker...');
       window.electron.startPowerSaveBlocker();
       setLastInteractionTime(Date.now());
 
       // Ensure we disable the ref before trying to append
       hasSentPromptRef.current = true;
-      console.log('Set hasSentPromptRef to true');
 
       // Use setTimeout to ensure the UI is ready before sending the message
       setTimeout(() => {
-        console.log('Timeout reached, creating user message...');
-
         try {
           // Use createUserMessage to ensure it's handled just like a manual submission
           const message = createUserMessage(processedPrompt);
-          console.log('Created user message:', message);
-
-          // Log this event for debugging
-          console.log('About to call append with recipe prompt...');
 
           // Use append to send the message, which should trigger the AI response
-          append(message)
-            .then(() => {
-              console.log('append() completed successfully');
-            })
-            .catch((error) => {
-              console.error('append() failed:', error);
-            });
+          append(message).catch((error) => {
+            console.error('append() failed:', error);
+          });
         } catch (error) {
           console.error('Error in recipe prompt sending:', error);
         }
       }, 100);
-    } else {
-      if (!prompt) {
-        console.log('No prompt found in recipe config');
-      }
-      if (hasSentPromptRef.current) {
-        console.log('Prompt already sent, skipping');
-      }
     }
   }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
@@ -436,7 +391,7 @@ function ChatContent({
   };
 
   if (error) {
-    console.log('Error:', error);
+    console.error('Error:', error);
   }
 
   const onStopGoose = () => {

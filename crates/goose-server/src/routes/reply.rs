@@ -1,7 +1,7 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -85,6 +85,7 @@ enum MessageEvent {
     Message { message: Message },
     Error { error: String },
     Finish { reason: String },
+    Status { status: String },
 }
 
 // Stream a message as an SSE event
@@ -102,45 +103,34 @@ async fn stream_event(
 }
 
 async fn handler(
-    State(state): State<Arc<AppState>>,
+    Query(params): Query<SessionIdParam>,
     headers: HeaderMap,
-    Json(request): Json<ChatRequest>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ReplyRequest>,
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
-
-    tracing::info!("Reply handler called with session_id: {:?}, messages count: {}", 
-                   request.session_id, request.messages.len());
 
     // Create channel for streaming
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
 
-    let messages = request.messages;
-    let session_working_dir = request.session_working_dir;
-
-    // Generate a new session ID if not provided in the request
+    // Get session parameters
+    let session_working_dir = params
+        .session_working_dir
+        .unwrap_or_else(|| ".".to_string());
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    tracing::info!("Using session_id: {}, working_dir: {}", session_id, session_working_dir);
-
     // Spawn task to handle streaming
     tokio::spawn(async move {
-        tracing::info!("Starting reply stream processing for session: {}", session_id);
-        
         let agent = state.get_agent().await;
         let agent = match agent {
             Ok(agent) => {
-                tracing::info!("Agent retrieved successfully for session: {}", session_id);
                 let provider = agent.provider().await;
                 match provider {
-                    Ok(provider_ref) => {
-                        tracing::info!("Provider configured successfully for session: {}", session_id);
-                        agent
-                    },
-                    Err(provider_err) => {
-                        tracing::error!("No provider configured for session: {}, error: {:?}", session_id, provider_err);
+                    Ok(_) => agent,
+                    Err(_) => {
                         let _ = stream_event(
                             MessageEvent::Error {
                                 error: "No provider configured".to_string(),
@@ -148,9 +138,10 @@ async fn handler(
                             &tx,
                         )
                         .await;
+
                         let _ = stream_event(
-                            MessageEvent::Finish {
-                                reason: "error".to_string(),
+                            MessageEvent::Status {
+                                status: "disconnected".to_string(),
                             },
                             &tx,
                         )
@@ -159,8 +150,7 @@ async fn handler(
                     }
                 }
             }
-            Err(agent_err) => {
-                tracing::error!("No agent configured for session: {}, error: {:?}", session_id, agent_err);
+            Err(_) => {
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "No agent configured".to_string(),
@@ -168,9 +158,10 @@ async fn handler(
                     &tx,
                 )
                 .await;
+
                 let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
+                    MessageEvent::Status {
+                        status: "disconnected".to_string(),
                     },
                     &tx,
                 )
@@ -179,27 +170,21 @@ async fn handler(
             }
         };
 
-        tracing::info!("About to call agent.reply for session: {}", session_id);
-
         // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
-        let mut stream = match agent
+        let reply_stream = match agent
             .reply(
-                &messages,
-                Some(SessionConfig {
-                    id: session::Identifier::Name(session_id.clone()),
-                    working_dir: PathBuf::from(session_working_dir),
-                }),
+                request.messages,
+                session_id.clone(),
+                &session_working_dir,
+                provider.ok(),
             )
             .await
         {
-            Ok(stream) => {
-                tracing::info!("Reply stream started successfully for session: {}", session_id);
-                stream
-            },
+            Ok(stream) => stream,
             Err(e) => {
-                tracing::error!("Failed to start reply stream for session: {}, error: {:?}", session_id, e);
+                tracing::error!("Failed to start reply stream: {:?}", e);
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: e.to_string(),
@@ -207,9 +192,10 @@ async fn handler(
                     &tx,
                 )
                 .await;
+
                 let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
+                    MessageEvent::Status {
+                        status: "disconnected".to_string(),
                     },
                     &tx,
                 )
@@ -219,12 +205,12 @@ async fn handler(
         };
 
         // Collect all messages for storage
-        let mut all_messages = messages.clone();
+        let mut all_messages = request.messages.clone();
         let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
-                response = timeout(Duration::from_millis(500), stream.next()) => {
+                response = timeout(Duration::from_millis(500), reply_stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
                             all_messages.push(message.clone());

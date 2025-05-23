@@ -1,6 +1,7 @@
 import { getApiUrl, getSecretKey } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
+import { Recipe } from '../recipe';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -66,8 +67,6 @@ There may be (but not always) some tools mentioned in the instructions which you
  * @param addExtension Function to add extension to config.yaml
  */
 export const migrateExtensionsToSettingsV3 = async () => {
-  console.log('need to perform extension migration v3');
-
   const userSettingsStr = localStorage.getItem('user_settings');
   let localStorageExtensions: FullExtensionConfig[] = [];
 
@@ -88,7 +87,6 @@ export const migrateExtensionsToSettingsV3 = async () => {
     // to handle updating / creating the new builtins to the config.yaml
     // For all other extension types we migrate them to config.yaml
     if (extension.type !== 'builtin') {
-      console.log(`Migrating extension ${extension.name} to config.yaml`);
       try {
         // manually import apiAddExtension to set throwOnError true
         const query: ExtensionQuery = {
@@ -112,7 +110,6 @@ export const migrateExtensionsToSettingsV3 = async () => {
 
   if (migrationErrors.length === 0) {
     localStorage.setItem('configVersion', '3');
-    console.log('Extension migration complete. Config version set to 3.');
   } else {
     const errorSummaryStr = migrationErrors
       .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
@@ -134,9 +131,8 @@ export const initializeSystem = async (
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipeConfig') as Recipe | undefined;
     const botPrompt = recipeConfig?.instructions;
     const paramValues = recipeConfig?._paramValues || {};
 
@@ -162,11 +158,6 @@ export const initializeSystem = async (
     });
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
-    } else {
-      console.log('Extended system prompt with desktop-specific information');
-      if (botPrompt) {
-        console.log('Added custom bot prompt to system prompt');
-      }
     }
 
     if (!options?.getExtensions || !options?.addExtension) {
@@ -179,7 +170,6 @@ export const initializeSystem = async (
     const configVersion = localStorage.getItem('configVersion');
     const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
-    console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
     if (shouldMigrateExtensions) {
       await migrateExtensionsToSettingsV3();
     }
