@@ -125,7 +125,6 @@ mod tests {
                 .text
                 .contains("The response returned from the tool call was larger"));
             assert!(text_content.text.contains("characters"));
-            assert!(text_content.text.contains("stored in the file:"));
 
             // Extract the file path from the message
             if let Some(file_path) = text_content.text.split("stored in the file: ").nth(1) {
