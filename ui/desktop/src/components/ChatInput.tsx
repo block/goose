@@ -272,7 +272,7 @@ export default function ChatInput({
           data-testid="chat-input"
           autoFocus
           id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
+          placeholder="What can goose help with? (⌘↑/↓ for history)"
           value={displayValue}
           onChange={handleChange}
           onCompositionStart={handleCompositionStart}
