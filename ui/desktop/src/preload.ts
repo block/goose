@@ -68,6 +68,11 @@ type AppConfigAPI = {
   getAll: () => Record<string, unknown>;
 };
 
+type ScheduleAPI = {
+  sessions: (scheduleId: string, limit?: number) => Promise<unknown>; // Define more specific type if possible
+  runNow: (scheduleId: string) => Promise<string>;
+};
+
 const electronAPI: ElectronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
@@ -128,14 +133,22 @@ const appConfigAPI: AppConfigAPI = {
   getAll: () => config,
 };
 
+const scheduleAPI: ScheduleAPI = {
+  sessions: (scheduleId: string, limit?: number) =>
+    ipcRenderer.invoke('schedule:sessions', scheduleId, limit),
+  runNow: (scheduleId: string) => ipcRenderer.invoke('schedule:runNow', scheduleId),
+};
+
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);
+contextBridge.exposeInMainWorld('schedule', scheduleAPI);
 
 // Type declaration for TypeScript
 declare global {
   interface Window {
     electron: ElectronAPI;
     appConfig: AppConfigAPI;
+    schedule: ScheduleAPI;
   }
 }

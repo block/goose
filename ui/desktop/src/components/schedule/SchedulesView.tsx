@@ -7,19 +7,29 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
 import Plus from '../ui/Plus';
-import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal'; // Import the new modal
+import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
+// import ScheduleDetailDrawer from './ScheduleDetailDrawer'; // REMOVE THIS
+import ScheduleDetailView from './ScheduleDetailView'; // ADD THIS
+import cronstrue from 'cronstrue';
+// Placeholder for actual navigation function if you use a router
+// import { navigate } from 'your-router-library';
 
 interface SchedulesViewProps {
-  onClose: () => void;
+  onClose: () => void; // This might be used if SchedulesView itself is a "page" that can be closed
+  // ADD Props for navigating to a specific session's detail view
+  onNavigateToSessionDetail: (sessionId: string) => void;
 }
 
-const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
+const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSessionDetail }) => {
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // Generic loading for list/delete
-  const [isSubmitting, setIsSubmitting] = useState(false); // Specific loading for create
-  const [apiError, setApiError] = useState<string | null>(null); // Generic error for list/delete
-  const [submitApiError, setSubmitApiError] = useState<string | null>(null); // Specific error for create modal
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [submitApiError, setSubmitApiError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // This state will determine if we are viewing the list or a specific schedule's details
+  const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
   const fetchSchedules = async () => {
     setIsLoading(true);
@@ -40,17 +50,20 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   };
 
   useEffect(() => {
-    fetchSchedules();
-  }, []);
+    // Fetch schedules only when not viewing a specific schedule detail
+    if (viewingScheduleId === null) {
+      fetchSchedules();
+    }
+  }, [viewingScheduleId]); // Re-fetch if we come back from detail view
 
   const handleOpenCreateModal = () => {
-    setSubmitApiError(null); // Clear previous submission errors
+    setSubmitApiError(null);
     setIsCreateModalOpen(true);
   };
 
   const handleCloseCreateModal = () => {
     setIsCreateModalOpen(false);
-    setSubmitApiError(null); // Clear errors when modal is closed
+    setSubmitApiError(null);
   };
 
   const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
@@ -59,14 +72,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     try {
       await createSchedule(payload);
       await fetchSchedules(); // Refresh the list
-      setIsCreateModalOpen(false); // Close modal on success
-      // The form reset is handled inside CreateScheduleModal or on its close action
+      setIsCreateModalOpen(false);
     } catch (error) {
       console.error('Failed to create schedule:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error creating schedule.';
       setSubmitApiError(errorMessage);
-      // Keep modal open if there's an error, so user can see message / retry
     } finally {
       setIsSubmitting(false);
     }
@@ -74,11 +85,15 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
   const handleDeleteSchedule = async (idToDelete: string) => {
     if (!window.confirm(`Are you sure you want to delete schedule "${idToDelete}"?`)) return;
-    setIsLoading(true); // Use generic isLoading for delete as it affects the list
+    // If the schedule being deleted is the one being viewed, navigate back to list
+    if (viewingScheduleId === idToDelete) {
+      setViewingScheduleId(null);
+    }
+    setIsLoading(true); // Or a more specific loading state for deletion
     setApiError(null);
     try {
       await deleteSchedule(idToDelete);
-      await fetchSchedules();
+      await fetchSchedules(); // Refresh list
     } catch (error) {
       console.error(`Failed to delete schedule "${idToDelete}":`, error);
       setApiError(
@@ -89,11 +104,44 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     }
   };
 
+  // Renamed from handleOpenDrawer
+  const handleNavigateToScheduleDetail = (scheduleId: string) => {
+    setViewingScheduleId(scheduleId);
+  };
+
+  // Renamed from handleCloseDrawer
+  const handleNavigateBackFromDetail = () => {
+    setViewingScheduleId(null);
+    // Optionally, refresh schedules here if needed: fetchSchedules();
+  };
+
+  const getReadableCron = (cronString: string) => {
+    try {
+      return cronstrue.toString(cronString);
+    } catch (e) {
+      console.warn(`Could not parse cron string "${cronString}":`, e);
+      return cronString;
+    }
+  };
+
+  // If a scheduleId is selected, render ScheduleDetailView
+  if (viewingScheduleId) {
+    return (
+      <ScheduleDetailView
+        scheduleId={viewingScheduleId}
+        onNavigateBack={handleNavigateBackFromDetail}
+        onNavigateToSession={onNavigateToSessionDetail} // Pass this prop down
+      />
+    );
+  }
+
+  // Otherwise, render the list of schedules
   return (
     <div className="h-screen w-full flex flex-col bg-app text-textStandard">
       <MoreMenuLayout showMenu={false} />
       <div className="px-8 pt-6 pb-4 border-b border-borderSubtle flex-shrink-0">
-        <BackButton onClick={onClose} />
+        <BackButton onClick={onClose} />{' '}
+        {/* This onClose might navigate away from Schedules feature entirely */}
         <h1 className="text-3xl font-medium text-gray-900 dark:text-white mt-1">
           Schedules Management
         </h1>
@@ -131,7 +179,11 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
             {!isLoading && schedules.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {schedules.map((job) => (
-                  <Card key={job.id} className="p-4 bg-white dark:bg-gray-800 shadow">
+                  <Card
+                    key={job.id}
+                    className="p-4 bg-white dark:bg-gray-800 shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                    onClick={() => handleNavigateToScheduleDetail(job.id)} // UPDATED HERE
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-grow mr-2 overflow-hidden">
                         <h3
@@ -146,11 +198,11 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                         >
                           Source: {job.source}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Cron:{' '}
-                          <code className="text-xs bg-gray-100 dark:bg-gray-700 p-0.5 rounded">
-                            {job.cron}
-                          </code>
+                        <p
+                          className="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                          title={getReadableCron(job.cron)}
+                        >
+                          Schedule: {getReadableCron(job.cron)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Last Run:{' '}
@@ -161,10 +213,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteSchedule(job.id)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click when deleting
+                            handleDeleteSchedule(job.id);
+                          }}
                           className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                           title={`Delete schedule ${job.id}`}
-                          disabled={isLoading} // Disable delete if list is loading or another delete is in progress
+                          disabled={isLoading} // Or a more specific delete loading state
                         >
                           <TrashIcon className="w-5 h-5" />
                         </Button>
@@ -184,6 +239,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         isLoadingExternally={isSubmitting}
         apiErrorExternally={submitApiError}
       />
+      {/* REMOVE THIS: <ScheduleDetailDrawer scheduleId={selectedScheduleId} onClose={handleCloseDrawer} /> */}
     </div>
   );
 };

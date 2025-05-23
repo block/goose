@@ -328,6 +328,8 @@ const createChat = async (
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
     [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+    // Update the global appConfig with the new port from the goosed process
+    appConfig.GOOSE_PORT = port;
   }
 
   const mainWindow = new BrowserWindow({
@@ -347,8 +349,8 @@ const createChat = async (
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: [
         JSON.stringify({
-          ...appConfig,
-          GOOSE_PORT: port,
+          ...appConfig, // Use the potentially updated appConfig
+          GOOSE_PORT: port, // Ensure this specific window gets the correct port
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
@@ -399,8 +401,8 @@ const createChat = async (
 
   // Store config in localStorage for future windows
   const windowConfig = {
-    ...appConfig,
-    GOOSE_PORT: port,
+    ...appConfig, // Use the potentially updated appConfig here as well
+    GOOSE_PORT: port, // Ensure this specific window's config gets the correct port
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
@@ -751,6 +753,46 @@ ipcMain.handle('get-allowed-extensions', async () => {
     return allowList;
   } catch (error) {
     console.error('Error fetching allowed extensions:', error);
+    throw error;
+  }
+});
+
+// IPC handlers for schedule operations
+ipcMain.handle('schedule:sessions', async (_event, scheduleId: string, limit?: number) => {
+  const port = appConfig.GOOSE_PORT;
+  if (!port) {
+    console.error('Goose server port not available for schedule:sessions');
+    throw new Error('Goose server port not configured');
+  }
+  const url = `http://127.0.0.1:${port}/schedule/${scheduleId}/sessions${limit ? `?limit=${limit}` : ''}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error in schedule:sessions IPC handler:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('schedule:runNow', async (_event, scheduleId: string) => {
+  const port = appConfig.GOOSE_PORT;
+  if (!port) {
+    console.error('Goose server port not available for schedule:runNow');
+    throw new Error('Goose server port not configured');
+  }
+  const url = `http://127.0.0.1:${port}/schedule/${scheduleId}/run_now`;
+  try {
+    const response = await fetch(url, { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Failed to run schedule now: ${response.status} ${response.statusText}`);
+    }
+    const respJson = await response.json();
+    return respJson.session_id; // Assuming the server returns { session_id: "..." }
+  } catch (error) {
+    console.error('Error in schedule:runNow IPC handler:', error);
     throw error;
   }
 });

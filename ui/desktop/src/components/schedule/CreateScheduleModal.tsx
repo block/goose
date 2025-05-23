@@ -3,6 +3,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select } from '../ui/select';
+import cronstrue from 'cronstrue';
 
 type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -68,6 +69,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState<Set<string>>(new Set(['1']));
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState<string>('1');
   const [derivedCronExpression, setDerivedCronExpression] = useState<string>('');
+  const [readableCronExpression, setReadableCronExpression] = useState<string>('');
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
 
   const resetForm = () => {
@@ -80,6 +82,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     setSelectedDaysOfWeek(new Set(['1']));
     setSelectedDayOfMonth('1');
     setInternalValidationError(null);
+    setReadableCronExpression('');
   };
 
   const handleBrowseFile = async () => {
@@ -147,7 +150,22 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           return 'Invalid frequency selected.';
       }
     };
-    setDerivedCronExpression(generateCronExpression());
+    const cron = generateCronExpression();
+    setDerivedCronExpression(cron);
+    try {
+      if (
+        cron.includes('Invalid') ||
+        cron.includes('required') ||
+        cron.includes('Error') ||
+        cron.includes('Select at least one')
+      ) {
+        setReadableCronExpression('Invalid cron details provided.');
+      } else {
+        setReadableCronExpression(cronstrue.toString(cron));
+      }
+    } catch (e) {
+      setReadableCronExpression('Could not parse cron string.');
+    }
   }, [
     frequency,
     selectedDate,
@@ -203,10 +221,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     };
 
     await onSubmit(newSchedulePayload);
-    // Parent component will handle closing the modal on success and resetting form.
-    // However, if submit is successful, we might want to reset the form here too,
-    // or let the parent decide (e.g. if it needs to keep data for retry)
-    // For now, resetForm is called by parent or via onClose.
   };
 
   const handleClose = () => {
@@ -384,6 +398,9 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               <code className="text-xs bg-gray-200 dark:bg-gray-600 p-1 rounded">
                 {derivedCronExpression}
               </code>
+            </p>
+            <p className={`${cronPreviewTextColor} mt-2`}>
+              <b>Human Readable:</b> {readableCronExpression}
             </p>
             <p className={cronPreviewTextColor}>Syntax: S M H D M DoW. (S=0, DoW: 0/7=Sun)</p>
             {frequency === 'once' && (
