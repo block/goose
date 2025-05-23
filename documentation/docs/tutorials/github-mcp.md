@@ -6,6 +6,7 @@ description: Add GitHub MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
@@ -45,156 +46,27 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
 
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  github
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  github
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  github
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ``` 
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  github
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```
-
-  7. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in.
-  :::info
-  When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.
-  :::
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  github
-    │
-    ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-github
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │    
-    ◇  Would you like to add a description?
-    │  No
-    │    
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes 
-    │
-    ◇  Environment variable name:
-    │  GITHUB_PERSONAL_ACCESS_TOKEN
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  No 
-    // highlight-end
-    └  Added github extension
-  ```  
+    <CLIExtensionInstructions
+      name="github"
+      command="npx -y @modelcontextprotocol/server-github"
+      timeout={300}
+      envVars={[
+        { key: "GITHUB_TOKEN", value: "••••••••••••••••" }
+      ]}
+      infoNote={
+        <>
+          When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.{" "}
+          <a
+            href="https://github.com/settings/personal-access-tokens"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Create one here
+          </a>.
+        </>
+      }
+    />
 
   </TabItem>
 </Tabs>
