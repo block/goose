@@ -178,7 +178,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         setTimeout(() => setCopied(false), 2000);
       })
       .catch((err) => {
-        console.error('Failed to copy the text:', err);
+        console.error('Failed to copy the text: ', err);
       });
   };
 
