@@ -23,8 +23,17 @@ pub enum ProviderError {
     #[error("Usage data error: {0}")]
     UsageError(String),
 
-    #[error("Invalid response: {0}")]
+    #[error("Response parse error: {0}")]
     ResponseParseError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("Unsupported provider: {0}")]
+    UnsupportedProvider(String),
+    
+    #[error("Provider error: {0}")]
+    ProviderError(#[from] ProviderError),
 }
 
 impl From<anyhow::Error> for ProviderError {
@@ -33,6 +42,7 @@ impl From<anyhow::Error> for ProviderError {
     }
 }
 
+#[cfg(feature = "http")]
 impl From<reqwest::Error> for ProviderError {
     fn from(error: reqwest::Error) -> Self {
         ProviderError::ExecutionError(error.to_string())

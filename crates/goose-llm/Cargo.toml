@@ -11,6 +11,11 @@ description.workspace = true
 crate-type = ["lib", "cdylib"]
 name = "goose_llm"
 
+[features]
+default = ["http"]
+wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+http = ["dep:reqwest"]
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -31,7 +36,7 @@ reqwest = { version = "0.12.9", features = [
         "charset",
         "http2",
         "stream"
-    ], default-features = false }
+    ], default-features = false, optional = true }
 async-trait = "0.1"
 url = "2.5"
 base64 = "0.21"
@@ -43,6 +48,12 @@ indoc = "1.0"
 uniffi = { version = "0.29", features = ["tokio", "cli", "scaffolding-ffi-buffer-fns"] }
 tokio = { version = "1.43", features = ["time", "sync"] }
 
+# WebAssembly dependencies
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["console"], optional = true }
+
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.15.0"
@@ -50,6 +61,7 @@ dotenv = "0.15"
 lazy_static = "1.5"
 ctor = "0.2.7"
 tokio = { version = "1.43", features = ["full"] }
+wasm-bindgen-test = "0.3"
 
 [[bin]]
 # https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html

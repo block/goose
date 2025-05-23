@@ -21,9 +21,20 @@ pub async fn generate_structured_outputs(
         "gpt-4.1"
     };
     let model_cfg = ModelConfig::new(model_name.to_string()).with_temperature(Some(0.0));
-    let provider = create(provider_name, provider_config, model_cfg)?;
+    
+    #[cfg(feature = "http")]
+    let provider = create(provider_name, provider_config, model_cfg)
+        .map_err(|e| ProviderError::ExecutionError(format!("Failed to create provider: {}", e)))?;
+    
+    #[cfg(not(feature = "http"))]
+    return Err(ProviderError::ExecutionError(format!(
+        "HTTP features are disabled, provider '{}' is not available",
+        provider_name
+    )));
 
-    let resp = provider.extract(system_prompt, messages, &schema).await?;
-
-    Ok(resp)
+    #[cfg(feature = "http")]
+    {
+        let resp = provider.extract(system_prompt, messages, &schema).await?;
+        Ok(resp)
+    }
 }
