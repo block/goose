@@ -7,6 +7,8 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iAxiFMlTE1Q" />
+
 This tutorial covers how to add the Playwright MCP Server as a Goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
 
 :::tip TLDR

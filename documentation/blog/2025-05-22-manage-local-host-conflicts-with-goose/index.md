@@ -15,6 +15,8 @@ I'm perpetually drowning in open tabs. Yes, I do need Bluesky, ChatGPT, Claude, 
 
 > "Hi, my name is Rizel, and I'm a localhost ports hoarder. 👋🏿"
 
+<!-- truncate -->
+
 It always starts innocently with me running one project that uses localhost:3000. Then a teammate pings me to review their PR. Their project also runs on localhost:3000. Fortunately, modern frameworks are smart enough to automatically bump to ports 3001 or 3002\. Before I know it, 3003, 3004, and 3005 are running too, and my laptop sounds like it’s about to take off as it crawls under the weight of too many processes.
 
 ## Traditional Ports Management
