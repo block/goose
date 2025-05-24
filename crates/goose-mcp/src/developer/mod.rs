@@ -174,16 +174,27 @@ impl DeveloperRouter {
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
+                - `write`: Create, overwrite, or partially replace content in a file.
+                    - If only `file_text` is provided, creates or overwrites the entire file.
+                    - If `file_text`, `start_line`, and `end_line` are provided, replaces the specified inclusive line range (1-based) with `file_text`.
                 - `str_replace`: Replace a string in a file with a new string.
-                - `undo_edit`: Undo the last edit made to a file.
+                - `diff_edit`: Edit a specific range of lines in a file with line-based diff.
+                    - Requires `start_line`, `end_line` specifying which lines will be deleted (1-based, inclusive)
+                    - Requires `file_text` with the new content to replace the deleted range
+                - `undo_edit`: Undo the last edit made to a file (`write`, `str_replace`, or `diff_edit`).
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+                To use the write command:
+                - For full overwrite: Specify `file_text` with the *entire* new content. Be careful with existing files!
+                - For partial replacement: Specify `file_text` with the *replacement* content, and `start_line` / `end_line` with the 1-based inclusive line numbers to replace.
 
                 To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
+                
+                To use the diff_edit command:
+                - Specify `start_line` and `end_line` to indicate the line range to delete (inclusive, 1-based)
+                - Specify `file_text` with the new content to insert at that position
+                - This works like a line-based diff where lines are deleted and new content is inserted
             "#}.to_string(),
             json!({
                 "type": "object",
@@ -195,12 +206,20 @@ impl DeveloperRouter {
                     },
                     "command": {
                         "type": "string",
-                        "enum": ["view", "write", "str_replace", "undo_edit"],
-                        "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
+                        "enum": ["view", "write", "str_replace", "diff_edit", "undo_edit"],
+                        "description": "Allowed options are: `view`, `write`, `str_replace`, `diff_edit`, `undo_edit`."
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
-                    "file_text": {"type": "string"}
+                    "file_text": {"type": "string"},
+                    "start_line": {
+                        "type": "integer",
+                        "description": "1-based inclusive start line for partial replacement (requires 'write' command and 'end_line') or for diff edit (requires 'diff_edit' command)."
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "1-based inclusive end line for partial replacement (requires 'write' command and 'start_line') or for diff edit (requires 'diff_edit' command)."
+                    }
                 }
             }),
             None,
@@ -581,6 +600,30 @@ impl DeveloperRouter {
 
                 self.text_editor_replace(&path, old_str, new_str).await
             }
+            "diff_edit" => {
+                let file_text = params
+                    .get("file_text")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
+                    })?;
+                
+                let start_line = params
+                    .get("start_line")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'start_line' parameter".into())
+                    })? as usize;
+                
+                let end_line = params
+                    .get("end_line")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'end_line' parameter".into())
+                    })? as usize;
+                
+                self.text_editor_diff_edit(&path, file_text, start_line, end_line).await
+            }
             "undo_edit" => self.text_editor_undo(&path).await,
             _ => Err(ToolError::InvalidParameters(format!(
                 "Unknown command '{}'",
@@ -780,6 +823,118 @@ impl DeveloperRouter {
             Content::text(output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.2),
+        ])
+    }
+
+    async fn text_editor_diff_edit(
+        &self,
+        path: &PathBuf,
+        file_text: &str,
+        start_line: usize,
+        end_line: usize,
+    ) -> Result<Vec<Content>, ToolError> {
+        // Validate parameters
+        if start_line < 1 {
+            return Err(ToolError::InvalidParameters(
+                "start_line must be at least 1 (1-based line numbers)".into(),
+            ));
+        }
+        
+        if start_line > end_line {
+            return Err(ToolError::InvalidParameters(
+                "start_line must be less than or equal to end_line".into(),
+            ));
+        }
+        
+        // Check if file exists
+        if !path.exists() {
+            return Err(ToolError::InvalidParameters(format!(
+                "File '{}' does not exist. The diff_edit command can only be used on existing files",
+                path.display()
+            )));
+        }
+        
+        // Save file history for undo
+        self.save_file_history(path)?;
+        
+        // Read the file content
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+            
+        // Convert to lines for editing
+        let lines: Vec<&str> = content.lines().collect();
+        
+        // Verify line range is valid
+        if start_line > lines.len() + 1 {
+            return Err(ToolError::InvalidParameters(format!(
+                "start_line {} is beyond the end of the file (which has {} lines)",
+                start_line, lines.len()
+            )));
+        }
+        
+        // Create new content by removing the specified lines and inserting the new content
+        let mut new_content = String::new();
+        
+        // Add lines before the edited section
+        for i in 0..start_line-1 {
+            new_content.push_str(lines[i]);
+            new_content.push('\n');
+        }
+        
+        // Add the new content
+        new_content.push_str(file_text);
+        if !file_text.ends_with('\n') {
+            new_content.push('\n');
+        }
+        
+        // Add lines after the edited section
+        if end_line <= lines.len() {
+            for i in end_line..lines.len() {
+                new_content.push_str(lines[i]);
+                if i < lines.len() - 1 {
+                    new_content.push('\n');
+                }
+            }
+        }
+        
+        // Normalize line endings based on platform
+        let normalized_text = normalize_line_endings(&new_content);
+
+        // Write to the file
+        std::fs::write(path, normalized_text)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
+
+        // Try to detect the language from the file extension
+        let language = lang::get_language_identifier(path);
+        
+        // Calculate removed and added line counts for the diff summary
+        let removed_lines = end_line - start_line + 1;
+        let added_lines = file_text.lines().count();
+        
+        let diff_summary = format!("--- Removed lines {}-{} ({} lines)\n+++ Added {} new lines", 
+            start_line, end_line, removed_lines, added_lines);
+        
+        // Output message including the diff summary and the inserted text
+        Ok(vec![
+            Content::text(format!("Successfully edited {} with diff edit:\n{}", path.display(), diff_summary))
+                .with_audience(vec![Role::Assistant]),
+            Content::text(formatdoc! {r#"
+                ### {path} (diff edit at lines {start_line}-{end_line})
+                {diff_summary}
+                
+                ```{language}
+                {content}
+                ```
+                "#,
+                path=path.display(),
+                start_line=start_line,
+                end_line=end_line,
+                diff_summary=diff_summary,
+                language=language,
+                content=file_text,
+            })
+            .with_audience(vec![Role::User])
+            .with_priority(0.2),
         ])
     }
 
@@ -1499,6 +1654,157 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(text.contains("First line"));
+
+        temp_dir.close().unwrap();
+    }
+    
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_diff_edit() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a test file with multiple lines
+        let initial_content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
+        std::fs::write(&file_path, initial_content).unwrap();
+
+        // Perform a diff edit (replace lines 2-4 with new content)
+        let diff_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "diff_edit",
+                    "path": file_path_str,
+                    "start_line": 2,
+                    "end_line": 4,
+                    "file_text": "New Line A\nNew Line B"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Check that the result contains a diff summary
+        let text = diff_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+        assert!(text.contains("Successfully edited"));
+        assert!(text.contains("Removed lines 2-4"));
+
+        // View the file to verify the diff edit
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+        
+        // Verify edited content
+        assert!(text.contains("Line 1"));
+        assert!(text.contains("New Line A"));
+        assert!(text.contains("New Line B"));
+        assert!(text.contains("Line 5"));
+        assert!(!text.contains("Line 2"));
+        assert!(!text.contains("Line 3"));
+        assert!(!text.contains("Line 4"));
+
+        // Test undo works for diff edit
+        let undo_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "undo_edit",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = undo_result.first().unwrap().as_text().unwrap();
+        assert!(text.contains("Undid the last edit"));
+
+        // Verify the file contents after undo
+        let content_after_undo = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content_after_undo, initial_content);
+        
+        // Test error cases
+        
+        // 1. Non-existent file
+        let non_existent_path = temp_dir.path().join("non_existent.txt");
+        let non_existent_path_str = non_existent_path.to_str().unwrap();
+        
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "diff_edit",
+                    "path": non_existent_path_str,
+                    "start_line": 1,
+                    "end_line": 2,
+                    "file_text": "New content"
+                }),
+            )
+            .await;
+            
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("does not exist"));
+        
+        // 2. Invalid line range (start > end)
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "diff_edit",
+                    "path": file_path_str,
+                    "start_line": 3,
+                    "end_line": 2,
+                    "file_text": "New content"
+                }),
+            )
+            .await;
+            
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("start_line must be less than or equal to end_line"));
+        
+        // 3. Start line out of bounds
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "diff_edit",
+                    "path": file_path_str,
+                    "start_line": 0,
+                    "end_line": 2,
+                    "file_text": "New content"
+                }),
+            )
+            .await;
+            
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("start_line must be at least 1"));
 
         temp_dir.close().unwrap();
     }
