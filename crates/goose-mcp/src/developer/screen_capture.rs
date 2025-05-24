@@ -2,7 +2,7 @@ use anyhow::Result;
 use base64::Engine;
 use ignore::gitignore::Gitignore;
 use indoc::indoc;
-use mcp_core::{handler::ToolError, tool::Tool, tool::ToolAnnotations, Content, role::Role};
+use mcp_core::{handler::ToolError, role::Role, tool::Tool, tool::ToolAnnotations, Content};
 use serde_json::{json, Value};
 use std::{io::Cursor, path::Path, sync::Arc};
 use xcap::{Monitor, Window};
@@ -71,11 +71,10 @@ pub fn create_screen_capture_tool() -> Tool {
 
 /// List all available windows that can be captured
 pub async fn list_windows(_params: Value) -> Result<Vec<Content>, ToolError> {
-    let windows = Window::all()
-        .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
+    let windows =
+        Window::all().map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
 
-    let window_titles: Vec<String> =
-        windows.into_iter().map(|w| w.title().to_string()).collect();
+    let window_titles: Vec<String> = windows.into_iter().map(|w| w.title().to_string()).collect();
 
     Ok(vec![
         Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
@@ -124,8 +123,7 @@ fn normalize_mac_screenshot_path(path: &Path) -> std::path::PathBuf {
 
 /// Capture a screenshot of a display or window
 pub async fn capture_screen(params: Value) -> Result<Vec<Content>, ToolError> {
-    let mut image = if let Some(window_title) =
-        params.get("window_title").and_then(|v| v.as_str())
+    let mut image = if let Some(window_title) = params.get("window_title").and_then(|v| v.as_str())
     {
         // Try to find and capture the specified window
         let windows = Window::all()
@@ -135,10 +133,7 @@ pub async fn capture_screen(params: Value) -> Result<Vec<Content>, ToolError> {
             .into_iter()
             .find(|w| w.title() == window_title)
             .ok_or_else(|| {
-                ToolError::ExecutionError(format!(
-                    "No window found with title '{}'",
-                    window_title
-                ))
+                ToolError::ExecutionError(format!("No window found with title '{}'", window_title))
             })?;
 
         window.capture_image().map_err(|e| {
@@ -182,9 +177,7 @@ pub async fn capture_screen(params: Value) -> Result<Vec<Content>, ToolError> {
     let mut bytes: Vec<u8> = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-        .map_err(|e| {
-            ToolError::ExecutionError(format!("Failed to write image buffer {}", e))
-        })?;
+        .map_err(|e| ToolError::ExecutionError(format!("Failed to write image buffer {}", e)))?;
 
     // Convert to base64
     let data = base64::prelude::BASE64_STANDARD.encode(bytes);
@@ -208,7 +201,7 @@ pub async fn process_image(
 
     // Resolve path using the provided function
     let path = resolve_path_fn(path_str)?;
-    
+
     let path = {
         if cfg!(target_os = "macos") {
             normalize_mac_screenshot_path(&path)
@@ -269,9 +262,7 @@ pub async fn process_image(
     let mut bytes: Vec<u8> = Vec::new();
     processed_image
         .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-        .map_err(|e| {
-            ToolError::ExecutionError(format!("Failed to write image buffer: {}", e))
-        })?;
+        .map_err(|e| ToolError::ExecutionError(format!("Failed to write image buffer: {}", e)))?;
 
     let data = base64::prelude::BASE64_STANDARD.encode(bytes);
 
@@ -285,13 +276,11 @@ pub async fn process_image(
     ])
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use ignore::gitignore::GitignoreBuilder;
+    use serde_json::json;
     use std::sync::Arc;
 
     #[test]
@@ -322,7 +311,7 @@ mod tests {
     fn test_normalize_mac_screenshot_path() {
         let path = std::path::Path::new("Screenshot 2023-12-01 at 10.30.45 AM.png");
         let normalized = normalize_mac_screenshot_path(&path);
-        
+
         // Should return a path (exact behavior depends on regex matching)
         assert!(normalized.file_name().is_some());
     }
@@ -357,4 +346,4 @@ mod tests {
 
         temp_dir.close().unwrap();
     }
-} 
+}

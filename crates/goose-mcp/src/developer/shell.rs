@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ignore::gitignore::Gitignore;
 use indoc::indoc;
-use mcp_core::{handler::ToolError, tool::Tool, Content, role::Role};
+use mcp_core::{handler::ToolError, role::Role, tool::Tool, Content};
 use serde_json::{json, Value};
 use std::{env, path::Path, process::Stdio, sync::Arc};
 use tokio::process::Command;
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn test_shell_config_creation() {
         let config = get_shell_config();
-        
+
         if cfg!(windows) {
             assert_eq!(config.executable, "powershell.exe");
             assert!(config.arg.contains("-NoProfile"));
@@ -342,7 +342,7 @@ mod tests {
             let expanded = expand_path(path);
             assert!(!expanded.contains("%USERPROFILE%"));
         } else {
-            // Test Unix path expansion  
+            // Test Unix path expansion
             let path = "~/test";
             let expanded = expand_path(path);
             assert!(!expanded.starts_with('~'));
@@ -365,7 +365,7 @@ mod tests {
     fn test_line_ending_normalization() {
         let input = "line1\r\nline2\nline3";
         let normalized = normalize_line_endings(input);
-        
+
         if cfg!(windows) {
             assert_eq!(normalized, "line1\r\nline2\r\nline3");
         } else {
