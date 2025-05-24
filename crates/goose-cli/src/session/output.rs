@@ -245,6 +245,28 @@ pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
     println!();
 }
 
+pub(crate) fn render_tools(tools_by_extension: &HashMap<String, Vec<mcp_core::tool::Tool>>) {
+    println!();
+    for (extension, tools) in tools_by_extension {
+        println!(" {}", style(extension).green());
+        if tools.is_empty() {
+            println!("  {}", style("(no tools)").dim());
+        } else {
+            for tool in tools {
+                println!("  - {}", style(&tool.name).cyan());
+
+                // Print description with proper indentation if it exists
+                if !tool.description.is_empty() {
+                    for line in tool.description.lines() {
+                        println!("      {}", style(line).dim());
+                    }
+                }
+            }
+        }
+    }
+    println!();
+}
+
 pub fn render_prompt_info(info: &PromptInfo) {
     println!();
 

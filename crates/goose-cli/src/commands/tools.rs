@@ -60,22 +60,55 @@ pub async fn handle_tools(extension: Option<String>) -> Result<()> {
     .await;
 
     if let Some(ext_name) = extension {
-        let tools = session.list_tools(Some(ext_name.clone())).await;
-        print_tools(&tools, &ext_name);
+        let tools_result = session.list_tools(Some(ext_name.clone())).await;
+        match tools_result {
+            Ok(tools_map) => {
+                if let Some(tools) = tools_map.get(&ext_name) {
+                    print_tools(tools, &ext_name);
+                } else {
+                    println!(
+                        "{} {}",
+                        style("No tools found for extension:").yellow(),
+                        style(ext_name).cyan().bold()
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("Error listing tools for {}: {}", ext_name, e);
+                return Err(e);
+            }
+        }
     } else {
         // list all extensions and their tools
         let all_extension_names = session.list_extension_names().await;
         for ext in all_extension_names {
-            let tools = session.list_tools(Some(ext.clone())).await;
-            if tools.is_empty() {
-                println!(
-                    "\n{}: {}",
-                    style("Extension").green().bold(),
-                    style(&ext).cyan()
-                );
-                println!("  {}", style("(no tools)").dim());
-            } else {
-                print_tools(&tools, &ext);
+            let tools_result = session.list_tools(Some(ext.clone())).await;
+            match tools_result {
+                Ok(tools_map) => {
+                    if let Some(tools) = tools_map.get(&ext) {
+                        if tools.is_empty() {
+                            println!(
+                                "\n{}: {}",
+                                style("Extension").green().bold(),
+                                style(&ext).cyan()
+                            );
+                            println!("  {}", style("(no tools)").dim());
+                        } else {
+                            print_tools(tools, &ext);
+                        }
+                    } else {
+                        println!(
+                            "\n{}: {}",
+                            style("Extension").green().bold(),
+                            style(&ext).cyan()
+                        );
+                        println!("  {}", style("(no tools)").dim());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error listing tools for {}: {}", ext, e);
+                    // Continue with other extensions instead of returning error
+                }
             }
         }
     }

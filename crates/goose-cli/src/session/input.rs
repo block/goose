@@ -19,6 +19,7 @@ pub enum InputResult {
     EndPlan,
     Recipe(Option<String>),
     Summarize,
+    ListTools(Option<String>),
 }
 
 #[derive(Debug)]
@@ -93,6 +94,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_ENDPLAN: &str = "/endplan";
     const CMD_RECIPE: &str = "/recipe";
     const CMD_SUMMARIZE: &str = "/summarize";
+    const CMD_TOOLS: &str = "/tools ";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -136,6 +138,12 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
         s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
+        "/tools" => Some(InputResult::ListTools(None)),
+        s if s.starts_with(CMD_TOOLS) => {
+            // Parse arguments for /tools command
+            let args = s.strip_prefix(CMD_TOOLS).unwrap_or_default();
+            parse_tools_command(args)
+        }
         _ => None,
     }
 }
@@ -226,6 +234,21 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     Some(InputResult::Plan(options))
 }
 
+fn parse_tools_command(args: &str) -> Option<InputResult> {
+    let parts: Vec<String> = shlex::split(args).unwrap_or_default();
+
+    // Look for --extension flag
+    for i in 0..parts.len() {
+        if parts[i] == "--extension" && i + 1 < parts.len() {
+            // Return the extension name that follows the flag
+            return Some(InputResult::ListTools(Some(parts[i + 1].clone())));
+        }
+    }
+
+    // If we got here, there was no valid --extension flag
+    Some(InputResult::ListTools(None))
+}
+
 fn print_help() {
     println!(
         "Available commands:
@@ -245,6 +268,7 @@ fn print_help() {
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
 /summarize - Summarize the current conversation to reduce context length while preserving key information.
+/tools [--extension <name>] - List all available tools, or those for a specific extension
 /? or /help - Display this help message
 
 Navigation:
@@ -488,5 +512,24 @@ mod tests {
         // Test with whitespace
         let result = handle_slash_command("  /summarize  ");
         assert!(matches!(result, Some(InputResult::Summarize)));
+    }
+
+    #[test]
+    fn test_tools_command() {
+        // Test basic tools command
+        if let Some(InputResult::ListTools(extension)) = handle_slash_command("/tools") {
+            assert!(extension.is_none());
+        } else {
+            panic!("Expected ListTools");
+        }
+
+        // Test tools with extension filter
+        if let Some(InputResult::ListTools(extension)) =
+            handle_slash_command("/tools --extension test")
+        {
+            assert_eq!(extension, Some("test".to_string()));
+        } else {
+            panic!("Expected ListTools with extension");
+        }
     }
 }
