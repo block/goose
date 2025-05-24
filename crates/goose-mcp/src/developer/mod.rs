@@ -13,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
 };
-use tokio::process::Command;
+
 use url::Url;
 
 use include_dir::{include_dir, Dir};
@@ -34,11 +34,10 @@ use mcp_server::Router;
 use mcp_core::role::Role;
 
 use self::shell::{
-    expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
+    create_shell_tool, execute_shell_command, expand_path, is_absolute_path,
     normalize_line_endings,
 };
 use indoc::indoc;
-use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
@@ -109,63 +108,7 @@ impl DeveloperRouter {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        // Get OS-specific shell tool description
-        let shell_tool_desc = match std::env::consts::OS {
-            "windows" => indoc! {r#"
-                Execute a command in the shell.
-
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-                **Important**: For searching files and code:
-
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
-
-                Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py`
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-                Note: Alternative commands may show ignored/hidden files that should be excluded.
-            "#},
-            _ => indoc! {r#"
-                Execute a command in the shell.
-
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-                If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-                this tool does not run indefinitely.
-
-                **Important**: Each shell command runs in its own process. Things like directory changes or
-                sourcing files do not persist between tool calls. So you may need to repeat them each time by
-                stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
-
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
-            "#},
-        };
-
-        let bash_tool = Tool::new(
-            "shell".to_string(),
-            shell_tool_desc.to_string(),
-            json!({
-                "type": "object",
-                "required": ["command"],
-                "properties": {
-                    "command": {"type": "string"}
-                }
-            }),
-            None,
-        );
+        let bash_tool = create_shell_tool();
 
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
@@ -457,77 +400,7 @@ impl DeveloperRouter {
 
     // Shell command execution with platform-specific handling
     async fn bash(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let command =
-            params
-                .get("command")
-                .and_then(|v| v.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The command string is required".to_string(),
-                ))?;
-
-        // Check if command might access ignored files and return early if it does
-        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
-        for arg in &cmd_parts[1..] {
-            // Skip command flags
-            if arg.starts_with('-') {
-                continue;
-            }
-            // Skip invalid paths
-            let path = Path::new(arg);
-            if !path.exists() {
-                continue;
-            }
-
-            if self.is_ignored(path) {
-                return Err(ToolError::ExecutionError(format!(
-                    "The command attempts to access '{}' which is restricted by .gooseignore",
-                    arg
-                )));
-            }
-        }
-
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
-        let cmd_with_redirect = format_command_for_platform(command);
-
-        // Execute the command using platform-specific shell
-        let child = Command::new(&shell_config.executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .arg(&shell_config.arg)
-            .arg(cmd_with_redirect)
-            .spawn()
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        // Wait for the command to complete and get output
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let output_str = stdout_str;
-
-        // Check the character count of the output
-        const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
-        let char_count = output_str.chars().count();
-        if char_count > MAX_CHAR_COUNT {
-            return Err(ToolError::ExecutionError(format!(
-                    "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
-                    command,
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-        }
-
-        Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
+        execute_shell_command(params, &self.ignore_patterns).await
     }
 
     async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1195,47 +1068,7 @@ mod tests {
             .await
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn test_shell_missing_parameters() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
-        let router = get_router().await;
-        let result = router.call_tool("shell", json!({})).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[cfg(windows)]
-    async fn test_windows_specific_commands() {
-        let router = get_router().await;
-
-        // Test PowerShell command
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": "Get-ChildItem"
-                }),
-            )
-            .await;
-        assert!(result.is_ok());
-
-        // Test Windows path handling
-        let result = router.resolve_path("C:\\Windows\\System32");
-        assert!(result.is_ok());
-
-        // Test UNC path handling
-        let result = router.resolve_path("\\\\server\\share");
-        assert!(result.is_ok());
-    }
 
     #[tokio::test]
     #[serial]
@@ -1612,57 +1445,5 @@ mod tests {
         temp_dir.close().unwrap();
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn test_bash_respects_ignore_patterns() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
-        // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
-        builder.add_line(None, "secret.txt").unwrap();
-        let ignore_patterns = builder.build().unwrap();
-
-        let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools, // Reuse default tools
-            prompts: Arc::new(HashMap::new()),
-            instructions: String::new(),
-            file_history: Arc::new(Mutex::new(HashMap::new())),
-            ignore_patterns: Arc::new(ignore_patterns),
-        };
-
-        // Create an ignored file
-        let secret_file_path = temp_dir.path().join("secret.txt");
-        std::fs::write(&secret_file_path, "secret content").unwrap();
-
-        // Try to cat the ignored file
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": format!("cat {}", secret_file_path.to_str().unwrap())
-                }),
-            )
-            .await;
-
-        assert!(result.is_err(), "Should not be able to cat ignored file");
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
-
-        // Try to cat a non-ignored file
-        let allowed_file_path = temp_dir.path().join("allowed.txt");
-        std::fs::write(&allowed_file_path, "allowed content").unwrap();
-
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
-                }),
-            )
-            .await;
-
-        assert!(result.is_ok(), "Should be able to cat non-ignored file");
-
-        temp_dir.close().unwrap();
-    }
 }
