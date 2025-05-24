@@ -5,26 +5,26 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
-// Interface based on Rust's SessionMetadata and observed frontend data
+// Updated to match SessionDisplayInfo from Rust backend (camelCase)
 interface SessionMeta {
-  session_id: string; // From current frontend usage, likely added by backend/main.ts
-  created_at: string; // From current frontend usage, likely added by backend/main.ts
-  working_dir?: string; // Will be string representation of PathBuf
-  description?: string;
-  schedule_id?: string | null; // Matches Option<String>
-  message_count?: number; // Matches usize
-  total_tokens?: number | null;
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-  accumulated_total_tokens?: number | null;
-  accumulated_input_tokens?: number | null;
-  accumulated_output_tokens?: number | null;
+  id: string; // Was session_id, now 'id' (from session_name)
+  name: string; // New: from metadata.description
+  createdAt: string; // Was created_at, now 'createdAt' (from session_name, ISO 8601)
+  workingDir?: string;
+  scheduleId?: string | null; // This is the ID of the parent schedule
+  messageCount?: number;
+  totalTokens?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  accumulatedTotalTokens?: number | null;
+  accumulatedInputTokens?: number | null;
+  accumulatedOutputTokens?: number | null;
 }
 
 interface ScheduleDetailViewProps {
-  scheduleId: string | null;
+  scheduleId: string | null; // This is the ID of the schedule being viewed
   onNavigateBack: () => void;
-  onNavigateToSession: (sessionId: string) => void;
+  onNavigateToSession: (sessionId: string) => void; // Parameter is the session's unique 'id'
 }
 
 const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
@@ -39,12 +39,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
   const [runNowError, setRunNowError] = useState<string | null>(null);
   const [runNowSuccessMessage, setRunNowSuccessMessage] = useState<string | null>(null);
 
-  const fetchSessions = useCallback(async (id: string) => {
-    if (!id) return;
+  const fetchSessions = useCallback(async (sId: string) => {
+    // sId is scheduleId here
+    if (!sId) return;
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
-      const fetchedSessions = (await window.schedule.sessions(id, 20)) as SessionMeta[];
+      // window.schedule.sessions expects the *scheduleId*
+      const fetchedSessions = (await window.schedule.sessions(sId, 20)) as SessionMeta[];
       setSessions(fetchedSessions);
     } catch (err) {
       console.error('Failed to fetch sessions:', err);
@@ -76,7 +78,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
     try {
       const newSessionId = await window.schedule.runNow(scheduleId);
       setRunNowSuccessMessage(`Schedule triggered successfully. New session ID: ${newSessionId}`);
-      setTimeout(() => fetchSessions(scheduleId), 1000);
+      setTimeout(() => {
+        if (scheduleId) fetchSessions(scheduleId);
+      }, 1000);
     } catch (err) {
       console.error('Failed to run schedule now:', err);
       setRunNowError(err instanceof Error ? err.message : 'Failed to trigger schedule');
@@ -85,8 +89,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
     }
   };
 
-  const handleSessionClick = (sessionId: string) => {
-    onNavigateToSession(sessionId);
+  const handleSessionClick = (sessionIdFromCard: string) => {
+    // This is session.id
+    onNavigateToSession(sessionIdFromCard);
   };
 
   if (!scheduleId) {
@@ -112,7 +117,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
         <h1 className="text-3xl font-medium text-gray-900 dark:text-white mt-1">
           Schedule Details
         </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ID: {scheduleId}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Viewing Schedule ID: {scheduleId}
+        </p>
       </div>
 
       <ScrollArea className="flex-grow">
@@ -156,53 +163,50 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sessions.map((session) => (
                   <Card
-                    key={session.session_id}
+                    key={session.id} // Use session.id for key
                     className="p-4 bg-white dark:bg-gray-800 shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                    onClick={() => handleSessionClick(session.session_id)}
+                    onClick={() => handleSessionClick(session.id)} // Use session.id
                     role="button"
                     tabIndex={0}
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
-                        handleSessionClick(session.session_id);
+                        handleSessionClick(session.id); // Use session.id
                       }
                     }}
                   >
                     <h3
                       className="text-sm font-semibold text-gray-900 dark:text-white truncate"
-                      title={session.session_id}
+                      title={session.name || session.id} // Show full name (description) on hover, fallback to id
                     >
-                      ID: {session.session_id}
+                      {session.name || `Session ID: ${session.id}`}{' '}
+                      {/* Display name (description) or ID */}
                     </h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Created: {new Date(session.created_at).toLocaleString()}
+                      Created:{' '}
+                      {session.createdAt ? new Date(session.createdAt).toLocaleString() : 'N/A'}
                     </p>
-                    {session.description && (
-                      <p
-                        className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
-                        title={session.description}
-                      >
-                        Desc: {session.description}
-                      </p>
-                    )}
-                    {session.message_count !== undefined && (
+                    {session.messageCount !== undefined && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Messages: {session.message_count}
+                        Messages: {session.messageCount}
                       </p>
                     )}
-                    {session.working_dir && (
+                    {session.workingDir && (
                       <p
                         className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
-                        title={session.working_dir}
+                        title={session.workingDir}
                       >
-                        Dir: {session.working_dir}
+                        Dir: {session.workingDir}
                       </p>
                     )}
-                    {session.accumulated_total_tokens !== undefined &&
-                      session.accumulated_total_tokens !== null && (
+                    {session.accumulatedTotalTokens !== undefined &&
+                      session.accumulatedTotalTokens !== null && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Tokens: {session.accumulated_total_tokens}
+                          Tokens: {session.accumulatedTotalTokens}
                         </p>
                       )}
+                    <p className="text-xs text-gray-600 dark:text-gray-500 mt-1">
+                      ID: <span className="font-mono">{session.id}</span>
+                    </p>
                   </Card>
                 ))}
               </div>
