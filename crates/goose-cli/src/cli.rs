@@ -102,6 +102,19 @@ enum SessionCommand {
         )]
         regex: String,
     },
+    #[command(about = "Export a session to Markdown format")]
+    Export {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
+
+        #[arg(
+            short,
+            long,
+            help = "Output file path (default: stdout)",
+            long_help = "Path to save the exported Markdown. If not provided, output will be sent to stdout"
+        )]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -502,6 +515,23 @@ pub async fn cli() -> Result<()> {
                 Some(SessionCommand::Remove { id, regex }) => {
                     handle_session_remove(id, regex)?;
                     return Ok(());
+                }
+                Some(SessionCommand::Export { identifier, output }) => {
+                    let session_identifier = if let Some(id) = identifier {
+                        extract_identifier(id)
+                    } else {
+                        // If no identifier is provided, prompt for interactive selection
+                        match crate::commands::session::prompt_interactive_session_selection() {
+                            Ok(id) => id,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return Ok(());
+                            }
+                        }
+                    };
+
+                    crate::commands::session::handle_session_export(session_identifier, output)?;
+                    Ok(())
                 }
                 None => {
                     // Run session command by default
