@@ -152,10 +152,10 @@ export default function PieChartTile({
     >
       {/* Header */}
       <div className="p-4">
-        <div className="w-6 h-6 mb-4 text-text-default">
+        <div className="w-6 h-6 mb-4 text-text-default dark:text-white">
           {icon}
         </div>
-        <div className="text-text-muted text-sm">
+        <div className="text-text-muted dark:text-white/60 text-sm">
           {title}
         </div>
       </div>

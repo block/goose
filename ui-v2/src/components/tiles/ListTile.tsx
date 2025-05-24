@@ -37,10 +37,10 @@ export default function ListTile({
     >
       {/* Header */}
       <div className="p-4">
-        <div className="w-6 h-6 mb-4">
+        <div className="w-6 h-6 mb-4 text-text-default dark:text-white">
           {icon}
         </div>
-        <div className="text-gray-600 dark:text-white/40 text-sm mb-4">
+        <div className="text-gray-600 dark:text-white/60 text-sm mb-4">
           {title}
         </div>
       </div>
