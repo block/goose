@@ -87,6 +87,7 @@ const getInitialView = (): ViewConfig => {
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [appInitialized, setAppInitialized] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
@@ -205,10 +206,15 @@ export default function App() {
       toastService.configure({ silent: false });
     };
 
-    initializeApp().catch((error) => {
-      console.error('Unhandled error in initialization:', error);
-      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
-    });
+    (async () => {
+      try {
+        await initializeApp();
+        setAppInitialized(true);
+      } catch (error) {
+        console.error('Unhandled error in initialization:', error);
+        setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array since we only want this to run once
 
@@ -552,6 +558,7 @@ export default function App() {
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
+              readyForAutoUserPrompt={appInitialized}
               chat={chat}
               setChat={setChat}
               setView={setView}

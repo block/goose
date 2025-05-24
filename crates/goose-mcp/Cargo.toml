@@ -35,6 +35,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 etcetera = "0.8.0"
 tempfile = "3.8"
 include_dir = "0.7.4"
+google-apis-common = "7.0.0"
 google-drive3 = "6.0.0"
 google-sheets4 = "6.0.0"
 google-docs1 = "6.0.0"
@@ -47,9 +48,21 @@ lopdf = "0.35.0"
 docx-rs = "0.4.7"
 image = "0.24.9"
 umya-spreadsheet = "2.2.3"
-keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+keyring = { version = "3.6.1", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "vendored",
+] }
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
+utoipa = { version = "4.1", optional = true }
+hyper = "1"
+serde_with = "3"
+
 
 [dev-dependencies]
 serial_test = "3.0.0"
 sysinfo = "0.32.1"
+
+[features]
+utoipa = ["dep:utoipa"]

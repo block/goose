@@ -140,7 +140,6 @@ export const initializeSystem = async (
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = recipeConfig?.instructions;
-
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -154,7 +153,6 @@ export const initializeSystem = async (
           : desktopPrompt,
       }),
     });
-
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {

@@ -5,6 +5,7 @@ use utoipa::ToSchema;
 pub enum Permission {
     AlwaysAllow,
     AllowOnce,
+    Cancel,
     DenyOnce,
 }
 

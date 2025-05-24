@@ -260,7 +260,8 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
-- **`--explain`**: Show a recipe's title, description, and parameters.
+- **`--explain`**: Show a recipe's title, description, and parameters
+- **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Usage:**
 
@@ -284,6 +285,9 @@ goose run --recipe recipe.yaml --debug
 
 #Show recipe details
 goose run --recipe recipe.yaml --explain
+
+#Run instructions from a file without session storage
+goose run --no-session -i instructions.txt
 ```
 
 ---
