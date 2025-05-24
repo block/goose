@@ -147,7 +147,36 @@ export async function addToAgent(
 
     extension.name = sanitizeName(extension.name);
 
-    return await extensionApiCall('/extensions/add', extension, options);
+    const response = await extensionApiCall('/extensions/add', extension, options);
+
+    // For stdio extensions, try to track child processes for cleanup
+    if (extension.type === 'stdio') {
+      // Import dynamically to avoid circular dependencies
+      const { trackMcpProcesses } = await import('./process-tracker');
+
+      // Determine pattern to search for based on the command
+      let searchPattern = '';
+
+      if (extension.cmd.includes('uvx')) {
+        // Track processes by extension name for uvx extensions
+        searchPattern = `mcp_${extension.name}`;
+      } else if (extension.cmd.includes('npx')) {
+        // Track processes by extension name for npx extensions
+        searchPattern = `@.*mcp_${extension.name}`;
+      } else if (extension.args && extension.args.length > 0) {
+        // Generic case - use first argument as pattern
+        searchPattern = extension.args[0];
+      }
+
+      if (searchPattern) {
+        // Track processes asynchronously - don't wait for completion
+        trackMcpProcesses(searchPattern).catch((err) => {
+          console.warn(`Failed to track processes for ${extension.name}:`, err);
+        });
+      }
+    }
+
+    return response;
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
