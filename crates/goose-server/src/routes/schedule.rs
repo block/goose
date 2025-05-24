@@ -9,9 +9,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+// Added for parsing session_name to created_at
+use chrono::NaiveDateTime;
+
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
-use goose::session::storage::SessionMetadata; // For SessionMeta type
 
 #[derive(Deserialize)]
 struct CreateScheduleRequest {
@@ -40,6 +42,30 @@ struct SessionsQuery {
 
 fn default_limit() -> u32 {
     50 // Default limit for sessions listed
+}
+
+// Struct for the frontend session list
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionDisplayInfo {
+    id: String,          // Derived from session_name (filename)
+    name: String,        // From metadata.description
+    created_at: String,  // Derived from session_name, in ISO 8601 format
+    working_dir: String, // from metadata.working_dir (as String)
+    schedule_id: Option<String>,
+    message_count: usize,
+    total_tokens: Option<i32>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+    accumulated_total_tokens: Option<i32>,
+    accumulated_input_tokens: Option<i32>,
+    accumulated_output_tokens: Option<i32>,
+}
+
+fn parse_session_name_to_iso(session_name: &str) -> String {
+    NaiveDateTime::parse_from_str(session_name, "%Y%m%d_%H%M%S")
+        .map(|dt| dt.and_utc().to_rfc3339())
+        .unwrap_or_else(|_| String::new()) // Fallback to empty string if parsing fails
 }
 
 #[axum::debug_handler]
@@ -123,20 +149,45 @@ async fn run_now_handler(
 #[axum::debug_handler]
 async fn sessions_handler(
     State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
+    Path(schedule_id_param): Path<String>, // Renamed to avoid confusion with session_id
     Query(query_params): Query<SessionsQuery>,
-) -> Result<Json<Vec<SessionMetadata>>, StatusCode> {
+) -> Result<Json<Vec<SessionDisplayInfo>>, StatusCode> {
+    // Changed return type
     let scheduler = state
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match scheduler.sessions(&id, query_params.limit as usize).await {
-        Ok(sessions) => Ok(Json(sessions)),
+    match scheduler
+        .sessions(&schedule_id_param, query_params.limit as usize)
+        .await
+    {
+        Ok(session_tuples) => {
+            // Expecting Vec<(String, goose::session::storage::SessionMetadata)>
+            let display_infos: Vec<SessionDisplayInfo> = session_tuples
+                .into_iter()
+                .map(|(session_name, metadata)| SessionDisplayInfo {
+                    id: session_name.clone(),
+                    name: metadata.description, // Use description as name
+                    created_at: parse_session_name_to_iso(&session_name),
+                    working_dir: metadata.working_dir.to_string_lossy().into_owned(),
+                    schedule_id: metadata.schedule_id, // This is the ID of the schedule itself
+                    message_count: metadata.message_count,
+                    total_tokens: metadata.total_tokens,
+                    input_tokens: metadata.input_tokens,
+                    output_tokens: metadata.output_tokens,
+                    accumulated_total_tokens: metadata.accumulated_total_tokens,
+                    accumulated_input_tokens: metadata.accumulated_input_tokens,
+                    accumulated_output_tokens: metadata.accumulated_output_tokens,
+                })
+                .collect();
+            Ok(Json(display_infos))
+        }
         Err(e) => {
-            eprintln!("Error fetching sessions for schedule '{}': {:?}", id, e); // Log error
-                                                                                 // Assuming JobNotFound isn't directly applicable here, as sessions can be empty for a valid job.
-                                                                                 // Other errors from scheduler.sessions might be SchedulerError::StorageError
+            eprintln!(
+                "Error fetching sessions for schedule '{}': {:?}",
+                schedule_id_param, e
+            );
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

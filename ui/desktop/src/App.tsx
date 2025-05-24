@@ -8,7 +8,8 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
-import { SessionDetails } from './sessions';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { SessionDetails as OldSessionDetails } from './sessions'; // Renamed to avoid conflict if any, original SessionDetails will be imported below
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -22,7 +23,7 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import { useChat } from './hooks/useChat';
-
+import { SessionHeaderCard, SessionMessages } from './components/sessions/SessionViewComponents';
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
@@ -30,6 +31,10 @@ import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
 
 // Views and their options
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { type Message } from './types/message'; // Import Message type
+import { fetchSessionDetails, type SessionDetails } from './sessions'; // Import fetch function and type
+
 export type View =
   | 'welcome'
   | 'chat'
@@ -40,6 +45,7 @@ export type View =
   | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions'
+  | 'sessionDetail' // New view for showing a specific session's details
   | 'schedules'
   | 'sharedSession'
   | 'loading'
@@ -48,7 +54,7 @@ export type View =
 
 export type ViewOptions =
   | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
+  | { resumedSession?: SessionDetails } // Changed from OldSessionDetails to SessionDetails
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   | Record<string, any>;
 
@@ -95,6 +101,10 @@ export default function App() {
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
   const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
+  const [currentSessionDetails, setCurrentSessionDetails] = useState<SessionDetails | null>(null);
+  const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
+  const [sessionDetailsError, setSessionDetailsError] = useState<string | null>(null);
+  const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null); // To store the ID of the session to detail
   const { getExtensions, addExtension, read } = useConfig();
   const initAttemptedRef = useRef(false);
 
@@ -116,6 +126,39 @@ export default function App() {
     console.log(`Setting view to: ${view}`, viewOptions);
     setInternalView({ view, viewOptions });
   };
+
+  // Handler for navigating from SchedulesView to a specific session's detail
+  const handleNavigateToSessionDetail = (sessionId: string) => {
+    console.log(`App.tsx: Request to navigate to session detail for ID: ${sessionId}`);
+    setFocusedSessionId(sessionId);
+    setView('sessionDetail');
+  };
+
+  // Effect to fetch session details when viewing sessionDetail
+  useEffect(() => {
+    if (view === 'sessionDetail' && focusedSessionId) {
+      const loadDetails = async () => {
+        setIsLoadingSessionDetails(true);
+        setSessionDetailsError(null);
+        setCurrentSessionDetails(null);
+        try {
+          console.log(`Fetching session details for ID: ${focusedSessionId}`);
+          const details = await fetchSessionDetails(focusedSessionId);
+          setCurrentSessionDetails(details);
+        } catch (err) {
+          console.error('Failed to fetch session details:', err);
+          setSessionDetailsError(
+            err instanceof Error ? err.message : 'Failed to load session details'
+          );
+        } finally {
+          setIsLoadingSessionDetails(false);
+        }
+      };
+      loadDetails();
+    } else {
+      setCurrentSessionDetails(null); // Clear details if not in sessionDetail view or no ID
+    }
+  }, [view, focusedSessionId]);
 
   useEffect(() => {
     // Guard against multiple initialization attempts
@@ -569,11 +612,15 @@ export default function App() {
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
           {view === 'schedules' && (
-            <SchedulesView setView={setView} onClose={() => setView('chat')} />
+            <SchedulesView
+              setView={setView}
+              onClose={() => setView('chat')}
+              onNavigateToSessionDetail={handleNavigateToSessionDetail}
+            />
           )}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions?.sessionDetails}
+              session={viewOptions?.sessionDetails} // This should be SessionDetails, ensure type consistency
               isLoading={isLoadingSharedSession}
               error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}
@@ -620,6 +667,41 @@ export default function App() {
             <PermissionSettingsView
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}
             />
+          )}
+          {view === 'sessionDetail' && (
+            <div className="h-screen w-full flex flex-col bg-app text-textStandard">
+              <SessionHeaderCard onBack={() => setView('schedules')}>
+                <h1 className="text-xl font-medium ml-4">
+                  Session:{' '}
+                  <span className="font-mono">
+                    {currentSessionDetails?.session_id || focusedSessionId}
+                  </span>
+                </h1>
+              </SessionHeaderCard>
+              <SessionMessages
+                messages={currentSessionDetails?.messages || []}
+                isLoading={isLoadingSessionDetails}
+                error={sessionDetailsError}
+                onRetry={async () => {
+                  // Made onRetry async for potential await fetchSessionDetails
+                  if (focusedSessionId) {
+                    setIsLoadingSessionDetails(true); // Indicate loading on retry
+                    setSessionDetailsError(null);
+                    try {
+                      const details = await fetchSessionDetails(focusedSessionId); // Re-fetch
+                      setCurrentSessionDetails(details);
+                    } catch (err) {
+                      console.error('Failed to re-fetch session details:', err);
+                      setSessionDetailsError(
+                        err instanceof Error ? err.message : 'Failed to load session details'
+                      );
+                    } finally {
+                      setIsLoadingSessionDetails(false);
+                    }
+                  }
+                }}
+              />
+            </div>
           )}
         </div>
       </div>
