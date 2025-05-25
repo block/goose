@@ -4,14 +4,16 @@ import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { fetchSessionDetails, type SessionDetails } from '../../sessions';
+import SessionHistoryView from '../sessions/SessionHistoryView';
+import { toastError } from '../../toasts';
 
-// Updated to match SessionDisplayInfo from Rust backend (camelCase)
-interface SessionMeta {
-  id: string; // Was session_id, now 'id' (from session_name)
-  name: string; // New: from metadata.description
-  createdAt: string; // Was created_at, now 'createdAt' (from session_name, ISO 8601)
+interface ScheduleSessionMeta {
+  id: string;
+  name: string;
+  createdAt: string;
   workingDir?: string;
-  scheduleId?: string | null; // This is the ID of the parent schedule
+  scheduleId?: string | null;
   messageCount?: number;
   totalTokens?: number | null;
   inputTokens?: number | null;
@@ -22,53 +24,52 @@ interface SessionMeta {
 }
 
 interface ScheduleDetailViewProps {
-  scheduleId: string | null; // This is the ID of the schedule being viewed
+  scheduleId: string | null;
   onNavigateBack: () => void;
-  onNavigateToSession: (sessionId: string) => void; // Parameter is the session's unique 'id'
 }
 
-const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
-  scheduleId,
-  onNavigateBack,
-  onNavigateToSession,
-}) => {
-  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onNavigateBack }) => {
+  const [sessions, setSessions] = useState<ScheduleSessionMeta[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowError, setRunNowError] = useState<string | null>(null);
   const [runNowSuccessMessage, setRunNowSuccessMessage] = useState<string | null>(null);
 
-  const fetchSessions = useCallback(async (sId: string) => {
-    // sId is scheduleId here
+  const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
+  const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
+  const [sessionDetailsError, setSessionDetailsError] = useState<string | null>(null);
+
+  const fetchScheduleSessions = useCallback(async (sId: string) => {
     if (!sId) return;
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
-      // window.schedule.sessions expects the *scheduleId*
-      const fetchedSessions = (await window.schedule.sessions(sId, 20)) as SessionMeta[];
+      const fetchedSessions = (await window.schedule.sessions(sId, 20)) as ScheduleSessionMeta[];
       setSessions(fetchedSessions);
     } catch (err) {
-      console.error('Failed to fetch sessions:', err);
-      setSessionsError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      console.error('Failed to fetch schedule sessions:', err);
+      setSessionsError(err instanceof Error ? err.message : 'Failed to fetch schedule sessions');
     } finally {
       setIsLoadingSessions(false);
     }
   }, []);
 
   useEffect(() => {
-    if (scheduleId) {
-      fetchSessions(scheduleId);
+    if (scheduleId && !selectedSessionDetails) {
+      fetchScheduleSessions(scheduleId);
       setRunNowSuccessMessage(null);
       setRunNowError(null);
-    } else {
+    } else if (!scheduleId) {
       setSessions([]);
       setSessionsError(null);
       setRunNowLoading(false);
       setRunNowError(null);
       setRunNowSuccessMessage(null);
+      setSelectedSessionDetails(null);
     }
-  }, [scheduleId, fetchSessions]);
+  }, [scheduleId, fetchScheduleSessions, selectedSessionDetails]);
 
   const handleRunNow = async () => {
     if (!scheduleId) return;
@@ -79,7 +80,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
       const newSessionId = await window.schedule.runNow(scheduleId);
       setRunNowSuccessMessage(`Schedule triggered successfully. New session ID: ${newSessionId}`);
       setTimeout(() => {
-        if (scheduleId) fetchSessions(scheduleId);
+        if (scheduleId) fetchScheduleSessions(scheduleId);
       }, 1000);
     } catch (err) {
       console.error('Failed to run schedule now:', err);
@@ -89,10 +90,61 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
     }
   };
 
-  const handleSessionClick = (sessionIdFromCard: string) => {
-    // This is session.id
-    onNavigateToSession(sessionIdFromCard);
+  const loadAndShowSessionDetails = async (sessionId: string) => {
+    setIsLoadingSessionDetails(true);
+    setSessionDetailsError(null);
+    setSelectedSessionDetails(null);
+    try {
+      const details = await fetchSessionDetails(sessionId);
+      setSelectedSessionDetails(details);
+    } catch (err) {
+      console.error(`Failed to load session details for ${sessionId}:`, err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load session details.';
+      setSessionDetailsError(errorMsg);
+      toastError({
+        title: 'Failed to load session details',
+        msg: errorMsg,
+      });
+    } finally {
+      setIsLoadingSessionDetails(false);
+    }
   };
+
+  const handleSessionCardClick = (sessionIdFromCard: string) => {
+    loadAndShowSessionDetails(sessionIdFromCard);
+  };
+
+  const handleResumeViewedSession = () => {
+    if (selectedSessionDetails) {
+      const { session_id, metadata } = selectedSessionDetails;
+      if (metadata.working_dir) {
+        console.log(
+          `Resuming session ID ${session_id} in new chat window. Dir: ${metadata.working_dir}`
+        );
+        window.electron.createChatWindow(undefined, metadata.working_dir, undefined, session_id);
+      } else {
+        console.error('Cannot resume session: working directory is missing.');
+        toastError({ title: 'Cannot Resume Session', msg: 'Working directory is missing.' });
+      }
+    }
+  };
+
+  if (selectedSessionDetails) {
+    return (
+      <SessionHistoryView
+        session={selectedSessionDetails}
+        isLoading={isLoadingSessionDetails}
+        error={sessionDetailsError}
+        onBack={() => {
+          setSelectedSessionDetails(null);
+          setSessionDetailsError(null);
+        }}
+        onResume={handleResumeViewedSession}
+        onRetry={() => loadAndShowSessionDetails(selectedSessionDetails.session_id)}
+        showActionButtons={true}
+      />
+    );
+  }
 
   if (!scheduleId) {
     return (
@@ -143,7 +195,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Recent Sessions
+              Recent Sessions for this Schedule
             </h2>
             {isLoadingSessions && (
               <p className="text-gray-500 dark:text-gray-400">Loading sessions...</p>
@@ -163,23 +215,22 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sessions.map((session) => (
                   <Card
-                    key={session.id} // Use session.id for key
+                    key={session.id}
                     className="p-4 bg-white dark:bg-gray-800 shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                    onClick={() => handleSessionClick(session.id)} // Use session.id
+                    onClick={() => handleSessionCardClick(session.id)}
                     role="button"
                     tabIndex={0}
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
-                        handleSessionClick(session.id); // Use session.id
+                        handleSessionCardClick(session.id);
                       }
                     }}
                   >
                     <h3
                       className="text-sm font-semibold text-gray-900 dark:text-white truncate"
-                      title={session.name || session.id} // Show full name (description) on hover, fallback to id
+                      title={session.name || session.id}
                     >
                       {session.name || `Session ID: ${session.id}`}{' '}
-                      {/* Display name (description) or ID */}
                     </h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Created:{' '}

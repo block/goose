@@ -8,19 +8,14 @@ import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
 import Plus from '../ui/Plus';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
-// import ScheduleDetailDrawer from './ScheduleDetailDrawer'; // REMOVE THIS
-import ScheduleDetailView from './ScheduleDetailView'; // ADD THIS
+import ScheduleDetailView from './ScheduleDetailView';
 import cronstrue from 'cronstrue';
-// Placeholder for actual navigation function if you use a router
-// import { navigate } from 'your-router-library';
 
 interface SchedulesViewProps {
-  onClose: () => void; // This might be used if SchedulesView itself is a "page" that can be closed
-  // ADD Props for navigating to a specific session's detail view
-  onNavigateToSessionDetail: (sessionId: string) => void;
+  onClose: () => void;
 }
 
-const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSessionDetail }) => {
+const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +23,6 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
   const [submitApiError, setSubmitApiError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // This state will determine if we are viewing the list or a specific schedule's details
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
   const fetchSchedules = async () => {
@@ -50,11 +44,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
   };
 
   useEffect(() => {
-    // Fetch schedules only when not viewing a specific schedule detail
     if (viewingScheduleId === null) {
       fetchSchedules();
     }
-  }, [viewingScheduleId]); // Re-fetch if we come back from detail view
+  }, [viewingScheduleId]);
 
   const handleOpenCreateModal = () => {
     setSubmitApiError(null);
@@ -71,7 +64,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
     setSubmitApiError(null);
     try {
       await createSchedule(payload);
-      await fetchSchedules(); // Refresh the list
+      await fetchSchedules();
       setIsCreateModalOpen(false);
     } catch (error) {
       console.error('Failed to create schedule:', error);
@@ -85,15 +78,14 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
 
   const handleDeleteSchedule = async (idToDelete: string) => {
     if (!window.confirm(`Are you sure you want to delete schedule "${idToDelete}"?`)) return;
-    // If the schedule being deleted is the one being viewed, navigate back to list
     if (viewingScheduleId === idToDelete) {
       setViewingScheduleId(null);
     }
-    setIsLoading(true); // Or a more specific loading state for deletion
+    setIsLoading(true);
     setApiError(null);
     try {
       await deleteSchedule(idToDelete);
-      await fetchSchedules(); // Refresh list
+      await fetchSchedules();
     } catch (error) {
       console.error(`Failed to delete schedule "${idToDelete}":`, error);
       setApiError(
@@ -104,15 +96,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
     }
   };
 
-  // Renamed from handleOpenDrawer
   const handleNavigateToScheduleDetail = (scheduleId: string) => {
     setViewingScheduleId(scheduleId);
   };
 
-  // Renamed from handleCloseDrawer
   const handleNavigateBackFromDetail = () => {
     setViewingScheduleId(null);
-    // Optionally, refresh schedules here if needed: fetchSchedules();
   };
 
   const getReadableCron = (cronString: string) => {
@@ -124,37 +113,32 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
     }
   };
 
-  // If a scheduleId is selected, render ScheduleDetailView
   if (viewingScheduleId) {
     return (
       <ScheduleDetailView
         scheduleId={viewingScheduleId}
         onNavigateBack={handleNavigateBackFromDetail}
-        onNavigateToSession={onNavigateToSessionDetail} // Pass this prop down
       />
     );
   }
 
-  // Otherwise, render the list of schedules
   return (
     <div className="h-screen w-full flex flex-col bg-app text-textStandard">
       <MoreMenuLayout showMenu={false} />
       <div className="px-8 pt-6 pb-4 border-b border-borderSubtle flex-shrink-0">
-        <BackButton onClick={onClose} />{' '}
-        {/* This onClose might navigate away from Schedules feature entirely */}
-        <h1 className="text-3xl font-medium text-gray-900 dark:text-white mt-1">
+        <BackButton onClick={onClose} />
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mt-2">
           Schedules Management
         </h1>
       </div>
 
       <ScrollArea className="flex-grow">
-        <div className="p-8 space-y-8">
+        <div className="p-8">
           <Button
-            variant="outline"
             onClick={handleOpenCreateModal}
-            className="w-full !h-auto p-6 border-dashed border-2 text-lg hover:border-indigo-500 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-600 dark:hover:border-indigo-400"
+            className="w-full md:w-auto flex items-center gap-2 justify-center text-white dark:text-black bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4 mb-8"
           >
-            <Plus className="w-5 h-5 mr-2" /> Create New Schedule
+            <Plus className="h-4 w-4" /> Create New Schedule
           </Button>
 
           {apiError && (
@@ -182,7 +166,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
                   <Card
                     key={job.id}
                     className="p-4 bg-white dark:bg-gray-800 shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                    onClick={() => handleNavigateToScheduleDetail(job.id)} // UPDATED HERE
+                    onClick={() => handleNavigateToScheduleDetail(job.id)}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-grow mr-2 overflow-hidden">
@@ -214,12 +198,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
                           variant="ghost"
                           size="icon"
                           onClick={(e) => {
-                            e.stopPropagation(); // Prevent card click when deleting
+                            e.stopPropagation();
                             handleDeleteSchedule(job.id);
                           }}
                           className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                           title={`Delete schedule ${job.id}`}
-                          disabled={isLoading} // Or a more specific delete loading state
+                          disabled={isLoading}
                         >
                           <TrashIcon className="w-5 h-5" />
                         </Button>
@@ -239,7 +223,6 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose, onNavigateToSess
         isLoadingExternally={isSubmitting}
         apiErrorExternally={submitApiError}
       />
-      {/* REMOVE THIS: <ScheduleDetailDrawer scheduleId={selectedScheduleId} onClose={handleCloseDrawer} /> */}
     </div>
   );
 };
