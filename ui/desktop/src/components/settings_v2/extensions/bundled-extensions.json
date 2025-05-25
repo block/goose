@@ -33,17 +33,6 @@
     "bundled": true
   },
   {
-    "id": "jetbrains",
-    "display_name": "Jetbrains",
-    "name": "jetbrains",
-    "description": "Integration with any Jetbrains IDE",
-    "enabled": false,
-    "type": "builtin",
-    "env_keys": [],
-    "timeout": 300,
-    "bundled": true
-  },
-  {
     "id": "tutorial",
     "name": "tutorial",
     "display_name": "Tutorial",
