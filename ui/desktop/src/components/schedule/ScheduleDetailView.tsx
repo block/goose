@@ -4,9 +4,9 @@ import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
-import { fetchSessionDetails, type SessionDetails } from '../../sessions';
+import { fetchSessionDetails, SessionDetails } from '../../sessions';
 import SessionHistoryView from '../sessions/SessionHistoryView';
-import { toastError } from '../../toasts';
+import { toastError, toastSuccess } from '../../toasts';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -32,10 +32,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [sessions, setSessions] = useState<ScheduleSessionMeta[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
-
   const [runNowLoading, setRunNowLoading] = useState(false);
-  const [runNowError, setRunNowError] = useState<string | null>(null);
-  const [runNowSuccessMessage, setRunNowSuccessMessage] = useState<string | null>(null);
 
   const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
   const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
@@ -59,14 +56,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   useEffect(() => {
     if (scheduleId && !selectedSessionDetails) {
       fetchScheduleSessions(scheduleId);
-      setRunNowSuccessMessage(null);
-      setRunNowError(null);
     } else if (!scheduleId) {
       setSessions([]);
       setSessionsError(null);
       setRunNowLoading(false);
-      setRunNowError(null);
-      setRunNowSuccessMessage(null);
       setSelectedSessionDetails(null);
     }
   }, [scheduleId, fetchScheduleSessions, selectedSessionDetails]);
@@ -74,17 +67,19 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const handleRunNow = async () => {
     if (!scheduleId) return;
     setRunNowLoading(true);
-    setRunNowError(null);
-    setRunNowSuccessMessage(null);
     try {
       const newSessionId = await window.schedule.runNow(scheduleId);
-      setRunNowSuccessMessage(`Schedule triggered successfully. New session ID: ${newSessionId}`);
+      toastSuccess({
+        title: 'Schedule Triggered',
+        msg: `Successfully triggered schedule. New session ID: ${newSessionId}`,
+      });
       setTimeout(() => {
         if (scheduleId) fetchScheduleSessions(scheduleId);
       }, 1000);
     } catch (err) {
       console.error('Failed to run schedule now:', err);
-      setRunNowError(err instanceof Error ? err.message : 'Failed to trigger schedule');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to trigger schedule';
+      toastError({ title: 'Run Schedule Error', msg: errorMsg });
     } finally {
       setRunNowLoading(false);
     }
@@ -181,16 +176,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
             <Button onClick={handleRunNow} disabled={runNowLoading} className="w-full md:w-auto">
               {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
             </Button>
-            {runNowError && (
-              <p className="mt-2 text-red-500 dark:text-red-400 text-sm p-3 bg-red-100 dark:bg-red-900/30 border border-red-500 dark:border-red-700 rounded-md">
-                Error: {runNowError}
-              </p>
-            )}
-            {runNowSuccessMessage && (
-              <p className="mt-2 text-green-600 dark:text-green-400 text-sm p-3 bg-green-100 dark:bg-green-900/30 border border-green-500 dark:border-green-700 rounded-md">
-                {runNowSuccessMessage}
-              </p>
-            )}
           </section>
 
           <section>
