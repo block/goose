@@ -1,4 +1,6 @@
 import { getApiUrl, getSecretKey } from '../config';
+import { createUserMessage } from '../types/message';
+import { generateSessionId } from '../sessions';
 
 const getQuestionClassifierPrompt = (messageContent: string): string => `
 You are a simple classifier that takes content and decides if it is asking for input 
@@ -154,21 +156,60 @@ Response:`;
  * @returns Promise<string> The AI's response
  */
 export async function ask(prompt: string): Promise<string> {
-  const response = await fetch(getApiUrl('/ask'), {
+  const userMessage = createUserMessage(prompt);
+  const body = {
+    messages: [userMessage],
+    session_id: generateSessionId(),
+    session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+  };
+
+  const response = await fetch(getApiUrl('/reply'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Secret-Key': getSecretKey(),
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
+  if (!response.ok || !response.body) {
     throw new Error('Failed to get response');
   }
 
-  const data = await response.json();
-  return data.response;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+    for (const event of events) {
+      if (!event.startsWith('data: ')) continue;
+      try {
+        const parsed = JSON.parse(event.slice(6));
+        if (parsed.type === 'Message') {
+          const message = parsed.message;
+          for (const content of message.content) {
+            if (content.type === 'text') {
+              finalText += content.text;
+            }
+          }
+        } else if (parsed.type === 'Finish') {
+          reader.releaseLock();
+          return finalText.trim();
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
+  reader.releaseLock();
+  return finalText.trim();
 }
 
 /**

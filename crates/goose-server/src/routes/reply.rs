@@ -35,6 +35,27 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use utoipa::ToSchema;
 
+const STREAM_CHUNK_SIZE: usize = 64;
+
+fn chunk_text(text: &str, size: usize) -> Vec<String> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        current.push(ch);
+        if current.len() >= size {
+            chunks.push(current.clone());
+            current.clear();
+        }
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
 // Direct message serialization for the chat request
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
@@ -210,15 +231,32 @@ async fn handler(
                     match response {
                         Ok(Some(Ok(message))) => {
                             all_messages.push(message.clone());
-                            if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
-                                tracing::error!("Error sending message through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
-                                break;
+
+                            let mut messages_to_send = Vec::new();
+                            if message.role == Role::Assistant {
+                                let text = message.as_concat_text();
+                                if !text.is_empty() {
+                                    for chunk in chunk_text(&text, STREAM_CHUNK_SIZE) {
+                                        messages_to_send.push(Message::assistant().with_text(chunk));
+                                    }
+                                } else {
+                                    messages_to_send.push(message.clone());
+                                }
+                            } else {
+                                messages_to_send.push(message.clone());
+                            }
+
+                            for msg in messages_to_send {
+                                if let Err(e) = stream_event(MessageEvent::Message { message: msg }, &tx).await {
+                                    tracing::error!("Error sending message through channel: {}", e);
+                                    let _ = stream_event(
+                                        MessageEvent::Error {
+                                            error: e.to_string(),
+                                        },
+                                        &tx,
+                                    ).await;
+                                    break;
+                                }
                             }
 
                             // Store messages and generate description in background
