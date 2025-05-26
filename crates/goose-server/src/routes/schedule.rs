@@ -1,41 +1,40 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State}, // Added Query
-    http::StatusCode,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, post},
-    Json,
-    Router,
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
-// Added for parsing session_name to created_at
 use chrono::NaiveDateTime;
 
+use crate::routes::utils::verify_secret_key;
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
 
-#[derive(Deserialize)]
-struct CreateScheduleRequest {
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CreateScheduleRequest {
     id: String,
     recipe_source: String,
     cron: String,
 }
 
-#[derive(Serialize)]
-struct ListSchedulesResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ListSchedulesResponse {
     jobs: Vec<ScheduledJob>,
 }
 
 // Response for the run_now endpoint
-#[derive(Serialize)]
-struct RunNowResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct RunNowResponse {
     session_id: String,
 }
 
 // Query parameters for the sessions endpoint
-#[derive(Deserialize)]
-struct SessionsQuery {
+#[derive(Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+pub struct SessionsQuery {
     #[serde(default = "default_limit")]
     limit: u32,
 }
@@ -45,9 +44,9 @@ fn default_limit() -> u32 {
 }
 
 // Struct for the frontend session list
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct SessionDisplayInfo {
+pub struct SessionDisplayInfo {
     id: String,          // Derived from session_name (filename)
     name: String,        // From metadata.description
     created_at: String,  // Derived from session_name, in ISO 8601 format
@@ -68,11 +67,23 @@ fn parse_session_name_to_iso(session_name: &str) -> String {
         .unwrap_or_else(|_| String::new()) // Fallback to empty string if parsing fails
 }
 
+#[utoipa::path(
+    post,
+    path = "/schedule/create",
+    request_body = CreateScheduleRequest,
+    responses(
+        (status = 200, description = "Scheduled job created successfully", body = ScheduledJob),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
 #[axum::debug_handler]
 async fn create_schedule(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -93,10 +104,21 @@ async fn create_schedule(
     Ok(Json(job))
 }
 
+#[utoipa::path(
+    get,
+    path = "/schedule/list",
+    responses(
+        (status = 200, description = "A list of scheduled jobs", body = ListSchedulesResponse),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
 #[axum::debug_handler]
 async fn list_schedules(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
 ) -> Result<Json<ListSchedulesResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -105,17 +127,32 @@ async fn list_schedules(
     Ok(Json(ListSchedulesResponse { jobs }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/schedule/delete/{id}",
+    params(
+        ("id" = String, Path, description = "ID of the schedule to delete")
+    ),
+    responses(
+        (status = 204, description = "Scheduled job deleted successfully"),
+        (status = 404, description = "Scheduled job not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
 #[axum::debug_handler]
 async fn delete_schedule(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
+    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     scheduler.remove_scheduled_job(&id).await.map_err(|e| {
-        eprintln!("Error deleting schedule '{}': {:?}", id, e); // Log error
+        eprintln!("Error deleting schedule '{}': {:?}", id, e);
         match e {
             goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -124,11 +161,26 @@ async fn delete_schedule(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/schedule/{id}/run_now",
+    params(
+        ("id" = String, Path, description = "ID of the schedule to run")
+    ),
+    responses(
+        (status = 200, description = "Scheduled job triggered successfully, returns new session ID", body = RunNowResponse),
+        (status = 404, description = "Scheduled job not found"),
+        (status = 500, description = "Internal server error when trying to run the job")
+    ),
+    tag = "schedule"
+)]
 #[axum::debug_handler]
 async fn run_now_handler(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RunNowResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -137,7 +189,7 @@ async fn run_now_handler(
     match scheduler.run_now(&id).await {
         Ok(session_id) => Ok(Json(RunNowResponse { session_id })),
         Err(e) => {
-            eprintln!("Error running schedule '{}' now: {:?}", id, e); // Log error
+            eprintln!("Error running schedule '{}' now: {:?}", id, e);
             match e {
                 goose::scheduler::SchedulerError::JobNotFound(_) => Err(StatusCode::NOT_FOUND),
                 _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -146,13 +198,27 @@ async fn run_now_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/schedule/{id}/sessions",
+    params(
+        ("id" = String, Path, description = "ID of the schedule"),
+        SessionsQuery // This will automatically pick up 'limit' as a query parameter
+    ),
+    responses(
+        (status = 200, description = "A list of session display info", body = Vec<SessionDisplayInfo>),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
 #[axum::debug_handler]
 async fn sessions_handler(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,                    // Added this line
     Path(schedule_id_param): Path<String>, // Renamed to avoid confusion with session_id
     Query(query_params): Query<SessionsQuery>,
 ) -> Result<Json<Vec<SessionDisplayInfo>>, StatusCode> {
-    // Changed return type
+    verify_secret_key(&headers, &state)?; // Added this line
     let scheduler = state
         .scheduler()
         .await
