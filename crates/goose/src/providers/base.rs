@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
@@ -8,6 +9,7 @@ use mcp_core::tool::Tool;
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
+use std::pin::Pin;
 use std::sync::Mutex;
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
@@ -183,6 +185,29 @@ pub trait Provider: Send + Sync {
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
+
+    async fn stream(
+        &self,
+        _system: &str,
+        _messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "streaming not implemented".to_string(),
+        ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        false
+    }
+}
+
+pub type MessageStream =
+    Pin<Box<dyn Stream<Item = Result<(Message, ProviderUsage), ProviderError>> + Send>>;
+
+pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {
+    let stream = futures::stream::once(async move { Ok((message, usage)) });
+    Box::pin(stream)
 }
 
 #[cfg(test)]

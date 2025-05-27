@@ -1,11 +1,15 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::TryStreamExt;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io;
 use std::time::Duration;
+use tokio_util::io::StreamReader;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, get_usage, response_to_message};
 use super::oauth;
@@ -13,7 +17,10 @@ use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::formats::databricks::response_to_streaming_message;
 use mcp_core::tool::Tool;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
 use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
@@ -238,6 +245,25 @@ impl DatabricksProvider {
             }
         }
     }
+
+    async fn post_stream(&self, payload: Value) -> Result<reqwest::Response, ProviderError> {
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
+        let url = base_url.join(&path).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
+
+        let auth_header = self.ensure_auth_header().await?;
+        self.client
+            .post(url)
+            .header("Authorization", auth_header)
+            .json(&payload)
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| ProviderError::RequestFailed(format!("Request failed with status: {}", e)))
+    }
 }
 
 #[async_trait]
@@ -294,5 +320,59 @@ impl Provider for DatabricksProvider {
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        // Remove the model key which is part of the url with databricks
+        payload
+            .as_object_mut()
+            .expect("payload should have model key")
+            .remove("model");
+
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("stream".to_string(), Value::Bool(true));
+
+        let response = self.post_stream(payload.clone()).await?;
+
+        // Map reqwest error to io::Error
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        let model_config = self.model.clone();
+        // Wrap in a line decoder and yield lines inside the stream
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let mut framed = FramedRead::new(stream_reader, LinesCodec::new());
+
+            while let Some(line) = framed.next().await {
+                let line = line
+                    .map_err(|e| ProviderError::RequestFailed(format!("Line decode error: {}", e)))?;
+                if let Some(line) = line.strip_prefix("data:") {
+                    let json: Value = serde_json::from_str(line.trim().to_string().as_str()).map_err(|e| ProviderError::RequestFailed(format!("Failed to parse: {}", e)))?;
+                    let usage = match get_usage(&json) {
+                        Ok(usage) => usage,
+                        Err(e) => {
+                            tracing::debug!("Failed to get usage data: {}", e);
+                            Usage::default()
+                        }
+                    };
+                    let model = get_model(&json);
+                    let message = response_to_streaming_message(&json)?;
+                    super::utils::emit_debug_trace(&model_config, &payload, &json, &usage);
+                    yield (message, ProviderUsage::new(model, usage));
+                }
+            }
+        }))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 }

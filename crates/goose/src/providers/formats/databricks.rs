@@ -358,11 +358,107 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
         }
     }
 
-    Ok(Message {
-        role: Role::Assistant,
-        created: chrono::Utc::now().timestamp(),
+    Ok(Message::new(
+        Role::Assistant,
+        chrono::Utc::now().timestamp(),
         content,
-    })
+    ))
+}
+
+pub fn response_to_streaming_message(response: &Value) -> anyhow::Result<Message> {
+    let id: Option<String> = response["id"].as_str().map(|s| s.to_string());
+    let delta: Value = response["choices"][0]["delta"].clone();
+
+    let content = if let Some(text) = delta.get("content").and_then(|t| t.as_str()) {
+        Some(MessageContent::text(text))
+    } else if let Some(tool_call) = delta.get("tool_call") {
+        let id = tool_call["id"].as_str().unwrap_or_default().to_string();
+        let function = &tool_call["function"];
+        let name = function["name"].as_str().unwrap_or_default();
+        let mut arguments_str = function["arguments"].as_str().unwrap_or("{}");
+        // If arguments is empty, we will have invalid json parsing error later.
+        if arguments_str.is_empty() {
+            arguments_str = "{}";
+        }
+
+        if !is_valid_function_name(name) {
+            let error = ToolError::NotFound(format!(
+                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                name
+            ));
+            Some(MessageContent::tool_request(id, Err(error)))
+        } else {
+            match serde_json::from_str::<Value>(arguments_str) {
+                Ok(params) => Some(MessageContent::tool_request(
+                    id,
+                    Ok(ToolCall::new(name, params)),
+                )),
+                Err(e) => {
+                    let error = ToolError::InvalidParameters(format!(
+                        "Could not interpret tool use parameters for id {}: {}. arguments_str: {}",
+                        id, e, arguments_str
+                    ));
+                    Some(MessageContent::tool_request(id, Err(error)))
+                }
+            }
+        }
+    } else if let Some(tool_calls) = delta.get("tool_calls").and_then(|v| v.as_array()) {
+        // If streaming multiple tool calls (not typical, but handle gracefully)
+        let mut contents = Vec::new();
+        for tool_call in tool_calls {
+            let id = tool_call["id"].as_str().unwrap_or_default().to_string();
+            if id.is_empty() {
+                continue;
+            }
+            let function = &tool_call["function"];
+            let name = function["name"].as_str().unwrap_or_default();
+            let mut arguments_str = function["arguments"].as_str().unwrap_or("{}");
+            // If arguments is empty, we will have invalid json parsing error later.
+            if arguments_str.is_empty() {
+                arguments_str = "{}";
+            }
+
+            if !is_valid_function_name(name) {
+                let error = ToolError::NotFound(format!(
+                    "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                    name
+                ));
+                contents.push(MessageContent::tool_request(id, Err(error)));
+                continue;
+            }
+
+            match serde_json::from_str::<Value>(arguments_str) {
+                Ok(params) => contents.push(MessageContent::tool_request(
+                    id,
+                    Ok(ToolCall::new(name, params)),
+                )),
+                Err(e) => {
+                    let error = ToolError::InvalidParameters(format!(
+                        "Could not interpret tool use parameters for id {}: {}",
+                        id, e
+                    ));
+                    contents.push(MessageContent::tool_request(id, Err(error)));
+                }
+            }
+        }
+
+        // If multiple tool calls, return only the first; caller should aggregate
+        contents.into_iter().next()
+    } else {
+        // Handle unknown or unneeded deltas (like role or finish_reason updates)
+        None
+    };
+
+    if let Some(content) = content {
+        Ok(Message {
+            id,
+            role: Role::Assistant,
+            created: chrono::Utc::now().timestamp(),
+            content: vec![content],
+        })
+    } else {
+        Err(anyhow!("No valid content found in response"))
+    }
 }
 
 pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {

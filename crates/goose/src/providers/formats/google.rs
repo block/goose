@@ -209,11 +209,7 @@ pub fn response_to_message(response: Value) -> Result<Message> {
     let role = Role::Assistant;
     let created = chrono::Utc::now().timestamp();
     if candidate.is_none() {
-        return Ok(Message {
-            role,
-            created,
-            content,
-        });
+        return Ok(Message::new(role, created, content));
     }
     let candidate = candidate.unwrap();
     let parts = candidate
@@ -252,11 +248,7 @@ pub fn response_to_message(response: Value) -> Result<Message> {
             }
         }
     }
-    Ok(Message {
-        role,
-        created,
-        content,
-    })
+    Ok(Message::new(role, created, content))
 }
 
 /// Extract usage information from Google's API response
@@ -324,43 +316,39 @@ mod tests {
     use serde_json::json;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message {
-            role,
-            created: 0,
-            content: vec![MessageContent::text(text.to_string())],
-        }
+        Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
-        Message {
-            role: Role::User,
-            created: 0,
-            content: vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
-        }
+        Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+        )
     }
 
     fn set_up_tool_confirmation_message(id: &str, tool_call: ToolCall) -> Message {
-        Message {
-            role: Role::User,
-            created: 0,
-            content: vec![MessageContent::tool_confirmation_request(
+        Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_confirmation_request(
                 id.to_string(),
                 tool_call.name.clone(),
                 tool_call.arguments.clone(),
                 Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
             )],
-        }
+        )
     }
 
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
-        Message {
-            role: Role::Assistant,
-            created: 0,
-            content: vec![MessageContent::tool_response(
+        Message::new(
+            Role::Assistant,
+            0,
+            vec![MessageContent::tool_response(
                 id.to_string(),
                 Ok(tool_response),
             )],
-        }
+        )
     }
 
     fn set_up_tool(name: &str, description: &str, params: Value) -> Tool {

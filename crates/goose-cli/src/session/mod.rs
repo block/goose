@@ -835,6 +835,7 @@ impl Session {
                 }
             }
         }
+        println!();
         Ok(())
     }
 

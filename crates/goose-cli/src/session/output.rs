@@ -140,7 +140,6 @@ pub fn render_message(message: &Message, debug: bool) {
             }
         }
     }
-    println!();
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {

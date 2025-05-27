@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
+use futures::stream::StreamExt;
 use futures::TryStreamExt;
 
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
@@ -428,160 +429,171 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
-                match Self::generate_response_from_provider(
+                let mut stream = Self::generate_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
                     &messages,
                     &tools,
                     &toolshim_tools,
-                ).await {
-                    Ok((response, usage)) => {
-                        // record usage for the session in the session file
-                        if let Some(session_config) = session.clone() {
-                            Self::update_session_metrics(session_config, &usage, messages.len()).await?;
-                        }
+                ).await?;
 
-                        // categorize the type of requests we need to handle
-                        let (frontend_requests,
-                            remaining_requests,
-                            filtered_response) =
-                            self.categorize_tool_requests(&response).await;
-
-
-                        // Yield the assistant's response with frontend tool requests filtered out
-                        yield filtered_response.clone();
-
-                        tokio::task::yield_now().await;
-
-                        let num_tool_requests = frontend_requests.len() + remaining_requests.len();
-                        if num_tool_requests == 0 {
-                            break;
-                        }
-
-                        // Process tool requests depending on frontend tools and then goose_mode
-                        let message_tool_response = Arc::new(Mutex::new(Message::user()));
-
-                        // First handle any frontend tool requests
-                        let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                            &frontend_requests,
-                            message_tool_response.clone()
-                        );
-
-                        // we have a stream of frontend tools to handle, inside the stream
-                        // execution is yeield back to this reply loop, and is of the same Message
-                        // type, so we can yield that back up to be handled
-                        while let Some(msg) = frontend_tool_stream.try_next().await? {
-                            yield msg;
-                        }
-
-                        // Clone goose_mode once before the match to avoid move issues
-                        let mode = goose_mode.clone();
-                        if mode.as_str() == "chat" {
-                            // Skip all tool calls in chat mode
-                            for request in remaining_requests {
-                                let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                                );
-                            }
-                        } else {
-                            // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
-                            // What remains is handling the remaining tool requests (enable extension,
-                            // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
-                            let mut permission_manager = PermissionManager::default();
-                            let (permission_check_result, enable_extension_request_ids) = check_tool_permissions(
-                                &remaining_requests,
-                                &mode,
-                                tools_with_readonly_annotation.clone(),
-                                tools_without_annotation.clone(),
-                                &mut permission_manager,
-                                self.provider().await?).await;
-
-                            // Handle pre-approved and read-only tools in parallel
-                            let mut tool_futures: Vec<ToolFuture> = Vec::new();
-
-                            // Skip the confirmation for approved tools
-                            for request in &permission_check_result.approved {
-                                if let Ok(tool_call) = request.tool_call.clone() {
-                                    let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
-                                    tool_futures.push(Box::pin(tool_future));
-                                }
+                let mut called_tools = false;
+                while let Some(next) = stream.next().await {
+                    match next {
+                        Ok((response, usage)) => {
+                            // record usage for the session in the session file
+                            if let Some(session_config) = session.clone() {
+                                Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                             }
 
-                            for request in &permission_check_result.denied {
-                                let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
-                                );
+                            // categorize the type of requests we need to handle
+                            let (frontend_requests,
+                                remaining_requests,
+                                filtered_response) =
+                                self.categorize_tool_requests(&response).await;
+
+
+                            // Yield the assistant's response with frontend tool requests filtered out
+                            yield filtered_response.clone();
+
+                            tokio::task::yield_now().await;
+
+                            let num_tool_requests = frontend_requests.len() + remaining_requests.len();
+                            if num_tool_requests == 0 {
+                                continue;
                             }
 
-                            // We need interior mutability in handle_approval_tool_requests
-                            let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+                            called_tools = true;
 
-                            // Process tools requiring approval (enable extension, regular tool calls)
-                            let mut tool_approval_stream = self.handle_approval_tool_requests(
-                                &permission_check_result.needs_approval,
-                                tool_futures_arc.clone(),
-                                &mut permission_manager,
+                            // Process tool requests depending on frontend tools and then goose_mode
+                            let message_tool_response = Arc::new(Mutex::new(Message::user()));
+
+                            // First handle any frontend tool requests
+                            let mut frontend_tool_stream = self.handle_frontend_tool_requests(
+                                &frontend_requests,
                                 message_tool_response.clone()
                             );
 
-                            // We have a stream of tool_approval_requests to handle
-                            // Execution is yielded back to this reply loop, and is of the same Message
-                            // type, so we can yield the Message back up to be handled and grab any
-                            // confirmations or denials
-                            while let Some(msg) = tool_approval_stream.try_next().await? {
+                            // we have a stream of frontend tools to handle, inside the stream
+                            // execution is yeield back to this reply loop, and is of the same Message
+                            // type, so we can yield that back up to be handled
+                            while let Some(msg) = frontend_tool_stream.try_next().await? {
                                 yield msg;
                             }
 
-                            tool_futures = {
-                                // Lock the mutex asynchronously
-                                let mut futures_lock = tool_futures_arc.lock().await;
-                                // Drain the vector and collect into a new Vec
-                                futures_lock.drain(..).collect::<Vec<_>>()
-                            };
-
-                            // Wait for all tool calls to complete
-                            let results = futures::future::join_all(tool_futures).await;
-                            let mut all_install_successful = true;
-
-                            for (request_id, output) in results.into_iter() {
-                                if enable_extension_request_ids.contains(&request_id) && output.is_err(){
-                                    all_install_successful = false;
+                            // Clone goose_mode once before the match to avoid move issues
+                            let mode = goose_mode.clone();
+                            if mode.as_str() == "chat" {
+                                // Skip all tool calls in chat mode
+                                for request in remaining_requests {
+                                    let mut response = message_tool_response.lock().await;
+                                    *response = response.clone().with_tool_response(
+                                        request.id.clone(),
+                                        Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                    );
                                 }
-                                let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(request_id, output);
+                            } else {
+                                // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
+                                // What remains is handling the remaining tool requests (enable extension,
+                                // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
+                                let mut permission_manager = PermissionManager::default();
+                                let (permission_check_result, enable_extension_request_ids) = check_tool_permissions(
+                                    &remaining_requests,
+                                    &mode,
+                                    tools_with_readonly_annotation.clone(),
+                                    tools_without_annotation.clone(),
+                                    &mut permission_manager,
+                                    self.provider().await?).await;
+
+                                // Handle pre-approved and read-only tools in parallel
+                                let mut tool_futures: Vec<ToolFuture> = Vec::new();
+
+                                // Skip the confirmation for approved tools
+                                for request in &permission_check_result.approved {
+                                    if let Ok(tool_call) = request.tool_call.clone() {
+                                        let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
+                                        tool_futures.push(Box::pin(tool_future));
+                                    }
+                                }
+
+                                for request in &permission_check_result.denied {
+                                    let mut response = message_tool_response.lock().await;
+                                    *response = response.clone().with_tool_response(
+                                        request.id.clone(),
+                                        Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                                    );
+                                }
+
+                                // We need interior mutability in handle_approval_tool_requests
+                                let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+
+                                // Process tools requiring approval (enable extension, regular tool calls)
+                                let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                    &permission_check_result.needs_approval,
+                                    tool_futures_arc.clone(),
+                                    &mut permission_manager,
+                                    message_tool_response.clone()
+                                );
+
+                                // We have a stream of tool_approval_requests to handle
+                                // Execution is yielded back to this reply loop, and is of the same Message
+                                // type, so we can yield the Message back up to be handled and grab any
+                                // confirmations or denials
+                                while let Some(msg) = tool_approval_stream.try_next().await? {
+                                    yield msg;
+                                }
+
+                                tool_futures = {
+                                    // Lock the mutex asynchronously
+                                    let mut futures_lock = tool_futures_arc.lock().await;
+                                    // Drain the vector and collect into a new Vec
+                                    futures_lock.drain(..).collect::<Vec<_>>()
+                                };
+
+                                // Wait for all tool calls to complete
+                                let results = futures::future::join_all(tool_futures).await;
+                                let mut all_install_successful = true;
+
+                                for (request_id, output) in results.into_iter() {
+                                    if enable_extension_request_ids.contains(&request_id) && output.is_err(){
+                                        all_install_successful = false;
+                                    }
+                                    let mut response = message_tool_response.lock().await;
+                                    *response = response.clone().with_tool_response(request_id, output);
+                                }
+
+                                // Update system prompt and tools if installations were successful
+                                if all_install_successful {
+                                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                                }
                             }
 
-                            // Update system prompt and tools if installations were successful
-                            if all_install_successful {
-                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-                            }
+                            let final_message_tool_resp = message_tool_response.lock().await.clone();
+                            yield final_message_tool_resp.clone();
+
+                            messages.push(response);
+                            messages.push(final_message_tool_resp);
+                        },
+                        Err(ProviderError::ContextLengthExceeded(_)) => {
+                            // At this point, the last message should be a user message
+                            // because call to provider led to context length exceeded error
+                            // Immediately yield a special message and break
+                            yield Message::assistant().with_context_length_exceeded(
+                                "The context length of the model has been exceeded. Please start a new session and try again.",
+                            );
+                            break;
+                        },
+                        Err(e) => {
+                            // Create an error message & terminate the stream
+                            error!("Error: {}", e);
+                            yield Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error."));
+                            break;
                         }
-
-                        let final_message_tool_resp = message_tool_response.lock().await.clone();
-                        yield final_message_tool_resp.clone();
-
-                        messages.push(response);
-                        messages.push(final_message_tool_resp);
-                    },
-                    Err(ProviderError::ContextLengthExceeded(_)) => {
-                        // At this point, the last message should be a user message
-                        // because call to provider led to context length exceeded error
-                        // Immediately yield a special message and break
-                        yield Message::assistant().with_context_length_exceeded(
-                            "The context length of the model has been exceeded. Please start a new session and try again.",
-                        );
-                        break;
-                    },
-                    Err(e) => {
-                        // Create an error message & terminate the stream
-                        error!("Error: {}", e);
-                        yield Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error."));
-                        break;
                     }
+                }
+
+                if !called_tools {
+                    break;
                 }
 
                 // Yield control back to the scheduler to prevent blocking
