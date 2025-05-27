@@ -91,6 +91,13 @@ goose run -n my-project -t "initial instructions"
 goose run -n my-project -r
 ```
 
+You can also run commands without creating or storing a session file by using the `--no-session` flag. This is useful for automated scripts, or one-off tasks where you don't need to maintain the conversation history or state. This flag routes the session output to a temporary null path (`/dev/null` on Unix or `NUL` on Windows), and discards it when complete.
+
+```bash
+# Run a command without creating a session file
+goose run --no-session -t "your command here"
+```
+
 ### Working with Extensions
 
 If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension`, `--with-remote-extension`, or `--with-builtin` flags:
