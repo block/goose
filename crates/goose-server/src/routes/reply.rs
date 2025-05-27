@@ -236,7 +236,7 @@ async fn handler(
                         Ok(None) => {
                             break;
                         }
-                        Err(_) => {
+                        Err(_) => { // Heartbeat, used to detect disconnected clients
                             if tx.is_closed() {
                                 break;
                             }

@@ -328,8 +328,6 @@ const createChat = async (
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
     [port, working_dir, goosedProcess] = await startGoosed(app, dir);
-    // Update the global appConfig with the new port from the goosed process
-    appConfig.GOOSE_PORT = port;
   }
 
   const mainWindow = new BrowserWindow({

@@ -16,7 +16,7 @@
     "/config": {
       "get": {
         "tags": [
-          "config"
+          "super::routes::config_management"
         ],
         "summary": "Read all configuration values",
         "operationId": "read_all_config",
@@ -72,10 +72,10 @@
       },
       "delete": {
         "tags": [
-          "config"
+          "super::routes::config_management"
         ],
         "summary": "Remove an extension configuration",
-        "operationId": "remove_extension_config",
+        "operationId": "remove_extension",
         "requestBody": {
           "content": {
             "application/json": {
@@ -109,7 +109,7 @@
     "/config/read": {
       "get": {
         "tags": [
-          "config"
+          "super::routes::config_management"
         ],
         "summary": "Read a configuration value",
         "operationId": "read_config",
@@ -141,7 +141,7 @@
     "/config/remove": {
       "post": {
         "tags": [
-          "config"
+          "super::routes::config_management"
         ],
         "summary": "Remove a configuration value",
         "operationId": "remove_config",
@@ -178,7 +178,7 @@
     "/config/upsert": {
       "post": {
         "tags": [
-          "config"
+          "super::routes::config_management"
         ],
         "summary": "Upsert a configuration value",
         "operationId": "upsert_config",

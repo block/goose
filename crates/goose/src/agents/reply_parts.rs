@@ -1,6 +1,5 @@
 use anyhow::Result;
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
@@ -208,22 +207,6 @@ impl Agent {
     ) -> Result<()> {
         let session_file_path = session::storage::get_path(session_config.id.clone());
         let mut metadata = session::storage::read_metadata(&session_file_path)?;
-
-        if metadata.working_dir != session_config.working_dir {
-            if session_config.working_dir.exists() {
-                metadata.working_dir = session_config.working_dir.clone();
-            } else if !metadata.working_dir.exists() {
-                metadata.working_dir =
-                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            }
-        } else if !metadata.working_dir.exists() {
-            if session_config.working_dir.exists() {
-                metadata.working_dir = session_config.working_dir.clone();
-            } else {
-                metadata.working_dir =
-                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            }
-        }
 
         metadata.schedule_id = session_config.schedule_id.clone();
 

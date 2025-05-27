@@ -8,6 +8,7 @@ use axum::{
 };
 use etcetera::{choose_app_strategy, AppStrategy};
 use goose::config::Config;
+use goose::config::APP_STRATEGY;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
@@ -416,7 +417,7 @@ pub async fn backup_config(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let config_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir();
 
@@ -467,7 +468,7 @@ mod tests {
             "test".to_string(),
         )
         .await;
-        let sched_storage_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+        let sched_storage_path = choose_app_strategy(APP_STRATEGY.clone())
             .unwrap()
             .data_dir()
             .join("schedules.json");

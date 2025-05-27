@@ -91,11 +91,11 @@ use utoipa::OpenApi;
         SessionInfo,
         SessionMetadata,
         super::routes::schedule::CreateScheduleRequest,
-        goose::scheduler::ScheduledJob, // Corrected path
+        goose::scheduler::ScheduledJob,
         super::routes::schedule::RunNowResponse,
-        super::routes::schedule::ListSchedulesResponse, // Added this line
-        super::routes::schedule::SessionsQuery, // Also adding SessionsQuery for completeness
-        super::routes::schedule::SessionDisplayInfo, // And SessionDisplayInfo for completeness
+        super::routes::schedule::ListSchedulesResponse,
+        super::routes::schedule::SessionsQuery,
+        super::routes::schedule::SessionDisplayInfo,
     ))
 )]
 pub struct ApiDoc;

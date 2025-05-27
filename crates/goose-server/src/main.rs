@@ -1,6 +1,10 @@
-// Items from lib.rs (goose_server crate) will be used via `goose_server::...`
-
 mod commands;
+mod configuration;
+mod error;
+mod logging;
+mod openapi;
+mod routes;
+mod state;
 
 use clap::{Parser, Subcommand};
 
@@ -27,9 +31,6 @@ enum Commands {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // The commands::agent::run() and commands::mcp::run() will need to
-    // use goose_server::configuration, goose_server::logging, goose_server::state,
-    // goose_server::routes, etc.
     match &cli.command {
         Commands::Agent => {
             commands::agent::run().await?;
