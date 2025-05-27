@@ -6,7 +6,7 @@ import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import cronstrue from 'cronstrue';
@@ -22,6 +22,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitApiError, setSubmitApiError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
@@ -49,9 +50,35 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     }
   }, [viewingScheduleId]);
 
+  // Add a periodic refresh for schedules list to keep the running status up to date
+  useEffect(() => {
+    if (viewingScheduleId !== null) return;
+
+    // Set up periodic refresh every 10 seconds
+    const intervalId = setInterval(() => {
+      if (viewingScheduleId === null && !isRefreshing && !isLoading) {
+        fetchSchedules();
+      }
+    }, 10000);
+
+    // Clean up on unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [viewingScheduleId, isRefreshing, isLoading]);
+
   const handleOpenCreateModal = () => {
     setSubmitApiError(null);
     setIsCreateModalOpen(true);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchSchedules();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleCloseCreateModal = () => {
@@ -134,12 +161,24 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
       <ScrollArea className="flex-grow">
         <div className="p-8">
-          <Button
-            onClick={handleOpenCreateModal}
-            className="w-full md:w-auto flex items-center gap-2 justify-center text-white dark:text-black bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4 mb-8"
-          >
-            <Plus className="h-4 w-4" /> Create New Schedule
-          </Button>
+          <div className="flex flex-col md:flex-row gap-2 mb-8">
+            <Button
+              onClick={handleOpenCreateModal}
+              className="w-full md:w-auto flex items-center gap-2 justify-center text-white dark:text-black bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
+            >
+              <Plus className="h-4 w-4" /> Create New Schedule
+            </Button>
+
+            <Button
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              variant="outline"
+              className="w-full md:w-auto flex items-center gap-2 justify-center"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
 
           {apiError && (
             <p className="text-red-500 dark:text-red-400 text-sm p-4 bg-red-100 dark:bg-red-900/30 border border-red-500 dark:border-red-700 rounded-md">
@@ -192,6 +231,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           Last Run:{' '}
                           {job.last_run ? new Date(job.last_run).toLocaleString() : 'Never'}
                         </p>
+                        {job.currently_running && (
+                          <p className="text-xs text-green-500 dark:text-green-400 mt-1 font-semibold flex items-center">
+                            <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                            Currently Running
+                          </p>
+                        )}
                       </div>
                       <div className="flex-shrink-0">
                         <Button

@@ -93,6 +93,7 @@ async fn create_schedule(
         source: req.recipe_source,
         cron: req.cron,
         last_run: None,
+        currently_running: false,
     };
     scheduler
         .add_scheduled_job(job.clone())

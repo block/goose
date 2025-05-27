@@ -1692,6 +1692,9 @@
           "cron": {
             "type": "string"
           },
+          "currently_running": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },

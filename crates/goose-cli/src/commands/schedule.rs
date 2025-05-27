@@ -32,6 +32,7 @@ pub async fn handle_schedule_add(
         source: recipe_source_arg.clone(), // Pass the original user-provided path
         cron,
         last_run: None,
+        currently_running: false,
     };
 
     let scheduler_storage_path =

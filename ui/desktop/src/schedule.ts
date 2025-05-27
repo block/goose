@@ -11,6 +11,7 @@ export interface ScheduledJob {
   source: string;
   cron: string;
   last_run?: string | null;
+  currently_running?: boolean;
 }
 
 export interface ScheduleSession {
