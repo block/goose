@@ -155,7 +155,7 @@ export const initializeSystem = async (
       if (recipeConfig?._paramValues) {
         processedRecipe._paramValues = recipeConfig._paramValues;
       }
-      
+
       window.appConfig.set('recipeConfig', processedRecipe);
     }
 
@@ -186,6 +186,7 @@ export const initializeSystem = async (
     const configVersion = localStorage.getItem('configVersion');
     const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
+    console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
     if (shouldMigrateExtensions) {
       await migrateExtensionsToSettingsV3();
     }
