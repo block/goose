@@ -6,7 +6,7 @@ description: Use the Goose VS Code Extension for seamless AI assistance in your 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to install and use the [Goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) to enable VS Code integration, file operations, and development workflow management.
+This tutorial covers how to install and use the [Goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use Goose interactively for file operations and development workflow management from within VS Code.
 
 :::info Prerequisite
 - [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher is required
