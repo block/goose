@@ -1,20 +1,18 @@
 mod lang;
+mod screen_capture;
 mod shell;
+mod text_editor;
 
 use anyhow::Result;
-use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     future::Future,
-    io::Cursor,
     path::{Path, PathBuf},
     pin::Pin,
 };
-use tokio::process::Command;
-use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
@@ -31,16 +29,14 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::role::Role;
-
-use self::shell::{
-    expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
-    normalize_line_endings,
+use self::screen_capture::{
+    capture_screen, create_list_windows_tool, create_screen_capture_tool, list_windows,
+    process_image,
 };
+use self::shell::{create_shell_tool, execute_shell_command, expand_path, is_absolute_path};
+use self::text_editor::{create_text_editor_tool, execute_text_editor_command};
 use indoc::indoc;
-use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
@@ -109,158 +105,11 @@ impl DeveloperRouter {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        // Get OS-specific shell tool description
-        let shell_tool_desc = match std::env::consts::OS {
-            "windows" => indoc! {r#"
-                Execute a command in the shell.
+        let bash_tool = create_shell_tool();
+        let text_editor_tool = create_text_editor_tool();
 
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-                **Important**: For searching files and code:
-
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
-
-                Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py`
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-                Note: Alternative commands may show ignored/hidden files that should be excluded.
-            "#},
-            _ => indoc! {r#"
-                Execute a command in the shell.
-
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-                If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-                this tool does not run indefinitely.
-
-                **Important**: Each shell command runs in its own process. Things like directory changes or
-                sourcing files do not persist between tool calls. So you may need to repeat them each time by
-                stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
-
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
-            "#},
-        };
-
-        let bash_tool = Tool::new(
-            "shell".to_string(),
-            shell_tool_desc.to_string(),
-            json!({
-                "type": "object",
-                "required": ["command"],
-                "properties": {
-                    "command": {"type": "string"}
-                }
-            }),
-            None,
-        );
-
-        let text_editor_tool = Tool::new(
-            "text_editor".to_string(),
-            indoc! {r#"
-                Perform text editing operations on files.
-
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace a string in a file with a new string.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`.
-            "#}.to_string(),
-            json!({
-                "type": "object",
-                "required": ["command", "path"],
-                "properties": {
-                    "path": {
-                        "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
-                        "type": "string"
-                    },
-                    "command": {
-                        "type": "string",
-                        "enum": ["view", "write", "str_replace", "undo_edit"],
-                        "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
-                    },
-                    "old_str": {"type": "string"},
-                    "new_str": {"type": "string"},
-                    "file_text": {"type": "string"}
-                }
-            }),
-            None,
-        );
-
-        let list_windows_tool = Tool::new(
-            "list_windows",
-            indoc! {r#"
-                List all available window titles that can be used with screen_capture.
-                Returns a list of window titles that can be used with the window_title parameter
-                of the screen_capture tool.
-            "#},
-            json!({
-                "type": "object",
-                "required": [],
-                "properties": {}
-            }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
-
-        let screen_capture_tool = Tool::new(
-            "screen_capture",
-            indoc! {r#"
-                Capture a screenshot of a specified display or window.
-                You can capture either:
-                1. A full display (monitor) using the display parameter
-                2. A specific window by its title using the window_title parameter
-
-                Only one of display or window_title should be specified.
-            "#},
-            json!({
-                "type": "object",
-                "required": [],
-                "properties": {
-                    "display": {
-                        "type": "integer",
-                        "default": 0,
-                        "description": "The display number to capture (0 is main display)"
-                    },
-                    "window_title": {
-                        "type": "string",
-                        "default": null,
-                        "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
-                    }
-                }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        let list_windows_tool = create_list_windows_tool();
+        let screen_capture_tool = create_screen_capture_tool();
 
         let image_processor_tool = Tool::new(
             "image_processor",
@@ -457,570 +306,33 @@ impl DeveloperRouter {
 
     // Shell command execution with platform-specific handling
     async fn bash(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let command =
-            params
-                .get("command")
-                .and_then(|v| v.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The command string is required".to_string(),
-                ))?;
-
-        // Check if command might access ignored files and return early if it does
-        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
-        for arg in &cmd_parts[1..] {
-            // Skip command flags
-            if arg.starts_with('-') {
-                continue;
-            }
-            // Skip invalid paths
-            let path = Path::new(arg);
-            if !path.exists() {
-                continue;
-            }
-
-            if self.is_ignored(path) {
-                return Err(ToolError::ExecutionError(format!(
-                    "The command attempts to access '{}' which is restricted by .gooseignore",
-                    arg
-                )));
-            }
-        }
-
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
-        let cmd_with_redirect = format_command_for_platform(command);
-
-        // Execute the command using platform-specific shell
-        let child = Command::new(&shell_config.executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .arg(&shell_config.arg)
-            .arg(cmd_with_redirect)
-            .spawn()
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        // Wait for the command to complete and get output
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let output_str = stdout_str;
-
-        // Check the character count of the output
-        const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
-        let char_count = output_str.chars().count();
-        if char_count > MAX_CHAR_COUNT {
-            return Err(ToolError::ExecutionError(format!(
-                    "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
-                    command,
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-        }
-
-        Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
+        execute_shell_command(params, &self.ignore_patterns).await
     }
 
     async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let command = params
-            .get("command")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidParameters("Missing 'command' parameter".to_string())
-            })?;
-
-        let path_str = params
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
-
-        let path = self.resolve_path(path_str)?;
-
-        // Check if file is ignored before proceeding with any text editor operation
-        if self.is_ignored(&path) {
-            return Err(ToolError::ExecutionError(format!(
-                "Access to '{}' is restricted by .gooseignore",
-                path.display()
-            )));
-        }
-
-        match command {
-            "view" => self.text_editor_view(&path).await,
-            "write" => {
-                let file_text = params
-                    .get("file_text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
-                    })?;
-
-                self.text_editor_write(&path, file_text).await
-            }
-            "str_replace" => {
-                let old_str = params
-                    .get("old_str")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'old_str' parameter".into())
-                    })?;
-                let new_str = params
-                    .get("new_str")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'new_str' parameter".into())
-                    })?;
-
-                self.text_editor_replace(&path, old_str, new_str).await
-            }
-            "undo_edit" => self.text_editor_undo(&path).await,
-            _ => Err(ToolError::InvalidParameters(format!(
-                "Unknown command '{}'",
-                command
-            ))),
-        }
+        execute_text_editor_command(
+            params,
+            &self.ignore_patterns,
+            &self.file_history,
+            |path_str| self.resolve_path(path_str),
+            |path| self.is_ignored(path),
+        )
+        .await
     }
 
-    async fn text_editor_view(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
-        if path.is_file() {
-            // Check file size first (400KB limit)
-            const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
-            const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
-
-            let file_size = std::fs::metadata(path)
-                .map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
-                })?
-                .len();
-
-            if file_size > MAX_FILE_SIZE {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
-                    path.display(),
-                    file_size as f64 / 1024.0
-                )));
-            }
-
-            let uri = Url::from_file_path(path)
-                .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
-                .to_string();
-
-            let content = std::fs::read_to_string(path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-            let char_count = content.chars().count();
-            if char_count > MAX_CHAR_COUNT {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' has too many characters ({}). Maximum character count is {}.",
-                    path.display(),
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-            }
-
-            let language = lang::get_language_identifier(path);
-            let formatted = formatdoc! {"
-                ### {path}
-                ```{language}
-                {content}
-                ```
-                ",
-                path=path.display(),
-                language=language,
-                content=content,
-            };
-
-            // The LLM gets just a quick update as we expect the file to view in the status
-            // but we send a low priority message for the human
-            Ok(vec![
-                Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
-                Content::text(formatted)
-                    .with_audience(vec![Role::User])
-                    .with_priority(0.0),
-            ])
-        } else {
-            Err(ToolError::ExecutionError(format!(
-                "The path '{}' does not exist or is not a file.",
-                path.display()
-            )))
-        }
-    }
-
-    async fn text_editor_write(
-        &self,
-        path: &PathBuf,
-        file_text: &str,
-    ) -> Result<Vec<Content>, ToolError> {
-        // Normalize line endings based on platform
-        let normalized_text = normalize_line_endings(file_text);
-
-        // Write to the file
-        std::fs::write(path, normalized_text)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
-
-        // Try to detect the language from the file extension
-        let language = lang::get_language_identifier(path);
-
-        // The assistant output does not show the file again because the content is already in the tool request
-        // but we do show it to the user here
-        Ok(vec![
-            Content::text(format!("Successfully wrote to {}", path.display()))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {r#"
-                ### {path}
-                ```{language}
-                {content}
-                ```
-                "#,
-                path=path.display(),
-                language=language,
-                content=file_text,
-            })
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
-        ])
-    }
-
-    async fn text_editor_replace(
-        &self,
-        path: &PathBuf,
-        old_str: &str,
-        new_str: &str,
-    ) -> Result<Vec<Content>, ToolError> {
-        // Check if file exists and is active
-        if !path.exists() {
-            return Err(ToolError::InvalidParameters(format!(
-                "File '{}' does not exist, you can write a new file with the `write` command",
-                path.display()
-            )));
-        }
-
-        // Read content
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-        // Ensure 'old_str' appears exactly once
-        if content.matches(old_str).count() > 1 {
-            return Err(ToolError::InvalidParameters(
-                "'old_str' must appear exactly once in the file, but it appears multiple times"
-                    .into(),
-            ));
-        }
-        if content.matches(old_str).count() == 0 {
-            return Err(ToolError::InvalidParameters(
-                "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".into(),
-            ));
-        }
-
-        // Save history for undo
-        self.save_file_history(path)?;
-
-        // Replace and write back with platform-specific line endings
-        let new_content = content.replace(old_str, new_str);
-        let normalized_content = normalize_line_endings(&new_content);
-        std::fs::write(path, &normalized_content)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
-
-        // Try to detect the language from the file extension
-        let language = lang::get_language_identifier(path);
-
-        // Show a snippet of the changed content with context
-        const SNIPPET_LINES: usize = 4;
-
-        // Count newlines before the replacement to find the line number
-        let replacement_line = content
-            .split(old_str)
-            .next()
-            .expect("should split on already matched content")
-            .matches('\n')
-            .count();
-
-        // Calculate start and end lines for the snippet
-        let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
-        let end_line = replacement_line + SNIPPET_LINES + new_str.matches('\n').count();
-
-        // Get the relevant lines for our snippet
-        let lines: Vec<&str> = new_content.lines().collect();
-        let snippet = lines
-            .iter()
-            .skip(start_line)
-            .take(end_line - start_line + 1)
-            .cloned()
-            .collect::<Vec<&str>>()
-            .join("\n");
-
-        let output = formatdoc! {r#"
-            ```{language}
-            {snippet}
-            ```
-            "#,
-            language=language,
-            snippet=snippet
-        };
-
-        let success_message = formatdoc! {r#"
-            The file {} has been edited, and the section now reads:
-            {}
-            Review the changes above for errors. Undo and edit the file again if necessary!
-            "#,
-            path.display(),
-            output
-        };
-
-        Ok(vec![
-            Content::text(success_message).with_audience(vec![Role::Assistant]),
-            Content::text(output)
-                .with_audience(vec![Role::User])
-                .with_priority(0.2),
-        ])
-    }
-
-    async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
-        let mut history = self.file_history.lock().unwrap();
-        if let Some(contents) = history.get_mut(path) {
-            if let Some(previous_content) = contents.pop() {
-                // Write previous content back to file
-                std::fs::write(path, previous_content).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to write file: {}", e))
-                })?;
-                Ok(vec![Content::text("Undid the last edit")])
-            } else {
-                Err(ToolError::InvalidParameters(
-                    "No edit history available to undo".into(),
-                ))
-            }
-        } else {
-            Err(ToolError::InvalidParameters(
-                "No edit history available to undo".into(),
-            ))
-        }
-    }
-
-    fn save_file_history(&self, path: &PathBuf) -> Result<(), ToolError> {
-        let mut history = self.file_history.lock().unwrap();
-        let content = if path.exists() {
-            std::fs::read_to_string(path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?
-        } else {
-            String::new()
-        };
-        history.entry(path.clone()).or_default().push(content);
-        Ok(())
-    }
-
-    async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
-        let windows = Window::all()
-            .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
-
-        let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
-
-        Ok(vec![
-            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
-    }
-
-    // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
-    fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
-        // Only process if the path has a filename
-        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-            // Check if this matches Mac screenshot pattern:
-            // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
-                .ok()
-                .and_then(|re| re.captures(filename))
-            {
-
-                // Get the AM/PM part
-                let meridian = captures.get(1).unwrap().as_str();
-
-                // Find the last space before AM/PM and replace it with U+202F
-                let space_pos = filename.rfind(meridian)
-                    .map(|pos| filename[..pos].trim_end().len())
-                    .unwrap_or(0);
-
-                if space_pos > 0 {
-                    let parent = path.parent().unwrap_or(Path::new(""));
-                    let new_filename = format!(
-                        "{}{}{}",
-                        &filename[..space_pos],
-                        '\u{202F}',
-                        &filename[space_pos+1..]
-                    );
-                    let new_path = parent.join(new_filename);
-
-                    return new_path;
-                }
-            }
-        }
-        path.to_path_buf()
+    async fn list_windows(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        list_windows(params).await
     }
 
     async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let path_str = params
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
-
-        let path = {
-            let p = self.resolve_path(path_str)?;
-            if cfg!(target_os = "macos") {
-                self.normalize_mac_screenshot_path(&p)
-            } else {
-                p
-            }
-        };
-
-        // Check if file is ignored before proceeding
-        if self.is_ignored(&path) {
-            return Err(ToolError::ExecutionError(format!(
-                "Access to '{}' is restricted by .gooseignore",
-                path.display()
-            )));
-        }
-
-        // Check if file exists
-        if !path.exists() {
-            return Err(ToolError::ExecutionError(format!(
-                "File '{}' does not exist",
-                path.display()
-            )));
-        }
-
-        // Check file size (10MB limit for image files)
-        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
-        let file_size = std::fs::metadata(&path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
-            .len();
-
-        if file_size > MAX_FILE_SIZE {
-            return Err(ToolError::ExecutionError(format!(
-                "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
-                path.display(),
-                file_size as f64 / (1024.0 * 1024.0)
-            )));
-        }
-
-        // Open and decode the image
-        let image = xcap::image::open(&path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
-
-        // Resize if necessary (same logic as screen_capture)
-        let mut processed_image = image;
-        let max_width = 768;
-        if processed_image.width() > max_width {
-            let scale = max_width as f32 / processed_image.width() as f32;
-            let new_height = (processed_image.height() as f32 * scale) as u32;
-            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
-                &processed_image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            ));
-        }
-
-        // Convert to PNG and encode as base64
-        let mut bytes: Vec<u8> = Vec::new();
-        processed_image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write image buffer: {}", e))
-            })?;
-
-        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
-
-        Ok(vec![
-            Content::text(format!(
-                "Successfully processed image from {}",
-                path.display()
-            ))
-            .with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
-        ])
+        process_image(params, &self.ignore_patterns, |path_str| {
+            self.resolve_path(path_str)
+        })
+        .await
     }
 
     async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let mut image = if let Some(window_title) =
-            params.get("window_title").and_then(|v| v.as_str())
-        {
-            // Try to find and capture the specified window
-            let windows = Window::all()
-                .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
-
-            let window = windows
-                .into_iter()
-                .find(|w| w.title() == window_title)
-                .ok_or_else(|| {
-                    ToolError::ExecutionError(format!(
-                        "No window found with title '{}'",
-                        window_title
-                    ))
-                })?;
-
-            window.capture_image().map_err(|e| {
-                ToolError::ExecutionError(format!(
-                    "Failed to capture window '{}': {}",
-                    window_title, e
-                ))
-            })?
-        } else {
-            // Default to display capture if no window title is specified
-            let display = params.get("display").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-
-            let monitors = Monitor::all()
-                .map_err(|_| ToolError::ExecutionError("Failed to access monitors".into()))?;
-            let monitor = monitors.get(display).ok_or_else(|| {
-                ToolError::ExecutionError(format!(
-                    "{} was not an available monitor, {} found.",
-                    display,
-                    monitors.len()
-                ))
-            })?;
-
-            monitor.capture_image().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to capture display {}: {}", display, e))
-            })?
-        };
-
-        // Resize the image to a reasonable width while maintaining aspect ratio
-        let max_width = 768;
-        if image.width() > max_width {
-            let scale = max_width as f32 / image.width() as f32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image = xcap::image::imageops::resize(
-                &image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            )
-        };
-
-        let mut bytes: Vec<u8> = Vec::new();
-        image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write image buffer {}", e))
-            })?;
-
-        // Convert to base64
-        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
-
-        Ok(vec![
-            Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
-        ])
+        capture_screen(params).await
     }
 }
 
@@ -1122,11 +434,11 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcp_core::role::Role;
     use serde_json::json;
     use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
-    use tokio::sync::OnceCell;
 
     #[test]
     #[serial]
@@ -1187,128 +499,15 @@ mod tests {
         assert!(!instructions.contains("Project Hints"));
     }
 
-    static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
-
-    async fn get_router() -> &'static DeveloperRouter {
-        DEV_ROUTER
-            .get_or_init(|| async { DeveloperRouter::new() })
-            .await
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_shell_missing_parameters() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let router = get_router().await;
-        let result = router.call_tool("shell", json!({})).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[cfg(windows)]
-    async fn test_windows_specific_commands() {
-        let router = get_router().await;
-
-        // Test PowerShell command
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": "Get-ChildItem"
-                }),
-            )
-            .await;
-        assert!(result.is_ok());
-
-        // Test Windows path handling
-        let result = router.resolve_path("C:\\Windows\\System32");
-        assert!(result.is_ok());
-
-        // Test UNC path handling
-        let result = router.resolve_path("\\\\server\\share");
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_size_limits() {
-        // Create temp directory first so it stays in scope for the whole test
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Get router after setting current directory
-        let router = get_router().await;
-
-        // Test file size limit
-        {
-            let large_file_path = temp_dir.path().join("large.txt");
-            let large_file_str = large_file_path.to_str().unwrap();
-
-            // Create a file larger than 2MB
-            let content = "x".repeat(3 * 1024 * 1024); // 3MB
-            std::fs::write(&large_file_path, content).unwrap();
-
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": large_file_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too large"));
-        }
-
-        // Test character count limit
-        {
-            let many_chars_path = temp_dir.path().join("many_chars.txt");
-            let many_chars_str = many_chars_path.to_str().unwrap();
-
-            // Create a file with more than 400K characters but less than 400KB
-            let content = "x".repeat(405_000);
-            std::fs::write(&many_chars_path, content).unwrap();
-
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": many_chars_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
-        }
-
-        // Let temp_dir drop naturally at end of scope
-    }
-
     #[tokio::test]
     #[serial]
     async fn test_text_editor_write_and_view_file() {
-        let router = get_router().await;
-
         let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = DeveloperRouter::new();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
@@ -1353,12 +552,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_str_replace() {
-        let router = get_router().await;
-
         let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = DeveloperRouter::new();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
@@ -1428,12 +627,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_undo_edit() {
-        let router = get_router().await;
-
         let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = DeveloperRouter::new();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
@@ -1551,117 +750,6 @@ mod tests {
             !router.is_ignored(Path::new("test.txt")),
             "*.env pattern should not match test.txt"
         );
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_respects_ignore_patterns() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
-        builder.add_line(None, "secret.txt").unwrap();
-        let ignore_patterns = builder.build().unwrap();
-
-        let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools, // Reuse default tools
-            prompts: Arc::new(HashMap::new()),
-            instructions: String::new(),
-            file_history: Arc::new(Mutex::new(HashMap::new())),
-            ignore_patterns: Arc::new(ignore_patterns),
-        };
-
-        // Try to write to an ignored file
-        let result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "write",
-                    "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
-                    "file_text": "test content"
-                }),
-            )
-            .await;
-
-        assert!(
-            result.is_err(),
-            "Should not be able to write to ignored file"
-        );
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
-
-        // Try to write to a non-ignored file
-        let result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "write",
-                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
-                    "file_text": "test content"
-                }),
-            )
-            .await;
-
-        assert!(
-            result.is_ok(),
-            "Should be able to write to non-ignored file"
-        );
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_bash_respects_ignore_patterns() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
-        builder.add_line(None, "secret.txt").unwrap();
-        let ignore_patterns = builder.build().unwrap();
-
-        let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools, // Reuse default tools
-            prompts: Arc::new(HashMap::new()),
-            instructions: String::new(),
-            file_history: Arc::new(Mutex::new(HashMap::new())),
-            ignore_patterns: Arc::new(ignore_patterns),
-        };
-
-        // Create an ignored file
-        let secret_file_path = temp_dir.path().join("secret.txt");
-        std::fs::write(&secret_file_path, "secret content").unwrap();
-
-        // Try to cat the ignored file
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": format!("cat {}", secret_file_path.to_str().unwrap())
-                }),
-            )
-            .await;
-
-        assert!(result.is_err(), "Should not be able to cat ignored file");
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
-
-        // Try to cat a non-ignored file
-        let allowed_file_path = temp_dir.path().join("allowed.txt");
-        std::fs::write(&allowed_file_path, "allowed content").unwrap();
-
-        let result = router
-            .call_tool(
-                "shell",
-                json!({
-                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
-                }),
-            )
-            .await;
-
-        assert!(result.is_ok(), "Should be able to cat non-ignored file");
 
         temp_dir.close().unwrap();
     }
