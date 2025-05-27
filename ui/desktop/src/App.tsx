@@ -118,6 +118,38 @@ export default function App() {
     setInternalView({ view, viewOptions });
   };
 
+  const initializeProviderAndModel = async (): Promise<{
+    provider: string;
+    model: string;
+  } | null> => {
+    const config = window.electron.getConfig();
+    const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+    const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+    if (!provider || !model) {
+      console.log('Missing required configuration, showing onboarding');
+      setView('welcome');
+      return null;
+    }
+
+    try {
+      await initializeSystem(provider, model, {
+        getExtensions,
+        addExtension,
+      });
+      return { provider, model };
+    } catch (error) {
+      console.error('Error in initialization:', error);
+
+      if (error instanceof MalformedConfigError) {
+        throw error;
+      }
+
+      setView('welcome');
+      return null;
+    }
+  };
+
   useEffect(() => {
     // Guard against multiple initialization attempts
     if (initAttemptedRef.current) {
@@ -181,65 +213,19 @@ export default function App() {
         ) {
           console.log('Recipe has parameters, showing parameter collection view');
 
-          // Still need to initialize the system even though we're showing parameters first
-          const config = window.electron.getConfig();
-          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-          if (provider && model) {
-            try {
-              await initializeSystem(provider, model, {
-                getExtensions,
-                addExtension,
-              });
-              console.log('System initialized for recipe with parameters');
-            } catch (error) {
-              console.error('Error in initialization for recipe with parameters:', error);
-
-              if (error instanceof MalformedConfigError) {
-                throw error;
-              }
-
-              setView('welcome');
-              return;
-            }
-          } else {
-            console.log('Missing required configuration, showing onboarding');
-            setView('welcome');
+          const initResult = await initializeProviderAndModel();
+          if (!initResult) {
             return;
           }
 
+          console.log('System initialized for recipe with parameters');
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
         }
 
-        const config = window.electron.getConfig();
-
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        if (provider && model) {
+        const initResult = await initializeProviderAndModel();
+        if (initResult) {
           setView('chat');
-
-          try {
-            await initializeSystem(provider, model, {
-              getExtensions,
-              addExtension,
-            });
-          } catch (error) {
-            console.error('Error in initialization:', error);
-
-            // propagate the error upward so the global ErrorUI shows in cases
-            // where going through welcome/onboarding wouldn't address the issue
-            if (error instanceof MalformedConfigError) {
-              throw error;
-            }
-
-            setView('welcome');
-          }
-        } else {
-          console.log('Missing required configuration, showing onboarding');
-          setView('welcome');
         }
       } catch (error) {
         setFatalError(

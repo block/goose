@@ -120,9 +120,8 @@ async fn handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-
     // Spawn task to handle streaming
-    tokio::spawn(async move {        
+    tokio::spawn(async move {
         let agent = state.get_agent().await;
         let agent = match agent {
             Ok(agent) => {
