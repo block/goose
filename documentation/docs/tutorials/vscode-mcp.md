@@ -1,6 +1,6 @@
 ---
 title: VS Code Extension
-description: Use the Goose VS Code Extension for seamless AI assistance in your editor
+description: Use the Goose VS Code Extension to connect Goose to your editor
 ---
 
 import Tabs from '@theme/Tabs';
