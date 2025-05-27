@@ -284,7 +284,7 @@ function ChatContent({
       messages,
     };
     setChat(updatedChat);
-  }, [messages, setChat]);
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -294,10 +294,11 @@ function ChatContent({
 
   useEffect(() => {
     const prompt = recipeConfig?.prompt;
-    
+
     // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
     // This is because the recipe config and parameters are available before full app initialization
-    const hasParameterValues = recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
+    const hasParameterValues =
+      recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
     const shouldProceed = readyForAutoUserPrompt || hasParameterValues;
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {
@@ -309,7 +310,13 @@ function ChatContent({
       append(prompt);
       hasSentPromptRef.current = true;
     }
-  }, [recipeConfig?.prompt, append, setLastInteractionTime, readyForAutoUserPrompt]);
+  }, [
+    recipeConfig?.prompt,
+    recipeConfig?._paramValues,
+    append,
+    setLastInteractionTime,
+    readyForAutoUserPrompt,
+  ]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
