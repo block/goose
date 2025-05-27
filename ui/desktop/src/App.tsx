@@ -164,13 +164,8 @@ export default function App() {
     const viewType = urlParams.get('view');
     const recipeConfig = window.appConfig.get('recipeConfig');
 
-    console.log('App: URL search params:', window.location.search);
-    console.log('App: viewType from URL:', viewType);
-    console.log('App: recipeConfig from appConfig:', recipeConfig);
-
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
-      console.log('App: ⚠️  Found viewType in URL - this will SKIP parameter detection!');
       if (viewType === 'recipeEditor' && recipeConfig) {
         console.log('Setting view to recipeEditor with config:', recipeConfig);
         setView('recipeEditor', { config: recipeConfig });
@@ -179,7 +174,6 @@ export default function App() {
         console.log('App: Chat view requested with recipe config - checking for parameters...');
         // Don't return here - fall through to parameter detection logic
       } else {
-        console.log('App: Setting view to:', viewType);
         setView(viewType as View);
         return;
       }
@@ -221,7 +215,6 @@ export default function App() {
           recipeConfig.parameters.length > 0 &&
           !('_paramValues' in recipeConfig)
         ) {
-          console.log('App: ✅ Recipe has parameters that need values - showing recipeParameters view');
           const initResult = await initializeProviderAndModel();
           if (!initResult) {
             return;
@@ -266,6 +259,7 @@ export default function App() {
 
   useEffect(() => {
     try {
+      console.log('Sending reactReady signal to Electron');
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
@@ -302,12 +296,14 @@ export default function App() {
 
   // Keyboard shortcut handler
   useEffect(() => {
+    console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
           const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
+          console.log(`Creating new chat window with working dir: ${workingDir}`);
           window.electron.createChatWindow(undefined, workingDir as string);
         } catch (error) {
           console.error('Error creating new window:', error);
@@ -322,8 +318,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    console.log('Setting up fatal error handler');
     const handleFatalError = (_event: IpcRendererEvent, errorMessage: string) => {
       console.error('Encountered a fatal error: ', errorMessage);
+      // Log additional context that might help diagnose the issue
+      console.error('Current view:', view);
+      console.error('Is loading session:', isLoadingSession);
       setFatalError(errorMessage);
     };
 
@@ -334,7 +334,9 @@ export default function App() {
   }, [view, isLoadingSession]); // Add dependencies to provide context in error logs
 
   useEffect(() => {
+    console.log('Setting up view change handler');
     const handleSetView = (_event: IpcRendererEvent, newView: View) => {
+      console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
 

@@ -215,7 +215,6 @@ async fn update_agent_provider(
         let mut recipe = recipe_with_params.config;
         
         if !recipe_with_params.parameters.is_empty() {
-            // Apply recipe parameters, converting any panic to a BAD_REQUEST
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters);
             }))
