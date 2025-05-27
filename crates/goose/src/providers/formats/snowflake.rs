@@ -115,8 +115,6 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             if i == tools.len() - 1 {
                 if let Some(obj) = tool_spec.as_object_mut() {
                     obj.insert("cache_control".to_string(), json!({"type": "ephemeral"}));
-                } else {
-                    eprintln!("Warning: tool_spec is not an object, cannot add cache_control");
                 }
             }
 
@@ -129,7 +127,6 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 
 /// Convert system message to Snowflake's API system specification
 pub fn format_system(system: &str) -> Value {
-    println!("System: {:?}", system);
     json!({
         "role": "system",
         "content": system,
@@ -158,7 +155,6 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
         let event: Value = match serde_json::from_str(json_str) {
             Ok(v) => v,
             Err(_) => {
-                println!("Failed to parse SSE event: {}", json_str);
                 continue;
             }
         };
@@ -204,7 +200,6 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
                     message = message.with_tool_request(id, Ok(tool_call));
                 }
                 Err(e) => {
-                    println!("Failed to parse tool input: {}", e);
                     // Still add the tool request even if input parsing fails
                     let tool_call = ToolCall::new(name, Value::String(tool_input.clone()));
                     message = message.with_tool_request(id, Ok(tool_call));
@@ -217,12 +212,6 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
         }
     }
 
-    // If no content at all, ensure we still return a valid message
-    if message.content.is_empty() {
-        println!("No content in streaming response, returning empty assistant message");
-    }
-
-    println!("Parsed streaming message: {:?}", message);
     Ok(message)
 }
 
@@ -241,11 +230,9 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 if !direct_content.is_empty() {
                     message = message.with_text(direct_content.to_string());
                 }
-                println!("Parsed message from direct content: {:?}", message);
                 return Ok(message);
             } else {
                 // Return empty assistant message for empty responses
-                println!("Empty response, returning empty assistant message");
                 return Ok(message);
             }
         }
@@ -255,7 +242,6 @@ pub fn response_to_message(response: Value) -> Result<Message> {
     for content in content_list {
         match content.get("type").and_then(|t| t.as_str()) {
             Some("text") => {
-                println!("Text response: {:?}", response);
                 if let Some(text) = content.get("text").and_then(|t| t.as_str()) {
                     if !text.is_empty() {
                         message = message.with_text(text.to_string());
@@ -263,7 +249,6 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 }
             }
             Some("tool_use") => {
-                println!("Tool use response: {:?}", response);
                 let id = content
                     .get("tool_use_id")
                     .and_then(|i| i.as_str())
@@ -282,7 +267,6 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some("thinking") => {
-                println!("Thinking response: {:?}", response);
                 let thinking = content
                     .get("thinking")
                     .and_then(|t| t.as_str())
@@ -294,7 +278,6 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 message = message.with_thinking(thinking, signature);
             }
             Some("redacted_thinking") => {
-                println!("Redacted thinking response: {:?}", response);
                 let data = content
                     .get("data")
                     .and_then(|d| d.as_str())
@@ -302,13 +285,11 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 message = message.with_redacted_thinking(data);
             }
             _ => {
-                // Log unrecognized content types for debugging
-                println!("Unrecognized content type: {:?}", content.get("type"));
+                // Ignore unrecognized content types
             }
         }
     }
 
-    println!("Parsed message: {:?}", message);
     Ok(message)
 }
 
@@ -360,7 +341,6 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    println!("Creating request for model: {:?}", model_config);
     let mut snowflake_messages = format_messages(messages);
     let system_spec = format_system(system);
 
@@ -631,11 +611,6 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         )];
 
         let request = create_request(&model_config, system, &messages, &tools)?;
-
-        println!(
-            "Generated request: {}",
-            serde_json::to_string_pretty(&request)?
-        );
 
         // Check basic structure
         assert_eq!(request["model"], "claude-3-5-sonnet");

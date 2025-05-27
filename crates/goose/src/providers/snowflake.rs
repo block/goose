@@ -166,44 +166,35 @@ impl SnowflakeProvider {
                 continue;
             }
 
-            // Skip lines that don't start with "data: "
             let json_str = match line.strip_prefix("data: ") {
                 Some(s) => s,
                 None => continue,
             };
 
-            // Parse JSON line
             let json_line: Value = match serde_json::from_str(json_str) {
                 Ok(json) => json,
                 Err(e) => {
-                    eprintln!("Failed to parse JSON line: {}: {}", e, json_str);
                     continue;
                 }
             };
 
-            // Extract choices array
             let choices = match json_line.get("choices").and_then(|c| c.as_array()) {
                 Some(choices) => choices,
                 None => {
-                    eprintln!("No choices array found in JSON: {}", json_line);
                     continue;
                 }
             };
 
-            // Get first choice
             let choice = match choices.get(0) {
                 Some(choice) => choice,
                 None => {
-                    eprintln!("No first choice found in choices array");
                     continue;
                 }
             };
 
-            // Extract delta
             let delta = match choice.get("delta") {
                 Some(delta) => delta,
                 None => {
-                    eprintln!("No delta found in choice: {}", choice);
                     continue;
                 }
             };
@@ -277,22 +268,15 @@ impl SnowflakeProvider {
 
         // Add tool use content only if we have complete tool information
         if !tool_use_id.is_empty() && !tool_name.is_empty() {
-            eprintln!(
-                "Tool use detected - ID: {}, Name: {}, Input: {}",
-                tool_use_id, tool_name, tool_input
-            );
-
             // Parse tool input as JSON if it's not empty
             let parsed_input = if tool_input.is_empty() {
                 json!({})
             } else {
                 match serde_json::from_str::<Value>(&tool_input) {
                     Ok(json_value) => {
-                        eprintln!("Successfully parsed tool input: {:?}", json_value);
                         json_value
                     }
                     Err(e) => {
-                        eprintln!("Failed to parse tool input as JSON: {}: {}", e, tool_input);
                         json!({"raw_input": tool_input})
                     }
                 }
@@ -313,8 +297,6 @@ impl SnowflakeProvider {
                 "text": ""
             }));
         }
-
-        eprintln!("Final answer_payload content_list: {:?}", content_list);
 
         let answer_payload = json!({
             "role": "assistant",
