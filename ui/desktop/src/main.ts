@@ -347,8 +347,8 @@ const createChat = async (
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: [
         JSON.stringify({
-          ...appConfig,
-          GOOSE_PORT: port,
+          ...appConfig, // Use the potentially updated appConfig
+          GOOSE_PORT: port, // Ensure this specific window gets the correct port
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
@@ -399,8 +399,8 @@ const createChat = async (
 
   // Store config in localStorage for future windows
   const windowConfig = {
-    ...appConfig,
-    GOOSE_PORT: port,
+    ...appConfig, // Use the potentially updated appConfig here as well
+    GOOSE_PORT: port, // Ensure this specific window's config gets the correct port
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,

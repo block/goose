@@ -6,8 +6,9 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::config::Config;
+use goose::config::APP_STRATEGY;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
@@ -15,7 +16,6 @@ use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
@@ -52,14 +52,12 @@ pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
 }
 
-// Define a new structure to encapsulate the provider details along with configuration status
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ProviderDetails {
-    /// Unique identifier and name of the provider
     pub name: String,
-    /// Metadata about the provider
+
     pub metadata: ProviderMetadata,
-    /// Indicates whether the provider is fully configured
+
     pub is_configured: bool,
 }
 
@@ -70,7 +68,6 @@ pub struct ProvidersResponse {
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ToolPermission {
-    /// Unique identifier and name of the tool, format <extension_name>__<tool_name>
     pub tool_name: String,
     pub permission: PermissionLevel,
 }
@@ -94,7 +91,6 @@ pub async fn upsert_config(
     headers: HeaderMap,
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
@@ -121,12 +117,10 @@ pub async fn remove_config(
     headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
 
-    // Check if the secret flag is true and call the appropriate method
     let result = if query.is_secret {
         config.delete_secret(&query.key)
     } else {
@@ -142,7 +136,7 @@ pub async fn remove_config(
 #[utoipa::path(
     post,
     path = "/config/read",
-    request_body = ConfigKeyQuery, // Switch back to request_body
+    request_body = ConfigKeyQuery,
     responses(
         (status = 200, description = "Configuration value retrieved successfully", body = Value),
         (status = 404, description = "Configuration key not found")
@@ -155,7 +149,6 @@ pub async fn read_config(
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Special handling for model-limits
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
         return Ok(Json(
@@ -166,13 +159,10 @@ pub async fn read_config(
     let config = Config::global();
 
     match config.get(&query.key, query.is_secret) {
-        // Always get the actual value
         Ok(value) => {
             if query.is_secret {
-                // If it's marked as secret, return a boolean indicating presence
                 Ok(Json(Value::Bool(true)))
             } else {
-                // Return the actual value if not secret
                 Ok(Json(value))
             }
         }
@@ -197,7 +187,6 @@ pub async fn get_extensions(
     match ExtensionConfigManager::get_all() {
         Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
         Err(err) => {
-            // Return UNPROCESSABLE_ENTITY only for DeserializeError, INTERNAL_SERVER_ERROR for everything else
             if err
                 .downcast_ref::<goose::config::base::ConfigError>()
                 .is_some_and(|e| matches!(e, goose::config::base::ConfigError::DeserializeError(_)))
@@ -228,7 +217,6 @@ pub async fn add_extension(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Get existing extensions to check if this is an update
     let extensions =
         ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = name_to_key(&extension_query.name);
@@ -284,12 +272,10 @@ pub async fn read_all_config(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<ConfigResponse>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
 
-    // Load values from config file
     let values = config
         .load_values()
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
@@ -297,7 +283,6 @@ pub async fn read_all_config(
     Ok(Json(ConfigResponse { config: values }))
 }
 
-// Modified providers function using the new response type
 #[utoipa::path(
     get,
     path = "/config/providers",
@@ -311,14 +296,11 @@ pub async fn providers(
 ) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Fetch the list of providers, which are likely stored in the AppState or can be retrieved via a function call
     let providers_metadata = get_providers();
 
-    // Construct the response by checking configuration status for each provider
     let providers_response: Vec<ProviderDetails> = providers_metadata
         .into_iter()
         .map(|metadata| {
-            // Check if the provider is configured (this will depend on how you track configuration status)
             let is_configured = check_provider_configured(&metadata);
 
             ProviderDetails {
@@ -348,21 +330,16 @@ pub async fn init_config(
 
     let config = Config::global();
 
-    // 200 if config already exists
     if config.exists() {
         return Ok(Json("Config already exists".to_string()));
     }
 
-    // Find the workspace root (where the top-level Cargo.toml with [workspace] is)
     let workspace_root = match std::env::current_exe() {
         Ok(mut exe_path) => {
-            // Start from the executable's directory and traverse up
             while let Some(parent) = exe_path.parent() {
                 let cargo_toml = parent.join("Cargo.toml");
                 if cargo_toml.exists() {
-                    // Read the Cargo.toml file
                     if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                        // Check if it contains [workspace]
                         if content.contains("[workspace]") {
                             exe_path = parent.to_path_buf();
                             break;
@@ -376,7 +353,6 @@ pub async fn init_config(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Check if init-config.yaml exists at workspace root
     let init_config_path = workspace_root.join("init-config.yaml");
     if !init_config_path.exists() {
         return Ok(Json(
@@ -384,7 +360,6 @@ pub async fn init_config(
         ));
     }
 
-    // Read init-config.yaml and validate
     let init_content = match std::fs::read_to_string(&init_config_path) {
         Ok(content) => content,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -394,7 +369,6 @@ pub async fn init_config(
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Save init-config.yaml to ~/.config/goose/config.yaml
     match config.save_values(init_values) {
         Ok(_) => Ok(Json("Config initialized successfully".to_string())),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -418,7 +392,7 @@ pub async fn upsert_permissions(
     verify_secret_key(&headers, &state)?;
 
     let mut permission_manager = PermissionManager::default();
-    // Iterate over each tool permission and update permissions
+
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(
             &tool_permission.tool_name,
@@ -428,12 +402,6 @@ pub async fn upsert_permissions(
 
     Ok(Json("Permissions updated successfully".to_string()))
 }
-
-pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
-    top_level_domain: "Block".to_string(),
-    author: "Block".to_string(),
-    app_name: "goose".to_string(),
-});
 
 #[utoipa::path(
     post,
@@ -460,11 +428,9 @@ pub async fn backup_config(
             .file_name()
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        // Append ".bak" to the file name
         let mut backup_name = file_name.to_os_string();
         backup_name.push(".bak");
 
-        // Construct the new path with the same parent directory
         let backup = config_path.with_file_name(backup_name);
         match std::fs::rename(&config_path, &backup) {
             Ok(_) => Ok(Json(format!("Moved {:?} to {:?}", config_path, backup))),
@@ -483,7 +449,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/read", post(read_config))
         .route("/config/extensions", get(get_extensions))
         .route("/config/extensions", post(add_extension))
-        .route("/config/extensions/:name", delete(remove_extension))
+        .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
@@ -497,16 +463,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_model_limits() {
-        // Create test state and headers
         let test_state = AppState::new(
             Arc::new(goose::agents::Agent::default()),
             "test".to_string(),
         )
         .await;
+        let sched_storage_path = choose_app_strategy(APP_STRATEGY.clone())
+            .unwrap()
+            .data_dir()
+            .join("schedules.json");
+        let sched = goose::scheduler::Scheduler::new(sched_storage_path)
+            .await
+            .unwrap();
+        test_state.set_scheduler(sched).await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
-        // Execute
         let result = read_config(
             State(test_state),
             headers,
@@ -517,16 +489,13 @@ mod tests {
         )
         .await;
 
-        // Assert
         assert!(result.is_ok());
         let response = result.unwrap();
 
-        // Parse the response and check the contents
         let limits: Vec<goose::model::ModelLimitConfig> =
             serde_json::from_value(response.0).unwrap();
         assert!(!limits.is_empty());
 
-        // Check for some expected patterns
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);

@@ -1,191 +1,85 @@
 ---
 title: VS Code Extension
-description: Use VS Code MCP Server as a Goose Extension for file operations and VS Code integration
+description: Use the Goose VS Code Extension to connect Goose to your editor
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/gddEgvCLrgU" />
+This tutorial covers how to install and use the [Goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use Goose interactively for file operations and development workflow management from within VS Code.
 
-
-This tutorial covers how to add the [VS Code MCP Server](https://github.com/block/vscode-mcp) as a Goose extension to enable VS Code integration, file operations, and development workflow management.
-
-:::info Required Setup
-Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) from the Visual Studio Marketplace.
+:::info Prerequisite
+- [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher is required
+- [Goose Desktop](https://block.github.io/goose/) must be installed and running
 :::
-
-:::tip TLDR
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  **Command**
-  ```sh
-  npx -y vscode-mcp-server
-  ```
-  </TabItem>
-</Tabs>
-:::
-
 
 ## Configuration
 
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
+<Tabs>
+<TabItem value="desktop" label="Goose Desktop">
 
-1. Add the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) to your VS Code. No additional settings required in VS Code.
+1. Open VS Code
+2. Open the Extensions view in VS Code:
+   - Windows/Linux: `Ctrl+Shift+X`
+   - macOS: `Cmd+Shift+X`
+   - Or use: View → Extensions
+3. Search for `VS Code Goose`
+4. Click Install on [VS Code Goose](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) by Block
+5. Restart VS Code if prompted
+6. Open the Goose: Chat side panel to start a new conversation or view conversation history
 
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=vscode-mcp-server&id=vscode-mcp&name=VS%20Code%20MCP&description=VS%20Code%20integration%20and%20file%20operations)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Click `Exit` from the upper left corner
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
+</TabItem>
+<TabItem value="cli" label="Goose CLI">
 
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension 
-    └ 
-  ```
+Not available via CLI.
 
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  vscode-mcp
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  vscode-mcp
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  npx -y vscode-mcp-server
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the timeout value (default 300s is recommended)
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  vscode-mcp
-    │
-    ◇  What command should be run?
-    │  npx -y vscode-mcp-server install
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ``` 
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  vscode-mcp
-    │
-    ◇  What command should be run?
-    │  npx -y vscode-mcp-server install
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    │
-    └ 
-  ```
-  
-  7. No additional environment variables are required for basic setup
-  
-  </TabItem>
+</TabItem>
 </Tabs>
 
-
+:::tip
+You can ask Goose about a particular file or code block by:
+- Selecting the code you want to discuss
+- Right-clicking and choosing "Ask Goose about this code"
+- The code will appear as a reference chip above the chat input
+:::
 
 ## Example Usage
 
-The VS Code MCP extension enables Goose to interact with your VS Code environment, managing files, projects, and development workflows. 
+The Goose VS Code Extension connects directly to your editor, letting you manage files, projects, and workflows with AI. It includes the following features:
 
-The key strength of the VS Code MCP Server is its ability to:
+- Interactive chat UI
+- Access to Goose's AI capabilities directly within VS Code
+- Unified session switching
+- Code referencing with visual chips in the chat UI
+- Quick actions for common coding tasks
+- Clipboard tools to copy code snippets/responses for easy sharing
 
-- Show diffs before making changes
-- Integrate file operations with VS Code's interface
-- Manage project workspaces
-- Provide immediate visual feedback in the editor
-
-
-:::note
-Every time you start a Goose session with the VS Code MCP server enabled, it checks to see if a matching project is open in VS Code. If not, it will prompt you to open the project before proceeding.
-:::
 
 ### Goose Prompt
 
 ```
-Update the contributing guide with instructions on how to start docusaurus dev server
+Update the contributing guide at /goose/CONTRIBUTING.md with instructions on how to start docusaurus dev server
 ```
 
-## Result
+### Goose Output
 
-![session showing goose making updates and VS Code prompting user to accept or reject changes](../assets/guides/vscode-mcp.png)
+```
 
+I'll help you update the CONTRIBUTING.md file with instructions for starting the Docusaurus dev server. First, let me check the current content of the file.
+
+─── developer__text_editor | view ──────────────────────────
+
+I'll now update the CONTRIBUTING.md file to include instructions for starting the Docusaurus dev server. I'll add this information in a new section under the Node section.
+
+─── developer__text_editor | str_replace ──────────────────────────
+
+I've successfully updated the CONTRIBUTING.md file to include instructions for starting the Docusaurus dev server. I added a new "Documentation" section right after the Node section, which provides clear step-by-step instructions for:
+
+Navigating to the docs directory
+Installing dependencies
+Starting the development server
+I also included helpful information about the hot-reloading feature and the local server URL. The formatting is consistent with the rest of the document, using proper markdown syntax for code blocks and headers.
+
+Is there anything else you'd like me to add or modify in the contributing guide?
+
+```

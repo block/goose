@@ -555,7 +555,16 @@ impl Session {
 
                     let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
                     let should_summarize =
-                        cliclack::confirm(prompt).initial_value(true).interact()?;
+                        match cliclack::confirm(prompt).initial_value(true).interact() {
+                            Ok(choice) => choice,
+                            Err(e) => {
+                                if e.kind() == std::io::ErrorKind::Interrupted {
+                                    false // If interrupted, set should_summarize to false
+                                } else {
+                                    return Err(e.into());
+                                }
+                            }
+                        };
 
                     if should_summarize {
                         println!("{}", console::style("Summarizing conversation...").yellow());
@@ -624,10 +633,21 @@ impl Session {
         match planner_response_type {
             PlannerResponseType::Plan => {
                 println!();
-                let should_act =
-                    cliclack::confirm("Do you want to clear message history & act on this plan?")
-                        .initial_value(true)
-                        .interact()?;
+                let should_act = match cliclack::confirm(
+                    "Do you want to clear message history & act on this plan?",
+                )
+                .initial_value(true)
+                .interact()
+                {
+                    Ok(choice) => choice,
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::Interrupted {
+                            false // If interrupted, set should_act to false
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                };
                 if should_act {
                     output::render_act_on_plan();
                     self.run_mode = RunMode::Normal;
@@ -688,6 +708,7 @@ impl Session {
                     id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
+                    schedule_id: None,
                 }),
             )
             .await?;
@@ -750,11 +771,23 @@ impl Session {
                                 if interactive {
                                     // In interactive mode, ask the user what to do
                                     let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
-                                    let selected = cliclack::select(prompt)
+                                    let selected_result = cliclack::select(prompt)
                                         .item("clear", "Clear Session", "Removes all messages from Goose's memory")
                                         .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
                                         .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
-                                        .interact()?;
+                                        .item("cancel", "Cancel", "Cancel and return to chat")
+                                        .interact();
+
+                                    let selected = match selected_result {
+                                        Ok(s) => s,
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                "cancel" // If interrupted, set selected to cancel
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
 
                                     match selected {
                                         "clear" => {
@@ -775,6 +808,9 @@ impl Session {
                                             // Use the helper function to summarize context
                                             Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose summarized messages for you.").await?;
                                         }
+                                        "cancel" => {
+                                            break; // Return to main prompt
+                                        }
                                         _ => {
                                             unreachable!()
                                         }
@@ -793,6 +829,7 @@ impl Session {
                                             id: session_id.clone(),
                                             working_dir: std::env::current_dir()
                                                 .expect("failed to get current session working directory"),
+                                            schedule_id: None,
                                         }),
                                     )
                                     .await?;
