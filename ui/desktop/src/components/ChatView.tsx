@@ -115,35 +115,8 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
-  // Load initial recipe config
-  const [recipeConfig, setRecipeConfig] = useState<Recipe | null>(() => {
-    const config = window.appConfig.get('recipeConfig') as Recipe | null;
-    return config;
-  });
-
-  // Check for config updates periodically (in case backend updated it)
-  useEffect(() => {
-    const checkForUpdates = () => {
-      const currentConfig = window.appConfig.get('recipeConfig') as Recipe | null;
-      if (currentConfig && currentConfig !== recipeConfig) {
-        setRecipeConfig(currentConfig);
-      }
-    };
-
-    // Check immediately and then every 500ms for the first 5 seconds
-    checkForUpdates();
-    const interval = setInterval(checkForUpdates, 500);
-    
-    // Stop checking after 5 seconds
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-    }, 5000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [recipeConfig]);
+  // Get recipe config from app config
+  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   useEffect(() => {
     window.electron.logInfo(
