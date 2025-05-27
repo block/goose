@@ -304,6 +304,7 @@ export type RunNowResponse = {
 
 export type ScheduledJob = {
     cron: string;
+    currently_running?: boolean;
     id: string;
     last_run?: string | null;
     source: string;

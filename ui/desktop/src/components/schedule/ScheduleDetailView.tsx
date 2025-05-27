@@ -5,9 +5,11 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
-import { getScheduleSessions, runScheduleNow } from '../../schedule';
+import { getScheduleSessions, runScheduleNow, listSchedules, ScheduledJob } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { toastError, toastSuccess } from '../../toasts';
+import { Loader2 } from 'lucide-react';
+import cronstrue from 'cronstrue';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -34,6 +36,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
+  const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
   const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
@@ -56,16 +61,48 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     }
   }, []);
 
+  const fetchScheduleDetails = useCallback(async (sId: string) => {
+    if (!sId) return;
+    setIsLoadingSchedule(true);
+    setScheduleError(null);
+    try {
+      const allSchedules = await listSchedules();
+      const schedule = allSchedules.find((s) => s.id === sId);
+      if (schedule) {
+        setScheduleDetails(schedule);
+      } else {
+        setScheduleError('Schedule not found');
+      }
+    } catch (err) {
+      console.error('Failed to fetch schedule details:', err);
+      setScheduleError(err instanceof Error ? err.message : 'Failed to fetch schedule details');
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  }, []);
+
+  const getReadableCron = (cronString: string) => {
+    try {
+      return cronstrue.toString(cronString);
+    } catch (e) {
+      console.warn(`Could not parse cron string "${cronString}":`, e);
+      return cronString;
+    }
+  };
+
   useEffect(() => {
     if (scheduleId && !selectedSessionDetails) {
       fetchScheduleSessions(scheduleId);
+      fetchScheduleDetails(scheduleId);
     } else if (!scheduleId) {
       setSessions([]);
       setSessionsError(null);
       setRunNowLoading(false);
       setSelectedSessionDetails(null);
+      setScheduleDetails(null);
+      setScheduleError(null);
     }
-  }, [scheduleId, fetchScheduleSessions, selectedSessionDetails]);
+  }, [scheduleId, fetchScheduleSessions, fetchScheduleDetails, selectedSessionDetails]);
 
   const handleRunNow = async () => {
     if (!scheduleId) return;
@@ -77,7 +114,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
         msg: `Successfully triggered schedule. New session ID: ${newSessionId}`,
       });
       setTimeout(() => {
-        if (scheduleId) fetchScheduleSessions(scheduleId);
+        if (scheduleId) {
+          fetchScheduleSessions(scheduleId);
+          fetchScheduleDetails(scheduleId);
+        }
       }, 1000);
     } catch (err) {
       console.error('Failed to run schedule now:', err);
@@ -87,6 +127,26 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       setRunNowLoading(false);
     }
   };
+
+  // Add a periodic refresh for schedule details to keep the running status up to date
+  useEffect(() => {
+    if (!scheduleId) return;
+
+    // Initial fetch
+    fetchScheduleDetails(scheduleId);
+
+    // Set up periodic refresh every 5 seconds
+    const intervalId = setInterval(() => {
+      if (scheduleId) {
+        fetchScheduleDetails(scheduleId);
+      }
+    }, 5000);
+
+    // Clean up on unmount or when scheduleId changes
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [scheduleId, fetchScheduleDetails]);
 
   const loadAndShowSessionDetails = async (sessionId: string) => {
     setIsLoadingSessionDetails(true);
@@ -175,10 +235,68 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       <ScrollArea className="flex-grow">
         <div className="p-8 space-y-6">
           <section>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+              Schedule Information
+            </h2>
+            {isLoadingSchedule && (
+              <div className="flex items-center text-gray-500 dark:text-gray-400">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading schedule details...
+              </div>
+            )}
+            {scheduleError && (
+              <p className="text-red-500 dark:text-red-400 text-sm p-3 bg-red-100 dark:bg-red-900/30 border border-red-500 dark:border-red-700 rounded-md">
+                Error: {scheduleError}
+              </p>
+            )}
+            {!isLoadingSchedule && !scheduleError && scheduleDetails && (
+              <Card className="p-4 bg-white dark:bg-gray-800 shadow mb-6">
+                <div className="space-y-2">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                      {scheduleDetails.id}
+                    </h3>
+                    {scheduleDetails.currently_running && (
+                      <div className="mt-2 md:mt-0 text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
+                        <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                        Currently Running
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Schedule:</span>{' '}
+                    {getReadableCron(scheduleDetails.cron)}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Cron Expression:</span> {scheduleDetails.cron}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Recipe Source:</span> {scheduleDetails.source}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Last Run:</span>{' '}
+                    {scheduleDetails.last_run
+                      ? new Date(scheduleDetails.last_run).toLocaleString()
+                      : 'Never'}
+                  </p>
+                </div>
+              </Card>
+            )}
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Actions</h2>
-            <Button onClick={handleRunNow} disabled={runNowLoading} className="w-full md:w-auto">
+            <Button
+              onClick={handleRunNow}
+              disabled={runNowLoading || scheduleDetails?.currently_running === true}
+              className="w-full md:w-auto"
+            >
               {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
             </Button>
+            {scheduleDetails?.currently_running && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                Cannot trigger a schedule while it's already running.
+              </p>
+            )}
           </section>
 
           <section>

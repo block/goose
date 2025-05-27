@@ -107,6 +107,8 @@ pub struct ScheduledJob {
     pub source: String,
     pub cron: String,
     pub last_run: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub currently_running: bool,
 }
 
 async fn persist_jobs_from_arc(
@@ -223,6 +225,7 @@ impl Scheduler {
                     let mut jobs_map_guard = current_jobs_arc.lock().await;
                     if let Some((_, current_job_in_map)) = jobs_map_guard.get_mut(&task_job_id) {
                         current_job_in_map.last_run = Some(current_time);
+                        current_job_in_map.currently_running = true;
                         needs_persist = true;
                     }
                 }
@@ -239,7 +242,30 @@ impl Scheduler {
                     }
                 }
                 // Pass None for provider_override in normal execution
-                if let Err(e) = run_scheduled_job_internal(job_to_execute, None).await {
+                let result = run_scheduled_job_internal(job_to_execute, None).await;
+
+                // Update the job status after execution
+                {
+                    let mut jobs_map_guard = current_jobs_arc.lock().await;
+                    if let Some((_, current_job_in_map)) = jobs_map_guard.get_mut(&task_job_id) {
+                        current_job_in_map.currently_running = false;
+                        needs_persist = true;
+                    }
+                }
+
+                if needs_persist {
+                    if let Err(e) =
+                        persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                    {
+                        tracing::error!(
+                            "Failed to persist running status update for job {}: {}",
+                            &task_job_id,
+                            e
+                        );
+                    }
+                }
+
+                if let Err(e) = result {
                     tracing::error!(
                         "Scheduled job '{}' execution failed: {}",
                         &e.job_id,
@@ -299,6 +325,7 @@ impl Scheduler {
                         let mut jobs_map_guard = current_jobs_arc.lock().await;
                         if let Some((_, stored_job)) = jobs_map_guard.get_mut(&task_job_id) {
                             stored_job.last_run = Some(current_time);
+                            stored_job.currently_running = true;
                             needs_persist = true;
                         }
                     }
@@ -315,7 +342,30 @@ impl Scheduler {
                         }
                     }
                     // Pass None for provider_override in normal execution
-                    if let Err(e) = run_scheduled_job_internal(job_to_execute, None).await {
+                    let result = run_scheduled_job_internal(job_to_execute, None).await;
+
+                    // Update the job status after execution
+                    {
+                        let mut jobs_map_guard = current_jobs_arc.lock().await;
+                        if let Some((_, stored_job)) = jobs_map_guard.get_mut(&task_job_id) {
+                            stored_job.currently_running = false;
+                            needs_persist = true;
+                        }
+                    }
+
+                    if needs_persist {
+                        if let Err(e) =
+                            persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                        {
+                            tracing::error!(
+                                "Failed to persist running status update for job {}: {}",
+                                &task_job_id,
+                                e
+                            );
+                        }
+                    }
+
+                    if let Err(e) = result {
                         tracing::error!(
                             "Scheduled job '{}' execution failed: {}",
                             &e.job_id,
@@ -424,33 +474,46 @@ impl Scheduler {
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
         let job_to_run: ScheduledJob = {
-            let jobs_guard = self.jobs.lock().await;
-            match jobs_guard.get(sched_id) {
-                Some((_, job_def)) => job_def.clone(),
+            let mut jobs_guard = self.jobs.lock().await;
+            match jobs_guard.get_mut(sched_id) {
+                Some((_, job_def)) => {
+                    // Set the currently_running flag before executing
+                    job_def.currently_running = true;
+                    let job_clone = job_def.clone();
+                    // Drop the guard before persisting to avoid borrow issues
+                    drop(jobs_guard);
+
+                    // Persist the change immediately
+                    self.persist_jobs().await?;
+                    job_clone
+                }
                 None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
             }
         };
-        // Pass None for provider_override in normal execution
-        let session_id = run_scheduled_job_internal(job_to_run.clone(), None)
-            .await
-            .map_err(|e| {
-                SchedulerError::AnyhowError(anyhow!(
-                    "Failed to execute job '{}' immediately: {}",
-                    sched_id,
-                    e.error
-                ))
-            })?;
 
+        // Pass None for provider_override in normal execution
+        let run_result = run_scheduled_job_internal(job_to_run.clone(), None).await;
+
+        // Clear the currently_running flag after execution
         {
             let mut jobs_guard = self.jobs.lock().await;
             if let Some((_tokio_job_id, job_in_map)) = jobs_guard.get_mut(sched_id) {
+                job_in_map.currently_running = false;
                 job_in_map.last_run = Some(Utc::now());
             } // MutexGuard is dropped here
         }
+
         // Persist after the lock is released and update is made.
         self.persist_jobs().await?;
 
-        Ok(session_id)
+        match run_result {
+            Ok(session_id) => Ok(session_id),
+            Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
+                "Failed to execute job '{}' immediately: {}",
+                sched_id,
+                e.error
+            ))),
+        }
     }
 }
 
@@ -794,6 +857,7 @@ mod tests {
             source: recipe_filename.to_string_lossy().into_owned(),
             cron: "* * * * * * ".to_string(), // Runs every second for quick testing
             last_run: None,
+            currently_running: false,
         };
 
         // Create the mock provider instance for the test
