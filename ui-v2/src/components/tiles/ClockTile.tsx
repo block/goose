@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { useTimelineStyles } from '../hooks/useTimelineStyles';
-import waveBg from '../assets/backgrounds/wave-bg.png';
+import { useTimelineStyles } from '../../hooks/useTimelineStyles.ts';
+import waveBg from '../../assets/backgrounds/wave-bg.png';
 
 interface ClockCardProps {
   date?: Date;

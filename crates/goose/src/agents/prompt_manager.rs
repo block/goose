@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
+use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
+use crate::agents::router_tools::vector_search_tool_prompt;
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template};
 
@@ -67,6 +69,7 @@ impl PromptManager {
         frontend_instructions: Option<String>,
         suggest_disable_extensions_prompt: Value,
         model_name: Option<&str>,
+        tool_selection_strategy: Option<RouterToolSelectionStrategy>,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -81,6 +84,16 @@ impl PromptManager {
         }
 
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+
+        match tool_selection_strategy {
+            Some(RouterToolSelectionStrategy::Vector) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(vector_search_tool_prompt()),
+                );
+            }
+            None => {}
+        }
 
         context.insert(
             "current_date_time",
