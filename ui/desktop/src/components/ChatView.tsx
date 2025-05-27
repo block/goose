@@ -115,32 +115,59 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
-  // Get recipeConfig directly from appConfig and make it reactive
-  const [recipeConfig, setRecipeConfig] = useState<Recipe | null>(
-    window.appConfig.get('recipeConfig') as Recipe | null
-  );
+  // Get recipeConfig reactively to detect when it's updated after parameter processing
+  const [recipeConfig, setRecipeConfig] = useState<Recipe | null>(() => {
+    const config = window.appConfig.get('recipeConfig') as Recipe | null;
+    console.log('ChatView: Initial recipe config loaded:', config);
+    if (config) {
+      console.log('ChatView: Recipe has parameters:', config.parameters?.length || 0);
+      console.log('ChatView: Recipe has _paramValues:', !!config._paramValues);
+      console.log('ChatView: Recipe prompt preview:', config.prompt?.substring(0, 100) + '...');
+      console.log('ChatView: Full recipe prompt:', config.prompt);
+    } else {
+      console.log('ChatView: No recipe config found');
+    }
+    return config;
+  });
 
-  // Listen for recipe config updates
+  // Check for config updates periodically (in case backend updated it)
   useEffect(() => {
-    const updateRecipeConfig = () => {
-      const updatedConfig = window.appConfig.get('recipeConfig') as Recipe | null;
-      console.log('Recipe config updated:', updatedConfig);
-      setRecipeConfig(updatedConfig);
+    const checkForUpdates = () => {
+      const currentConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+      if (currentConfig && currentConfig !== recipeConfig) {
+        console.log('ChatView: Recipe config updated, checking for changes...');
+        const oldPrompt = recipeConfig?.prompt;
+        const newPrompt = currentConfig?.prompt;
+        
+        if (oldPrompt !== newPrompt) {
+          console.log('ChatView: Prompt changed - updating recipe config');
+          console.log('ChatView: Old prompt:', oldPrompt?.substring(0, 100) + '...');
+          console.log('ChatView: New prompt:', newPrompt?.substring(0, 100) + '...');
+          setRecipeConfig(currentConfig);
+        }
+      }
     };
 
-    // Check for config updates periodically or on window focus
-    window.addEventListener('focus', updateRecipeConfig);
-
-    // Also check immediately
-    updateRecipeConfig();
+    // Check immediately and then every 500ms for the first 10 seconds
+    checkForUpdates();
+    const interval = setInterval(checkForUpdates, 500);
+    
+    // Stop checking after 10 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 10000);
 
     return () => {
-      window.removeEventListener('focus', updateRecipeConfig);
+      clearInterval(interval);
+      clearTimeout(timeout);
     };
-  }, []);
+  }, [recipeConfig]);
 
   useEffect(() => {
     // Log all messages when the component first mounts
+    console.log('ChatView: Component mounted');
+    console.log('ChatView: readyForAutoUserPrompt:', readyForAutoUserPrompt);
+    console.log('ChatView: messages.length:', messages.length);
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
@@ -301,13 +328,12 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    // Create a new ChatType object with the updated messages
     const updatedChat: ChatType = {
       ...chat,
       messages,
     };
     setChat(updatedChat);
-  }, [messages, setChat, chat]);
+  }, [messages, setChat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -316,85 +342,53 @@ function ChatContent({
   }, [messages]);
 
   useEffect(() => {
-    console.log('Recipe prompt useEffect triggered, recipeConfig:', recipeConfig);
-    console.log('hasSentPromptRef.current:', hasSentPromptRef.current);
+    console.log('ChatView: Recipe prompt useEffect triggered');
+    console.log('ChatView: recipeConfig:', recipeConfig);
+    console.log('ChatView: hasSentPromptRef.current:', hasSentPromptRef.current);
+    console.log('ChatView: readyForAutoUserPrompt:', readyForAutoUserPrompt);
 
     const prompt = recipeConfig?.prompt;
+    console.log('ChatView: Extracted prompt:', prompt?.substring(0, 100) + '...');
+    console.log('ChatView: Prompt contains template variables:', prompt ? /\{\{.*?\}\}/.test(prompt) : false);
+    console.log('ChatView: Template variables found:', prompt ? prompt.match(/\{\{.*?\}\}/g) : null);
+    
     // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
     // This is because the recipe config and parameters are available before full app initialization
-    const hasParameterValues = recipeConfig?._paramValues;
+    const hasParameterValues = recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
+    console.log('ChatView: hasParameterValues:', hasParameterValues);
+    console.log('ChatView: _paramValues:', recipeConfig?._paramValues);
+    console.log('ChatView: _paramValues keys:', recipeConfig?._paramValues ? Object.keys(recipeConfig._paramValues) : 'none');
+    
     const shouldProceed = readyForAutoUserPrompt || hasParameterValues;
+    console.log('ChatView: shouldProceed:', shouldProceed);
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {
-      console.log('Starting recipe prompt process...');
-      console.log('Original prompt:', prompt);
-
-      // Apply parameter substitution if we have parameters
-      let processedPrompt = prompt;
-
-      if (recipeConfig?._paramValues) {
-        // Log the parameter values to verify they're available
-        console.log('Applying parameter values:', recipeConfig._paramValues);
-
-        // Simple template substitution with {{param}} syntax
-        Object.entries(recipeConfig._paramValues).forEach(([key, value]) => {
-          // Use a proper regex with trimmed whitespace to ensure reliable replacements
-          const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-          const beforeReplace = processedPrompt;
-          processedPrompt = processedPrompt.replace(regex, value);
-          console.log(`Replaced {{${key}}} with "${value}"`);
-          console.log('Before:', beforeReplace.substring(0, 100) + '...');
-          console.log('After:', processedPrompt.substring(0, 100) + '...');
-        });
-
-        // Log the processed prompt for debugging
-        console.log('Processed prompt:', processedPrompt);
-      } else {
-        console.log('No parameter values found, using original prompt');
-      }
+      console.log('ChatView: ✅ All conditions met - sending recipe prompt');
+      console.log('ChatView: Using prompt:', prompt);
 
       // Start the power save blocker to keep session active
-      console.log('Starting power save blocker...');
       window.electron.startPowerSaveBlocker();
       setLastInteractionTime(Date.now());
 
-      // Ensure we disable the ref before trying to append
+      // Send the prompt directly - let useMessageStream handle the rest
+      append(prompt);
       hasSentPromptRef.current = true;
-      console.log('Set hasSentPromptRef to true');
-
-      // Use setTimeout to ensure the UI is ready before sending the message
-      setTimeout(() => {
-        console.log('Timeout reached, creating user message...');
-
-        try {
-          // Use createUserMessage to ensure it's handled just like a manual submission
-          const message = createUserMessage(processedPrompt);
-          console.log('Created user message:', message);
-
-          // Log this event for debugging
-          console.log('About to call append with recipe prompt...');
-
-          // Use append to send the message, which should trigger the AI response
-          append(message)
-            .then(() => {
-              console.log('append() completed successfully');
-            })
-            .catch((error) => {
-              console.error('append() failed:', error);
-            });
-        } catch (error) {
-          console.error('Error in recipe prompt sending:', error);
-        }
-      }, 100);
+      console.log('ChatView: ✅ Recipe prompt sent successfully');
     } else {
+      console.log('ChatView: ❌ Recipe prompt NOT sent - reasons:');
       if (!prompt) {
-        console.log('No prompt found in recipe config');
+        console.log('ChatView: - No prompt found in recipe config');
       }
       if (hasSentPromptRef.current) {
-        console.log('Prompt already sent, skipping');
+        console.log('ChatView: - Prompt already sent, skipping');
+      }
+      if (!shouldProceed) {
+        console.log('ChatView: - shouldProceed is false');
+        console.log('ChatView: - readyForAutoUserPrompt:', readyForAutoUserPrompt);
+        console.log('ChatView: - hasParameterValues:', hasParameterValues);
       }
     }
-  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
+  }, [recipeConfig?.prompt, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {

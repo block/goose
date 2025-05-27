@@ -75,6 +75,12 @@ pub struct GetToolsQuery {
     extension_name: Option<String>,
 }
 
+#[derive(Serialize)]
+struct UpdateProviderResponse {
+    success: bool,
+    processed_recipe: Option<goose::recipe::Recipe>,
+}
+
 async fn get_versions() -> Json<VersionsResponse> {
     let versions = ["goose".to_string()];
     let default_version = "goose".to_string();
@@ -185,7 +191,7 @@ async fn get_tools(
     post,
     path = "/agent/update_provider",
     responses(
-        (status = 200, description = "Update provider completed", body = String),
+        (status = 200, description = "Update provider completed", body = UpdateProviderResponse),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -193,7 +199,7 @@ async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<Json<UpdateProviderResponse>, StatusCode> {
     // Verify secret key
     verify_secret_key(&headers, &state)?;
 
@@ -201,6 +207,8 @@ async fn update_agent_provider(
         .get_agent()
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    let mut processed_recipe = None;
 
     // Process recipe parameters if provided
     if let Some(recipe_with_params) = payload.recipe_config {
@@ -217,6 +225,8 @@ async fn update_agent_provider(
         if let Some(instructions) = recipe.instructions.clone() {
             agent.extend_system_prompt(instructions).await;
         }
+
+        processed_recipe = Some(recipe);
     }
 
     let config = Config::global();
@@ -232,7 +242,10 @@ async fn update_agent_provider(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(StatusCode::OK)
+    Ok(Json(UpdateProviderResponse {
+        success: true,
+        processed_recipe,
+    }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

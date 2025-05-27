@@ -164,15 +164,25 @@ export default function App() {
     const viewType = urlParams.get('view');
     const recipeConfig = window.appConfig.get('recipeConfig');
 
+    console.log('App: URL search params:', window.location.search);
+    console.log('App: viewType from URL:', viewType);
+    console.log('App: recipeConfig from appConfig:', recipeConfig);
+
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
+      console.log('App: ⚠️  Found viewType in URL - this will SKIP parameter detection!');
       if (viewType === 'recipeEditor' && recipeConfig) {
         console.log('Setting view to recipeEditor with config:', recipeConfig);
         setView('recipeEditor', { config: recipeConfig });
+        return;
+      } else if (viewType === 'chat' && recipeConfig) {
+        console.log('App: Chat view requested with recipe config - checking for parameters...');
+        // Don't return here - fall through to parameter detection logic
       } else {
+        console.log('App: Setting view to:', viewType);
         setView(viewType as View);
+        return;
       }
-      return;
     }
 
     const initializeApp = async () => {
@@ -202,6 +212,17 @@ export default function App() {
           return;
         }
 
+        console.log('App: Checking recipe config for parameters...');
+        console.log('App: recipeConfig:', recipeConfig);
+        console.log('App: recipeConfig type:', typeof recipeConfig);
+        console.log('App: recipeConfig is object:', typeof recipeConfig === 'object');
+        console.log('App: has parameters property:', recipeConfig && 'parameters' in recipeConfig);
+        console.log('App: parameters value:', recipeConfig?.parameters);
+        console.log('App: parameters is array:', Array.isArray(recipeConfig?.parameters));
+        console.log('App: parameters length:', recipeConfig?.parameters?.length);
+        console.log('App: has _paramValues:', recipeConfig && '_paramValues' in recipeConfig);
+        console.log('App: _paramValues value:', (recipeConfig as any)?._paramValues);
+
         // Check if we have a recipe with parameters that need to be filled
         if (
           recipeConfig &&
@@ -211,6 +232,7 @@ export default function App() {
           recipeConfig.parameters.length > 0 &&
           !('_paramValues' in recipeConfig)
         ) {
+          console.log('App: ✅ Recipe has parameters that need values - showing recipeParameters view');
           const initResult = await initializeProviderAndModel();
           if (!initResult) {
             return;
@@ -218,6 +240,8 @@ export default function App() {
 
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
+        } else {
+          console.log('App: ❌ Recipe does not need parameter collection - proceeding to chat');
         }
 
         const initResult = await initializeProviderAndModel();

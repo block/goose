@@ -1,6 +1,7 @@
 import { getApiUrl, getSecretKey } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
+import { Recipe } from '../recipe';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -136,17 +137,43 @@ export const initializeSystem = async (
   try {
     console.log('initializing agent with provider', provider, 'model', model);
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipeConfig') as Recipe | undefined;
     const botPrompt = recipeConfig?.instructions;
     const paramValues = recipeConfig?._paramValues || {};
 
+    console.log('initializeSystem: recipeConfig:', recipeConfig);
+    console.log('initializeSystem: paramValues:', paramValues);
+    console.log('initializeSystem: recipeConfig has parameters:', recipeConfig?.parameters?.length || 0);
+    console.log('initializeSystem: recipeConfig has _paramValues:', !!recipeConfig?._paramValues);
+
     // Initialize agent with recipe config and parameters
-    await initializeAgent({
+    const processedRecipe = await initializeAgent({
       provider,
       model,
       recipeConfig,
       recipeParams: paramValues,
     });
+
+    console.log('initializeSystem: processedRecipe returned from backend:', processedRecipe);
+
+    // Update the app config with the processed recipe if we got one back
+    if (processedRecipe) {
+      console.log('initializeSystem: Received processed recipe from backend:', processedRecipe);
+      console.log('initializeSystem: Processed recipe prompt:', processedRecipe.prompt);
+      
+      // Preserve the _paramValues field from the original recipe config
+      // The backend processes the template but doesn't return this metadata
+      if (recipeConfig?._paramValues) {
+        processedRecipe._paramValues = recipeConfig._paramValues;
+        console.log('initializeSystem: Preserved _paramValues in processed recipe:', processedRecipe._paramValues);
+      }
+      
+      window.appConfig.set('recipeConfig', processedRecipe);
+      console.log('initializeSystem: Updated appConfig with processed recipe');
+    } else {
+      console.log('initializeSystem: No processed recipe returned from backend');
+    }
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
