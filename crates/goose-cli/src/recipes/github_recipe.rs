@@ -31,7 +31,6 @@ pub fn retrieve_recipe_from_github(
             },
             Err(err) => {
                 last_err = Some(err);
-                println!("⚠️  Attempt {} failed. Retrying...", attempt);
             }
         }
         if attempt < max_attempts {
@@ -45,10 +44,6 @@ fn clean_cloned_dirs(recipe_repo_full_name: &str) -> anyhow::Result<()> {
     let local_repo_path = get_local_repo_path(&env::temp_dir(), recipe_repo_full_name)?;
     if local_repo_path.exists() {
         fs::remove_dir_all(&local_repo_path)?;
-        println!(
-            "Cleaning up temp cloned dirs for {}",
-            local_repo_path.display()
-        );
     }
     Ok(())
 }
