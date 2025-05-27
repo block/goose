@@ -194,17 +194,10 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
     // Add tool use if complete
     if let (Some(id), Some(name)) = (&tool_use_id, &tool_name) {
         if !tool_input.is_empty() {
-            match serde_json::from_str::<Value>(&tool_input) {
-                Ok(input_json) => {
-                    let tool_call = ToolCall::new(name, input_json);
-                    message = message.with_tool_request(id, Ok(tool_call));
-                }
-                Err(e) => {
-                    // Still add the tool request even if input parsing fails
-                    let tool_call = ToolCall::new(name, Value::String(tool_input.clone()));
-                    message = message.with_tool_request(id, Ok(tool_call));
-                }
-            }
+            let input_value = serde_json::from_str::<Value>(&tool_input)
+                .unwrap_or_else(|_| Value::String(tool_input.clone()));
+            let tool_call = ToolCall::new(name, input_value);
+            message = message.with_tool_request(id, Ok(tool_call));
         } else if tool_name.is_some() {
             // Tool with no input - use empty object
             let tool_call = ToolCall::new(name, Value::Object(serde_json::Map::new()));

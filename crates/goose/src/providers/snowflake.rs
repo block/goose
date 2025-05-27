@@ -171,86 +171,81 @@ impl SnowflakeProvider {
                 None => continue,
             };
 
-            let json_line: Value = match serde_json::from_str(json_str) {
-                Ok(json) => json,
-                Err(e) => {
-                    continue;
-                }
-            };
+            if let Ok(json_line) = serde_json::from_str::<Value>(json_str) {
+                let choices = match json_line.get("choices").and_then(|c| c.as_array()) {
+                    Some(choices) => choices,
+                    None => {
+                        continue;
+                    }
+                };
 
-            let choices = match json_line.get("choices").and_then(|c| c.as_array()) {
-                Some(choices) => choices,
-                None => {
-                    continue;
-                }
-            };
+                let choice = match choices.get(0) {
+                    Some(choice) => choice,
+                    None => {
+                        continue;
+                    }
+                };
 
-            let choice = match choices.get(0) {
-                Some(choice) => choice,
-                None => {
-                    continue;
-                }
-            };
+                let delta = match choice.get("delta") {
+                    Some(delta) => delta,
+                    None => {
+                        continue;
+                    }
+                };
 
-            let delta = match choice.get("delta") {
-                Some(delta) => delta,
-                None => {
-                    continue;
-                }
-            };
+                // Track if we found text in content_list to avoid duplication
+                let mut found_text_in_content_list = false;
 
-            // Track if we found text in content_list to avoid duplication
-            let mut found_text_in_content_list = false;
-
-            // Handle content_list array first
-            if let Some(content_list) = delta.get("content_list").and_then(|cl| cl.as_array()) {
-                for content_item in content_list {
-                    match content_item.get("type").and_then(|t| t.as_str()) {
-                        Some("text") => {
-                            if let Some(text_content) =
-                                content_item.get("text").and_then(|t| t.as_str())
-                            {
-                                text.push_str(text_content);
-                                found_text_in_content_list = true;
+                // Handle content_list array first
+                if let Some(content_list) = delta.get("content_list").and_then(|cl| cl.as_array()) {
+                    for content_item in content_list {
+                        match content_item.get("type").and_then(|t| t.as_str()) {
+                            Some("text") => {
+                                if let Some(text_content) =
+                                    content_item.get("text").and_then(|t| t.as_str())
+                                {
+                                    text.push_str(text_content);
+                                    found_text_in_content_list = true;
+                                }
                             }
-                        }
-                        Some("tool_use") => {
-                            if let Some(tool_id) =
-                                content_item.get("tool_use_id").and_then(|id| id.as_str())
-                            {
-                                tool_use_id.push_str(tool_id);
+                            Some("tool_use") => {
+                                if let Some(tool_id) =
+                                    content_item.get("tool_use_id").and_then(|id| id.as_str())
+                                {
+                                    tool_use_id.push_str(tool_id);
+                                }
+                                if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                    tool_name.push_str(name);
+                                }
+                                if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
+                                {
+                                    tool_input.push_str(input);
+                                }
                             }
-                            if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
-                                tool_name.push_str(name);
-                            }
-                            if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
-                            {
-                                tool_input.push_str(input);
-                            }
-                        }
-                        _ => {
-                            // Handle content items without explicit type but with tool information
-                            if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
-                                tool_name.push_str(name);
-                            }
-                            if let Some(tool_id) =
-                                content_item.get("tool_use_id").and_then(|id| id.as_str())
-                            {
-                                tool_use_id.push_str(tool_id);
-                            }
-                            if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
-                            {
-                                tool_input.push_str(input);
+                            _ => {
+                                // Handle content items without explicit type but with tool information
+                                if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                    tool_name.push_str(name);
+                                }
+                                if let Some(tool_id) =
+                                    content_item.get("tool_use_id").and_then(|id| id.as_str())
+                                {
+                                    tool_use_id.push_str(tool_id);
+                                }
+                                if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
+                                {
+                                    tool_input.push_str(input);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Handle direct content field (for text) only if we didn't find text in content_list
-            if !found_text_in_content_list {
-                if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
-                    text.push_str(content);
+                // Handle direct content field (for text) only if we didn't find text in content_list
+                if !found_text_in_content_list {
+                    if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                        text.push_str(content);
+                    }
                 }
             }
         }
@@ -272,14 +267,8 @@ impl SnowflakeProvider {
             let parsed_input = if tool_input.is_empty() {
                 json!({})
             } else {
-                match serde_json::from_str::<Value>(&tool_input) {
-                    Ok(json_value) => {
-                        json_value
-                    }
-                    Err(e) => {
-                        json!({"raw_input": tool_input})
-                    }
-                }
+                serde_json::from_str::<Value>(&tool_input)
+                    .unwrap_or_else(|_| json!({"raw_input": tool_input}))
             };
 
             content_list.push(json!({
