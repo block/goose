@@ -47,6 +47,7 @@
     "@hey-api/openapi-ts": "^0.64.4",
     "@modelcontextprotocol/sdk": "^1.8.0",
     "@playwright/test": "^1.51.1",
+    "@tailwindcss/line-clamp": "^0.4.4",
     "@tailwindcss/typography": "^0.5.15",
     "@types/cors": "^2.8.17",
     "@types/electron": "^1.4.38",
