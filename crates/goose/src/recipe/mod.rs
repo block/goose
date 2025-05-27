@@ -280,57 +280,11 @@ impl RecipeBuilder {
     }
 }
 
-/// Applies template parameters to all fields in a Recipe.
-/// 
-/// This function serializes the recipe to JSON, renders it as a template using the provided
-/// parameters, and then deserializes it back to a Recipe. This approach ensures all fields
-/// (including future ones) are automatically handled.
-///
-/// # Arguments
-/// * `recipe` - The recipe to apply parameters to (modified in place)
-/// * `params` - A HashMap of parameter key-value pairs to substitute
-///
-/// # Returns
-/// * `Ok(())` if successful
-/// * `Err` if serialization, templating, or deserialization fails
-///
-/// # Example
-/// ```
-/// use goose::recipe::{Recipe, apply_recipe_parameters};
-/// use std::collections::HashMap;
-///
-/// let mut recipe = Recipe::builder()
-///     .title("Hello {{ name }}")
-///     .description("A recipe for {{ purpose }}")
-///     .instructions("You are {{ role }}")
-///     .build()
-///     .unwrap();
-///
-/// let mut params = HashMap::new();
-/// params.insert("name".to_string(), "World".to_string());
-/// params.insert("purpose".to_string(), "testing".to_string());
-/// params.insert("role".to_string(), "a helpful assistant".to_string());
-///
-/// apply_recipe_parameters(&mut recipe, &params).unwrap();
-///
-/// assert_eq!(recipe.title, "Hello World");
-/// assert_eq!(recipe.description, "A recipe for testing");
-/// assert_eq!(recipe.instructions, Some("You are a helpful assistant".to_string()));
-/// ```
-pub fn apply_recipe_parameters(recipe: &mut Recipe, params: &HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
-    // Serialize the recipe to JSON string
-    let recipe_json = serde_json::to_string(recipe)?;
-    
-    // Render the entire JSON as a template
-    let rendered_json = render_inline_once(&recipe_json, params)?;
-    
-    // Parse the rendered JSON back to a Recipe
-    let rendered_recipe: Recipe = serde_json::from_str(&rendered_json)?;
-    
-    // Update the original recipe with the rendered values
-    *recipe = rendered_recipe;
-    
-    Ok(())
+// Applies template parameters to all fields in a Recipe.
+pub fn apply_recipe_parameters(recipe: &mut Recipe, params: &HashMap<String, String>) {
+    let recipe_json = serde_json::to_string(recipe).expect("Failed to serialize recipe");
+    let rendered_json = render_inline_once(&recipe_json, params).expect("Failed to render template");
+    *recipe = serde_json::from_str(&rendered_json).expect("Failed to deserialize rendered recipe");
 }
 
 #[cfg(test)]
@@ -365,8 +319,7 @@ mod tests {
         params.insert("skill".to_string(), "critical thinking".to_string());
         params.insert("context_info".to_string(), "fantasy world".to_string());
 
-        let result = apply_recipe_parameters(&mut recipe, &params);
-        assert!(result.is_ok());
+        apply_recipe_parameters(&mut recipe, &params);
 
         assert_eq!(recipe.instructions, Some("Hello Alice, welcome to Wonderland!".to_string()));
         assert_eq!(recipe.prompt, Some("Your task is solve puzzles".to_string()));
@@ -397,8 +350,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("unused".to_string(), "value".to_string());
 
-        let result = apply_recipe_parameters(&mut recipe, &params);
-        assert!(result.is_ok());
+        apply_recipe_parameters(&mut recipe, &params);
 
         assert_eq!(recipe.instructions, None);
         assert_eq!(recipe.prompt, None);
@@ -430,8 +382,7 @@ mod tests {
         params.insert("activity".to_string(), "Rendered Activity".to_string());
         params.insert("context".to_string(), "Rendered Context".to_string());
 
-        let result = apply_recipe_parameters(&mut recipe, &params);
-        assert!(result.is_ok());
+        apply_recipe_parameters(&mut recipe, &params);
 
         // Verify that ALL fields were rendered, including version, title, description
         assert_eq!(recipe.version, "2.0.0");

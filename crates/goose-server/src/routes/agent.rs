@@ -207,8 +207,11 @@ async fn update_agent_provider(
         let mut recipe = recipe_with_params.config;
         
         if !recipe_with_params.parameters.is_empty() {
-            apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters)
-                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            // Apply recipe parameters, converting any panic to a BAD_REQUEST
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters);
+            }))
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
         }
         
         if let Some(instructions) = recipe.instructions.clone() {
