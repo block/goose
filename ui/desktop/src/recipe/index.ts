@@ -25,6 +25,7 @@ export interface Recipe {
   context?: string[];
   parameters?: RecipeParameter[];
   _paramValues?: Record<string, string>; // Filled at runtime
+  _skipParameters?: boolean; // Flag to skip parameter substitution and use raw prompt
   profile?: string;
   mcps?: number;
   [key: string]: unknown; // Index signature for compatibility with RecipeConfig

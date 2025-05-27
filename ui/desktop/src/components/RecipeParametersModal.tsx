@@ -5,28 +5,28 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import ReactSelect from 'react-select';
-import { Check } from './icons';
 
 interface RecipeParametersModalProps {
   isOpen: boolean;
   recipeConfig: Recipe;
-  onClose: () => void;
   onSubmit: (paramValues: Record<string, string>) => void;
+  onCancel: () => void;
 }
 
-export function RecipeParametersModal({ 
-  isOpen, 
-  recipeConfig, 
-  onClose, 
-  onSubmit 
+export function RecipeParametersModal({
+  isOpen,
+  recipeConfig,
+  onSubmit,
+  onCancel,
 }: RecipeParametersModalProps) {
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Initialize default values
   useEffect(() => {
     if (recipeConfig?.parameters) {
       const initialValues: Record<string, string> = {};
-      recipeConfig.parameters.forEach(param => {
+      recipeConfig.parameters.forEach((param) => {
         if (param.default) {
           initialValues[param.key] = param.default;
         }
@@ -36,11 +36,24 @@ export function RecipeParametersModal({
   }, [recipeConfig]);
 
   const handleInputChange = (key: string, value: string) => {
-    setParamValues(prev => ({ ...prev, [key]: value }));
+    setParamValues((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSubmit = () => {
     onSubmit(paramValues);
+  };
+
+  const handleCancelClick = () => {
+    setShowCancelConfirm(true);
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelConfirm(false);
+    onCancel();
+  };
+
+  const handleCancelConfirmClose = () => {
+    setShowCancelConfirm(false);
   };
 
   if (!recipeConfig || !recipeConfig.parameters || recipeConfig.parameters.length === 0) {
@@ -48,79 +61,102 @@ export function RecipeParametersModal({
   }
 
   return (
-    <Modal open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
-      <ModalContent className="sm:max-w-[500px]">
-        <ModalHeader>
-          <ModalTitle>{recipeConfig.title || 'Recipe Parameters'}</ModalTitle>
-        </ModalHeader>
-        
-        <div className="text-sm text-muted-foreground mb-4">
-          {recipeConfig.description}
-        </div>
-        
-        <div className="space-y-4 py-2 max-h-[400px] overflow-y-auto">
-          {recipeConfig.parameters.map((param: RecipeParameter) => (
-            <div key={param.key} className="space-y-2">
-              <Label htmlFor={param.key}>
-                {param.description || param.key}
-                {param.requirement === 'required' && <span className="text-destructive ml-1">*</span>}
-              </Label>
-              
-              {param.input_type === 'boolean' ? (
-                <ReactSelect
-                  id={param.key}
-                  value={
-                    paramValues[param.key] === 'true' 
-                      ? { value: 'true', label: 'Yes' } 
-                      : { value: 'false', label: 'No' }
-                  }
-                  onChange={(option: any) => handleInputChange(param.key, option.value)}
-                  options={[
-                    { value: 'true', label: 'Yes' },
-                    { value: 'false', label: 'No' }
-                  ]}
-                  className="react-select-container"
-                  classNamePrefix="react-select"
-                />
-              ) : param.input_type === 'number' ? (
-                <Input
-                  id={param.key}
-                  type="number"
-                  value={paramValues[param.key] || ''}
-                  onChange={(e) => handleInputChange(param.key, e.target.value)}
-                  required={param.requirement === 'required'}
-                />
-              ) : param.input_type === 'date' ? (
-                <Input
-                  id={param.key}
-                  type="date"
-                  value={paramValues[param.key] || ''}
-                  onChange={(e) => handleInputChange(param.key, e.target.value)}
-                  required={param.requirement === 'required'}
-                />
-              ) : (
-                <Input
-                  id={param.key}
-                  type="text"
-                  value={paramValues[param.key] || ''}
-                  onChange={(e) => handleInputChange(param.key, e.target.value)}
-                  required={param.requirement === 'required'}
-                  placeholder={param.input_type === 'file' ? 'Enter file path' : ''}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        
-        <ModalFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit}>
-            Start Session
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <>
+      <Modal open={isOpen} onOpenChange={(open: boolean) => !open && handleCancelClick()}>
+        <ModalContent className="sm:max-w-[500px]">
+          <ModalHeader>
+            <ModalTitle>{recipeConfig.title || 'Recipe Parameters'}</ModalTitle>
+          </ModalHeader>
+
+          <div className="text-sm text-muted-foreground mb-4">{recipeConfig.description}</div>
+
+          <div className="space-y-4 py-2 max-h-[400px] overflow-y-auto">
+            {recipeConfig.parameters.map((param: RecipeParameter) => (
+              <div key={param.key} className="space-y-2">
+                <Label htmlFor={param.key}>
+                  {param.description || param.key}
+                  {param.requirement === 'required' && (
+                    <span className="text-destructive ml-1">*</span>
+                  )}
+                </Label>
+
+                {param.input_type === 'boolean' ? (
+                  <ReactSelect
+                    id={param.key}
+                    value={
+                      paramValues[param.key] === 'true'
+                        ? { value: 'true', label: 'Yes' }
+                        : { value: 'false', label: 'No' }
+                    }
+                    onChange={(option: { value: string; label: string } | null) =>
+                      option && handleInputChange(param.key, option.value)
+                    }
+                    options={[
+                      { value: 'true', label: 'Yes' },
+                      { value: 'false', label: 'No' },
+                    ]}
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                  />
+                ) : param.input_type === 'number' ? (
+                  <Input
+                    id={param.key}
+                    type="number"
+                    value={paramValues[param.key] || ''}
+                    onChange={(e) => handleInputChange(param.key, e.target.value)}
+                    required={param.requirement === 'required'}
+                  />
+                ) : param.input_type === 'date' ? (
+                  <Input
+                    id={param.key}
+                    type="date"
+                    value={paramValues[param.key] || ''}
+                    onChange={(e) => handleInputChange(param.key, e.target.value)}
+                    required={param.requirement === 'required'}
+                  />
+                ) : (
+                  <Input
+                    id={param.key}
+                    type="text"
+                    value={paramValues[param.key] || ''}
+                    onChange={(e) => handleInputChange(param.key, e.target.value)}
+                    required={param.requirement === 'required'}
+                    placeholder={param.input_type === 'file' ? 'Enter file path' : ''}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <ModalFooter>
+            <Button variant="outline" onClick={handleCancelClick}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit}>Start Session</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Cancel Confirmation Modal */}
+      <Modal open={showCancelConfirm} onOpenChange={handleCancelConfirmClose}>
+        <ModalContent className="sm:max-w-[400px]">
+          <ModalHeader>
+            <ModalTitle>Skip Parameters?</ModalTitle>
+          </ModalHeader>
+
+          <div className="text-sm text-muted-foreground mb-4">
+            Do you want to start the chat without filling in the parameters? The recipe will use the
+            raw prompt with placeholder values like {`{{parameter_name}}`}.
+          </div>
+
+          <ModalFooter>
+            <Button variant="outline" onClick={handleCancelConfirmClose}>
+              Go Back
+            </Button>
+            <Button onClick={handleConfirmCancel}>Start Without Parameters</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
-} 
+}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
-import { type View, ViewOptions } from '../App';
 import { RecipeParametersModal } from './RecipeParametersModal';
 import { initializeSystem } from '../utils/providerUtils';
 import { useConfig } from './ConfigContext';
@@ -14,7 +13,7 @@ interface RecipeParametersViewProps {
 export function RecipeParametersView({ config, onClose }: RecipeParametersViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(true);
   const { read } = useConfig();
-  
+
   // If no config or no parameters, redirect to the chat view
   useEffect(() => {
     if (!config || !config.parameters || config.parameters.length === 0) {
@@ -27,30 +26,38 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
       // Update the recipe config with parameter values
       const enhancedConfig = {
         ...config,
-        _paramValues: paramValues
+        _paramValues: paramValues,
       };
-      
+
       // Store the enhanced config in appConfig
       window.appConfig.set('recipeConfig', enhancedConfig);
-      
+
       // Re-initialize the system with the parameter values
       try {
         const windowConfig = window.electron.getConfig();
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? windowConfig.GOOSE_DEFAULT_PROVIDER;
+        const provider =
+          (await read('GOOSE_PROVIDER', false)) ?? windowConfig.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? windowConfig.GOOSE_DEFAULT_MODEL;
-        
+
         if (provider && model) {
           await initializeSystem(provider, model, {
             getExtensions: async (): Promise<FixedExtensionEntry[]> => [],
-            addExtension: async (_name: string, _config: ExtensionConfig, _enabled: boolean): Promise<void> => {}
+            addExtension: async (
+              _name: string,
+              _config: ExtensionConfig,
+              _enabled: boolean
+            ): Promise<void> => {},
           });
         } else {
           console.error('RecipeParametersView: Missing provider or model configuration');
         }
       } catch (error) {
-        console.error('RecipeParametersView: Failed to re-initialize system with parameters:', error);
+        console.error(
+          'RecipeParametersView: Failed to re-initialize system with parameters:',
+          error
+        );
       }
-      
+
       // Add a small delay to ensure the config is saved before redirecting
       setTimeout(() => {
         // Redirect to chat view where the agent will use the parameterized prompt
@@ -59,9 +66,43 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
     }
   };
 
-  const handleClose = () => {
+  const handleCancel = async () => {
+    // When user confirms cancellation, set up the recipe config without parameter values
+    // This will use the raw template with {{param}} placeholders
+    if (config) {
+      // Store the config with a special flag to indicate we're skipping parameters
+      const configWithSkipFlag = {
+        ...config,
+        _skipParameters: true,
+      };
+      window.appConfig.set('recipeConfig', configWithSkipFlag);
+
+      // Re-initialize the system to start the chat
+      try {
+        const windowConfig = window.electron.getConfig();
+        const provider =
+          (await read('GOOSE_PROVIDER', false)) ?? windowConfig.GOOSE_DEFAULT_PROVIDER;
+        const model = (await read('GOOSE_MODEL', false)) ?? windowConfig.GOOSE_DEFAULT_MODEL;
+
+        if (provider && model) {
+          await initializeSystem(provider, model, {
+            getExtensions: async (): Promise<FixedExtensionEntry[]> => [],
+            addExtension: async (
+              _name: string,
+              _config: ExtensionConfig,
+              _enabled: boolean
+            ): Promise<void> => {},
+          });
+        } else {
+          console.error('RecipeParametersView: Missing provider or model configuration');
+        }
+      } catch (error) {
+        console.error('RecipeParametersView: Failed to re-initialize system:', error);
+      }
+    }
+
     setIsModalOpen(false);
-    // Redirect to chat view even if the user cancels
+    // Redirect to chat view
     onClose();
   };
 
@@ -74,10 +115,10 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
     <div className="h-screen bg-gray-50">
       <RecipeParametersModal
         isOpen={isModalOpen}
-        onClose={handleClose}
         onSubmit={handleSubmit}
+        onCancel={handleCancel}
         recipeConfig={config}
       />
     </div>
   );
-} 
+}

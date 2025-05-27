@@ -16,6 +16,7 @@ interface RecipeConfig {
     default?: string;
   }>;
   _paramValues?: Record<string, string>;
+  _skipParameters?: boolean;
   profile?: string;
   mcps?: number;
   [key: string]: unknown;

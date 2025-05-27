@@ -296,7 +296,8 @@ function ChatContent({
     // This is because the recipe config and parameters are available before full app initialization
     const hasParameterValues =
       recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
-    const shouldProceed = readyForAutoUserPrompt || hasParameterValues;
+    const skipParameters = recipeConfig?._skipParameters === true;
+    const shouldProceed = readyForAutoUserPrompt || hasParameterValues || skipParameters;
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {
       // Start the power save blocker to keep session active
@@ -310,6 +311,7 @@ function ChatContent({
   }, [
     recipeConfig?.prompt,
     recipeConfig?._paramValues,
+    recipeConfig?._skipParameters,
     append,
     setLastInteractionTime,
     readyForAutoUserPrompt,
