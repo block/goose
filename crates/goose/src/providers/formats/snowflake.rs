@@ -21,7 +21,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         };
 
         let mut text_content = String::new();
-        
+
         for msg_content in &message.content {
             match msg_content {
                 MessageContent::Text(text) => {
@@ -110,19 +110,16 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
                 "description": tool.description,
                 "input_schema": tool.input_schema
             });
-            
+
             // Add cache control to the last tool
             if i == tools.len() - 1 {
                 if let Some(obj) = tool_spec.as_object_mut() {
-                    obj.insert(
-                        "cache_control".to_string(),
-                        json!({"type": "ephemeral"})
-                    );
+                    obj.insert("cache_control".to_string(), json!({"type": "ephemeral"}));
                 } else {
                     eprintln!("Warning: tool_spec is not an object, cannot add cache_control");
                 }
             }
-            
+
             tool_specs.push(json!({"tool_spec": tool_spec}));
         }
     }
@@ -146,18 +143,18 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
     let mut tool_use_id: Option<String> = None;
     let mut tool_name: Option<String> = None;
     let mut tool_input = String::new();
-    
+
     // Parse each SSE event
     for line in sse_data.lines() {
         if !line.starts_with("data: ") {
             continue;
         }
-        
+
         let json_str = &line[6..]; // Remove "data: " prefix
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }
-        
+
         let event: Value = match serde_json::from_str(json_str) {
             Ok(v) => v,
             Err(_) => {
@@ -165,7 +162,7 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
                 continue;
             }
         };
-        
+
         if let Some(choices) = event.get("choices").and_then(|c| c.as_array()) {
             if let Some(choice) = choices.get(0) {
                 if let Some(delta) = choice.get("delta") {
@@ -192,12 +189,12 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
             }
         }
     }
-    
+
     // Add accumulated text if any
     if !accumulated_text.is_empty() {
         message = message.with_text(accumulated_text);
     }
-    
+
     // Add tool use if complete
     if let (Some(id), Some(name)) = (&tool_use_id, &tool_name) {
         if !tool_input.is_empty() {
@@ -219,12 +216,12 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
             message = message.with_tool_request(id, Ok(tool_call));
         }
     }
-    
+
     // If no content at all, ensure we still return a valid message
     if message.content.is_empty() {
         println!("No content in streaming response, returning empty assistant message");
     }
-    
+
     println!("Parsed streaming message: {:?}", message);
     Ok(message)
 }
@@ -233,9 +230,7 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 pub fn response_to_message(response: Value) -> Result<Message> {
     let mut message = Message::assistant();
 
-    let content_list = response
-        .get("content_list")
-        .and_then(|cl| cl.as_array());
+    let content_list = response.get("content_list").and_then(|cl| cl.as_array());
 
     // Handle case where content_list is missing or empty
     let content_list = match content_list {
@@ -312,7 +307,7 @@ pub fn response_to_message(response: Value) -> Result<Message> {
             }
         }
     }
-    
+
     println!("Parsed message: {:?}", message);
     Ok(message)
 }
@@ -379,17 +374,18 @@ pub fn create_request(
 
     // Detect description generation requests and exclude tools to prevent interference
     // with normal tool execution flow
-    let is_description_request = system.contains("Reply with only a description in four words or less") 
+    let is_description_request = system
+        .contains("Reply with only a description in four words or less")
         || system.contains("description in four words or less")
         || system.contains("description in 4 words or less");
-    
+
     let tools_to_include = if is_description_request {
         // For description generation, don't include any tools to avoid confusion
         Vec::new()
     } else {
         tools.to_vec()
     };
-    
+
     let tool_specs = format_tools(&tools_to_include);
 
     let max_tokens = model_config.max_tokens.unwrap_or(4096);
@@ -404,7 +400,9 @@ pub fn create_request(
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("tools".to_string(), json!(tool_specs));
         } else {
-            return Err(anyhow!("Failed to create request payload: payload is not a JSON object"));
+            return Err(anyhow!(
+                "Failed to create request payload: payload is not a JSON object"
+            ));
         }
     }
 
@@ -550,9 +548,15 @@ mod tests {
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["tool_spec"]["name"], "calculator");
-        assert_eq!(spec[0]["tool_spec"]["description"], "Calculate mathematical expressions");
+        assert_eq!(
+            spec[0]["tool_spec"]["description"],
+            "Calculate mathematical expressions"
+        );
         assert_eq!(spec[1]["tool_spec"]["name"], "weather");
-        assert_eq!(spec[1]["tool_spec"]["description"], "Get weather information");
+        assert_eq!(
+            spec[1]["tool_spec"]["description"],
+            "Get weather information"
+        );
 
         // Verify cache control is added to last tool
         assert!(spec[1]["tool_spec"].get("cache_control").is_some());
@@ -582,7 +586,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
 
         // Should have both text and tool request
         assert_eq!(message.content.len(), 2);
-        
+
         if let MessageContent::Text(text) = &message.content[0] {
             assert!(text.text.contains("I'll help you check Nvidia's current"));
         } else {
@@ -604,54 +608,59 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     #[test]
     fn test_create_request_format() -> Result<()> {
         use crate::model::ModelConfig;
-        
+
         let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
-        
+
         let system = "You are a helpful assistant that can use tools to get information.";
-        let messages = vec![
-            Message::user().with_text("What is the stock price of Nvidia?"),
-        ];
-        
-        let tools = vec![
-            Tool::new(
-                "get_stock_price",
-                "Get stock price information",
-                json!({
-                    "type": "object",
-                    "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "The symbol for the stock ticker, e.g. Snowflake = SNOW"
-                        }
-                    },
-                    "required": ["symbol"]
-                }),
-                None,
-            ),
-        ];
-        
+        let messages = vec![Message::user().with_text("What is the stock price of Nvidia?")];
+
+        let tools = vec![Tool::new(
+            "get_stock_price",
+            "Get stock price information",
+            json!({
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "The symbol for the stock ticker, e.g. Snowflake = SNOW"
+                    }
+                },
+                "required": ["symbol"]
+            }),
+            None,
+        )];
+
         let request = create_request(&model_config, system, &messages, &tools)?;
-        
-        println!("Generated request: {}", serde_json::to_string_pretty(&request)?);
-        
+
+        println!(
+            "Generated request: {}",
+            serde_json::to_string_pretty(&request)?
+        );
+
         // Check basic structure
         assert_eq!(request["model"], "claude-3-5-sonnet");
-        
+
         let messages_array = request["messages"].as_array().unwrap();
         assert_eq!(messages_array.len(), 2); // system + user message
-        
+
         // First message should be system with simple content
         assert_eq!(messages_array[0]["role"], "system");
-        assert_eq!(messages_array[0]["content"], "You are a helpful assistant that can use tools to get information.");
-        
+        assert_eq!(
+            messages_array[0]["content"],
+            "You are a helpful assistant that can use tools to get information."
+        );
+
         // Second message should be user with simple content
         assert_eq!(messages_array[1]["role"], "user");
-        assert_eq!(messages_array[1]["content"], "What is the stock price of Nvidia?");
-        
+        assert_eq!(
+            messages_array[1]["content"],
+            "What is the stock price of Nvidia?"
+        );
+
         // Tools should have tool_spec wrapper
         let tools_array = request["tools"].as_array().unwrap();
         assert_eq!(tools_array[0]["tool_spec"]["name"], "get_stock_price");
-        
+
         Ok(())
     }
 
@@ -659,7 +668,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     fn test_parse_mixed_text_and_tool_response() -> Result<()> {
         let response = json!({
             "id": "msg_123",
-            "type": "message", 
+            "type": "message",
             "role": "assistant",
             "content": "I'll help you with that calculation.",
             "content_list": [
@@ -670,7 +679,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
                 {
                     "type": "tool_use",
                     "tool_use_id": "tool_1",
-                    "name": "calculator", 
+                    "name": "calculator",
                     "input": {"expression": "2 + 2"}
                 }
             ],
@@ -685,7 +694,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
 
         // Should have both text and tool request content
         assert_eq!(message.content.len(), 2);
-        
+
         if let MessageContent::Text(text) = &message.content[0] {
             assert_eq!(text.text, "I'll help you with that calculation.");
         } else {
@@ -713,34 +722,32 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     #[test]
     fn test_create_request_excludes_tools_for_description() -> Result<()> {
         use crate::model::ModelConfig;
-        
+
         let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
         let system = "Reply with only a description in four words or less";
         let messages = vec![Message::user().with_text("Test message")];
-        let tools = vec![
-            Tool::new(
-                "test_tool",
-                "Test tool",
-                json!({"type": "object", "properties": {}}),
-                None,
-            ),
-        ];
-        
+        let tools = vec![Tool::new(
+            "test_tool",
+            "Test tool",
+            json!({"type": "object", "properties": {}}),
+            None,
+        )];
+
         let request = create_request(&model_config, system, &messages, &tools)?;
-        
+
         // Should not include tools for description requests
         assert!(request.get("tools").is_none());
-        
+
         Ok(())
     }
 
     #[test]
     fn test_message_formatting_skips_tool_requests() {
         use mcp_core::tool::ToolCall;
-        
+
         // Create a conversation with text, tool requests, and tool responses
         let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));
-        
+
         let messages = vec![
             Message::user().with_text("Calculate 2 + 2"),
             Message::assistant()
@@ -759,7 +766,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         assert_eq!(spec[1]["content"], "I'll help you calculate that.");
         assert_eq!(spec[2]["role"], "user");
         assert_eq!(spec[2]["content"], "Thanks!");
-        
+
         // Verify no tool request content is in the message history
         for message in &spec {
             let content = message["content"].as_str().unwrap();

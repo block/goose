@@ -65,7 +65,7 @@ export const required_keys = {
   Ollama: ['OLLAMA_HOST'],
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
-  Snowflake: ['SNOWFLAKE_HOST', 'SNOWFLAKE_USER', 'SNOWFLAKE_TOKEN'],
+  Snowflake: ['SNOWFLAKE_HOST', 'SNOWFLAKE_TOKEN'],
   'Azure OpenAI': [
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',

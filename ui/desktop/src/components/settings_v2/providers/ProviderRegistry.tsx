@@ -228,10 +228,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
         {
-          name: 'SNOWFLAKE_USER',
-          is_secret: false,
-        },
-        {
           name: 'SNOWFLAKE_TOKEN',
           is_secret: true,
         },

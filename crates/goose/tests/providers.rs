@@ -483,7 +483,7 @@ async fn test_google_provider() -> Result<()> {
 async fn test_snowflake_provider() -> Result<()> {
     test_provider(
         "Snowflake",
-        &["SNOWFLAKE_HOST", "SNOWFLAKE_USER", "SNOWFLAKE_TOKEN"],
+        &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
         None,
         snowflake::SnowflakeProvider::default,
     )
