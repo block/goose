@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTimelineStyles } from '../../hooks/useTimelineStyles';
-import { ChartConfig, ChartContainer } from "@/components/ui/chart";
-import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Sector } from 'recharts';
+import { cn } from "@/lib/utils";
 
 interface PieChartSegment {
   value: number;
@@ -116,22 +116,6 @@ export default function PieChartTile({
     chartColor: `var(--chart-${index + 1})`  // Use chart-1, chart-2, chart-3, etc.
   }));
 
-  // Create chart configuration using the chart color variables
-  const chartConfig = {
-    [segments[0].label.toLowerCase()]: {
-      label: segments[0].label,
-      color: 'var(--chart-1)'
-    },
-    [segments[1].label.toLowerCase()]: {
-      label: segments[1].label,
-      color: 'var(--chart-2)'
-    },
-    [segments[2].label.toLowerCase()]: {
-      label: segments[2].label,
-      color: 'var(--chart-3)'
-    }
-  } satisfies ChartConfig;
-
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index);
   };
@@ -152,50 +136,66 @@ export default function PieChartTile({
     >
       {/* Header */}
       <div className="p-4">
-        <div className="w-6 h-6 mb-4 text-text-default">
+        <div className="w-6 h-6 mb-4 text-text-default dark:text-white">
           {icon}
         </div>
-        <div className="text-text-muted text-sm">
+        <div className="text-text-muted dark:text-white/60 text-sm">
           {title}
         </div>
       </div>
 
       {/* Pie Chart */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div style={{ width: '100%', height: '260px', position: 'relative' }}>
-          <ChartContainer config={chartConfig}>
-            <ResponsiveContainer>
-              <PieChart margin={{ top: 30, right: 40, bottom: 10, left: 40 }}>
-                <Pie
-                  activeIndex={activeIndex}
-                  activeShape={renderActiveShape}
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={65}
-                  paddingAngle={5}
-                  dataKey="value"
-                  onMouseEnter={onPieEnter}
-                  cornerRadius={4}
-                  label={renderCustomizedLabel}
-                  labelLine={false}
-                  startAngle={90}
-                  endAngle={-270}
-                  isAnimationActive={false}
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.chartColor}
-                      stroke="var(--background-default)"
-                      strokeWidth={2}
-                    />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+        <div 
+          className={cn(
+            "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
+            "[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
+            "[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
+            "[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
+            "[&_.recharts-radial-bar-background-sector]:fill-muted",
+            "[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted",
+            "[&_.recharts-reference-line_[stroke='#ccc']]:stroke-border",
+            "flex justify-center text-xs",
+            "[&_.recharts-dot[stroke='#fff']]:stroke-transparent",
+            "[&_.recharts-layer]:outline-hidden",
+            "[&_.recharts-sector]:outline-hidden",
+            "[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
+            "[&_.recharts-surface]:outline-hidden"
+          )}
+        >
+          <PieChart 
+            width={288} 
+            height={162}
+            margin={{ top: 30, right: 40, bottom: 10, left: 40 }}
+          >
+            <Pie
+              activeIndex={activeIndex}
+              activeShape={renderActiveShape}
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={45}
+              outerRadius={65}
+              paddingAngle={5}
+              dataKey="value"
+              onMouseEnter={onPieEnter}
+              cornerRadius={4}
+              label={renderCustomizedLabel}
+              labelLine={false}
+              startAngle={90}
+              endAngle={-270}
+              isAnimationActive={false}
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.chartColor}
+                  stroke="var(--background-default)"
+                  strokeWidth={2}
+                />
+              ))}
+            </Pie>
+          </PieChart>
         </div>
       </div>
     </div>
