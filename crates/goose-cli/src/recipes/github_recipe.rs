@@ -20,30 +20,60 @@ pub fn retrieve_recipe_from_github(
         recipe_name, recipe_repo_full_name
     );
     ensure_gh_authenticated()?;
-    let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
-    fetch_origin(&local_repo_path)?;
-    let download_dir = get_folder_from_github(&local_repo_path, recipe_name)?;
+    let max_attempts = 2;
+    let mut last_err = None;
 
+    for attempt in 1..=max_attempts {
+        match clone_and_download_recipe(recipe_name, recipe_repo_full_name) {
+            Ok(download_dir) => match read_recipe_file(&download_dir) {
+                Ok(content) => return Ok((content, download_dir)),
+                Err(err) => return Err(err),
+            },
+            Err(err) => {
+                last_err = Some(err);
+            }
+        }
+        if attempt < max_attempts {
+            clean_cloned_dirs(recipe_repo_full_name)?;
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("Unknown error occurred")))
+}
+
+fn clean_cloned_dirs(recipe_repo_full_name: &str) -> anyhow::Result<()> {
+    let local_repo_path = get_local_repo_path(&env::temp_dir(), recipe_repo_full_name)?;
+    if local_repo_path.exists() {
+        fs::remove_dir_all(&local_repo_path)?;
+    }
+    Ok(())
+}
+fn read_recipe_file(download_dir: &Path) -> Result<String> {
     for ext in RECIPE_FILE_EXTENSIONS {
         let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
         if candidate_file_path.exists() {
-            let content = std::fs::read_to_string(&candidate_file_path)?;
+            let content = fs::read_to_string(&candidate_file_path)?;
             println!(
-                "⬇️  Retrieved recipe from github repo {}/{}",
-                recipe_repo_full_name,
+                "⬇️  Retrieved recipe file: {}",
                 candidate_file_path
-                    .strip_prefix(&download_dir)
+                    .strip_prefix(download_dir)
                     .unwrap()
                     .display()
             );
-            return Ok((content, download_dir));
+            return Ok(content);
         }
     }
+
     Err(anyhow::anyhow!(
-        "Failed to retrieve recipe.yaml or recipe.json in path {} in github repo {} ",
-        recipe_name,
-        recipe_repo_full_name,
+        "No recipe file found in {} (looked for extensions: {:?})",
+        download_dir.display(),
+        RECIPE_FILE_EXTENSIONS
     ))
+}
+
+fn clone_and_download_recipe(recipe_name: &str, recipe_repo_full_name: &str) -> Result<PathBuf> {
+    let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
+    fetch_origin(&local_repo_path)?;
+    get_folder_from_github(&local_repo_path, recipe_name)
 }
 
 fn ensure_gh_authenticated() -> Result<()> {
@@ -61,7 +91,7 @@ fn ensure_gh_authenticated() -> Result<()> {
     println!("GitHub CLI is not authenticated. Launching `gh auth login`...");
     // Run `gh auth login` interactively
     let login_status = Command::new("gh")
-        .args(["auth", "login"])
+        .args(["auth", "login", "--git-protocol", "https"])
         .status()
         .map_err(|_| anyhow::anyhow!("Failed to run `gh auth login`"))?;
 
@@ -72,20 +102,27 @@ fn ensure_gh_authenticated() -> Result<()> {
     }
 }
 
-fn ensure_repo_cloned(recipe_repo_full_name: &str) -> Result<PathBuf> {
-    let local_repo_parent_path = env::temp_dir();
+fn get_local_repo_path(
+    local_repo_parent_path: &Path,
+    recipe_repo_full_name: &str,
+) -> Result<PathBuf> {
     let (_, repo_name) = recipe_repo_full_name
         .split_once('/')
         .ok_or_else(|| anyhow::anyhow!("Invalid repository name format"))?;
+    let local_repo_path = local_repo_parent_path.to_path_buf().join(repo_name);
+    Ok(local_repo_path)
+}
 
-    let local_repo_path = local_repo_parent_path.clone().join(repo_name);
+fn ensure_repo_cloned(recipe_repo_full_name: &str) -> Result<PathBuf> {
+    let local_repo_parent_path = env::temp_dir();
+    if !local_repo_parent_path.exists() {
+        std::fs::create_dir_all(local_repo_parent_path.clone())?;
+    }
+    let local_repo_path = get_local_repo_path(&local_repo_parent_path, recipe_repo_full_name)?;
+
     if local_repo_path.join(".git").exists() {
         Ok(local_repo_path)
     } else {
-        // Create the local repo parent directory if it doesn't exist
-        if !local_repo_parent_path.exists() {
-            std::fs::create_dir_all(local_repo_parent_path.clone())?;
-        }
         let error_message: String = format!("Failed to clone repo: {}", recipe_repo_full_name);
         let status = Command::new("gh")
             .args(["repo", "clone", recipe_repo_full_name])

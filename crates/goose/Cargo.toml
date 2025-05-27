@@ -46,7 +46,7 @@ nanoid = "0.4"
 sha2 = "0.10"
 base64 = "0.21"
 url = "2.5"
-axum = "0.7"
+axum = "0.8.1"
 webbrowser = "0.8"
 dotenv = "0.15"
 lazy_static = "1.5"
@@ -60,7 +60,8 @@ serde_yaml = "0.9.34"
 once_cell = "1.20.2"
 etcetera = "0.8.0"
 rand = "0.8.5"
-utoipa = "4.1"
+utoipa = { version = "4.1", features = ["chrono"] }
+tokio-cron-scheduler = "0.14.0"
 
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
