@@ -2,17 +2,39 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send } from './icons';
+import { Attach, Send, Close } from './icons'; // Replaced XCircle with Close, removed AlertTriangle
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
 
+// Define the electron API exposed in preload (ensure your preload script matches this)
+declare global {
+  interface Window {
+    electron: {
+      saveDataUrlToTemp: (
+        dataUrl: string,
+        uniqueId: string
+      ) => Promise<{ id: string; filePath?: string; error?: string }>;
+      deleteTempFile: (filePath: string) => void;
+      selectFileOrDirectory: () => Promise<string | null>;
+    };
+  }
+}
+
+interface PastedImage {
+  id: string;
+  dataUrl: string; // For immediate preview
+  filePath?: string; // Path on filesystem after saving
+  isLoading: boolean;
+  error?: string;
+}
+
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
-  commandHistory?: string[]; // Current chat's message history
+  commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: string[];
   setView: (view: View) => void;
@@ -35,25 +57,43 @@ export default function ChatInput({
   setMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  const [displayValue, setDisplayValue] = useState(initialValue);
   const [isFocused, setIsFocused] = useState(false);
+  const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
-  // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-    // Reset history index when input is cleared
+
+    // Use a functional update to get the current pastedImages
+    // and perform cleanup. This avoids needing pastedImages in the deps.
+    setPastedImages((currentPastedImages) => {
+      currentPastedImages.forEach((img) => {
+        if (img.filePath) {
+          window.electron.deleteTempFile(img.filePath);
+        }
+      });
+      return []; // Return a new empty array
+    });
+
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
-  }, [initialValue]);
+  }, [initialValue]); // Keep only initialValue as a dependency
 
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+
+  const handleRemovePastedImage = (idToRemove: string) => {
+    const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
+    if (imageToRemove?.filePath) {
+      window.electron.deleteTempFile(imageToRemove.filePath);
+    }
+    setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
+  };
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -64,15 +104,12 @@ export default function ChatInput({
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
-  // If we have dropped files, add them to the input and update our state.
   useEffect(() => {
     if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
-      // Append file paths that aren't in displayValue.
       const currentText = displayValue || '';
       const joinedPaths = currentText.trim()
         ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
         : droppedFiles.join(' ');
-
       setDisplayValue(joinedPaths);
       setValue(joinedPaths);
       textAreaRef.current?.focus();
@@ -80,18 +117,16 @@ export default function ChatInput({
     }
   }, [droppedFiles, processedFilePaths, displayValue]);
 
-  // Debounced function to update actual value
   const debouncedSetValue = useCallback((val: string) => {
     debounce((value: string) => {
       setValue(value);
     }, 150)(val);
   }, []);
 
-  // Debounced autosize function
   const debouncedAutosize = useCallback(
     (textArea: HTMLTextAreaElement) => {
       debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
+        element.style.height = '0px';
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
       }, 150)(textArea);
@@ -107,84 +142,104 @@ export default function ChatInput({
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
-    setDisplayValue(val); // Update display immediately
-    debouncedSetValue(val); // Debounce the actual state update
+    setDisplayValue(val);
+    debouncedSetValue(val);
   };
 
-  // Cleanup debounced functions on unmount
+  const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(evt.clipboardData.files || []);
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        evt.preventDefault();
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const dataUrl = e.target?.result as string;
+          if (dataUrl) {
+            const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            setPastedImages((prev) => [...prev, { id: imageId, dataUrl, isLoading: true }]);
+
+            try {
+              const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
+              setPastedImages((prev) =>
+                prev.map((img) =>
+                  img.id === result.id
+                    ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
+                    : img
+                )
+              );
+            } catch (err) {
+              console.error('Error saving pasted image:', err);
+              setPastedImages((prev) =>
+                prev.map((img) =>
+                  img.id === imageId
+                    ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+                    : img
+                )
+              );
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       debouncedSetValue.cancel?.();
       debouncedAutosize.cancel?.();
+      // Cleanup any remaining temp files if component unmounts unexpectedly
+      // This is a fallback; primary cleanup is on remove/submit or app quit
+      pastedImages.forEach((img) => {
+        if (img.filePath) {
+          // window.electron.deleteTempFile(img.filePath); // Be cautious with this on HMR
+        }
+      });
     };
-  }, [debouncedSetValue, debouncedAutosize]);
+  }, [debouncedSetValue, debouncedAutosize, pastedImages]);
 
-  // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = () => {
-    setIsComposing(true);
-  };
-
-  const handleCompositionEnd = () => {
-    setIsComposing(false);
-  };
+  const handleCompositionStart = () => setIsComposing(true);
+  const handleCompositionEnd = () => setIsComposing(false);
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // ... (history navigation logic remains the same)
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
-    // Only handle up/down keys with Cmd/Ctrl modifier
     if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
       return;
     }
-
     evt.preventDefault();
-
-    // Get global history once to avoid multiple calls
     const globalHistory = LocalMessageStorage.getRecentMessages() || [];
-
-    // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue || '');
       setIsInGlobalHistory(commandHistory.length === 0);
     }
-
-    // Determine which history we're using
     const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
     let newIndex = historyIndex;
     let newValue = '';
-
-    // Handle navigation
     if (isUp) {
-      // Moving up through history
       if (newIndex < currentHistory.length - 1) {
-        // Still have items in current history
         newIndex = historyIndex + 1;
         newValue = currentHistory[newIndex];
       } else if (!isInGlobalHistory && globalHistory.length > 0) {
-        // Switch to global history
         setIsInGlobalHistory(true);
         newIndex = 0;
         newValue = globalHistory[newIndex];
       }
     } else {
-      // Moving down through history
       if (newIndex > 0) {
-        // Still have items in current history
         newIndex = historyIndex - 1;
         newValue = currentHistory[newIndex];
       } else if (isInGlobalHistory && commandHistory.length > 0) {
-        // Switch to chat history
         setIsInGlobalHistory(false);
         newIndex = commandHistory.length - 1;
         newValue = commandHistory[newIndex];
       } else {
-        // Return to original input
         newIndex = -1;
         newValue = savedInput;
       }
     }
-
-    // Update display if we have a new value
     if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
       if (newIndex === -1) {
@@ -197,67 +252,87 @@ export default function ChatInput({
     }
   };
 
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle history navigation first
-    handleHistoryNavigation(evt);
+  const performSubmit = () => {
+    const validPastedImageFilesPaths = pastedImages
+      .filter((img) => img.filePath && !img.error && !img.isLoading)
+      .map((img) => img.filePath as string);
 
-    if (evt.key === 'Enter') {
-      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
-      if (evt.shiftKey || isComposing) {
-        // Allow line break for Shift+Enter, or during IME composition
-        return;
-      }
-      if (evt.altKey) {
-        const newValue = displayValue + '\n';
-        setDisplayValue(newValue);
-        setValue(newValue);
-        return;
-      }
+    let textToSend = displayValue.trim();
 
-      // Prevent default Enter behavior when loading or when not loading but has content
-      // So it won't trigger a new line
-      evt.preventDefault();
-
-      // Only submit if not loading and has content
-      if (!isLoading && displayValue.trim()) {
-        // Always add to global chat storage before submitting
-        LocalMessageStorage.addMessage(displayValue);
-
-        handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
-        setDisplayValue('');
-        setValue('');
-        setHistoryIndex(-1);
-        setSavedInput('');
-        setIsInGlobalHistory(false);
-      }
+    if (validPastedImageFilesPaths.length > 0) {
+      const pathsString = validPastedImageFilesPaths.join(' ');
+      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
     }
-  };
 
-  const onFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (displayValue.trim() && !isLoading) {
-      // Always add to global chat storage before submitting
-      LocalMessageStorage.addMessage(displayValue);
+    if (textToSend) {
+      // Only submit if there's some content
+      // Log original displayValue to history if it had text,
+      // otherwise log the paths if only images were present.
+      if (displayValue.trim()) {
+        LocalMessageStorage.addMessage(displayValue);
+      } else if (validPastedImageFilesPaths.length > 0) {
+        LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
+      }
 
-      handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
+      // Send ONLY the combined text string in detail.value
+      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }));
+
       setDisplayValue('');
       setValue('');
+      // Decide on temp file cleanup strategy. For now, rely on explicit removal or app quit.
+      // pastedImages.filter(img => img.filePath).forEach(img => window.electron.deleteTempFile(img.filePath!));
+      setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
       setIsInGlobalHistory(false);
     }
   };
 
+  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    handleHistoryNavigation(evt);
+    if (evt.key === 'Enter') {
+      if (evt.shiftKey || isComposing) return;
+      if (evt.altKey) {
+        const newValue = displayValue + '\n';
+        setDisplayValue(newValue);
+        setValue(newValue);
+        return;
+      }
+      evt.preventDefault();
+      const canSubmit =
+        !isLoading &&
+        (displayValue.trim() ||
+          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+      if (canSubmit) {
+        performSubmit();
+      }
+    }
+  };
+
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const canSubmit =
+      !isLoading &&
+      (displayValue.trim() ||
+        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+    if (canSubmit) {
+      performSubmit();
+    }
+  };
+
   const handleFileSelect = async () => {
     const path = await window.electron.selectFileOrDirectory();
     if (path) {
-      // Append the path to existing text, with a space if there's existing text
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
       setDisplayValue(newValue);
       setValue(newValue);
       textAreaRef.current?.focus();
     }
   };
+
+  const hasSubmittableContent =
+    displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
+  const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
   return (
     <div
@@ -278,6 +353,7 @@ export default function ChatInput({
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           ref={textAreaRef}
@@ -289,6 +365,43 @@ export default function ChatInput({
           }}
           className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
         />
+
+        {pastedImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+            {pastedImages.map((img) => (
+              <div key={img.id} className="relative group w-20 h-20">
+                <img
+                  src={img.dataUrl} // Use dataUrl for instant preview
+                  alt={`Pasted image ${img.id}`}
+                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                />
+                {img.isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                  </div>
+                )}
+                {img.error && !img.isLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                    {/* <AlertTriangle className="w-5 h-5 text-red-400 mb-0.5" /> */}
+                    <p className="text-red-400 text-[10px] leading-tight break-all">
+                      {img.error.substring(0, 30)}
+                    </p>
+                  </div>
+                )}
+                {!img.isLoading && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePastedImage(img.id)}
+                    className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                    aria-label="Remove image"
+                  >
+                    <Close size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {isLoading ? (
           <Button
@@ -309,12 +422,13 @@ export default function ChatInput({
             type="submit"
             size="icon"
             variant="ghost"
-            disabled={!displayValue.trim()}
+            disabled={!hasSubmittableContent || isAnyImageLoading} // Disable if no content or if images are still loading/saving
             className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-              !displayValue.trim()
+              !hasSubmittableContent || isAnyImageLoading
                 ? 'text-textSubtle cursor-not-allowed'
                 : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
             }`}
+            title={isAnyImageLoading ? 'Waiting for images to save...' : 'Send'}
           >
             <Send />
           </Button>

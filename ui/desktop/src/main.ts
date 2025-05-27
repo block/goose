@@ -13,6 +13,7 @@ import {
   globalShortcut,
 } from 'electron';
 import { Buffer } from 'node:buffer';
+import fs from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { spawn } from 'child_process';
@@ -32,6 +33,21 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+
+// Define temp directory for pasted images
+const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
+
+// Function to ensure the temporary directory exists
+async function ensureTempDirExists(): Promise<string> {
+  try {
+    await fs.mkdir(gooseTempDir, { recursive: true });
+    console.log('[Main] Temporary directory for pasted images ensured:', gooseTempDir);
+  } catch (error) {
+    console.error('[Main] Failed to create temp directory:', gooseTempDir, error);
+    throw error; // Propagate error
+  }
+  return gooseTempDir;
+}
 
 if (started) app.quit();
 
@@ -637,6 +653,57 @@ ipcMain.handle('select-file-or-directory', async () => {
   return null;
 });
 
+// IPC handler to save data URL to a temporary file
+ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId: string) => {
+  console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
+  try {
+    const tempDir = await ensureTempDirExists(); // Ensure temp dir exists before saving
+    const matches = dataUrl.match(/^data:(image\/(.+));base64,(.*)$/);
+
+    if (!matches || matches.length < 4) {
+      console.error('[Main] Invalid data URL format received.');
+      return { id: uniqueId, error: 'Invalid data URL format' };
+    }
+
+    const imageExtension = matches[2]; // e.g., "png", "jpeg"
+    const base64Data = matches[3];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    const randomString = crypto.randomBytes(8).toString('hex');
+    const fileName = `pasted-${uniqueId}-${randomString}.${imageExtension}`;
+    const filePath = path.join(tempDir, fileName);
+
+    await fs.writeFile(filePath, buffer);
+    console.log(`[Main] Saved image for ID ${uniqueId} to: ${filePath}`);
+    return { id: uniqueId, filePath: filePath };
+  } catch (error) {
+    console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
+    return { id: uniqueId, error: error.message || 'Failed to save image' };
+  }
+});
+
+// IPC handler to delete a temporary file
+ipcMain.on('delete-temp-file', async (event, filePath: string) => {
+  console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
+  if (!filePath || !filePath.startsWith(gooseTempDir)) {
+    console.warn(
+      `[Main] Attempted to delete file outside designated temp directory or invalid path: ${filePath}`
+    );
+    return;
+  }
+  try {
+    await fs.unlink(filePath);
+    console.log(`[Main] Deleted temp file: ${filePath}`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      // ENOENT means file doesn't exist, which is fine
+      console.error(`[Main] Failed to delete temp file: ${filePath}`, error);
+    } else {
+      console.log(`[Main] Temp file already deleted or not found: ${filePath}`);
+    }
+  }
+});
+
 ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {
@@ -733,9 +800,9 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('fs');
+    const fsNode = require('fs'); // Using require for fs in this specific handler from original
     try {
-      fs.writeFileSync(filePath, content, { encoding: 'utf8' });
+      fsNode.writeFileSync(filePath, content, { encoding: 'utf8' });
       resolve(true);
     } catch (error) {
       console.error('Error writing to file:', error);
@@ -1158,10 +1225,10 @@ app.whenReady().then(async () => {
     return false;
   });
 
-  // Handle binary path requests
-  ipcMain.handle('get-binary-path', (_event, binaryName) => {
-    return getBinaryPath(app, binaryName);
-  });
+  // Handle binary path requests (duplicate removed, original kept)
+  // ipcMain.handle('get-binary-path', (_event, binaryName) => {
+  //   return getBinaryPath(app, binaryName);
+  // });
 
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
@@ -1284,9 +1351,27 @@ async function getAllowList(): Promise<string[]> {
   }
 }
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
+  // MODIFIED: Added async
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
+
+  // NEW: Clean up the temp directory on app quit
+  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
+  try {
+    await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
+    await fs.rm(gooseTempDir, { recursive: true, force: true });
+    console.log('[Main] Pasted images temp directory cleaned up successfully.');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');
+    } else {
+      console.error(
+        '[Main] Failed to clean up pasted images temp directory during "will-quit":',
+        error
+      );
+    }
+  }
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
