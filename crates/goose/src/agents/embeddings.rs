@@ -1,35 +1,18 @@
-use crate::config::ConfigError;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::Provider;
+use crate::providers::databricks::DatabricksProvider;
+use crate::providers::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use anyhow::{Context, Result};
-use mcp_core::tool::Tool;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::env;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EmbeddingRequest {
-    input: Vec<String>,
-    model: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EmbeddingResponse {
-    data: Vec<EmbeddingData>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EmbeddingData {
-    embedding: Vec<f32>,
-}
-
 pub struct EmbeddingProvider {
+    provider: Arc<dyn Provider>,
     client: Client,
     token: String,
     base_url: String,
-    model: String,
+    model: ModelConfig,
 }
 
 impl EmbeddingProvider {
@@ -38,13 +21,33 @@ impl EmbeddingProvider {
         let model_config = provider.get_model_config();
         let config = crate::config::Config::global();
 
+        // Try to use provider's embedding capability if available
+        if let Some(embedding_provider) = provider
+            .as_ref()
+            .as_any()
+            .downcast_ref::<DatabricksProvider>()
+        {
+            eprintln!("Using provider's native embedding capability");
+            // For Databricks, we need to use a specific embedding model
+            let embedding_model = env::var("EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+            return Ok(Self {
+                provider,
+                client: Client::new(),
+                token: String::new(), // Not used when using provider's capability
+                base_url: String::new(), // Not used when using provider's capability
+                model: ModelConfig::new(embedding_model),
+            });
+        }
+
         // Check if this is a Databricks provider using the provider's metadata
         let is_databricks = provider.get_name() == "DatabricksProvider";
         eprintln!("Provider name: {}", provider.get_name());
         eprintln!("Is Databricks provider: {}", is_databricks);
 
         let (base_url, token) = if is_databricks {
-            let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
+            let mut host: Result<String, crate::config::ConfigError> =
+                config.get_param("DATABRICKS_HOST");
             if host.is_err() {
                 host = config.get_secret("DATABRICKS_HOST");
             }
@@ -104,10 +107,11 @@ impl EmbeddingProvider {
         eprintln!("{}", log_msg);
 
         Ok(Self {
+            provider,
             client: Client::new(),
             token,
             base_url,
-            model,
+            model: ModelConfig::new(model),
         })
     }
 
@@ -116,9 +120,20 @@ impl EmbeddingProvider {
             return Ok(vec![]);
         }
 
+        // Try to use provider's embedding capability if available
+        if let Some(embedding_provider) = self
+            .provider
+            .as_ref()
+            .as_any()
+            .downcast_ref::<DatabricksProvider>()
+        {
+            return embedding_provider.create_embeddings(texts).await;
+        }
+
+        // Fall back to default OpenAI-compatible implementation
         let request = EmbeddingRequest {
             input: texts,
-            model: self.model.clone(),
+            model: self.model.model_name.clone(),
         };
 
         let response = self
@@ -189,14 +204,17 @@ pub async fn create_embedding_provider(
     provider: Arc<dyn Provider>,
 ) -> Box<dyn EmbeddingProviderTrait> {
     eprintln!("Attempting to create embedding provider...");
-    
+
     match EmbeddingProvider::new(provider) {
         Ok(provider) => {
             eprintln!("Successfully created real embedding provider");
             Box::new(provider)
         }
         Err(e) => {
-            eprintln!("Failed to create embedding provider: {}. Using mock provider.", e);
+            eprintln!(
+                "Failed to create embedding provider: {}. Using mock provider.",
+                e
+            );
             eprintln!("Initializing mock embedding provider as fallback");
             Box::new(MockEmbeddingProvider::new())
         }
@@ -205,7 +223,6 @@ pub async fn create_embedding_provider(
 
 #[async_trait::async_trait]
 pub trait EmbeddingProviderTrait: Send + Sync {
-    #[allow(dead_code)]
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>>;
     async fn embed_single(&self, text: String) -> Result<Vec<f32>>;
 }
@@ -231,6 +248,7 @@ impl EmbeddingProviderTrait for MockEmbeddingProvider {
         self.embed_single(text).await
     }
 }
+
 // Mock provider for testing
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -250,17 +268,20 @@ impl Provider for MockProvider {
         )
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new("mock-model".to_string())
+    fn get_model_config(&self) -> crate::model::ModelConfig {
+        crate::model::ModelConfig::new("mock-model".to_string())
     }
 
     async fn complete(
         &self,
         _system: &str,
-        _messages: &[Message],
-        _tools: &[Tool],
+        _messages: &[crate::message::Message],
+        _tools: &[mcp_core::tool::Tool],
     ) -> Result<
-        (Message, crate::providers::base::ProviderUsage),
+        (
+            crate::message::Message,
+            crate::providers::base::ProviderUsage,
+        ),
         crate::providers::errors::ProviderError,
     > {
         unimplemented!()
@@ -324,7 +345,7 @@ mod tests {
         env::set_var("OPENAI_API_KEY", "test_key");
         let provider = EmbeddingProvider::new(Arc::new(MockProvider)).unwrap();
         assert_eq!(provider.token, "test_key");
-        assert_eq!(provider.model, "text-embedding-3-small");
+        assert_eq!(provider.model, "mock-model");
         assert_eq!(provider.base_url, "https://api.openai.com/v1");
 
         // Test with custom configuration

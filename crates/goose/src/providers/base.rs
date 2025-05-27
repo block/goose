@@ -147,10 +147,11 @@ impl Usage {
 }
 
 use async_trait::async_trait;
+use downcast_rs::{impl_downcast, Downcast};
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
-pub trait Provider: Send + Sync {
+pub trait Provider: Send + Sync + Downcast {
     /// Get the metadata for this provider type
     fn metadata() -> ProviderMetadata
     where
@@ -158,7 +159,11 @@ pub trait Provider: Send + Sync {
 
     /// Get the name of this provider
     fn get_name(&self) -> String {
-        std::any::type_name::<Self>().split("::").last().unwrap_or("unknown").to_string()
+        std::any::type_name::<Self>()
+            .split("::")
+            .last()
+            .unwrap_or("unknown")
+            .to_string()
     }
 
     /// Generate the next message using the configured model and other parameters
@@ -189,6 +194,8 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 }
+
+impl_downcast!(Provider);
 
 #[cfg(test)]
 mod tests {

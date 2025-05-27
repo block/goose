@@ -1,11 +1,5 @@
-use anyhow::Result;
-use async_trait::async_trait;
-use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::time::Duration;
-
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, get_usage, response_to_message};
 use super::oauth;
@@ -14,7 +8,15 @@ use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
+use serde_json::json;
 use url::Url;
+
+use anyhow::Result;
+use async_trait::async_trait;
+use reqwest::{Client, StatusCode};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::time::Duration;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
@@ -166,7 +168,17 @@ impl DatabricksProvider {
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
+
+        // Check if this is an embedding request by looking at the payload structure
+        let is_embedding = payload.get("input").is_some() && !payload.get("messages").is_some();
+        let path = if is_embedding {
+            // For embeddings, use the embeddings endpoint
+            format!("serving-endpoints/{}/invocations", "text-embedding-3-small")
+        } else {
+            // For chat completions, use the model name in the path
+            format!("serving-endpoints/{}/invocations", self.model.model_name)
+        };
+
         let url = base_url.join(&path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
@@ -176,6 +188,7 @@ impl DatabricksProvider {
             .client
             .post(url)
             .header("Authorization", auth_header)
+            .header("Content-Type", "application/json")
             .json(&payload)
             .send()
             .await?;
@@ -184,7 +197,7 @@ impl DatabricksProvider {
         let payload: Option<Value> = response.json().await.ok();
 
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => payload.ok_or_else(|| ProviderError::RequestFailed("Response body is not valid JSON".to_string())),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
                 Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                     Status: {}. Response: {:?}", status, payload)))
@@ -294,5 +307,41 @@ impl Provider for DatabricksProvider {
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+}
+
+#[async_trait]
+impl EmbeddingCapable for DatabricksProvider {
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Create request in Databricks format for embeddings
+        let request = json!({
+            "input": texts,
+            "instruction": "Represent this sentence for searching relevant passages:"
+        });
+
+        let response = self.post(request).await?;
+        // eprintln!("Databricks embedding response: {}", serde_json::to_string_pretty(&response)?);
+
+        // Extract embeddings from Databricks response format
+        let embeddings = response["data"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("Invalid response format: missing data array"))?
+            .iter()
+            .map(|item| {
+                item["embedding"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding format"))?
+                    .iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<f32>>>()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding values"))
+            })
+            .collect::<Result<Vec<Vec<f32>>>>()?;
+
+        Ok(embeddings)
     }
 }
