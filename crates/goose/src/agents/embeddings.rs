@@ -101,7 +101,7 @@ impl EmbeddingProvider {
             )
         };
 
-        let model = env::var("EMBEDDING_MODEL").unwrap_or_else(|_| model_config.model_name.clone());
+        let model = env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
         let log_msg = format!("Using base_url: {}, model: {}", base_url, model);
         eprintln!("{}", log_msg);
@@ -136,9 +136,12 @@ impl EmbeddingProvider {
             model: self.model.model_name.clone(),
         };
 
+        // For OpenAI, we need to append /embeddings to the base URL
+        let url = format!("{}/embeddings", self.base_url.trim_end_matches('/'));
+
         let response = self
             .client
-            .post(&self.base_url)
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Content-Type", "application/json")
             .json(&request)
