@@ -10,6 +10,7 @@ use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
+use goose::prompt_template::render_inline_once;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -232,39 +233,17 @@ async fn update_agent_provider(
 }
 
 fn apply_recipe_parameters(recipe: &mut goose::recipe::Recipe, params: &HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
-    // Helper function to apply template substitution
-    fn replace_template_vars(text: &str, params: &HashMap<String, String>) -> String {
-        let mut result = text.to_string();
-        for (key, value) in params {
-            let pattern = format!("{{{{{}}}}}", key);
-            result = result.replace(&pattern, value);
-        }
-        result
-    }
+    // Serialize the recipe to JSON string
+    let recipe_json = serde_json::to_string(recipe)?;
     
-    // Apply to instructions if present
-    if let Some(ref mut instructions) = recipe.instructions {
-        *instructions = replace_template_vars(instructions, params);
-    }
+    // Render the entire JSON as a template
+    let rendered_json = render_inline_once(&recipe_json, params)?;
     
-    // Apply to prompt if present
-    if let Some(ref mut prompt) = recipe.prompt {
-        *prompt = replace_template_vars(prompt, params);
-    }
+    // Parse the rendered JSON back to a Recipe
+    let rendered_recipe: goose::recipe::Recipe = serde_json::from_str(&rendered_json)?;
     
-    // Apply to activities if present
-    if let Some(ref mut activities) = recipe.activities {
-        for activity in activities.iter_mut() {
-            *activity = replace_template_vars(activity, params);
-        }
-    }
-    
-    // Apply to context if present
-    if let Some(ref mut context) = recipe.context {
-        for ctx in context.iter_mut() {
-            *ctx = replace_template_vars(ctx, params);
-        }
-    }
+    // Update the original recipe with the rendered values
+    *recipe = rendered_recipe;
     
     Ok(())
 }
@@ -277,4 +256,116 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::recipe::Recipe;
+
+    #[test]
+    fn test_apply_recipe_parameters() {
+        let mut recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test Recipe".to_string(),
+            description: "A test recipe".to_string(),
+            instructions: Some("Hello {{ name }}, welcome to {{ location }}!".to_string()),
+            prompt: Some("Your task is {{ task }}".to_string()),
+            activities: Some(vec![
+                "Learn about {{ topic }}".to_string(),
+                "Practice {{ skill }}".to_string(),
+            ]),
+            context: Some(vec![
+                "Context: {{ context_info }}".to_string(),
+            ]),
+            extensions: None,
+            author: None,
+            parameters: None,
+        };
+
+        let mut params = HashMap::new();
+        params.insert("name".to_string(), "Alice".to_string());
+        params.insert("location".to_string(), "Wonderland".to_string());
+        params.insert("task".to_string(), "solve puzzles".to_string());
+        params.insert("topic".to_string(), "logic".to_string());
+        params.insert("skill".to_string(), "critical thinking".to_string());
+        params.insert("context_info".to_string(), "fantasy world".to_string());
+
+        let result = apply_recipe_parameters(&mut recipe, &params);
+        assert!(result.is_ok());
+
+        assert_eq!(recipe.instructions, Some("Hello Alice, welcome to Wonderland!".to_string()));
+        assert_eq!(recipe.prompt, Some("Your task is solve puzzles".to_string()));
+        assert_eq!(recipe.activities, Some(vec![
+            "Learn about logic".to_string(),
+            "Practice critical thinking".to_string(),
+        ]));
+        assert_eq!(recipe.context, Some(vec![
+            "Context: fantasy world".to_string(),
+        ]));
+    }
+
+    #[test]
+    fn test_apply_recipe_parameters_empty_fields() {
+        let mut recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test Recipe".to_string(),
+            description: "A test recipe".to_string(),
+            instructions: None,
+            prompt: None,
+            activities: None,
+            context: None,
+            extensions: None,
+            author: None,
+            parameters: None,
+        };
+
+        let mut params = HashMap::new();
+        params.insert("unused".to_string(), "value".to_string());
+
+        let result = apply_recipe_parameters(&mut recipe, &params);
+        assert!(result.is_ok());
+
+        assert_eq!(recipe.instructions, None);
+        assert_eq!(recipe.prompt, None);
+        assert_eq!(recipe.activities, None);
+        assert_eq!(recipe.context, None);
+    }
+
+    #[test]
+    fn test_apply_recipe_parameters_handles_all_fields() {
+        let mut recipe = Recipe {
+            version: "{{ version }}".to_string(),
+            title: "{{ title }}".to_string(),
+            description: "{{ description }}".to_string(),
+            instructions: Some("{{ instructions }}".to_string()),
+            prompt: Some("{{ prompt }}".to_string()),
+            activities: Some(vec!["{{ activity }}".to_string()]),
+            context: Some(vec!["{{ context }}".to_string()]),
+            extensions: None,
+            author: None,
+            parameters: None,
+        };
+
+        let mut params = HashMap::new();
+        params.insert("version".to_string(), "2.0.0".to_string());
+        params.insert("title".to_string(), "Rendered Title".to_string());
+        params.insert("description".to_string(), "Rendered Description".to_string());
+        params.insert("instructions".to_string(), "Rendered Instructions".to_string());
+        params.insert("prompt".to_string(), "Rendered Prompt".to_string());
+        params.insert("activity".to_string(), "Rendered Activity".to_string());
+        params.insert("context".to_string(), "Rendered Context".to_string());
+
+        let result = apply_recipe_parameters(&mut recipe, &params);
+        assert!(result.is_ok());
+
+        // Verify that ALL fields were rendered, including version, title, description
+        assert_eq!(recipe.version, "2.0.0");
+        assert_eq!(recipe.title, "Rendered Title");
+        assert_eq!(recipe.description, "Rendered Description");
+        assert_eq!(recipe.instructions, Some("Rendered Instructions".to_string()));
+        assert_eq!(recipe.prompt, Some("Rendered Prompt".to_string()));
+        assert_eq!(recipe.activities, Some(vec!["Rendered Activity".to_string()]));
+        assert_eq!(recipe.context, Some(vec!["Rendered Context".to_string()]));
+    }
 }

@@ -13,7 +13,6 @@ pub async fn run() -> Result<()> {
 
     // Load configuration
     let settings = configuration::Settings::new()?;
-    tracing::info!("Configuration loaded: {:?}", settings);
 
     // load secret key from GOOSE_SERVER__SECRET_KEY environment variable
     let secret_key =
