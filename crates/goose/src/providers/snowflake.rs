@@ -15,8 +15,8 @@ use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 use url::Url;
 
-pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-5-sonnet";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-5-sonnet"];
+pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
+pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-7-sonnet", "claude-3-5-sonnet"];
 
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/en/user-guide/snowflake-cortex/llm-functions#choosing-a-model";
@@ -52,15 +52,10 @@ impl Default for SnowflakeProvider {
 impl SnowflakeProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-
-        // For compatibility for now we check both config and secret for snowflake host
-        // but it is not actually a secret value
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
-
         if host.is_err() {
             host = config.get_secret("SNOWFLAKE_HOST")
         }
-
         if host.is_err() {
             return Err(ConfigError::NotFound(
                 "Did not find SNOWFLAKE_HOST in either config file or keyring".to_string(),
@@ -68,7 +63,15 @@ impl SnowflakeProvider {
             .into());
         }
 
-        let host = host?;
+        let mut host = host?;
+        
+        // Convert host to lowercase
+        host = host.to_lowercase();
+        
+        // Ensure host ends with snowflakecomputing.com
+        if !host.ends_with("snowflakecomputing.com") {
+            host = format!("{}.snowflakecomputing.com", host);
+        }
 
         let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
 
@@ -100,7 +103,7 @@ impl SnowflakeProvider {
 
     async fn ensure_auth_header(&self) -> Result<String> {
         match &self.auth {
-            // SnowflakeAuth::Token(token) => Ok(format!("Snowflake Token=\"{}\"", token)),
+            // https://docs.snowflake.com/en/developer-guide/snowflake-rest-api/authentication#using-a-programmatic-access-token-pat
             SnowflakeAuth::Token(token) => Ok(format!("Bearer {}", token)),
         }
     }
