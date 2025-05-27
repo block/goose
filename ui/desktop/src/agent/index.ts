@@ -14,8 +14,6 @@ interface UpdateProviderResponse {
 }
 
 export async function initializeAgent({ model, provider, recipeConfig, recipeParams }: InitializeAgentProps): Promise<Recipe | undefined> {
-  console.log('initializeAgent: Starting with params:', { model, provider, recipeConfig: !!recipeConfig, recipeParams });
-  
   const requestBody = {
     provider: provider.toLowerCase().replace(/ /g, '_'),
     model: model,
@@ -24,8 +22,6 @@ export async function initializeAgent({ model, provider, recipeConfig, recipePar
       parameters: recipeParams || {}
     } : undefined
   };
-  
-  console.log('initializeAgent: Request body:', requestBody);
   
   const response = await fetch(getApiUrl('/agent/update_provider'), {
     method: 'POST',
@@ -36,8 +32,6 @@ export async function initializeAgent({ model, provider, recipeConfig, recipePar
     body: JSON.stringify(requestBody),
   });
 
-  console.log('initializeAgent: Response status:', response.status, response.statusText);
-
   if (!response.ok) {
     const errorText = await response.text();
     console.error('initializeAgent: Request failed:', errorText);
@@ -45,8 +39,5 @@ export async function initializeAgent({ model, provider, recipeConfig, recipePar
   }
 
   const result: UpdateProviderResponse = await response.json();
-  console.log('initializeAgent: Response result:', result);
-  console.log('initializeAgent: Processed recipe:', result.processed_recipe);
-  
   return result.processed_recipe;
 }

@@ -212,17 +212,6 @@ export default function App() {
           return;
         }
 
-        console.log('App: Checking recipe config for parameters...');
-        console.log('App: recipeConfig:', recipeConfig);
-        console.log('App: recipeConfig type:', typeof recipeConfig);
-        console.log('App: recipeConfig is object:', typeof recipeConfig === 'object');
-        console.log('App: has parameters property:', recipeConfig && 'parameters' in recipeConfig);
-        console.log('App: parameters value:', recipeConfig?.parameters);
-        console.log('App: parameters is array:', Array.isArray(recipeConfig?.parameters));
-        console.log('App: parameters length:', recipeConfig?.parameters?.length);
-        console.log('App: has _paramValues:', recipeConfig && '_paramValues' in recipeConfig);
-        console.log('App: _paramValues value:', (recipeConfig as any)?._paramValues);
-
         // Check if we have a recipe with parameters that need to be filled
         if (
           recipeConfig &&
@@ -240,8 +229,6 @@ export default function App() {
 
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
-        } else {
-          console.log('App: ❌ Recipe does not need parameter collection - proceeding to chat');
         }
 
         const initResult = await initializeProviderAndModel();
@@ -278,7 +265,6 @@ export default function App() {
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
-    console.log('Sending reactReady signal to Electron');
     try {
       window.electron.reactReady();
     } catch (error) {
@@ -316,14 +302,12 @@ export default function App() {
 
   // Keyboard shortcut handler
   useEffect(() => {
-    console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
           const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
-          console.log(`Creating new chat window with working dir: ${workingDir}`);
           window.electron.createChatWindow(undefined, workingDir as string);
         } catch (error) {
           console.error('Error creating new window:', error);
@@ -338,12 +322,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    console.log('Setting up fatal error handler');
     const handleFatalError = (_event: IpcRendererEvent, errorMessage: string) => {
       console.error('Encountered a fatal error: ', errorMessage);
-      // Log additional context that might help diagnose the issue
-      console.error('Current view:', view);
-      console.error('Is loading session:', isLoadingSession);
       setFatalError(errorMessage);
     };
 
@@ -354,32 +334,14 @@ export default function App() {
   }, [view, isLoadingSession]); // Add dependencies to provide context in error logs
 
   useEffect(() => {
-    console.log('Setting up view change handler');
     const handleSetView = (_event: IpcRendererEvent, newView: View) => {
-      console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
 
-    // Get initial view and config
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewFromUrl = urlParams.get('view');
-    if (viewFromUrl) {
-      // Get the config from the electron window config
-      const windowConfig = window.electron.getConfig();
-
-      if (viewFromUrl === 'recipeEditor') {
-        const initialViewOptions = {
-          recipeConfig: windowConfig?.recipeConfig,
-          view: viewFromUrl,
-        };
-        setView(viewFromUrl, initialViewOptions);
-      } else {
-        setView(viewFromUrl);
-      }
-    }
-
     window.electron.on('set-view', handleSetView);
-    return () => window.electron.off('set-view', handleSetView);
+    return () => {
+      window.electron.off('set-view', handleSetView);
+    };
   }, []);
 
   // Add cleanup for session states when view changes

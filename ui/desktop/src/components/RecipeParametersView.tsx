@@ -24,23 +24,14 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
 
   const handleSubmit = async (paramValues: Record<string, string>) => {
     if (config) {
-      // Log the collected parameter values
-      console.log('RecipeParametersView: Recipe parameters collected:', paramValues);
-      console.log('RecipeParametersView: Original config:', config);
-      console.log('RecipeParametersView: Original prompt:', config.prompt);
-      
       // Update the recipe config with parameter values
       const enhancedConfig = {
         ...config,
         _paramValues: paramValues
       };
       
-      // Log the enhanced config for debugging
-      console.log('RecipeParametersView: Enhanced config with _paramValues:', enhancedConfig);
-      
       // Store the enhanced config in appConfig
       window.appConfig.set('recipeConfig', enhancedConfig);
-      console.log('RecipeParametersView: Stored enhanced config in appConfig');
       
       // Re-initialize the system with the parameter values
       try {
@@ -48,20 +39,11 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
         const provider = (await read('GOOSE_PROVIDER', false)) ?? windowConfig.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? windowConfig.GOOSE_DEFAULT_MODEL;
         
-        console.log('RecipeParametersView: Using provider:', provider, 'model:', model);
-        
         if (provider && model) {
-          console.log('RecipeParametersView: Calling initializeSystem with parameters...');
           await initializeSystem(provider, model, {
             getExtensions: async (): Promise<FixedExtensionEntry[]> => [],
             addExtension: async (_name: string, _config: ExtensionConfig, _enabled: boolean): Promise<void> => {}
           });
-          console.log('RecipeParametersView: initializeSystem completed successfully');
-          
-          // Check if the config was updated by the backend
-          const updatedConfig = window.appConfig.get('recipeConfig') as Recipe;
-          console.log('RecipeParametersView: Config after initializeSystem:', updatedConfig);
-          console.log('RecipeParametersView: Prompt after initializeSystem:', updatedConfig?.prompt);
         } else {
           console.error('RecipeParametersView: Missing provider or model configuration');
         }
@@ -71,7 +53,6 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
       
       // Add a small delay to ensure the config is saved before redirecting
       setTimeout(() => {
-        console.log('RecipeParametersView: Redirecting to chat view...');
         // Redirect to chat view where the agent will use the parameterized prompt
         onClose();
       }, 100);
