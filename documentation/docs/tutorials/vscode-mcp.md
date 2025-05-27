@@ -11,7 +11,6 @@ This tutorial covers how to install and use the [Goose VS Code Extension](https:
 :::info Required Setup
 - [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher is required
 - [Goose Desktop](https://block.github.io/goose/) must be installed and running
-- Install the [VS Code Goose Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose)
 :::
 
 ## Configuration
