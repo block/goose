@@ -347,17 +347,15 @@ pub fn create_request(
 
     // Detect description generation requests and exclude tools to prevent interference
     // with normal tool execution flow
-    let is_description_request = system
-        .contains("Reply with only a description in four words or less");
+    let is_description_request =
+        system.contains("Reply with only a description in four words or less");
 
-    let tools_to_include = if is_description_request {
+    let tool_specs = if is_description_request {
         // For description generation, don't include any tools to avoid confusion
-        Vec::new()
+        format_tools(&[])
     } else {
-        tools.to_vec()
+        format_tools(tools)
     };
-
-    let tool_specs = format_tools(&tools_to_include);
 
     let max_tokens = model_config.max_tokens.unwrap_or(4096);
     let mut payload = json!({

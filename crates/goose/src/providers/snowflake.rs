@@ -64,10 +64,10 @@ impl SnowflakeProvider {
         }
 
         let mut host = host?;
-        
+
         // Convert host to lowercase
         host = host.to_lowercase();
-        
+
         // Ensure host ends with snowflakecomputing.com
         if !host.ends_with("snowflakecomputing.com") {
             host = format!("{}.snowflakecomputing.com", host);
@@ -214,17 +214,22 @@ impl SnowflakeProvider {
                                 {
                                     tool_use_id.push_str(tool_id);
                                 }
-                                if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                if let Some(name) =
+                                    content_item.get("name").and_then(|n| n.as_str())
+                                {
                                     tool_name.push_str(name);
                                 }
-                                if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
+                                if let Some(input) =
+                                    content_item.get("input").and_then(|i| i.as_str())
                                 {
                                     tool_input.push_str(input);
                                 }
                             }
                             _ => {
                                 // Handle content items without explicit type but with tool information
-                                if let Some(name) = content_item.get("name").and_then(|n| n.as_str()) {
+                                if let Some(name) =
+                                    content_item.get("name").and_then(|n| n.as_str())
+                                {
                                     tool_name.push_str(name);
                                 }
                                 if let Some(tool_id) =
@@ -232,7 +237,8 @@ impl SnowflakeProvider {
                                 {
                                     tool_use_id.push_str(tool_id);
                                 }
-                                if let Some(input) = content_item.get("input").and_then(|i| i.as_str())
+                                if let Some(input) =
+                                    content_item.get("input").and_then(|i| i.as_str())
                                 {
                                     tool_input.push_str(input);
                                 }
