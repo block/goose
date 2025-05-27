@@ -67,17 +67,16 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
   };
 
   const handleCancel = async () => {
-    // When user confirms cancellation, set up the recipe config without parameter values
-    // This will use the raw template with {{param}} placeholders
+    // When user confirms cancellation, create a recipe config without parameters
+    // This makes it behave exactly like a recipe that never had parameters
     if (config) {
-      // Store the config with a special flag to indicate we're skipping parameters
-      const configWithSkipFlag = {
-        ...config,
-        _skipParameters: true,
-      };
-      window.appConfig.set('recipeConfig', configWithSkipFlag);
+      // Create a new config without the parameters field
+      const { parameters: _parameters, ...configWithoutParams } = config;
 
-      // Re-initialize the system to start the chat
+      // Store the config without parameters in appConfig
+      window.appConfig.set('recipeConfig', configWithoutParams);
+
+      // Re-initialize the system to start the chat (same flow as recipes without parameters)
       try {
         const windowConfig = window.electron.getConfig();
         const provider =

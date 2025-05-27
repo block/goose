@@ -296,8 +296,11 @@ function ChatContent({
     // This is because the recipe config and parameters are available before full app initialization
     const hasParameterValues =
       recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
-    const skipParameters = recipeConfig?._skipParameters === true;
-    const shouldProceed = readyForAutoUserPrompt || hasParameterValues || skipParameters;
+
+    // Also allow recipes that have no parameters field at all (including when we remove parameters during cancellation)
+    const hasNoParameters = recipeConfig && !recipeConfig.parameters;
+
+    const shouldProceed = readyForAutoUserPrompt || hasParameterValues || hasNoParameters;
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {
       // Start the power save blocker to keep session active
@@ -308,14 +311,7 @@ function ChatContent({
       append(prompt);
       hasSentPromptRef.current = true;
     }
-  }, [
-    recipeConfig?.prompt,
-    recipeConfig?._paramValues,
-    recipeConfig?._skipParameters,
-    append,
-    setLastInteractionTime,
-    readyForAutoUserPrompt,
-  ]);
+  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
