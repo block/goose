@@ -101,7 +101,8 @@ impl EmbeddingProvider {
             )
         };
 
-        let model = env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
+        let model =
+            env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
         let log_msg = format!("Using base_url: {}, model: {}", base_url, model);
         eprintln!("{}", log_msg);
