@@ -757,46 +757,6 @@ ipcMain.handle('get-allowed-extensions', async () => {
   }
 });
 
-// IPC handlers for schedule operations
-ipcMain.handle('schedule:sessions', async (_event, scheduleId: string, limit?: number) => {
-  const port = appConfig.GOOSE_PORT;
-  if (!port) {
-    console.error('Goose server port not available for schedule:sessions');
-    throw new Error('Goose server port not configured');
-  }
-  const url = `http://127.0.0.1:${port}/schedule/${scheduleId}/sessions${limit ? `?limit=${limit}` : ''}`;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error in schedule:sessions IPC handler:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('schedule:runNow', async (_event, scheduleId: string) => {
-  const port = appConfig.GOOSE_PORT;
-  if (!port) {
-    console.error('Goose server port not available for schedule:runNow');
-    throw new Error('Goose server port not configured');
-  }
-  const url = `http://127.0.0.1:${port}/schedule/${scheduleId}/run_now`;
-  try {
-    const response = await fetch(url, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`Failed to run schedule now: ${response.status} ${response.statusText}`);
-    }
-    const respJson = await response.json();
-    return respJson.session_id; // Assuming the server returns { session_id: "..." }
-  } catch (error) {
-    console.error('Error in schedule:runNow IPC handler:', error);
-    throw error;
-  }
-});
-
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);

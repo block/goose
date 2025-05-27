@@ -5,6 +5,7 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
+import { getScheduleSessions, runScheduleNow } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { toastError, toastSuccess } from '../../toasts';
 
@@ -43,8 +44,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
-      const fetchedSessions = (await window.schedule.sessions(sId, 20)) as ScheduleSessionMeta[];
-      setSessions(fetchedSessions);
+      const fetchedSessions = await getScheduleSessions(sId, 20); // MODIFIED
+      // Assuming ScheduleSession from ../../schedule can be cast or mapped to ScheduleSessionMeta
+      // You may need to transform/map fields if they differ significantly
+      setSessions(fetchedSessions as ScheduleSessionMeta[]);
     } catch (err) {
       console.error('Failed to fetch schedule sessions:', err);
       setSessionsError(err instanceof Error ? err.message : 'Failed to fetch schedule sessions');
@@ -68,7 +71,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     if (!scheduleId) return;
     setRunNowLoading(true);
     try {
-      const newSessionId = await window.schedule.runNow(scheduleId);
+      const newSessionId = await runScheduleNow(scheduleId); // MODIFIED
       toastSuccess({
         title: 'Schedule Triggered',
         msg: `Successfully triggered schedule. New session ID: ${newSessionId}`,
