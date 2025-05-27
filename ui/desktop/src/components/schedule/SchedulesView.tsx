@@ -6,7 +6,7 @@ import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import Plus from '../ui/Plus';
+import { Plus } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import cronstrue from 'cronstrue';
