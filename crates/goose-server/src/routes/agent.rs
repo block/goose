@@ -205,14 +205,11 @@ async fn update_agent_provider(
     if let Some(recipe_with_params) = payload.recipe_config {
         let mut recipe = recipe_with_params.config;
         
-        // Only process if we have parameters
         if !recipe_with_params.parameters.is_empty() {
-            // Apply parameter substitution to recipe
-            apply_parameters(&mut recipe, &recipe_with_params.parameters)
+            apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters)
                 .map_err(|_| StatusCode::BAD_REQUEST)?;
         }
         
-        // Apply recipe to agent (set instructions, etc.)
         if let Some(instructions) = recipe.instructions.clone() {
             agent.extend_system_prompt(instructions).await;
         }
@@ -234,8 +231,7 @@ async fn update_agent_provider(
     Ok(StatusCode::OK)
 }
 
-// Helper function to apply parameters to a recipe
-fn apply_parameters(recipe: &mut goose::recipe::Recipe, params: &HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
+fn apply_recipe_parameters(recipe: &mut goose::recipe::Recipe, params: &HashMap<String, String>) -> Result<(), Box<dyn std::error::Error>> {
     // Helper function to apply template substitution
     fn replace_template_vars(text: &str, params: &HashMap<String, String>) -> String {
         let mut result = text.to_string();
