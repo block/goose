@@ -402,7 +402,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 </button>
               </div>
               <div
-                className={`text-sm truncate font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
+                className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
                 title={
                   !title.trim() || !description.trim()
                     ? 'Fill in required fields to generate link'
