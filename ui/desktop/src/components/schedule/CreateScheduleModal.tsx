@@ -428,7 +428,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             form="new-schedule-form"
             variant="default"
             disabled={isLoadingExternally}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg hover:dark:text-black dark:text-white dark:border-gray-600 font-regular"
+            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg dark:text-white dark:border-gray-600 font-regular"
           >
             {isLoadingExternally ? 'Creating...' : 'Create Schedule'}
           </Button>
