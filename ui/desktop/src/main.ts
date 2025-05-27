@@ -40,7 +40,38 @@ const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
 // Function to ensure the temporary directory exists
 async function ensureTempDirExists(): Promise<string> {
   try {
-    await fs.mkdir(gooseTempDir, { recursive: true });
+    // Check if the path already exists
+    try {
+      const stats = await fs.stat(gooseTempDir);
+
+      // If it exists but is not a directory, remove it and recreate
+      if (!stats.isDirectory()) {
+        await fs.unlink(gooseTempDir);
+        await fs.mkdir(gooseTempDir, { recursive: true });
+      }
+
+      // Check for any symlinks in the directory and remove them
+      const files = await fs.readdir(gooseTempDir);
+      for (const file of files) {
+        const filePath = path.join(gooseTempDir, file);
+        const fileStats = await fs.lstat(filePath);
+        if (fileStats.isSymbolicLink()) {
+          console.warn(`[Main] Found symlink in temp directory: ${filePath}. Removing it.`);
+          await fs.unlink(filePath);
+        }
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Directory doesn't exist, create it
+        await fs.mkdir(gooseTempDir, { recursive: true });
+      } else {
+        throw error;
+      }
+    }
+
+    // Set proper permissions on the directory (0755 = rwxr-xr-x)
+    await fs.chmod(gooseTempDir, 0o755);
+
     console.log('[Main] Temporary directory for pasted images ensured:', gooseTempDir);
   } catch (error) {
     console.error('[Main] Failed to create temp directory:', gooseTempDir, error);
@@ -657,21 +688,55 @@ ipcMain.handle('select-file-or-directory', async () => {
 ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
   try {
-    const tempDir = await ensureTempDirExists(); // Ensure temp dir exists before saving
-    const matches = dataUrl.match(/^data:(image\/(.+));base64,(.*)$/);
+    // Input validation for uniqueId - only allow alphanumeric characters and hyphens
+    if (!uniqueId || !/^[a-zA-Z0-9-]+$/.test(uniqueId) || uniqueId.length > 50) {
+      console.error('[Main] Invalid uniqueId format received.');
+      return { id: uniqueId, error: 'Invalid uniqueId format' };
+    }
+
+    // Input validation for dataUrl
+    if (!dataUrl || typeof dataUrl !== 'string' || dataUrl.length > 10 * 1024 * 1024) {
+      // 10MB limit
+      console.error('[Main] Invalid or too large data URL received.');
+      return { id: uniqueId, error: 'Invalid or too large data URL' };
+    }
+
+    const tempDir = await ensureTempDirExists();
+    const matches = dataUrl.match(/^data:(image\/(png|jpeg|jpg|gif|webp));base64,(.*)$/);
 
     if (!matches || matches.length < 4) {
       console.error('[Main] Invalid data URL format received.');
-      return { id: uniqueId, error: 'Invalid data URL format' };
+      return { id: uniqueId, error: 'Invalid data URL format or unsupported image type' };
     }
 
     const imageExtension = matches[2]; // e.g., "png", "jpeg"
     const base64Data = matches[3];
+
+    // Validate base64 data
+    if (!base64Data || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+      console.error('[Main] Invalid base64 data received.');
+      return { id: uniqueId, error: 'Invalid base64 data' };
+    }
+
     const buffer = Buffer.from(base64Data, 'base64');
+
+    // Validate image size (max 5MB)
+    if (buffer.length > 5 * 1024 * 1024) {
+      console.error('[Main] Image too large.');
+      return { id: uniqueId, error: 'Image too large (max 5MB)' };
+    }
 
     const randomString = crypto.randomBytes(8).toString('hex');
     const fileName = `pasted-${uniqueId}-${randomString}.${imageExtension}`;
     const filePath = path.join(tempDir, fileName);
+
+    // Ensure the resolved path is still within the temp directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedTempDir = path.resolve(tempDir);
+    if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+      console.error('[Main] Attempted path traversal detected.');
+      return { id: uniqueId, error: 'Invalid file path' };
+    }
 
     await fs.writeFile(filePath, buffer);
     console.log(`[Main] Saved image for ID ${uniqueId} to: ${filePath}`);
@@ -685,13 +750,30 @@ ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId:
 // IPC handler to delete a temporary file
 ipcMain.on('delete-temp-file', async (event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
-  if (!filePath || !filePath.startsWith(gooseTempDir)) {
-    console.warn(
-      `[Main] Attempted to delete file outside designated temp directory or invalid path: ${filePath}`
-    );
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for deletion');
     return;
   }
+
+  // Ensure the path is within the designated temp directory
+  const resolvedPath = path.resolve(filePath);
+  const resolvedTempDir = path.resolve(gooseTempDir);
+
+  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+    console.warn(`[Main] Attempted to delete file outside designated temp directory: ${filePath}`);
+    return;
+  }
+
   try {
+    // Check if it's a regular file, not a symlink
+    const stats = await fs.lstat(filePath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to delete: ${filePath}`);
+      return;
+    }
+
     await fs.unlink(filePath);
     console.log(`[Main] Deleted temp file: ${filePath}`);
   } catch (error) {
@@ -1352,16 +1434,46 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
-  // MODIFIED: Added async
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
 
-  // NEW: Clean up the temp directory on app quit
+  // Clean up the temp directory on app quit
   console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
   try {
     await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
-    await fs.rm(gooseTempDir, { recursive: true, force: true });
-    console.log('[Main] Pasted images temp directory cleaned up successfully.');
+
+    // First, check for any symlinks in the directory and refuse to delete them
+    let hasSymlinks = false;
+    try {
+      const files = await fs.readdir(gooseTempDir);
+      for (const file of files) {
+        const filePath = path.join(gooseTempDir, file);
+        const stats = await fs.lstat(filePath);
+        if (stats.isSymbolicLink()) {
+          console.warn(`[Main] Found symlink in temp directory: ${filePath}. Skipping deletion.`);
+          hasSymlinks = true;
+          // Delete the individual file but leave the symlink
+          continue;
+        }
+
+        // Delete regular files individually
+        if (stats.isFile()) {
+          await fs.unlink(filePath);
+        }
+      }
+
+      // If no symlinks were found, it's safe to remove the directory
+      if (!hasSymlinks) {
+        await fs.rm(gooseTempDir, { recursive: true, force: true });
+        console.log('[Main] Pasted images temp directory cleaned up successfully.');
+      } else {
+        console.log(
+          '[Main] Cleaned up files in temp directory but left directory intact due to symlinks.'
+        );
+      }
+    } catch (err) {
+      console.error('[Main] Error while cleaning up temp directory contents:', err);
+    }
   } catch (error) {
     if (error.code === 'ENOENT') {
       console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');

@@ -131,11 +131,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.emit(channel, ...args);
   },
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
-    console.log(`[Preload] Invoking "save-data-url-to-temp" for ID: ${uniqueId}`);
     return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
   },
   deleteTempFile: (filePath: string): void => {
-    console.log(`[Preload] Sending "delete-temp-file" for path: ${filePath}`);
     ipcRenderer.send('delete-temp-file', filePath);
   },
 };
@@ -145,15 +143,9 @@ const appConfigAPI: AppConfigAPI = {
   getAll: () => config,
 };
 
-console.log('[Preload] Script executing.');
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
 contextBridge.exposeInMainWorld('appConfig', appConfigAPI);
-console.log('[Preload] Successfully exposed "electron" object to window.');
-console.log(
-  '[Preload] Available functions on window.electron:',
-  Object.keys(window.electron || {})
-);
 
 // Type declaration for TypeScript
 declare global {

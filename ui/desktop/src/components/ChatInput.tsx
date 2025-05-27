@@ -2,25 +2,11 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send, Close } from './icons'; // Replaced XCircle with Close, removed AlertTriangle
+import { Attach, Send, Close } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
-
-// Define the electron API exposed in preload (ensure your preload script matches this)
-declare global {
-  interface Window {
-    electron: {
-      saveDataUrlToTemp: (
-        dataUrl: string,
-        uniqueId: string
-      ) => Promise<{ id: string; filePath?: string; error?: string }>;
-      deleteTempFile: (filePath: string) => void;
-      selectFileOrDirectory: () => Promise<string | null>;
-    };
-  }
-}
 
 interface PastedImage {
   id: string;
@@ -188,21 +174,13 @@ export default function ChatInput({
     return () => {
       debouncedSetValue.cancel?.();
       debouncedAutosize.cancel?.();
-      // Cleanup any remaining temp files if component unmounts unexpectedly
-      // This is a fallback; primary cleanup is on remove/submit or app quit
-      pastedImages.forEach((img) => {
-        if (img.filePath) {
-          // window.electron.deleteTempFile(img.filePath); // Be cautious with this on HMR
-        }
-      });
     };
-  }, [debouncedSetValue, debouncedAutosize, pastedImages]);
+  }, [debouncedSetValue, debouncedAutosize]);
 
   const handleCompositionStart = () => setIsComposing(true);
   const handleCompositionEnd = () => setIsComposing(false);
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // ... (history navigation logic remains the same)
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
@@ -265,22 +243,16 @@ export default function ChatInput({
     }
 
     if (textToSend) {
-      // Only submit if there's some content
-      // Log original displayValue to history if it had text,
-      // otherwise log the paths if only images were present.
       if (displayValue.trim()) {
         LocalMessageStorage.addMessage(displayValue);
       } else if (validPastedImageFilesPaths.length > 0) {
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
-      // Send ONLY the combined text string in detail.value
       handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }));
 
       setDisplayValue('');
       setValue('');
-      // Decide on temp file cleanup strategy. For now, rely on explicit removal or app quit.
-      // pastedImages.filter(img => img.filePath).forEach(img => window.electron.deleteTempFile(img.filePath!));
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
