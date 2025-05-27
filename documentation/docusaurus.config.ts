@@ -160,8 +160,8 @@ const config: Config = {
               label: 'Prompt Library',
             },
             {
-              href: 'https://block.github.io/goose/install-link-generator/',
-              label: 'Install Link Generator',
+              to: 'deeplink-generator',
+              label: 'Deeplink Generator',
             },
           ],
         },
