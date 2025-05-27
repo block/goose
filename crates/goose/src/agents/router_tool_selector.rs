@@ -173,7 +173,7 @@ pub async fn create_tool_selector(
             let selector = VectorToolSelector::new(provider).await?;
             Ok(Box::new(selector))
         }
-        _ => {
+        None => {
             let selector = VectorToolSelector::new(provider).await?;
             Ok(Box::new(selector))
         }

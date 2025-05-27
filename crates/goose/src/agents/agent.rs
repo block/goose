@@ -665,17 +665,17 @@ impl Agent {
     }
 
     async fn update_router_tool_selector(&self, provider: Arc<dyn Provider>) -> Result<()> {
-        let router_tool_selection_strategy = std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .ok()
-            .and_then(|s| {
-                if s.eq_ignore_ascii_case("vector") {
-                    Some(RouterToolSelectionStrategy::Vector)
-                } else {
-                    None
-                }
-            });
+        let config = Config::global();
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
 
-        if let Some(strategy) = router_tool_selection_strategy {
+        let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
+            "vector" => Some(RouterToolSelectionStrategy::Vector),
+            _ => None,
+        };
+
+        if let Some(strategy) = strategy {
             let selector = create_tool_selector(Some(strategy), provider)
                 .await
                 .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
@@ -763,9 +763,12 @@ impl Agent {
         reindex_all: bool,
     ) -> Result<()> {
         // Only proceed if vector strategy is enabled
-        let is_vector_enabled = std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .map(|s| s.eq_ignore_ascii_case("vector"))
-            .unwrap_or(false);
+        let config = Config::global();
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
+
+        let is_vector_enabled = router_tool_selection_strategy.eq_ignore_ascii_case("vector");
 
         if !is_vector_enabled {
             return Ok(());
