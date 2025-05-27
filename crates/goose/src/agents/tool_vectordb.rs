@@ -238,7 +238,7 @@ impl ToolVectorDB {
     pub async fn search_tools(
         &self,
         query_vector: Vec<f32>,
-        limit: usize,
+        k: usize,
     ) -> Result<Vec<ToolRecord>> {
         let connection = self.connection.read().await;
 
@@ -251,7 +251,7 @@ impl ToolVectorDB {
         let results = table
             .vector_search(query_vector)
             .context("Failed to create vector search")?
-            .limit(limit)
+            .limit(k)
             .execute()
             .await
             .context("Failed to execute vector search")?;

@@ -60,7 +60,7 @@ impl RouterToolSelector for VectorToolSelector {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".to_string()))?;
 
-        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+        let k = params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
 
         // Generate embedding for the query
         let query_embedding = self
@@ -74,7 +74,7 @@ impl RouterToolSelector for VectorToolSelector {
         // Search for similar tools
         let vector_db = self.vector_db.read().await;
         let tools = vector_db
-            .search_tools(query_embedding, limit)
+            .search_tools(query_embedding, k)
             .await
             .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 
