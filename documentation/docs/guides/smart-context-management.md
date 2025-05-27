@@ -58,10 +58,33 @@ You can proactively summarize your conversation before reaching context limits:
 
 The CLI offers three context management options: summarize, truncate, or clear your session.
 
+### Default Context Strategy
+
+You can configure Goose to automatically handle context limits without prompting by setting the `GOOSE_CONTEXT_STRATEGY` environment variable:
+
+```bash
+# Set default strategy (choose one)
+export GOOSE_CONTEXT_STRATEGY=summarize  # Automatically summarize (recommended)
+export GOOSE_CONTEXT_STRATEGY=truncate   # Automatically remove oldest messages
+export GOOSE_CONTEXT_STRATEGY=clear      # Automatically clear session
+export GOOSE_CONTEXT_STRATEGY=prompt     # Always prompt user (default)
+```
+
+Or configure it permanently:
+```bash
+goose configure set GOOSE_CONTEXT_STRATEGY summarize
+```
+
+**Default behavior:**
+- **Interactive mode**: Prompts user to choose (equivalent to `prompt`)
+- **Headless mode** (`goose run`): Automatically summarizes (equivalent to `summarize`)
+
 <Tabs>
   <TabItem value="automatic" label="Automatic" default>
 
-When you hit the context limit, you'll see this prompt to choose a management option, allowing you to continue your session:
+When you hit the context limit, the behavior depends on your configuration:
+
+**With default settings (no `GOOSE_CONTEXT_STRATEGY` set)**, you'll see this prompt to choose a management option:
 
 ```sh
 ◇  The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?
@@ -76,6 +99,24 @@ final_summary: [A summary of your conversation will appear here]
 Context maxed out
 --------------------------------------------------
 Goose summarized messages for you.
+```
+
+**With `GOOSE_CONTEXT_STRATEGY` configured**, Goose will automatically apply your chosen strategy:
+
+```sh
+# Example with GOOSE_CONTEXT_STRATEGY=summarize
+Context maxed out - automatically summarized messages.
+--------------------------------------------------
+Goose automatically summarized messages for you.
+
+# Example with GOOSE_CONTEXT_STRATEGY=truncate
+Context maxed out - automatically truncated messages.
+--------------------------------------------------
+Goose tried its best to truncate messages for you.
+
+# Example with GOOSE_CONTEXT_STRATEGY=clear
+Context maxed out - automatically cleared session.
+--------------------------------------------------
 ```
 
   </TabItem>

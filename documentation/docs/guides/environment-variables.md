@@ -62,6 +62,24 @@ export GOOSE_PLANNER_PROVIDER="openai"
 export GOOSE_PLANNER_MODEL="gpt-4"
 ```
 
+## Session Management
+
+These variables control how Goose manages conversation sessions and context.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
+
+**Examples**
+
+```bash
+# Automatically summarize when context limit is reached
+export GOOSE_CONTEXT_STRATEGY=summarize
+
+# Always prompt user to choose (default for interactive mode)
+export GOOSE_CONTEXT_STRATEGY=prompt
+```
+
 ## Tool Configuration
 
 These variables control how Goose handles [tool permissions](/docs/guides/tool-permissions) and their execution.
