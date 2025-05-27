@@ -355,9 +355,7 @@ pub fn create_request(
     // Detect description generation requests and exclude tools to prevent interference
     // with normal tool execution flow
     let is_description_request = system
-        .contains("Reply with only a description in four words or less")
-        || system.contains("description in four words or less")
-        || system.contains("description in 4 words or less");
+        .contains("Reply with only a description in four words or less");
 
     let tools_to_include = if is_description_request {
         // For description generation, don't include any tools to avoid confusion
