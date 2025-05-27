@@ -747,7 +747,55 @@ ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId:
   }
 });
 
-// IPC handler to delete a temporary file
+// IPC handler to serve temporary image files
+ipcMain.handle('get-temp-image', async (event, filePath: string) => {
+  console.log(`[Main] Received get-temp-image for path: ${filePath}`);
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for image serving');
+    return null;
+  }
+
+  // Ensure the path is within the designated temp directory
+  const resolvedPath = path.resolve(filePath);
+  const resolvedTempDir = path.resolve(gooseTempDir);
+
+  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+    console.warn(`[Main] Attempted to access file outside designated temp directory: ${filePath}`);
+    return null;
+  }
+
+  try {
+    // Check if it's a regular file, not a symlink
+    const stats = await fs.lstat(filePath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to serve: ${filePath}`);
+      return null;
+    }
+
+    // Read the file and return as base64 data URL
+    const fileBuffer = await fs.readFile(filePath);
+    const fileExtension = path.extname(filePath).toLowerCase().substring(1);
+
+    // Validate file extension
+    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+    if (!allowedExtensions.includes(fileExtension)) {
+      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
+      return null;
+    }
+
+    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
+    const base64Data = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    console.log(`[Main] Served temp image: ${filePath}`);
+    return dataUrl;
+  } catch (error) {
+    console.error(`[Main] Failed to serve temp image: ${filePath}`, error);
+    return null;
+  }
+});
 ipcMain.on('delete-temp-file', async (event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
