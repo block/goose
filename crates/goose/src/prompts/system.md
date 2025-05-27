@@ -36,6 +36,8 @@ No extensions are defined. You should let the user know that they should add ext
 {{suggest_disable}}
 {% endif %}
 
+{{tool_selection_strategy}}
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.
