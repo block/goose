@@ -48,7 +48,7 @@ export async function createSchedule(request: {
   cron: string;
 }): Promise<ScheduledJob> {
   try {
-    const response = await apiCreateSchedule<true>({ data: request });
+    const response = await apiCreateSchedule<true>({ body: request });
     if (response && response.data) {
       return response.data as ScheduledJob;
     }
@@ -62,7 +62,7 @@ export async function createSchedule(request: {
 
 export async function deleteSchedule(id: string): Promise<void> {
   try {
-    await apiDeleteSchedule<true>({ path: { schedule_id: id } });
+    await apiDeleteSchedule<true>({ path: { id } });
   } catch (error) {
     console.error(`Error deleting schedule ${id}:`, error);
     throw error;
