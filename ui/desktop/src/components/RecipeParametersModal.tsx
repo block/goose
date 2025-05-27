@@ -4,7 +4,6 @@ import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from './ui/
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
-import ReactSelect from 'react-select';
 
 interface RecipeParametersModalProps {
   isOpen: boolean;
@@ -27,13 +26,21 @@ export function RecipeParametersModal({
     if (recipeConfig?.parameters) {
       const initialValues: Record<string, string> = {};
       recipeConfig.parameters.forEach((param) => {
-        if (param.default) {
+        if (param.input_type === 'boolean') {
+          // For boolean parameters, always set a default value
+          initialValues[param.key] = param.default || 'false';
+        } else if (param.default) {
           initialValues[param.key] = param.default;
         }
       });
       setParamValues(initialValues);
     }
   }, [recipeConfig]);
+
+  const getBooleanValue = (param: RecipeParameter) => {
+    const currentValue = paramValues[param.key] ?? param.default ?? 'false';
+    return currentValue === 'true' ? 'true' : 'false';
+  };
 
   const handleInputChange = (key: string, value: string) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
@@ -81,22 +88,14 @@ export function RecipeParametersModal({
                 </Label>
 
                 {param.input_type === 'boolean' ? (
-                  <ReactSelect
+                  <input
                     id={param.key}
-                    value={
-                      paramValues[param.key] === 'true'
-                        ? { value: 'true', label: 'Yes' }
-                        : { value: 'false', label: 'No' }
+                    type="checkbox"
+                    checked={getBooleanValue(param) === 'true'}
+                    onChange={(e) =>
+                      handleInputChange(param.key, e.target.checked ? 'true' : 'false')
                     }
-                    onChange={(option: { value: string; label: string } | null) =>
-                      option && handleInputChange(param.key, option.value)
-                    }
-                    options={[
-                      { value: 'true', label: 'Yes' },
-                      { value: 'false', label: 'No' },
-                    ]}
-                    className="react-select-container"
-                    classNamePrefix="react-select"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 ) : param.input_type === 'number' ? (
                   <Input
