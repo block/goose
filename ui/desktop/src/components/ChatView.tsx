@@ -174,7 +174,6 @@ function ChatContent({
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
-      console.log('Message stream finished successfully');
       window.electron.stopPowerSaveBlocker();
 
       setTimeout(() => {

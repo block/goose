@@ -211,14 +211,11 @@ export default function App() {
           recipeConfig.parameters.length > 0 &&
           !('_paramValues' in recipeConfig)
         ) {
-          console.log('Recipe has parameters, showing parameter collection view');
-
           const initResult = await initializeProviderAndModel();
           if (!initResult) {
             return;
           }
 
-          console.log('System initialized for recipe with parameters');
           setView('recipeParameters', { config: recipeConfig as Recipe });
           return;
         }
