@@ -114,10 +114,6 @@ async function handleProtocolUrl(url: string) {
     if (configParam) {
       try {
         recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        
-        // Check if recipe has parameters that need values
-        // We don't show a separate parameters window anymore, this is handled in the React app
-        // Just create a chat window with the recipe config
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -164,10 +160,6 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     if (configParam) {
       try {
         recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        
-        // Check if recipe has parameters that need values
-        // We don't show a separate parameters window anymore, this is handled in the React app
-        // Just create a chat window with the recipe config
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -191,7 +183,7 @@ app.on('open-url', async (event, url) => {
       if (configParam) {
         try {
           recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-          
+
           // Check if recipe has parameters that need values
           // We don't show a separate parameters window anymore, this is handled in the React app
           // Just create a chat window with the recipe config
@@ -468,16 +460,16 @@ const createChat = async (
   }
 
   // Check if this is a recipe with parameters that need filling
-  if (recipeConfig && 
-      typeof recipeConfig === 'object' && 
-      'parameters' in recipeConfig && 
-      Array.isArray(recipeConfig.parameters) &&
-      recipeConfig.parameters.length > 0 && 
-      !('_paramValues' in recipeConfig)) {
+  if (
+    recipeConfig &&
+    typeof recipeConfig === 'object' &&
+    'parameters' in recipeConfig &&
+    Array.isArray(recipeConfig.parameters) &&
+    recipeConfig.parameters.length > 0 &&
+    !('_paramValues' in recipeConfig)
+  ) {
     // Set the view to recipeParameters by default
-    queryParams = queryParams
-      ? `${queryParams}&view=recipeParameters`
-      : `?view=recipeParameters`;
+    queryParams = queryParams ? `${queryParams}&view=recipeParameters` : `?view=recipeParameters`;
   }
 
   const primaryDisplay = electron.screen.getPrimaryDisplay();

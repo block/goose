@@ -175,9 +175,6 @@ function ChatContent({
       window.electron.logInfo('Message stream error: ' + error.message);
       window.electron.stopPowerSaveBlocker();
     },
-    onResponse: (response) => {
-      console.log('Message stream response received:', response.status, response.statusText);
-    },
   });
 
   // Wrap append to store messages in global history
