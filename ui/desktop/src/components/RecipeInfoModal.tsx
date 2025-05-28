@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 
@@ -17,11 +17,15 @@ export default function RecipeInfoModal({
   onSaveValue = () => {},
 }: RecipeInfoModalProps) {
   const [value, setValue] = useState(originalValue);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       setValue(originalValue);
+      textareaRef.current?.focus();
     }
   }, [isOpen, originalValue]);
+
   const onSave = (event: React.FormEvent) => {
     onSaveValue(value);
     event.preventDefault();
@@ -36,6 +40,7 @@ export default function RecipeInfoModal({
         </div>
         <div className="flex flex-col flex-grow overflow-y-auto space-y-8">
           <textarea
+            ref={textareaRef}
             className="w-full flex-grow resize-none min-h-[300px] max-h-[calc(100vh-300px)] border border-borderSubtle rounded-lg p-3 text-textStandard focus:outline-none focus:ring-2 focus:border-borderSubtle"
             value={value}
             onChange={(e) => setValue(e.target.value)}

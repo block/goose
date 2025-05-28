@@ -18,17 +18,17 @@ export default function RecipeExpandableInfo({
   const [isClamped, setIsClamped] = useState(false);
   // eslint-disable-next-line no-undef
   const contentRef = useRef<HTMLParagraphElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = contentRef.current;
+    const el = measureRef.current;
     if (el) {
-      if (!isValueExpanded) {
-        setIsClamped(el.scrollHeight > el.clientHeight);
-      } else {
-        setIsClamped(true);
-      }
+      const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight || '0');
+      const maxHeight = lineHeight * 3;
+      const actualHeight = el.scrollHeight;
+      setIsClamped(actualHeight > maxHeight);
     }
-  }, [infoValue, isValueExpanded]);
+  }, [infoValue]);
 
   return (
     <>
@@ -36,24 +36,21 @@ export default function RecipeExpandableInfo({
         <label className="block text-md text-textProminent font-bold">
           {infoLabel} {required && <span className="text-red-500">*</span>}
         </label>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            setValueExpanded(true);
-            onClickEdit();
-          }}
-          className="w-36 px-3 py-1.5 bg-bgAppInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
-        >
-          {infoValue ? 'Edit' : 'Add'} {infoLabel.toLowerCase()}
-        </button>
       </div>
 
-      <div className="relative border rounded-lg bg-white p-3 text-textStandard">
+      <div className="relative rounded-lg bg-white text-textStandard">
         {!infoValue ? (
-          <p className="text-gray-500">No {infoLabel.toLowerCase()} provided.</p>
+          <p className="text-gray-500 mb-4">No {infoLabel.toLowerCase()} provided.</p>
         ) : (
           <>
+            <div
+              ref={measureRef}
+              className="invisible absolute whitespace-pre-wrap w-full pointer-events-none"
+              style={{ position: 'absolute', top: '-9999px' }}
+            >
+              {infoValue}
+            </div>
+
             <p
               ref={contentRef}
               className={`whitespace-pre-wrap transition-all duration-300 ${
@@ -62,28 +59,38 @@ export default function RecipeExpandableInfo({
             >
               {infoValue}
             </p>
-
-            {/* Toggle button */}
-            {isClamped && (
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setValueExpanded(!isValueExpanded)}
-                  aria-label={isValueExpanded ? 'Collapse content' : 'Expand content'}
-                  title={isValueExpanded ? 'Collapse' : 'Expand'}
-                  className="text-black hover:text-blue-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
-                >
-                  <ChevronDown
-                    className={`w-6 h-6 transition-transform duration-300 ${
-                      isValueExpanded ? 'rotate-180' : ''
-                    }`}
-                    strokeWidth={2.5}
-                  />
-                </button>
-              </div>
-            )}
           </>
         )}
+        <div className="mt-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setValueExpanded(true);
+              onClickEdit();
+            }}
+            className="w-36 px-3 py-1.5 bg-bgAppInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+          >
+            {infoValue ? 'Edit' : 'Add'} {infoLabel.toLowerCase()}
+          </button>
+
+          {infoValue && isClamped && (
+            <button
+              type="button"
+              onClick={() => setValueExpanded(!isValueExpanded)}
+              aria-label={isValueExpanded ? 'Collapse content' : 'Expand content'}
+              title={isValueExpanded ? 'Collapse' : 'Expand'}
+              className="text-black hover:text-blue-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
+            >
+              <ChevronDown
+                className={`w-6 h-6 transition-transform duration-300 ${
+                  isValueExpanded ? 'rotate-180' : ''
+                }`}
+                strokeWidth={2.5}
+              />
+            </button>
+          )}
+        </div>
       </div>
     </>
   );

@@ -202,7 +202,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   return (
     <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
       {activeSection === 'none' && (
-        <div className="flex flex-col items-center mb-6 px-6 pt-10">
+        <div className="flex flex-col items-center mb-2 px-6 pt-10">
           <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
             <Geese className="w-12 h-12 text-iconProminent" />
           </div>
@@ -211,9 +211,11 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         </div>
       )}
       <div className="flex-1 overflow-y-auto px-6">
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium mb-2 text-textProminent">Agent Recipe Details</h2>
+        </div>
         <div className="space-y-2 py-2">
-          <div className="pb-3">
-            <h2 className="text-lg font-medium mb-2 text-textProminent">Agent Recipe Details</h2>
+          <div className="pb-6 border-b-2 border-borderSubtle">
             <label htmlFor="title" className="block text-md text-textProminent mb-2 font-bold">
               Title <span className="text-red-500">*</span>
             </label>
@@ -233,7 +235,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             />
             {errors.title && <div className="text-red-500 text-sm mt-1">{errors.title}</div>}
           </div>
-          <div className="pb-3">
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
             <label
               htmlFor="description"
               className="block text-md text-textProminent mb-2 font-bold"
@@ -258,7 +260,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <div className="text-red-500 text-sm mt-1">{errors.description}</div>
             )}
           </div>
-          <div className="pb-3">
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
             <RecipeExpandableInfo
               infoLabel="Instructions"
               infoValue={instructions}
@@ -275,7 +277,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>
             )}
           </div>
-          <div className="pb-3">
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
             <RecipeExpandableInfo
               infoLabel="Initial Prompt"
               infoValue={prompt}
@@ -285,7 +287,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               }
             />
           </div>
-          <div className="pb-3">
+          <div className="pt-3 pb-6">
             <RecipeActivityEditor activities={activities} setActivities={setActivities} />
           </div>
 
