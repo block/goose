@@ -34,6 +34,7 @@
   "dependencies": {
     "@radix-ui/react-tooltip": "^1.2.7",
     "@tanstack/react-router": "^1.120.5",
+    "@tanstack/react-router-devtools": "^1.120.11",
     "@tanstack/router": "^0.0.1-beta.53",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
