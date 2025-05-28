@@ -94,6 +94,7 @@ export default function GooseResponseForm({
       window.electron.showNotification({
         title: 'Goose has a question for you',
         body: `Please check with Goose to approve the plan of action`,
+        type: 'taskCompletion',
       });
     }
 

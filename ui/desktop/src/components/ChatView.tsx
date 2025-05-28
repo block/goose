@@ -168,6 +168,7 @@ function ChatContent({
         window.electron.showNotification({
           title: 'Goose finished the task.',
           body: 'Click here to expand.',
+          type: 'taskCompletion',
         });
       }
     },

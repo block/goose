@@ -1,4 +1,5 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
+import type { NotificationData } from './notifications/types';
 
 interface RecipeConfig {
   id: string;
@@ -7,11 +8,6 @@ interface RecipeConfig {
   instructions?: string;
   activities?: string[];
   [key: string]: unknown;
-}
-
-interface NotificationData {
-  title: string;
-  body: string;
 }
 
 interface FileResponse {
@@ -46,6 +42,7 @@ type ElectronAPI = {
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
+  closeNotification: (uuid: string) => void;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
@@ -58,6 +55,9 @@ type ElectronAPI = {
   writeFile: (directory: string, content: string) => Promise<boolean>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  checkSystemNotifications: () => Promise<{ enabled: boolean; reason?: string }>;
+  openSystemNotificationSettings: () => void;
+  isAnyWindowFocused: () => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -104,6 +104,7 @@ const electronAPI: ElectronAPI = {
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
+  closeNotification: (uuid: string) => ipcRenderer.send('close-notification', uuid),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
@@ -117,6 +118,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('write-file', filePath, content),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
+  checkSystemNotifications: () => ipcRenderer.invoke('check-system-notifications'),
+  openSystemNotificationSettings: () => ipcRenderer.send('open-system-notification-settings'),
+  isAnyWindowFocused: () => ipcRenderer.invoke('is-any-window-focused'),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

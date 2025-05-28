@@ -11,6 +11,7 @@ import {
   Tray,
   App,
   globalShortcut,
+  MenuItemConstructorOptions,
 } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
@@ -33,6 +34,9 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+import { DarwinUtils } from './utils/darwin-utils';
+import { NotificationData } from './notifications/types';
+import { NotificationManager } from './notifications/NotificationManager';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -130,7 +134,7 @@ if (process.platform === 'win32') {
         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
           app.whenReady().then(() => {
             const recentDirs = loadRecentDirs();
-            const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+            const openDir = getOpenDirFromRecentDirs(recentDirs);
 
             let recipeConfig = null;
             const configParam = parsedUrl.searchParams.get('config');
@@ -173,7 +177,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -182,7 +186,7 @@ async function handleProtocolUrl(url: string) {
 
   const parsedUrl = new URL(url);
   const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  const openDir = getOpenDirFromRecentDirs(recentDirs);
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     // For bot/recipe URLs, skip existing window processing
@@ -214,13 +218,13 @@ async function handleProtocolUrl(url: string) {
   }
 }
 
-function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
+function processProtocolUrl(parsedUrl: URL, window: BrowserWindow | null) {
   const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  const openDir = getOpenDirFromRecentDirs(recentDirs);
 
-  if (parsedUrl.hostname === 'extension') {
+  if (parsedUrl.hostname === 'extension' && window) {
     window.webContents.send('add-extension', pendingDeepLink);
-  } else if (parsedUrl.hostname === 'sessions') {
+  } else if (parsedUrl.hostname === 'sessions' && window) {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     let recipeConfig = null;
@@ -242,7 +246,7 @@ app.on('open-url', async (event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    const openDir = getOpenDirFromRecentDirs(recentDirs);
 
     // Handle bot/recipe URLs by directly creating a new window
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
@@ -607,7 +611,7 @@ const showWindow = async () => {
   if (windows.length === 0) {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    const openDir = getOpenDirFromRecentDirs(recentDirs);
     await createChat(app, undefined, openDir);
     return;
   }
@@ -637,26 +641,29 @@ const showWindow = async () => {
   });
 };
 
-const buildRecentFilesMenu = () => {
+const buildRecentFilesMenu = (): MenuItemConstructorOptions[] => {
   const recentDirs = loadRecentDirs();
   return recentDirs.map((dir) => ({
     label: dir,
     click: () => {
-      createChat(app, undefined, dir);
+      const openDir = getOpenDirFromRecentDirs(recentDirs);
+      createChat(app, undefined, openDir);
     },
   }));
 };
 
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
-  const result = await dialog.showOpenDialog({
+  const result: electron.OpenDialogReturnValue = await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, result.filePaths[0]);
-    if (replaceWindow) {
+    const recentDirs = loadRecentDirs();
+    const openDir = getOpenDirFromRecentDirs(recentDirs);
+    await createChat(app, undefined, openDir);
+    if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
   }
@@ -703,7 +710,7 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
-  const result = await dialog.showOpenDialog({
+  const result: electron.OpenDialogReturnValue = await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   });
 
@@ -1030,7 +1037,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
 
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
-  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  const openDir = dir || getOpenDirFromRecentDirs(recentDirs);
   createChat(app, undefined, openDir);
 };
 
@@ -1330,7 +1337,7 @@ app.whenReady().then(async () => {
     (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : null;
+        dir = getOpenDirFromRecentDirs(recentDirs);
       }
 
       // Log the recipeConfig for debugging
@@ -1341,37 +1348,78 @@ app.whenReady().then(async () => {
     }
   );
 
-  ipcMain.on('notify', (_event, data) => {
+  // === Notification Management ===
+  const notificationManager = new NotificationManager();
+
+  // === IPC Handlers ===
+
+  app.on('browser-window-closed', (_event: unknown, window: BrowserWindow) => {
+    notificationManager.cleanupNotifications(window.id);
+  });
+
+  ipcMain.handle('notify', async (event, data: NotificationData) => {
     try {
-      // Validate notification data
+      // Validation and sanitization (from original)
       if (!data || typeof data !== 'object') {
         console.error('Invalid notification data');
         return;
       }
-
-      // Validate title and body
       if (typeof data.title !== 'string' || typeof data.body !== 'string') {
         console.error('Invalid notification title or body');
         return;
       }
-
-      // Limit the length of title and body
       const MAX_LENGTH = 1000;
       if (data.title.length > MAX_LENGTH || data.body.length > MAX_LENGTH) {
         console.error('Notification title or body too long');
         return;
       }
-
-      // Remove any HTML tags for security
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
+      data.title = sanitizeText(data.title);
+      data.body = sanitizeText(data.body);
 
-      console.log('NOTIFY', data);
-      new Notification({
-        title: sanitizeText(data.title),
-        body: sanitizeText(data.body),
-      }).show();
+      // Use the new notification manager
+      const uuid = await notificationManager.showNotification(event as electron.IpcMainEvent, data);
+      return uuid;
     } catch (error) {
-      console.error('Error showing notification:', error);
+      console.error('[Notifications] Failed to show notification:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.on('close-notification', (_event, uuid: string) => {
+    notificationManager.closeNotification(uuid);
+  });
+
+  ipcMain.handle('check-system-notifications', async () => {
+    if (process.platform === 'darwin') {
+      try {
+        const { checkSystemPermissions } = await import('./notifications/system');
+        const permissions = await checkSystemPermissions();
+        return {
+          enabled: permissions.system,
+          reason: permissions.system ? undefined : 'app_disabled',
+        };
+      } catch (error) {
+        console.error('[Notifications] Permission check error:', error);
+        return { enabled: false, reason: 'unknown' };
+      }
+    }
+
+    try {
+      new Notification({ title: 'Test', body: 'Test' });
+      return { enabled: true };
+    } catch {
+      return { enabled: false, reason: 'unknown' };
+    }
+  });
+
+  ipcMain.handle('is-any-window-focused', () => {
+    return BrowserWindow.getAllWindows().some((window) => window.isFocused());
+  });
+
+  ipcMain.on('open-system-notification-settings', () => {
+    if (process.platform === 'darwin') {
+      DarwinUtils.openSystemPreferences();
     }
   });
 
@@ -1398,6 +1446,10 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error('Error logging info:', error);
     }
+  });
+
+  ipcMain.on('logInfo', (_event, info) => {
+    log.info('from renderer:', info);
   });
 
   ipcMain.on('reload-app', (event) => {
@@ -1643,3 +1695,8 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// Helper to get the first recent dir or undefined
+function getOpenDirFromRecentDirs(recentDirs: string[]): string | undefined {
+  return recentDirs.length > 0 ? recentDirs[0] : undefined;
+}

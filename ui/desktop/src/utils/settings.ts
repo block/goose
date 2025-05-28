@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, MenuItemConstructorOptions } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -62,7 +62,7 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
 export function createEnvironmentMenu(
   envToggles: EnvToggles,
   onToggle: (newToggles: EnvToggles) => void
-) {
+): MenuItemConstructorOptions[] {
   return [
     {
       label: 'Enable Memory Mode',
