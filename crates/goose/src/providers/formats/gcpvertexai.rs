@@ -17,10 +17,6 @@ pub enum GcpLocation {
     Iowa,
     /// Represents the us-east5 region in Ohio
     Ohio,
-    /// Represents the us-east4 region in Northern Virginia
-    Virginia,
-    /// Represents the europe-west1 region in Belgium
-    Belgium,
 }
 
 impl fmt::Display for GcpLocation {
@@ -28,8 +24,6 @@ impl fmt::Display for GcpLocation {
         match self {
             Self::Iowa => write!(f, "us-central1"),
             Self::Ohio => write!(f, "us-east5"),
-            Self::Virginia => write!(f, "us-east4"),
-            Self::Belgium => write!(f, "europe-west1"),
         }
     }
 }
@@ -41,8 +35,6 @@ impl TryFrom<&str> for GcpLocation {
         match s {
             "us-central1" => Ok(Self::Iowa),
             "us-east5" => Ok(Self::Ohio),
-            "us-east4" => Ok(Self::Virginia),
-            "europe-west1" => Ok(Self::Belgium),
             _ => Err(ModelError::UnsupportedLocation(s.to_string())),
         }
     }
@@ -137,12 +129,10 @@ impl GcpVertexAIModel {
     /// Returns the default GCP location for the model.
     ///
     /// Each model family has a well-known location based on availability:
-    /// - Most Claude models default to Ohio (us-east5)
-    /// - Claude Sonnet 4 defaults to Virginia (us-east4) due to regional availability
+    /// - Claude models default to Ohio (us-east5)
     /// - Gemini models default to Iowa (us-central1)
     pub fn known_location(&self) -> GcpLocation {
         match self {
-            Self::Claude(ClaudeVersion::Sonnet4) => GcpLocation::Virginia,
             Self::Claude(_) => GcpLocation::Ohio,
             Self::Gemini(_) => GcpLocation::Iowa,
         }
@@ -377,7 +367,7 @@ mod tests {
             ("claude-3-5-sonnet-v2@20241022", GcpLocation::Ohio),
             ("claude-3-7-sonnet@20250219", GcpLocation::Ohio),
             ("claude-3-5-haiku@20241022", GcpLocation::Ohio),
-            ("claude-sonnet-4@20250514", GcpLocation::Virginia),
+            ("claude-sonnet-4@20250514", GcpLocation::Ohio),
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
             ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),
