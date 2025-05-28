@@ -419,7 +419,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             variant="ghost"
             onClick={handleClose}
             disabled={isLoadingExternally}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-gray-400 hover:bg-gray-50 dark:border-gray-600 text-lg font-regular"
+            className="w-full h-[60px] rounded-none border-t text-gray-400 hover:bg-gray-50 dark:border-gray-600 text-lg font-regular"
           >
             Cancel
           </Button>
@@ -428,7 +428,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             form="new-schedule-form"
             variant="default"
             disabled={isLoadingExternally}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg hover:bg-gray-50 hover:dark:text-black dark:text-white dark:border-gray-600 font-regular"
+            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg dark:text-white dark:border-gray-600 font-regular"
           >
             {isLoadingExternally ? 'Creating...' : 'Create Schedule'}
           </Button>

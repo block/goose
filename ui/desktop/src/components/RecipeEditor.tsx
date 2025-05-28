@@ -377,42 +377,39 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
             {/* Deep Link Display */}
             <div className="w-full p-4 bg-bgSubtle rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-textSubtle text-xs text-textSubtle mt-2">
-                  Copy this link to share with friends or paste directly in Chrome to open
+              {!title.trim() || !description.trim() ? (
+                <div className="text-sm text-textSubtle text-xs text-textSubtle">
+                  Fill in required fields to generate link
                 </div>
-                <button
+              ) : (
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-textSubtle text-xs text-textSubtle">
+                    Copy this link to share with friends or paste directly in Chrome to open
+                  </div>
+                  <button
+                    onClick={() => validateForm() && handleCopy()}
+                    className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-iconSubtle" />
+                    )}
+                    <span className="ml-1 text-sm text-textSubtle">
+                      {copied ? 'Copied!' : 'Copy'}
+                    </span>
+                  </button>
+                </div>
+              )}
+              {title.trim() && description.trim() && (
+                <div
                   onClick={() => validateForm() && handleCopy()}
-                  className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
-                  title={
-                    !title.trim() || !description.trim()
-                      ? 'Fill in required fields first'
-                      : 'Copy link'
-                  }
-                  disabled={!title.trim() || !description.trim()}
+                  className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
                 >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-iconSubtle" />
-                  )}
-                  <span className="ml-1 text-sm text-textSubtle">
-                    {copied ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
-              </div>
-              <div
-                className={`text-sm truncate font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
-                title={
-                  !title.trim() || !description.trim()
-                    ? 'Fill in required fields to generate link'
-                    : deeplink
-                }
-              >
-                {deeplink}
-              </div>
+                  {deeplink}
+                </div>
+              )}
             </div>
-
             {/* Action Buttons */}
             <div className="flex flex-col space-y-2 pt-1">
               <button
@@ -422,7 +419,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 }}
                 className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>
