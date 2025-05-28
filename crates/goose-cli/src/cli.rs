@@ -353,8 +353,8 @@ enum Command {
             short = None,
             long = "recipe",
             value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
-            help = "Recipe name to get recipe file or the full path of the recipe file",
-            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration",
+            help = "Recipe name to get recipe file or the full path of the recipe file (use --explain to see recipe details)",
+            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration. Use --explain to see the recipe's title, description, and parameters.",
             conflicts_with = "instructions",
             conflicts_with = "input_text"
         )]
