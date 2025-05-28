@@ -1315,6 +1315,37 @@ app.on('will-quit', () => {
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
+// Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
+app.on('before-quit', (event) => {
+  // Skip confirmation dialog in development mode
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return; // Allow normal quit behavior in dev mode
+  }
+
+  // Prevent the default quit behavior
+  event.preventDefault();
+
+  // Show confirmation dialog
+  dialog
+    .showMessageBox({
+      type: 'question',
+      buttons: ['Quit', 'Cancel'],
+      defaultId: 1, // Default to Cancel
+      title: 'Confirm Quit',
+      message: 'Are you sure you want to quit Goose?',
+      detail: 'Any unsaved changes may be lost.',
+    })
+    .then(({ response }) => {
+      if (response === 0) {
+        // User clicked "Quit"
+        // Set a flag to avoid showing the dialog again
+        app.removeAllListeners('before-quit');
+        // Actually quit the app
+        app.quit();
+      }
+    });
+});
+
 app.on('window-all-closed', () => {
   // Only quit if we're not on macOS or don't have a tray icon
   if (process.platform !== 'darwin' || !tray) {
