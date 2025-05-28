@@ -539,6 +539,56 @@
         }
       }
     },
+    "/schedule/{id}": {
+      "put": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "update_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to update",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled job updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot update a currently running job or invalid request"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/{id}/pause": {
       "post": {
         "tags": [
@@ -2196,6 +2246,17 @@
         "example": {
           "data": {},
           "success": true
+        }
+      },
+      "UpdateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string"
+          }
         }
       },
       "UpsertConfigQuery": {

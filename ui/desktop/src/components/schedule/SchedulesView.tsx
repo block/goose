@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { listSchedules, createSchedule, deleteSchedule, pauseSchedule, unpauseSchedule, ScheduledJob } from '../../schedule';
+import { listSchedules, createSchedule, deleteSchedule, pauseSchedule, unpauseSchedule, updateSchedule, ScheduledJob } from '../../schedule';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play } from 'lucide-react';
+import { Plus, RefreshCw, Pause, Play, Edit } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
+import { EditScheduleModal } from './EditScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
@@ -23,7 +24,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitApiError, setSubmitApiError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Individual loading states for each action to prevent double-clicks
+  const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
+  const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
 
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
@@ -87,6 +94,18 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     setSubmitApiError(null);
   };
 
+  const handleOpenEditModal = (schedule: ScheduledJob) => {
+    setEditingSchedule(schedule);
+    setSubmitApiError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingSchedule(null);
+    setSubmitApiError(null);
+  };
+
   const handleCreateScheduleSubmit = async (payload: NewSchedulePayload) => {
     setIsSubmitting(true);
     setSubmitApiError(null);
@@ -104,12 +123,43 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleEditScheduleSubmit = async (cron: string) => {
+    if (!editingSchedule) return;
+    
+    setIsSubmitting(true);
+    setSubmitApiError(null);
+    try {
+      await updateSchedule(editingSchedule.id, cron);
+      toastSuccess({
+        title: 'Schedule Updated',
+        msg: `Successfully updated schedule "${editingSchedule.id}"`,
+      });
+      await fetchSchedules();
+      setIsEditModalOpen(false);
+      setEditingSchedule(null);
+    } catch (error) {
+      console.error('Failed to update schedule:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error updating schedule.';
+      setSubmitApiError(errorMessage);
+      toastError({
+        title: 'Update Schedule Error',
+        msg: errorMessage,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteSchedule = async (idToDelete: string) => {
     if (!window.confirm(`Are you sure you want to delete schedule "${idToDelete}"?`)) return;
+    
+    // Immediately add to deleting set to disable button
+    setDeletingScheduleIds(prev => new Set(prev).add(idToDelete));
+    
     if (viewingScheduleId === idToDelete) {
       setViewingScheduleId(null);
     }
-    setIsLoading(true);
     setApiError(null);
     try {
       await deleteSchedule(idToDelete);
@@ -120,12 +170,19 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         error instanceof Error ? error.message : `Unknown error deleting "${idToDelete}".`
       );
     } finally {
-      setIsLoading(false);
+      // Remove from deleting set
+      setDeletingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToDelete);
+        return newSet;
+      });
     }
   };
 
   const handlePauseSchedule = async (idToPause: string) => {
-    setIsLoading(true);
+    // Immediately add to pausing set to disable button
+    setPausingScheduleIds(prev => new Set(prev).add(idToPause));
+    
     setApiError(null);
     try {
       await pauseSchedule(idToPause);
@@ -143,12 +200,19 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         msg: errorMsg,
       });
     } finally {
-      setIsLoading(false);
+      // Remove from pausing set
+      setPausingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToPause);
+        return newSet;
+      });
     }
   };
 
   const handleUnpauseSchedule = async (idToUnpause: string) => {
-    setIsLoading(true);
+    // Immediately add to pausing set to disable button
+    setPausingScheduleIds(prev => new Set(prev).add(idToUnpause));
+    
     setApiError(null);
     try {
       await unpauseSchedule(idToUnpause);
@@ -166,7 +230,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         msg: errorMsg,
       });
     } finally {
-      setIsLoading(false);
+      // Remove from pausing set
+      setPausingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToUnpause);
+        return newSet;
+      });
     }
   };
 
@@ -293,27 +362,42 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                       </div>
                       <div className="flex-shrink-0 flex items-center gap-1">
                         {!job.currently_running && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (job.paused) {
-                                handleUnpauseSchedule(job.id);
-                              } else {
-                                handlePauseSchedule(job.id);
-                              }
-                            }}
-                            className={`${
-                              job.paused
-                                ? 'text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-100/50 dark:hover:bg-green-900/30'
-                                : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-100/50 dark:hover:bg-orange-900/30'
-                            }`}
-                            title={job.paused ? `Unpause schedule ${job.id}` : `Pause schedule ${job.id}`}
-                            disabled={isLoading}
-                          >
-                            {job.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(job);
+                              }}
+                              className="text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                              title={`Edit schedule ${job.id}`}
+                              disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id) || isSubmitting}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (job.paused) {
+                                  handleUnpauseSchedule(job.id);
+                                } else {
+                                  handlePauseSchedule(job.id);
+                                }
+                              }}
+                              className={`${
+                                job.paused
+                                  ? 'text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-100/50 dark:hover:bg-green-900/30'
+                                  : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-100/50 dark:hover:bg-orange-900/30'
+                              }`}
+                              title={job.paused ? `Unpause schedule ${job.id}` : `Pause schedule ${job.id}`}
+                              disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)}
+                            >
+                              {job.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                            </Button>
+                          </>
                         )}
                         <Button
                           variant="ghost"
@@ -324,7 +408,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           }}
                           className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                           title={`Delete schedule ${job.id}`}
-                          disabled={isLoading}
+                          disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)}
                         >
                           <TrashIcon className="w-5 h-5" />
                         </Button>
@@ -341,6 +425,14 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         isOpen={isCreateModalOpen}
         onClose={handleCloseCreateModal}
         onSubmit={handleCreateScheduleSubmit}
+        isLoadingExternally={isSubmitting}
+        apiErrorExternally={submitApiError}
+      />
+      <EditScheduleModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSubmit={handleEditScheduleSubmit}
+        schedule={editingSchedule}
         isLoadingExternally={isSubmitting}
         apiErrorExternally={submitApiError}
       />
