@@ -6,6 +6,7 @@ export interface Recipe {
   title: string;
   description: string;
   instructions: string;
+  prompt?: string;
   activities?: string[];
   author?: {
     contact?: string;

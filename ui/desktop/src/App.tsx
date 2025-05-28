@@ -527,23 +527,7 @@ export default function App() {
           )}
           {view === 'recipeEditor' && (
             <RecipeEditor
-              key={viewOptions?.config ? 'with-config' : 'no-config'}
               config={viewOptions?.config || window.electron.getConfig().recipeConfig}
-              onClose={() => setView('chat')}
-              setView={setView}
-              onSave={(config) => {
-                console.log('Saving recipe config:', config);
-                window.electron.createChatWindow(
-                  undefined,
-                  undefined,
-                  undefined,
-                  undefined,
-                  config,
-                  'recipeEditor',
-                  { config }
-                );
-                setView('chat');
-              }}
             />
           )}
           {view === 'permission' && (
