@@ -539,6 +539,39 @@
         }
       }
     },
+    "/schedule/{id}/pause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "pause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to pause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job paused successfully"
+          },
+          "400": {
+            "description": "Cannot pause a currently running job"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/{id}/run_now": {
       "post": {
         "tags": [
@@ -616,6 +649,36 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/unpause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "unpause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to unpause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job unpaused successfully"
+          },
+          "404": {
+            "description": "Scheduled job not found"
           },
           "500": {
             "description": "Internal server error"
@@ -1702,6 +1765,9 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "paused": {
+            "type": "boolean"
           },
           "source": {
             "type": "string"

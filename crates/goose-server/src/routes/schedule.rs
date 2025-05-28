@@ -94,6 +94,7 @@ async fn create_schedule(
         cron: req.cron,
         last_run: None,
         currently_running: false,
+        paused: false,
     };
     scheduler
         .add_scheduled_job(job.clone())
@@ -260,12 +261,86 @@ async fn sessions_handler(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/schedule/{id}/pause",
+    params(
+        ("id" = String, Path, description = "ID of the schedule to pause")
+    ),
+    responses(
+        (status = 204, description = "Scheduled job paused successfully"),
+        (status = 404, description = "Scheduled job not found"),
+        (status = 400, description = "Cannot pause a currently running job"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
+#[axum::debug_handler]
+async fn pause_schedule(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+    let scheduler = state
+        .scheduler()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    scheduler.pause_schedule(&id).await.map_err(|e| {
+        eprintln!("Error pausing schedule '{}': {:?}", id, e);
+        match e {
+            goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
+            goose::scheduler::SchedulerError::AnyhowError(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    post,
+    path = "/schedule/{id}/unpause",
+    params(
+        ("id" = String, Path, description = "ID of the schedule to unpause")
+    ),
+    responses(
+        (status = 204, description = "Scheduled job unpaused successfully"),
+        (status = 404, description = "Scheduled job not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
+#[axum::debug_handler]
+async fn unpause_schedule(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+    let scheduler = state
+        .scheduler()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    scheduler.unpause_schedule(&id).await.map_err(|e| {
+        eprintln!("Error unpausing schedule '{}': {:?}", id, e);
+        match e {
+            goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/schedule/create", post(create_schedule))
         .route("/schedule/list", get(list_schedules))
         .route("/schedule/delete/{id}", delete(delete_schedule)) // Corrected
         .route("/schedule/{id}/run_now", post(run_now_handler)) // Corrected
+        .route("/schedule/{id}/pause", post(pause_schedule))
+        .route("/schedule/{id}/unpause", post(unpause_schedule))
         .route("/schedule/{id}/sessions", get(sessions_handler)) // Corrected
         .with_state(state)
 }

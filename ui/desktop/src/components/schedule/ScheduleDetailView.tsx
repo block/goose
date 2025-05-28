@@ -5,10 +5,10 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
-import { getScheduleSessions, runScheduleNow, listSchedules, ScheduledJob } from '../../schedule';
+import { getScheduleSessions, runScheduleNow, pauseSchedule, unpauseSchedule, listSchedules, ScheduledJob } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { toastError, toastSuccess } from '../../toasts';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pause, Play } from 'lucide-react';
 import cronstrue from 'cronstrue';
 
 interface ScheduleSessionMeta {
@@ -125,6 +125,38 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       toastError({ title: 'Run Schedule Error', msg: errorMsg });
     } finally {
       setRunNowLoading(false);
+    }
+  };
+
+  const handlePauseSchedule = async () => {
+    if (!scheduleId) return;
+    try {
+      await pauseSchedule(scheduleId);
+      toastSuccess({
+        title: 'Schedule Paused',
+        msg: `Successfully paused schedule "${scheduleId}"`,
+      });
+      fetchScheduleDetails(scheduleId);
+    } catch (err) {
+      console.error('Failed to pause schedule:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to pause schedule';
+      toastError({ title: 'Pause Schedule Error', msg: errorMsg });
+    }
+  };
+
+  const handleUnpauseSchedule = async () => {
+    if (!scheduleId) return;
+    try {
+      await unpauseSchedule(scheduleId);
+      toastSuccess({
+        title: 'Schedule Unpaused',
+        msg: `Successfully unpaused schedule "${scheduleId}"`,
+      });
+      fetchScheduleDetails(scheduleId);
+    } catch (err) {
+      console.error('Failed to unpause schedule:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to unpause schedule';
+      toastError({ title: 'Unpause Schedule Error', msg: errorMsg });
     }
   };
 
@@ -255,12 +287,20 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                       {scheduleDetails.id}
                     </h3>
-                    {scheduleDetails.currently_running && (
-                      <div className="mt-2 md:mt-0 text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
-                        <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
-                        Currently Running
-                      </div>
-                    )}
+                    <div className="mt-2 md:mt-0 flex items-center gap-2">
+                      {scheduleDetails.currently_running && (
+                        <div className="text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
+                          <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                          Currently Running
+                        </div>
+                      )}
+                      {scheduleDetails.paused && (
+                        <div className="text-sm text-orange-500 dark:text-orange-400 font-semibold flex items-center">
+                          <Pause className="w-3 h-3 mr-1" />
+                          Paused
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     <span className="font-semibold">Schedule:</span>{' '}
@@ -285,16 +325,49 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">Actions</h2>
-            <Button
-              onClick={handleRunNow}
-              disabled={runNowLoading || scheduleDetails?.currently_running === true}
-              className="w-full md:w-auto"
-            >
-              {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
-            </Button>
+            <div className="flex flex-col md:flex-row gap-2">
+              <Button
+                onClick={handleRunNow}
+                disabled={runNowLoading || scheduleDetails?.currently_running === true}
+                className="w-full md:w-auto"
+              >
+                {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
+              </Button>
+              
+              {scheduleDetails && !scheduleDetails.currently_running && (
+                <Button
+                  onClick={scheduleDetails.paused ? handleUnpauseSchedule : handlePauseSchedule}
+                  variant="outline"
+                  className={`w-full md:w-auto flex items-center gap-2 ${
+                    scheduleDetails.paused
+                      ? 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      : 'text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                  }`}
+                >
+                  {scheduleDetails.paused ? (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Unpause Schedule
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      Pause Schedule
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            
             {scheduleDetails?.currently_running && (
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                Cannot trigger a schedule while it's already running.
+                Cannot trigger or modify a schedule while it's already running.
+              </p>
+            )}
+            
+            {scheduleDetails?.paused && (
+              <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
+                This schedule is paused and will not run automatically. Use "Run Schedule Now" to trigger it manually or unpause to resume automatic execution.
               </p>
             )}
           </section>
