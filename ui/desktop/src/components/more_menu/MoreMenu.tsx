@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, Refresh, Time, Send, Settings } from '../icons';
-import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
+import { FolderOpen, Moon, Sliders, Sun, SunDim } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { ViewOptions, View } from '../../App';
 
@@ -44,15 +44,15 @@ const MenuButton: React.FC<MenuButtonProps> = ({
 );
 
 interface ThemeSelectProps {
-  themeMode: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
+  themeMode: 'light' | 'dim' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dim' | 'dark' | 'system') => void;
 }
 
 const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) => {
   return (
     <div className="px-4 py-3 border-b border-borderSubtle">
       <div className="text-sm mb-2">Theme</div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <button
           data-testid="light-mode-button"
           onClick={() => onThemeChange('light')}
@@ -64,6 +64,19 @@ const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) =
         >
           <Sun className="h-4 w-4" />
           <span className="text-xs">Light</span>
+        </button>
+
+        <button
+          data-testid="dim-mode-button"
+          onClick={() => onThemeChange('dim')}
+          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
+            themeMode === 'dim'
+              ? 'border-borderStandard'
+              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
+          }`}
+        >
+          <SunDim className="h-4 w-4" />
+          <span className="text-xs">Dim</span>
         </button>
 
         <button
@@ -105,13 +118,13 @@ export default function MoreMenu({
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'dim' | 'system'>(() => {
     const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
     if (savedUseSystemTheme) {
       return 'system';
     }
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark' ? 'dark' : 'light';
+    return savedTheme === 'dark' ? 'dark' : savedTheme === 'dim' ? 'dim' : 'light';
   });
 
   const [isDarkMode, setDarkMode] = useState(() => {
@@ -119,7 +132,7 @@ export default function MoreMenu({
     if (themeMode === 'system') {
       return systemPrefersDark;
     }
-    return themeMode === 'dark';
+    return themeMode === 'dark' || themeMode === 'dim';
   });
 
   useEffect(() => {
@@ -137,7 +150,7 @@ export default function MoreMenu({
       setDarkMode(mediaQuery.matches);
       localStorage.setItem('use_system_theme', 'true');
     } else {
-      setDarkMode(themeMode === 'dark');
+      setDarkMode(themeMode === 'dark' || themeMode === 'dim');
       localStorage.setItem('use_system_theme', 'false');
       localStorage.setItem('theme', themeMode);
     }
@@ -149,13 +162,19 @@ export default function MoreMenu({
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
+      if (themeMode === 'dim') {
+        document.documentElement.classList.add('dim');
+      } else {
+        document.documentElement.classList.remove('dim');
+      }
     } else {
       document.documentElement.classList.remove('dark');
       document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dim');
     }
-  }, [isDarkMode]);
+  }, [isDarkMode, themeMode]);
 
-  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'dim' | 'system') => {
     setThemeMode(newTheme);
   };
   const recipeConfig = window.appConfig.get('recipeConfig');
