@@ -50,14 +50,39 @@ async function ensureTempDirExists(): Promise<string> {
         await fs.mkdir(gooseTempDir, { recursive: true });
       }
 
-      // Check for any symlinks in the directory and remove them
+      // Startup cleanup: remove old files and any symlinks
       const files = await fs.readdir(gooseTempDir);
+      const now = Date.now();
+      const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
       for (const file of files) {
         const filePath = path.join(gooseTempDir, file);
-        const fileStats = await fs.lstat(filePath);
-        if (fileStats.isSymbolicLink()) {
-          console.warn(`[Main] Found symlink in temp directory: ${filePath}. Removing it.`);
-          await fs.unlink(filePath);
+        try {
+          const fileStats = await fs.lstat(filePath);
+          
+          // Always remove symlinks
+          if (fileStats.isSymbolicLink()) {
+            console.warn(`[Main] Found symlink in temp directory during startup: ${filePath}. Removing it.`);
+            await fs.unlink(filePath);
+            continue;
+          }
+          
+          // Remove old files (older than 24 hours)
+          if (fileStats.isFile()) {
+            const fileAge = now - fileStats.mtime.getTime();
+            if (fileAge > MAX_AGE) {
+              console.log(`[Main] Removing old temp file during startup: ${filePath} (age: ${Math.round(fileAge / (60 * 60 * 1000))} hours)`);
+              await fs.unlink(filePath);
+            }
+          }
+        } catch (fileError) {
+          // If we can't stat the file, try to remove it anyway
+          console.warn(`[Main] Could not stat file ${filePath}, attempting to remove:`, fileError);
+          try {
+            await fs.unlink(filePath);
+          } catch (unlinkError) {
+            console.error(`[Main] Failed to remove problematic file ${filePath}:`, unlinkError);
+          }
         }
       }
     } catch (error) {
@@ -767,16 +792,35 @@ ipcMain.handle('get-temp-image', async (event, filePath: string) => {
   }
 
   try {
-    // Check if it's a regular file, not a symlink
+    // Check if it's a regular file first, before trying realpath
     const stats = await fs.lstat(filePath);
     if (!stats.isFile()) {
       console.warn(`[Main] Not a regular file, refusing to serve: ${filePath}`);
       return null;
     }
 
+    // Get the real paths for both the temp directory and the file to handle symlinks properly
+    let realTempDir: string;
+    let actualPath = filePath;
+    
+    try {
+      realTempDir = await fs.realpath(gooseTempDir);
+      const realPath = await fs.realpath(filePath);
+      
+      // Double-check that the real path is still within our real temp directory
+      if (!realPath.startsWith(realTempDir + path.sep)) {
+        console.warn(`[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`);
+        return null;
+      }
+      actualPath = realPath;
+    } catch (realpathError) {
+      // If realpath fails, use the original path validation
+      console.log(`[Main] realpath failed for ${filePath}, using original path validation:`, realpathError.message);
+    }
+
     // Read the file and return as base64 data URL
-    const fileBuffer = await fs.readFile(filePath);
-    const fileExtension = path.extname(filePath).toLowerCase().substring(1);
+    const fileBuffer = await fs.readFile(actualPath);
+    const fileExtension = path.extname(actualPath).toLowerCase().substring(1);
 
     // Validate file extension
     const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
@@ -815,14 +859,32 @@ ipcMain.on('delete-temp-file', async (event, filePath: string) => {
   }
 
   try {
-    // Check if it's a regular file, not a symlink
+    // Check if it's a regular file first, before trying realpath
     const stats = await fs.lstat(filePath);
     if (!stats.isFile()) {
       console.warn(`[Main] Not a regular file, refusing to delete: ${filePath}`);
       return;
     }
 
-    await fs.unlink(filePath);
+    // Get the real paths for both the temp directory and the file to handle symlinks properly
+    let actualPath = filePath;
+    
+    try {
+      const realTempDir = await fs.realpath(gooseTempDir);
+      const realPath = await fs.realpath(filePath);
+      
+      // Double-check that the real path is still within our real temp directory
+      if (!realPath.startsWith(realTempDir + path.sep)) {
+        console.warn(`[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`);
+        return;
+      }
+      actualPath = realPath;
+    } catch (realpathError) {
+      // If realpath fails, use the original path validation
+      console.log(`[Main] realpath failed for ${filePath}, using original path validation:`, realpathError.message);
+    }
+
+    await fs.unlink(actualPath);
     console.log(`[Main] Deleted temp file: ${filePath}`);
   } catch (error) {
     if (error.code !== 'ENOENT') {

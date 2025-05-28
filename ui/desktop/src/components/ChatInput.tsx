@@ -16,6 +16,10 @@ interface PastedImage {
   error?: string;
 }
 
+// Constants for image handling
+const MAX_IMAGES_PER_MESSAGE = 5;
+const MAX_IMAGE_SIZE_MB = 5;
+
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
@@ -81,6 +85,40 @@ export default function ChatInput({
     setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
   };
 
+  const handleRetryImageSave = async (imageId: string) => {
+    const imageToRetry = pastedImages.find((img) => img.id === imageId);
+    if (!imageToRetry || !imageToRetry.dataUrl) return;
+
+    // Set the image to loading state
+    setPastedImages((prev) =>
+      prev.map((img) =>
+        img.id === imageId
+          ? { ...img, isLoading: true, error: undefined }
+          : img
+      )
+    );
+
+    try {
+      const result = await window.electron.saveDataUrlToTemp(imageToRetry.dataUrl, imageId);
+      setPastedImages((prev) =>
+        prev.map((img) =>
+          img.id === result.id
+            ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
+            : img
+        )
+      );
+    } catch (err) {
+      console.error('Error retrying image save:', err);
+      setPastedImages((prev) =>
+        prev.map((img) =>
+          img.id === imageId
+            ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+            : img
+        )
+      );
+    }
+  };
+
   useEffect(() => {
     if (textAreaRef.current) {
       textAreaRef.current.focus();
@@ -134,39 +172,84 @@ export default function ChatInput({
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
-    for (const file of files) {
-      if (file.type.startsWith('image/')) {
-        evt.preventDefault();
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const dataUrl = e.target?.result as string;
-          if (dataUrl) {
-            const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            setPastedImages((prev) => [...prev, { id: imageId, dataUrl, isLoading: true }]);
-
-            try {
-              const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
-              setPastedImages((prev) =>
-                prev.map((img) =>
-                  img.id === result.id
-                    ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-                    : img
-                )
-              );
-            } catch (err) {
-              console.error('Error saving pasted image:', err);
-              setPastedImages((prev) =>
-                prev.map((img) =>
-                  img.id === imageId
-                    ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-                    : img
-                )
-              );
-            }
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length === 0) return;
+    
+    // Check if adding these images would exceed the limit
+    if (pastedImages.length + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
+      // Show error message to user
+      setPastedImages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          dataUrl: '',
+          isLoading: false,
+          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed.`
+        }
+      ]);
+      
+      // Remove the error message after 3 seconds
+      setTimeout(() => {
+        setPastedImages((prev) => prev.filter(img => !img.id.startsWith('error-')));
+      }, 3000);
+      
+      return;
+    }
+    
+    evt.preventDefault();
+    
+    for (const file of imageFiles) {
+      // Check individual file size before processing
+      if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+        const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        setPastedImages((prev) => [
+          ...prev,
+          {
+            id: errorId,
+            dataUrl: '',
+            isLoading: false,
+            error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`
           }
-        };
-        reader.readAsDataURL(file);
+        ]);
+        
+        // Remove the error message after 3 seconds
+        setTimeout(() => {
+          setPastedImages((prev) => prev.filter(img => img.id !== errorId));
+        }, 3000);
+        
+        continue;
       }
+      
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        if (dataUrl) {
+          const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          setPastedImages((prev) => [...prev, { id: imageId, dataUrl, isLoading: true }]);
+
+          try {
+            const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
+            setPastedImages((prev) =>
+              prev.map((img) =>
+                img.id === result.id
+                  ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
+                  : img
+              )
+            );
+          } catch (err) {
+            console.error('Error saving pasted image:', err);
+            setPastedImages((prev) =>
+              prev.map((img) =>
+                img.id === imageId
+                  ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+                  : img
+              )
+            );
+          }
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -342,11 +425,13 @@ export default function ChatInput({
           <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
             {pastedImages.map((img) => (
               <div key={img.id} className="relative group w-20 h-20">
-                <img
-                  src={img.dataUrl} // Use dataUrl for instant preview
-                  alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                />
+                {img.dataUrl && (
+                  <img
+                    src={img.dataUrl} // Use dataUrl for instant preview
+                    alt={`Pasted image ${img.id}`}
+                    className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                  />
+                )}
                 {img.isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
@@ -354,10 +439,19 @@ export default function ChatInput({
                 )}
                 {img.error && !img.isLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                    {/* <AlertTriangle className="w-5 h-5 text-red-400 mb-0.5" /> */}
-                    <p className="text-red-400 text-[10px] leading-tight break-all">
-                      {img.error.substring(0, 30)}
+                    <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                      {img.error.substring(0, 50)}
                     </p>
+                    {img.dataUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleRetryImageSave(img.id)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded px-1 py-0.5 text-[8px] leading-none"
+                        title="Retry saving image"
+                      >
+                        Retry
+                      </button>
+                    )}
                   </div>
                 )}
                 {!img.isLoading && (
