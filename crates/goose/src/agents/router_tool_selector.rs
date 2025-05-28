@@ -14,7 +14,7 @@ use crate::agents::embeddings::{
 use crate::agents::tool_vectordb::ToolVectorDB;
 use crate::providers::base::Provider;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
     Vector,
 }
@@ -32,6 +32,7 @@ pub trait RouterToolSelector: Send + Sync {
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError>;
+    fn selector_type(&self) -> RouterToolSelectionStrategy;
 }
 
 pub struct VectorToolSelector {
@@ -189,6 +190,10 @@ impl RouterToolSelector for VectorToolSelector {
     async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError> {
         let recent_calls = self.recent_tool_calls.read().await;
         Ok(recent_calls.iter().rev().take(limit).cloned().collect())
+    }
+
+    fn selector_type(&self) -> RouterToolSelectionStrategy {
+        RouterToolSelectionStrategy::Vector
     }
 }
 
