@@ -1,4 +1,5 @@
 import { FC } from 'react';
+
 import { Goose, Rain } from './icons/Goose';
 
 interface GooseLogoProps {
@@ -20,15 +21,15 @@ const GooseLogo: FC<GooseLogoProps> = ({ className = '', size = 'default', hover
       goose: 'w-8 h-8',
     },
   };
-  
+
   return (
     <div className={`${className} ${sizes[size].frame} group relative`}>
       {/* Rain with enhanced visibility for testing */}
-      <div 
+      <div
         className={`${sizes[size].rain} absolute left-0 bottom-0 ${hover ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'} transition-all duration-500 z-10`}
-        style={{ 
+        style={{
           filter: 'brightness(2) contrast(2) saturate(2)',
-          mixBlendMode: 'multiply'
+          mixBlendMode: 'multiply',
         }}
       >
         <Rain className="w-full h-full" />

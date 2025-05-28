@@ -1,6 +1,10 @@
-import React from 'react';
+import { ReactElement } from 'react';
 
-export function Goose({ className = '' }) {
+interface GooseProps {
+  className?: string;
+}
+
+export function Goose({ className = '' }: GooseProps): ReactElement {
   return (
     <svg
       width="24"
@@ -25,7 +29,11 @@ export function Goose({ className = '' }) {
   );
 }
 
-export function Rain({ className = '' }) {
+interface RainProps {
+  className?: string;
+}
+
+export function Rain({ className = '' }: RainProps): ReactElement {
   return (
     <svg
       width="103"
