@@ -27,7 +27,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+
   // Individual loading states for each action to prevent double-clicks
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
   const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
@@ -125,7 +125,35 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
   const handleEditScheduleSubmit = async (cron: string) => {
     if (!editingSchedule) return;
-    
+
+    setIsSubmitting(true);
+    setSubmitApiError(null);
+    try {
+      await updateSchedule(editingSchedule.id, cron);
+      toastSuccess({
+        title: 'Schedule Updated',
+        msg: `Successfully updated schedule "${editingSchedule.id}"`,
+      });
+      await fetchSchedules();
+      setIsEditModalOpen(false);
+      setEditingSchedule(null);
+    } catch (error) {
+      console.error('Failed to update schedule:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error updating schedule.';
+      setSubmitApiError(errorMessage);
+      toastError({
+        title: 'Update Schedule Error',
+        msg: errorMessage,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditScheduleSubmit = async (cron: string) => {
+    if (!editingSchedule) return;
+
     setIsSubmitting(true);
     setSubmitApiError(null);
     try {
@@ -153,10 +181,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
   const handleDeleteSchedule = async (idToDelete: string) => {
     if (!window.confirm(`Are you sure you want to delete schedule "${idToDelete}"?`)) return;
-    
+
     // Immediately add to deleting set to disable button
     setDeletingScheduleIds(prev => new Set(prev).add(idToDelete));
-    
+
     if (viewingScheduleId === idToDelete) {
       setViewingScheduleId(null);
     }
@@ -182,7 +210,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const handlePauseSchedule = async (idToPause: string) => {
     // Immediately add to pausing set to disable button
     setPausingScheduleIds(prev => new Set(prev).add(idToPause));
-    
+
     setApiError(null);
     try {
       await pauseSchedule(idToPause);
@@ -212,7 +240,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const handleUnpauseSchedule = async (idToUnpause: string) => {
     // Immediately add to pausing set to disable button
     setPausingScheduleIds(prev => new Set(prev).add(idToUnpause));
-    
+
     setApiError(null);
     try {
       await unpauseSchedule(idToUnpause);

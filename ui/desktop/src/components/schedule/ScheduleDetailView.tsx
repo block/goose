@@ -40,7 +40,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  
+
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
 
@@ -185,7 +185,40 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   const handleEditScheduleSubmit = async (cron: string) => {
     if (!scheduleId) return;
-    
+
+    setIsEditSubmitting(true);
+    setEditApiError(null);
+    try {
+      await updateSchedule(scheduleId, cron);
+      toastSuccess({
+        title: 'Schedule Updated',
+        msg: `Successfully updated schedule "${scheduleId}"`,
+      });
+      fetchScheduleDetails(scheduleId);
+      setIsEditModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update schedule:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update schedule';
+      setEditApiError(errorMsg);
+      toastError({ title: 'Update Schedule Error', msg: errorMsg });
+    } finally {
+      setIsEditSubmitting(false);
+    }
+  };
+
+  const handleOpenEditModal = () => {
+    setEditApiError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditApiError(null);
+  };
+
+  const handleEditScheduleSubmit = async (cron: string) => {
+    if (!scheduleId) return;
+
     setIsEditSubmitting(true);
     setEditApiError(null);
     try {
