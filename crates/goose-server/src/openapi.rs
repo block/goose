@@ -42,6 +42,8 @@ use utoipa::OpenApi;
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
         super::routes::schedule::run_now_handler,
+        super::routes::schedule::pause_schedule,
+        super::routes::schedule::unpause_schedule,
         super::routes::schedule::sessions_handler
     ),
     components(schemas(

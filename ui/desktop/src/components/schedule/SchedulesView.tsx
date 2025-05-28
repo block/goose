@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { listSchedules, createSchedule, deleteSchedule, ScheduledJob } from '../../schedule';
+import { listSchedules, createSchedule, deleteSchedule, pauseSchedule, unpauseSchedule, ScheduledJob } from '../../schedule';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Pause, Play } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
+import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
 
 interface SchedulesViewProps {
@@ -118,6 +119,52 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
       setApiError(
         error instanceof Error ? error.message : `Unknown error deleting "${idToDelete}".`
       );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePauseSchedule = async (idToPause: string) => {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      await pauseSchedule(idToPause);
+      toastSuccess({
+        title: 'Schedule Paused',
+        msg: `Successfully paused schedule "${idToPause}"`,
+      });
+      await fetchSchedules();
+    } catch (error) {
+      console.error(`Failed to pause schedule "${idToPause}":`, error);
+      const errorMsg = error instanceof Error ? error.message : `Unknown error pausing "${idToPause}".`;
+      setApiError(errorMsg);
+      toastError({
+        title: 'Pause Schedule Error',
+        msg: errorMsg,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUnpauseSchedule = async (idToUnpause: string) => {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      await unpauseSchedule(idToUnpause);
+      toastSuccess({
+        title: 'Schedule Unpaused',
+        msg: `Successfully unpaused schedule "${idToUnpause}"`,
+      });
+      await fetchSchedules();
+    } catch (error) {
+      console.error(`Failed to unpause schedule "${idToUnpause}":`, error);
+      const errorMsg = error instanceof Error ? error.message : `Unknown error unpausing "${idToUnpause}".`;
+      setApiError(errorMsg);
+      toastError({
+        title: 'Unpause Schedule Error',
+        msg: errorMsg,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -237,8 +284,37 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                             Currently Running
                           </p>
                         )}
+                        {job.paused && (
+                          <p className="text-xs text-orange-500 dark:text-orange-400 mt-1 font-semibold flex items-center">
+                            <Pause className="w-3 h-3 mr-1" />
+                            Paused
+                          </p>
+                        )}
                       </div>
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 flex items-center gap-1">
+                        {!job.currently_running && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (job.paused) {
+                                handleUnpauseSchedule(job.id);
+                              } else {
+                                handlePauseSchedule(job.id);
+                              }
+                            }}
+                            className={`${
+                              job.paused
+                                ? 'text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-100/50 dark:hover:bg-green-900/30'
+                                : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-100/50 dark:hover:bg-orange-900/30'
+                            }`}
+                            title={job.paused ? `Unpause schedule ${job.id}` : `Pause schedule ${job.id}`}
+                            disabled={isLoading}
+                          >
+                            {job.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

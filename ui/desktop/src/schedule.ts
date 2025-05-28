@@ -2,6 +2,8 @@ import {
   listSchedules as apiListSchedules,
   createSchedule as apiCreateSchedule,
   deleteSchedule as apiDeleteSchedule,
+  pauseSchedule as apiPauseSchedule,
+  unpauseSchedule as apiUnpauseSchedule,
   sessionsHandler as apiGetScheduleSessions,
   runNowHandler as apiRunScheduleNow,
 } from './api';
@@ -12,6 +14,7 @@ export interface ScheduledJob {
   cron: string;
   last_run?: string | null;
   currently_running?: boolean;
+  paused?: boolean;
 }
 
 export interface ScheduleSession {
@@ -104,6 +107,28 @@ export async function runScheduleNow(scheduleId: string): Promise<string> {
     throw new Error('Failed to run schedule now: Unexpected response format');
   } catch (error) {
     console.error(`Error running schedule ${scheduleId} now:`, error);
+    throw error;
+  }
+}
+
+export async function pauseSchedule(scheduleId: string): Promise<void> {
+  try {
+    await apiPauseSchedule<true>({
+      path: { id: scheduleId },
+    });
+  } catch (error) {
+    console.error(`Error pausing schedule ${scheduleId}:`, error);
+    throw error;
+  }
+}
+
+export async function unpauseSchedule(scheduleId: string): Promise<void> {
+  try {
+    await apiUnpauseSchedule<true>({
+      path: { id: scheduleId },
+    });
+  } catch (error) {
+    console.error(`Error unpausing schedule ${scheduleId}:`, error);
     throw error;
   }
 }

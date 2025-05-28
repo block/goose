@@ -109,6 +109,8 @@ pub struct ScheduledJob {
     pub last_run: Option<DateTime<Utc>>,
     #[serde(default)]
     pub currently_running: bool,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 async fn persist_jobs_from_arc(
@@ -219,6 +221,21 @@ impl Scheduler {
             let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
 
             Box::pin(async move {
+                // Check if the job is paused before executing
+                let should_execute = {
+                    let jobs_map_guard = current_jobs_arc.lock().await;
+                    if let Some((_, current_job_in_map)) = jobs_map_guard.get(&task_job_id) {
+                        !current_job_in_map.paused
+                    } else {
+                        false
+                    }
+                };
+
+                if !should_execute {
+                    tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
+                    return;
+                }
+
                 let current_time = Utc::now();
                 let mut needs_persist = false;
                 {
@@ -319,6 +336,21 @@ impl Scheduler {
                 let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
 
                 Box::pin(async move {
+                    // Check if the job is paused before executing
+                    let should_execute = {
+                        let jobs_map_guard = current_jobs_arc.lock().await;
+                        if let Some((_, stored_job)) = jobs_map_guard.get(&task_job_id) {
+                            !stored_job.paused
+                        } else {
+                            false
+                        }
+                    };
+
+                    if !should_execute {
+                        tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
+                        return;
+                    }
+
                     let current_time = Utc::now();
                     let mut needs_persist = false;
                     {
@@ -513,6 +545,36 @@ impl Scheduler {
                 sched_id,
                 e.error
             ))),
+        }
+    }
+
+    pub async fn pause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        let mut jobs_guard = self.jobs.lock().await;
+        match jobs_guard.get_mut(sched_id) {
+            Some((_, job_def)) => {
+                if job_def.currently_running {
+                    return Err(SchedulerError::AnyhowError(anyhow!(
+                        "Cannot pause schedule '{}' while it's currently running",
+                        sched_id
+                    )));
+                }
+                job_def.paused = true;
+                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+                Ok(())
+            }
+            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
+        }
+    }
+
+    pub async fn unpause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        let mut jobs_guard = self.jobs.lock().await;
+        match jobs_guard.get_mut(sched_id) {
+            Some((_, job_def)) => {
+                job_def.paused = false;
+                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+                Ok(())
+            }
+            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
     }
 }
@@ -858,6 +920,7 @@ mod tests {
             cron: "* * * * * * ".to_string(), // Runs every second for quick testing
             last_run: None,
             currently_running: false,
+            paused: false,
         };
 
         // Create the mock provider instance for the test
