@@ -40,6 +40,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  
+  // Individual loading states for each action to prevent double-clicks
+  const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
 
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);

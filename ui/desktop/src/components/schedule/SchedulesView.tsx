@@ -32,6 +32,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
   const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
 
+  // Individual loading states for each action to prevent double-clicks
+  const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
+  const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
+
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
   const fetchSchedules = async () => {
