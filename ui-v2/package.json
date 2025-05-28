@@ -29,7 +29,7 @@
     "prettier:fix": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css}\" \"electron/**/*.{ts,tsx,js,jsx,css}\"",
     "format": "npm run prettier:fix && npm run lint:style:fix",
     "check-all": "npm run typecheck && npm run lint && npm run prettier",
-    "prepare": "cd ../.. && husky install"
+    "prepare": "cd .. && npx husky"
   },
   "dependencies": {
     "@radix-ui/react-tooltip": "^1.2.7",
