@@ -1,5 +1,5 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
-use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
+use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, get_usage, response_to_message};
 use super::oauth;

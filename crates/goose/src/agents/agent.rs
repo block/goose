@@ -29,6 +29,7 @@ use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
 use crate::agents::router_tools::ROUTER_VECTOR_SEARCH_TOOL_NAME;
+use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use mcp_core::{
@@ -192,7 +193,9 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
             ))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
+            eprintln!("[DEBUG] Received tool call: {:?}", tool_call);
             let router_tool_selector = self.router_tool_selector.lock().await;
+            eprintln!("[DEBUG] Router tool selector: ");
             if let Some(selector) = router_tool_selector.as_ref() {
                 selector.select_tools(tool_call.arguments.clone()).await
             } else {
@@ -669,25 +672,49 @@ impl Agent {
         let router_tool_selection_strategy = config
             .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
             .unwrap_or_else(|_| "default".to_string());
+        
+        eprintln!("[DEBUG] Router tool selection strategy from config: {}", router_tool_selection_strategy);
 
         let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
             _ => None,
         };
 
-        if let Some(strategy) = strategy {
-            let selector = create_tool_selector(Some(strategy), provider)
-                .await
-                .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+        eprintln!("[DEBUG] Parsed strategy: {:?}", strategy);
 
-            // Clear tools from the vector database
-            selector
-                .clear_tools()
+        if let Some(strategy) = strategy {
+            eprintln!("[DEBUG] Creating tool selector with vector strategy...");
+            let table_name = generate_table_id();
+            eprintln!("[DEBUG] Table name: {}", table_name);
+            let selector = create_tool_selector(
+                Some(strategy), 
+                provider,
+                table_name
+            )
                 .await
-                .map_err(|e| anyhow!("Failed to clear tools: {}", e))?;
+                .map_err(|e| {
+                    eprintln!("[DEBUG] Failed to create tool selector: {}", e);
+                    anyhow!("Failed to create tool selector: {}", e)
+                })?;
+
+            eprintln!("[DEBUG] Clearing existing tools from vector database...");
+            // // Clear tools from the vector database
+            // selector
+            //     .clear_tools()
+            //     .await
+            //     .map_err(|e| {
+            //         eprintln!("[DEBUG] Failed to clear tools: {}", e);
+            //         anyhow!("Failed to clear tools: {}", e)
+            //     })?;
+
+            eprintln!("[DEBUG] Setting router tool selector...");
             *self.router_tool_selector.lock().await = Some(selector);
 
+            eprintln!("[DEBUG] Indexing platform tools...");
             self.index_platform_tools().await?;
+            eprintln!("[DEBUG] Router tool selector initialization complete");
+        } else {
+            eprintln!("[DEBUG] No vector strategy selected, skipping router tool selector initialization");
         }
 
         Ok(())

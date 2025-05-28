@@ -11,6 +11,7 @@ use crate::agents::embeddings::{create_embedding_provider, EmbeddingProviderTrai
 use crate::agents::tool_vectordb::ToolVectorDB;
 use crate::providers::base::Provider;
 
+#[derive(Debug, Clone)]
 pub enum RouterToolSelectionStrategy {
     Vector,
 }
@@ -37,8 +38,8 @@ pub struct VectorToolSelector {
 }
 
 impl VectorToolSelector {
-    pub async fn new(provider: Arc<dyn Provider>) -> Result<Self, ToolError> {
-        let vector_db = ToolVectorDB::new(Some("tools".to_string()))
+    pub async fn new(provider: Arc<dyn Provider>, table_name: String) -> Result<Self, ToolError> {
+        let vector_db = ToolVectorDB::new(Some(table_name))
             .await
             .map_err(|e| ToolError::ExecutionError(format!("Failed to create vector DB: {}", e)))?;
 
@@ -55,28 +56,41 @@ impl VectorToolSelector {
 #[async_trait]
 impl RouterToolSelector for VectorToolSelector {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        eprintln!("[DEBUG] Received params: {:?}", params);
+
         let query = params
             .get("query")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".to_string()))?;
 
+        eprintln!("[DEBUG] Extracted query: {}", query);
+
         let k = params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+        eprintln!("[DEBUG] Using k value: {}", k);
 
         // Generate embedding for the query
+        eprintln!("[DEBUG] Generating embedding for query...");
         let query_embedding = self
             .embedding_provider
             .embed_single(query.to_string())
             .await
             .map_err(|e| {
+                eprintln!("[DEBUG] Embedding generation failed: {}", e);
                 ToolError::ExecutionError(format!("Failed to generate query embedding: {}", e))
             })?;
+        eprintln!("[DEBUG] Successfully generated embedding");
 
         // Search for similar tools
+        eprintln!("[DEBUG] Starting vector search...");
         let vector_db = self.vector_db.read().await;
         let tools = vector_db
             .search_tools(query_embedding, k)
             .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
+            .map_err(|e| {
+                eprintln!("[DEBUG] Vector search failed: {}", e);
+                ToolError::ExecutionError(format!("Failed to search tools: {}", e))
+            })?;
+        eprintln!("[DEBUG] Vector search completed, found {} tools", tools.len());
 
         // Convert tool records to Content
         let selected_tools: Vec<Content> = tools
@@ -93,6 +107,7 @@ impl RouterToolSelector for VectorToolSelector {
             })
             .collect();
 
+        eprintln!("[DEBUG] Successfully converted {} tools to Content", selected_tools.len());
         Ok(selected_tools)
     }
 
@@ -132,7 +147,7 @@ impl RouterToolSelector for VectorToolSelector {
     }
 
     async fn clear_tools(&self) -> Result<(), ToolError> {
-        let vector_db = self.vector_db.read().await;
+        let vector_db = self.vector_db.write().await;
         vector_db
             .clear_tools()
             .await
@@ -167,14 +182,15 @@ impl RouterToolSelector for VectorToolSelector {
 pub async fn create_tool_selector(
     strategy: Option<RouterToolSelectionStrategy>,
     provider: Arc<dyn Provider>,
+    table_name: String,
 ) -> Result<Box<dyn RouterToolSelector>, ToolError> {
     match strategy {
         Some(RouterToolSelectionStrategy::Vector) => {
-            let selector = VectorToolSelector::new(provider).await?;
+            let selector = VectorToolSelector::new(provider, table_name).await?;
             Ok(Box::new(selector))
         }
         None => {
-            let selector = VectorToolSelector::new(provider).await?;
+            let selector = VectorToolSelector::new(provider, table_name).await?;
             Ok(Box::new(selector))
         }
     }

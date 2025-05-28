@@ -13,6 +13,7 @@ async fn main() {
     let _ = dotenv();
 
     let provider = Arc::new(DatabricksProvider::default());
+    
 
     // Setup an agent with the developer extension
     let agent = Agent::new();

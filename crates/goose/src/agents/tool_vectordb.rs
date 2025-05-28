@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use arrow::array::{FixedSizeListBuilder, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
-use etcetera::BaseStrategy;
+use chrono::Local;
 use futures::TryStreamExt;
 use lancedb::connect;
 use lancedb::connection::Connection;
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use dirs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolRecord {
@@ -45,6 +46,8 @@ impl ToolVectorDB {
             table_name: table_name.unwrap_or_else(|| "tools".to_string()),
         };
 
+        eprintln!("[DEBUG] Table name: {}", tool_db.table_name);
+
         // Initialize the table if it doesn't exist
         tool_db.init_table().await?;
 
@@ -52,11 +55,18 @@ impl ToolVectorDB {
     }
 
     fn get_db_path() -> Result<PathBuf> {
-        let data_dir = etcetera::choose_base_strategy()
-            .context("Failed to determine base strategy")?
-            .data_dir();
+        let home_dir = dirs::home_dir()
+            .context("Failed to get home directory")?
+            .join(".goose")
+            .join("tool_db");
 
-        Ok(data_dir.join("goose").join("tool_db"))
+        // Ensure the directory exists
+        if let Some(parent) = home_dir.parent() {
+            std::fs::create_dir_all(parent)
+                .context("Failed to create database directory")?;
+        }
+
+        Ok(home_dir)
     }
 
     async fn init_table(&self) -> Result<()> {
@@ -120,33 +130,43 @@ impl ToolVectorDB {
                 .create_table(&self.table_name, Box::new(reader))
                 .execute()
                 .await
-                .context("Failed to create tools table")?;
+                .map_err(|e| anyhow::anyhow!("Failed to create tools table '{}': {}", self.table_name, e))?;
         }
 
         Ok(())
     }
 
     pub async fn clear_tools(&self) -> Result<()> {
+        eprintln!("[DEBUG] Starting clear_tools operation...");
         let connection = self.connection.write().await;
+        eprintln!("[DEBUG] Acquired write lock on connection");
 
-        // Drop the table if it exists
-        let table_names = connection
-            .table_names()
-            .execute()
-            .await
-            .context("Failed to list tables")?;
-
-        if table_names.contains(&self.table_name) {
-            connection
-                .drop_table(&self.table_name)
-                .await
-                .context("Failed to drop tools table")?;
+        // Try to open the table first
+        eprintln!("[DEBUG] Attempting to open table {}", self.table_name);
+        match connection.open_table(&self.table_name).execute().await {
+            Ok(table) => {
+                eprintln!("[DEBUG] Successfully opened table, attempting to delete all records");
+                // Delete all records instead of dropping the table
+                table
+                    .delete("1=1") // This will match all records
+                    .await
+                    .context("Failed to delete all records")?;
+                eprintln!("[DEBUG] Successfully deleted all records");
+            }
+            Err(e) => {
+                eprintln!("[DEBUG] Error opening table: {:?}", e);
+                // If table doesn't exist, that's fine - we'll create it
+                eprintln!("[DEBUG] Table may not exist, will create if needed");
+            }
         }
 
         drop(connection);
+        eprintln!("[DEBUG] Released write lock on connection");
 
-        // Reinitialize the table
+        // Ensure table exists with correct schema
+        eprintln!("[DEBUG] Ensuring table exists with correct schema");
         self.init_table().await?;
+        eprintln!("[DEBUG] Successfully initialized table");
 
         Ok(())
     }
@@ -322,6 +342,10 @@ impl ToolVectorDB {
 
         Ok(())
     }
+}
+
+pub fn generate_table_id() -> String {
+    Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
 
 #[cfg(test)]
