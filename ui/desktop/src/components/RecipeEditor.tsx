@@ -140,8 +140,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     instructions?: string;
   }>({});
 
-  const requiredFieldsNotFilled = () => {
-    return !title.trim() || !description.trim() || !instructions.trim();
+  const requiredFieldsAreFilled = () => {
+    return title.trim() && description.trim() && instructions.trim();
   };
 
   const validateForm = () => {
@@ -195,9 +195,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       setExtensionsLoaded(false);
     }
   }, [activeSection]);
-  const page_title = config?.title ? 'View/Edit current agent recipe' : 'Create an agent recipe';
+  const page_title = config?.title ? 'View/edit current recipe' : 'Create an agent recipe';
   const subtitle = config?.title
-    ? "Your can edit the recipe below to change the agent's behavior in a new session."
+    ? "You can edit the recipe below to change the agent's behavior in a new session."
     : 'Your custom agent recipe can be shared with others. Fill in the sections below to create!';
   return (
     <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
@@ -300,7 +300,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <button
                 onClick={() => validateForm() && handleCopy()}
                 className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
-                disabled={requiredFieldsNotFilled()}
+                disabled={!requiredFieldsAreFilled()}
               >
                 {copied ? (
                   <Check className="w-4 h-4 text-green-500" />
@@ -311,7 +311,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               </button>
             </div>
             <div
-              className={`text-sm truncate font-mono ${requiredFieldsNotFilled() ? 'text-textDisabled' : 'text-textStandard'}`}
+              className={`text-sm truncate font-mono ${requiredFieldsAreFilled() ? 'text-textStandard' : 'text-textDisabled'}`}
             >
               {deeplink}
             </div>

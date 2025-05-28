@@ -23,7 +23,7 @@ export default function RecipeActivityEditor({
       <label htmlFor="activities" className="block text-md text-textProminent mb-2 font-bold">
         Activities
       </label>
-      <p className="text-textSubtle space-y-2">
+      <p className="text-textSubtle space-y-2 pb-2">
         The top-line prompts and activities that will display within your goose home page.
       </p>
       <div className="space-y-4">
