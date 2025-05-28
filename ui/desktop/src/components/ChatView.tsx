@@ -292,14 +292,11 @@ function ChatContent({
   useEffect(() => {
     const prompt = recipeConfig?.prompt;
 
-    // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
-    // This is because the recipe config and parameters are available before full app initialization
     const hasParameterValues =
       recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
-
-    // Also allow recipes that have no parameters field at all (including when we remove parameters during cancellation)
     const hasNoParameters = recipeConfig && !recipeConfig.parameters;
 
+    // Allow recipes with no recipes and those with filled parameters to proceed
     const shouldProceed = readyForAutoUserPrompt || hasParameterValues || hasNoParameters;
 
     if (prompt && !hasSentPromptRef.current && shouldProceed) {

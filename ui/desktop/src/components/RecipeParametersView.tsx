@@ -105,7 +105,6 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
     onClose();
   };
 
-  // If no config, don't render anything
   if (!config) {
     return null;
   }

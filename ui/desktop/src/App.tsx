@@ -246,7 +246,6 @@ export default function App() {
 
   useEffect(() => {
     try {
-      console.log('Sending reactReady signal to Electron');
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);

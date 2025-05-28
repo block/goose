@@ -150,8 +150,6 @@ export const initializeSystem = async (
 
     // Update the app config with the processed recipe if we got one back
     if (processedRecipe) {
-      // Preserve the _paramValues field from the original recipe config
-      // The backend processes the template but doesn't return this metadata
       if (recipeConfig?._paramValues) {
         processedRecipe._paramValues = recipeConfig._paramValues;
       }
