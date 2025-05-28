@@ -37,10 +37,10 @@
     "/config/extension": {
       "post": {
         "tags": [
-          "super::routes::config_management"
+          "config"
         ],
         "summary": "Add an extension configuration",
-        "operationId": "add_extension",
+        "operationId": "add_extension_config",
         "requestBody": {
           "content": {
             "application/json": {
@@ -208,6 +208,180 @@
           }
         }
       }
+    },
+    "/schedule/create": {
+      "post": {
+        "tags": ["schedule"],
+        "summary": "Create a new scheduled job",
+        "operationId": "create_schedule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled job created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJob"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/list": {
+      "get": {
+        "tags": ["schedule"],
+        "summary": "List all scheduled jobs",
+        "operationId": "list_schedules",
+        "responses": {
+          "200": {
+            "description": "A list of scheduled jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ScheduledJob"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/delete/{id}": {
+      "delete": {
+        "tags": ["schedule"],
+        "summary": "Delete a scheduled job by ID",
+        "operationId": "delete_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the schedule to delete",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job deleted successfully"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/run_now": {
+      "post": {
+        "tags": ["schedule"],
+        "summary": "Run a scheduled job immediately",
+        "operationId": "run_schedule_now",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the schedule to run",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled job triggered successfully, returns new session ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNowResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error when trying to run the job"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/sessions": {
+      "get": {
+        "tags": ["schedule"],
+        "summary": "List sessions created by a specific schedule",
+        "operationId": "list_schedule_sessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the schedule",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of sessions to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of session metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionMetadata"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -271,6 +445,126 @@
           },
           "value": {
             "description": "The value to set for the configuration"
+          }
+        }
+      },
+      "CreateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "recipe_source",
+          "cron"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique ID for the new schedule."
+          },
+          "recipe_source": {
+            "type": "string",
+            "description": "Path to the recipe file to be executed by this schedule."
+          },
+          "cron": {
+            "type": "string",
+            "description": "Cron string defining when the job should run."
+          }
+        }
+      },
+      "ScheduledJob": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "cron"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the scheduled job."
+          },
+          "source": {
+            "type": "string",
+            "description": "Path to the recipe file for this job."
+          },
+          "cron": {
+            "type": "string",
+            "description": "Cron string defining the schedule."
+          },
+          "last_run": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the last time the job was run.",
+            "nullable": true
+          }
+        }
+      },
+      "SessionMetadata": {
+        "type": "object",
+        "required": [
+          "working_dir",
+          "description",
+          "message_count"
+        ],
+        "properties": {
+          "working_dir": {
+            "type": "string",
+            "description": "Working directory for the session."
+          },
+          "description": {
+            "type": "string",
+            "description": "A short description of the session."
+          },
+          "schedule_id": {
+            "type": "string",
+            "description": "ID of the schedule that triggered this session, if any.",
+            "nullable": true
+          },
+          "message_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of messages in the session."
+          },
+          "total_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          },
+          "input_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          },
+          "output_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          },
+          "accumulated_total_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          },
+          "accumulated_input_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          },
+          "accumulated_output_tokens": {
+             "type": "integer",
+             "format": "int32",
+             "nullable": true
+          }
+        }
+      },
+      "RunNowResponse": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "The ID of the newly created session."
           }
         }
       }

@@ -1,10 +1,5 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import ChartTile from './tiles/ChartTile.tsx';
-import HighlightTile from './tiles/HighlightTile.tsx';
-import PieChartTile from './tiles/PieChartTile.tsx';
-import ListTile from './tiles/ListTile.tsx';
-import ClockTile from './tiles/ClockTile.tsx';
-import TimelineDots from './TimelineDots';
+import { useRef, useMemo, useEffect, ReactElement } from 'react';
+
 import {
   ChartLineIcon,
   ChartBarIcon,
@@ -13,6 +8,13 @@ import {
   StarIcon,
   TrendingUpIcon,
 } from './icons';
+import { useTimeline } from '../contexts/TimelineContext';
+import ChartTile from './tiles/ChartTile.tsx';
+import ClockTile from './tiles/ClockTile.tsx';
+import HighlightTile from './tiles/HighlightTile.tsx';
+import ListTile from './tiles/ListTile.tsx';
+import PieChartTile from './tiles/PieChartTile.tsx';
+import TimelineDots from './TimelineDots';
 
 const generateRandomData = (length: number) =>
   Array.from({ length }, () => Math.floor(Math.random() * 100));
@@ -241,9 +243,10 @@ const generateTileData = (date: Date) => {
   };
 };
 
-export default function Timeline() {
+export default function Timeline(): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const { setCurrentDate } = useTimeline();
 
   const sections = useMemo(() => {
     const result = [];
@@ -267,37 +270,105 @@ export default function Timeline() {
   }, []);
 
   // Function to center the timeline in a section
-  const centerTimeline = (sectionElement: HTMLDivElement) => {
-    if (!sectionElement) return;
+  const centerTimeline = (
+    sectionElement: HTMLDivElement | null,
+    animate: boolean = true
+  ): HTMLDivElement | null => {
+    if (!sectionElement) return sectionElement;
 
     requestAnimationFrame(() => {
       const totalWidth = sectionElement.scrollWidth;
       const viewportWidth = sectionElement.clientWidth;
       const scrollToX = Math.max(0, (totalWidth - viewportWidth) / 2);
 
-      sectionElement.scrollTo({
-        left: scrollToX,
-        behavior: 'smooth',
-      });
+      if (animate) {
+        sectionElement.scrollTo({
+          left: scrollToX,
+          behavior: 'smooth',
+        });
+      } else {
+        sectionElement.scrollLeft = scrollToX;
+      }
     });
+
+    return sectionElement;
   };
 
   useEffect(() => {
+    // Capture ref values at the start of the effect
+    const currentContainer = containerRef.current;
+    const currentSections = [...sectionRefs.current];
+
     // Create the intersection observer
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          const section = entry.target as HTMLDivElement;
+
+          // When section comes into view
           if (entry.isIntersecting) {
-            const section = entry.target as HTMLDivElement;
-            centerTimeline(section);
+            // Update current date
+            const sectionIndex = sectionRefs.current.indexOf(section);
+            if (sectionIndex !== -1 && sections[sectionIndex]) {
+              const date = sections[sectionIndex].date;
+              setCurrentDate(date);
+            }
+          }
+
+          // When section is fully visible and centered
+          if (entry.intersectionRatio > 0.8) {
+            centerTimeline(section, true);
           }
         });
       },
       {
-        threshold: 0.5,
-        rootMargin: '0px',
+        threshold: [0, 0.8, 1], // Track when section is hidden, mostly visible, and fully visible
+        rootMargin: '-10% 0px', // Slightly reduced margin for more natural triggering
       }
     );
+
+    // Add scroll handler for even faster updates
+    const handleScroll = () => {
+      if (!currentContainer) return;
+
+      // Find the section closest to the middle of the viewport
+      const viewportMiddle = window.innerHeight / 2;
+      let closestSection: HTMLDivElement | null = null;
+      let closestDistance = Infinity;
+
+      sectionRefs.current.forEach((section) => {
+        if (!section) return;
+        const rect = section.getBoundingClientRect();
+        const sectionMiddle = rect.top + rect.height / 2;
+        const distance = Math.abs(sectionMiddle - viewportMiddle);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestSection = section;
+        }
+      });
+
+      if (closestSection) {
+        const sectionIndex = sectionRefs.current.indexOf(closestSection);
+        if (sectionIndex !== -1 && sections[sectionIndex]) {
+          const date = sections[sectionIndex].date;
+          setCurrentDate(date);
+        }
+      }
+    };
+
+    // Add scroll event listener with throttling
+    let lastScrollTime = 0;
+    const throttledScrollHandler = () => {
+      const now = Date.now();
+      if (now - lastScrollTime >= 150) {
+        // Throttle to ~6-7 times per second
+        handleScroll();
+        lastScrollTime = now;
+      }
+    };
+
+    currentContainer?.addEventListener('scroll', throttledScrollHandler, { passive: true });
 
     // Add resize handler
     const handleResize = () => {
@@ -306,12 +377,11 @@ export default function Timeline() {
         if (!section) return false;
         const rect = section.getBoundingClientRect();
         const viewportHeight = window.innerHeight;
-        // Check if the section is mostly visible in the viewport
         return rect.top >= -viewportHeight / 2 && rect.bottom <= viewportHeight * 1.5;
       });
 
       if (visibleSection) {
-        centerTimeline(visibleSection);
+        centerTimeline(visibleSection, true); // Animate on resize
       }
     };
 
@@ -322,33 +392,45 @@ export default function Timeline() {
     sectionRefs.current.forEach((section) => {
       if (section) {
         observer.observe(section);
-        centerTimeline(section);
+        centerTimeline(section, false); // No animation on initial load
       }
     });
 
-    // Cleanup function
+    // Cleanup function using captured values
     return () => {
       window.removeEventListener('resize', handleResize);
-      sectionRefs.current.forEach((section) => {
+      currentContainer?.removeEventListener('scroll', throttledScrollHandler);
+      currentSections.forEach((section) => {
         if (section) {
           observer.unobserve(section);
         }
       });
     };
-  }, []);
+  }, [sections, setCurrentDate]);
 
-  const renderTile = (tile: any, index: number) => {
+  interface TileProps {
+    [key: string]: unknown;
+  }
+
+  interface Tile {
+    type: string;
+    props: TileProps;
+  }
+
+  const renderTile = (tile: Tile, index: number): ReactElement | null => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const props = tile.props as any; // Use any for flexibility with different tile prop types
     switch (tile.type) {
       case 'chart':
-        return <ChartTile key={index} {...tile.props} />;
+        return <ChartTile key={index} {...props} />;
       case 'highlight':
-        return <HighlightTile key={index} {...tile.props} />;
+        return <HighlightTile key={index} {...props} />;
       case 'pie':
-        return <PieChartTile key={index} {...tile.props} />;
+        return <PieChartTile key={index} {...props} />;
       case 'list':
-        return <ListTile key={index} {...tile.props} />;
+        return <ListTile key={index} {...props} />;
       case 'clock':
-        return <ClockTile key={index} {...tile.props} />;
+        return <ClockTile key={index} {...props} />;
       default:
         return null;
     }
@@ -362,8 +444,10 @@ export default function Timeline() {
       {sections.map((section, index) => (
         <div
           key={index}
-          ref={(el) => (sectionRefs.current[index] = el)}
-          className="h-screen relative snap-center snap-always overflow-y-hidden overflow-x-scroll snap-x snap-mandatory scrollbar-hide"
+          ref={(el) => {
+            sectionRefs.current[index] = el;
+          }}
+          className="h-screen relative snap-center snap-always overflow-y-hidden overflow-x-scroll snap-x snap-mandatory scrollbar-hide animate-[fadein_300ms_ease-in-out]"
         >
           <div className="relative min-w-[calc(200vw+100px)] h-full flex items-center">
             {/* Main flex container */}
@@ -392,19 +476,31 @@ export default function Timeline() {
                 />
 
                 {/* Date Display */}
-                <div className="bg-white p-4 rounded z-[3] flex flex-col items-center transition-opacity">
+                <div className="bg-white dark:bg-black shadow-[0_0_13.7px_rgba(0,0,0,0.04)] dark:shadow-[0_0_24px_rgba(255,255,255,0.08)] p-4 rounded-xl z-[3] flex flex-col items-center transition-all">
                   <div
-                    className={`font-['Cash_Sans'] text-3xl font-light ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-3xl font-light transition-colors ${
+                      section.isToday
+                        ? 'text-black dark:text-white'
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.toLocaleString('default', { month: 'short' })}
                   </div>
                   <div
-                    className={`font-['Cash_Sans'] text-[64px] font-light leading-none ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-[64px] font-light leading-none transition-colors ${
+                      section.isToday
+                        ? 'text-black dark:text-white'
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.getDate()}
                   </div>
                   <div
-                    className={`font-['Cash_Sans'] text-sm font-light mt-1 ${section.isToday ? 'opacity-100' : 'opacity-20'}`}
+                    className={`font-['Cash_Sans'] text-sm font-light mt-1 transition-colors ${
+                      section.isToday
+                        ? 'text-black dark:text-white'
+                        : 'text-black/40 dark:text-white/40'
+                    }`}
                   >
                     {section.date.toLocaleString('default', { weekday: 'long' })}
                   </div>
