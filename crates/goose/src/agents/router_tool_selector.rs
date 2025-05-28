@@ -69,20 +69,12 @@ impl VectorToolSelector {
 #[async_trait]
 impl RouterToolSelector for VectorToolSelector {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        eprintln!("[DEBUG] Received params: {:?}", params);
-
         let query = params
             .get("query")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".to_string()))?;
 
-        eprintln!("[DEBUG] Extracted query: {}", query);
-
         let k = params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
-        eprintln!("[DEBUG] Using k value: {}", k);
-
-        // Generate embedding for the query
-        eprintln!("[DEBUG] Generating embedding for query...");
 
         // Check if provider supports embeddings
         if !self.embedding_provider.supports_embeddings() {
@@ -96,7 +88,6 @@ impl RouterToolSelector for VectorToolSelector {
             .create_embeddings(vec![query.to_string()])
             .await
             .map_err(|e| {
-                eprintln!("[DEBUG] Embedding generation failed: {}", e);
                 ToolError::ExecutionError(format!("Failed to generate query embedding: {}", e))
             })?;
 
@@ -104,24 +95,13 @@ impl RouterToolSelector for VectorToolSelector {
             .into_iter()
             .next()
             .ok_or_else(|| ToolError::ExecutionError("No embedding returned".to_string()))?;
-        eprintln!("[DEBUG] Successfully generated embedding");
 
-        // Search for similar tools
-        eprintln!("[DEBUG] Starting vector search...");
         let vector_db = self.vector_db.read().await;
         let tools = vector_db
             .search_tools(query_embedding, k)
             .await
-            .map_err(|e| {
-                eprintln!("[DEBUG] Vector search failed: {}", e);
-                ToolError::ExecutionError(format!("Failed to search tools: {}", e))
-            })?;
-        eprintln!(
-            "[DEBUG] Vector search completed, found {} tools",
-            tools.len()
-        );
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 
-        // Convert tool records to Content
         let selected_tools: Vec<Content> = tools
             .into_iter()
             .map(|tool| {
@@ -136,17 +116,10 @@ impl RouterToolSelector for VectorToolSelector {
             })
             .collect();
 
-        eprintln!(
-            "[DEBUG] Successfully converted {} tools to Content",
-            selected_tools.len()
-        );
         Ok(selected_tools)
     }
 
     async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError> {
-        eprintln!("[DEBUG] Indexing {} tools in batch", tools.len());
-
-        // Prepare texts for embedding
         let texts_to_embed: Vec<String> = tools
             .iter()
             .map(|tool| {
@@ -156,7 +129,6 @@ impl RouterToolSelector for VectorToolSelector {
             })
             .collect();
 
-        // Generate embeddings for all tools at once
         if !self.embedding_provider.supports_embeddings() {
             return Err(ToolError::ExecutionError(
                 "Embedding provider does not support embeddings".to_string(),
@@ -194,7 +166,6 @@ impl RouterToolSelector for VectorToolSelector {
             .await
             .map_err(|e| ToolError::ExecutionError(format!("Failed to index tools: {}", e)))?;
 
-        eprintln!("[DEBUG] Successfully indexed tools in batch");
         Ok(())
     }
 

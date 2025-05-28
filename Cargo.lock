@@ -2225,7 +2225,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "pin-project-lite",
- "rand",
+ "rand 0.8.5",
  "sqlparser",
  "tempfile",
  "tokio",
@@ -2293,7 +2293,7 @@ dependencies = [
  "log",
  "object_store",
  "parking_lot",
- "rand",
+ "rand 0.8.5",
  "tempfile",
  "url",
 ]
@@ -2334,7 +2334,7 @@ dependencies = [
  "hex",
  "itertools 0.12.1",
  "log",
- "rand",
+ "rand 0.8.5",
  "regex",
  "unicode-segmentation",
  "uuid",
@@ -2377,7 +2377,7 @@ dependencies = [
  "itertools 0.12.1",
  "log",
  "paste",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -2441,7 +2441,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "hashbrown 0.14.5",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -2486,7 +2486,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "pin-project-lite",
- "rand",
+ "rand 0.8.5",
  "tokio",
 ]
 
@@ -3075,7 +3075,7 @@ version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac423dce38c8aafc3d348d9f9c207ac030385ba2edda08bcff43c74a29ce3eac"
 dependencies = [
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4579,7 +4579,7 @@ dependencies = [
  "pin-project",
  "prost",
  "prost-build",
- "rand",
+ "rand 0.8.5",
  "roaring",
  "serde",
  "serde_json",
@@ -4607,7 +4607,7 @@ dependencies = [
  "getrandom 0.2.15",
  "half",
  "num-traits",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4637,7 +4637,7 @@ dependencies = [
  "object_store",
  "pin-project",
  "prost",
- "rand",
+ "rand 0.8.5",
  "roaring",
  "serde_json",
  "snafu",
@@ -4707,7 +4707,7 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
- "rand",
+ "rand 0.8.5",
  "seq-macro",
  "snafu",
  "tokio",
@@ -4791,7 +4791,7 @@ dependencies = [
  "object_store",
  "prost",
  "prost-build",
- "rand",
+ "rand 0.8.5",
  "rayon",
  "roaring",
  "serde",
@@ -4837,7 +4837,7 @@ dependencies = [
  "pin-project",
  "prost",
  "prost-build",
- "rand",
+ "rand 0.8.5",
  "shellexpand",
  "snafu",
  "tokio",
@@ -4864,7 +4864,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num-traits",
- "rand",
+ "rand 0.8.5",
  "rayon",
  "tokio",
  "tracing",
@@ -4899,7 +4899,7 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
- "rand",
+ "rand 0.8.5",
  "rangemap",
  "roaring",
  "serde",
@@ -4921,7 +4921,7 @@ dependencies = [
  "arrow-schema",
  "lance-arrow",
  "num-traits",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -5839,7 +5839,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "quick-xml 0.36.2",
- "rand",
+ "rand 0.8.5",
  "reqwest 0.12.12",
  "ring",
  "rustls-pemfile 2.2.0",
@@ -6154,7 +6154,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -6666,22 +6666,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "rand_distr"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
-dependencies = [
- "num-traits",
- "rand",
-]
-
-[[package]]
 name = "rand_core"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.1",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
 ]
 
 [[package]]

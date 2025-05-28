@@ -194,9 +194,7 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
             ))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
-            eprintln!("[DEBUG] Received tool call: {:?}", tool_call);
             let selector = self.router_tool_selector.lock().await.clone();
-            eprintln!("[DEBUG] Router tool selector: {:?}", selector.is_some());
             if let Some(selector) = selector {
                 selector.select_tools(tool_call.arguments.clone()).await
             } else {
@@ -696,41 +694,22 @@ impl Agent {
             .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
             .unwrap_or_else(|_| "default".to_string());
 
-        eprintln!(
-            "[DEBUG] Router tool selection strategy from config: {}",
-            router_tool_selection_strategy
-        );
-
         let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
             _ => None,
         };
 
-        eprintln!("[DEBUG] Parsed strategy: {:?}", strategy);
-
         if let Some(strategy) = strategy {
-            eprintln!("[DEBUG] Creating tool selector with vector strategy...");
             let table_name = generate_table_id();
-            eprintln!("[DEBUG] Table name: {}", table_name);
             let selector = create_tool_selector(Some(strategy), provider, table_name)
                 .await
-                .map_err(|e| {
-                    eprintln!("[DEBUG] Failed to create tool selector: {}", e);
-                    anyhow!("Failed to create tool selector: {}", e)
-                })?;
+                .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
 
-            eprintln!("[DEBUG] Setting router tool selector...");
             let selector = Arc::new(selector);
             *self.router_tool_selector.lock().await = Some(selector.clone());
 
-            eprintln!("[DEBUG] Indexing platform tools...");
             let extension_manager = self.extension_manager.lock().await;
             ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
-            eprintln!("[DEBUG] Router tool selector initialization complete");
-        } else {
-            eprintln!(
-                "[DEBUG] No vector strategy selected, skipping router tool selector initialization"
-            );
         }
 
         Ok(())
