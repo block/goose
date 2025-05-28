@@ -81,18 +81,8 @@ impl OpenAiProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join(&self.base_path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
-
-        let mut request = self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key));
-
+    /// Helper function to add OpenAI-specific headers to a request
+    fn add_headers(&self, mut request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         // Add organization header if present
         if let Some(org) = &self.organization {
             request = request.header("OpenAI-Organization", org);
@@ -103,11 +93,29 @@ impl OpenAiProvider {
             request = request.header("OpenAI-Project", project);
         }
 
+        // Add custom headers if present
         if let Some(custom_headers) = &self.custom_headers {
             for (key, value) in custom_headers {
                 request = request.header(key, value);
             }
         }
+
+        request
+    }
+
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        let base_url = url::Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join(&self.base_path).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
+
+        let request = self
+            .client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", self.api_key));
+
+        let request = self.add_headers(request);
 
         let response = request.json(&payload).send().await?;
 
@@ -210,6 +218,16 @@ impl Provider for OpenAiProvider {
         models.sort();
         Ok(Some(models))
     }
+
+    fn supports_embeddings(&self) -> bool {
+        true
+    }
+
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, texts)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
 }
 
 fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -246,28 +264,13 @@ impl EmbeddingCapable for OpenAiProvider {
             .join("v1/embeddings")
             .map_err(|e| anyhow::anyhow!("Failed to construct embeddings URL: {e}"))?;
 
-        let mut req = self
+        let req = self
             .client
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&request);
 
-        // Add organization header if present
-        if let Some(org) = &self.organization {
-            req = req.header("OpenAI-Organization", org);
-        }
-
-        // Add project header if present
-        if let Some(project) = &self.project {
-            req = req.header("OpenAI-Project", project);
-        }
-
-        // Add custom headers if present
-        if let Some(headers) = &self.custom_headers {
-            for (key, value) in headers {
-                req = req.header(key, value);
-            }
-        }
+        let req = self.add_headers(req);
 
         let response = req
             .send()

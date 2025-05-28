@@ -147,24 +147,14 @@ impl Usage {
 }
 
 use async_trait::async_trait;
-use downcast_rs::{impl_downcast, Downcast};
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
-pub trait Provider: Send + Sync + Downcast {
+pub trait Provider: Send + Sync {
     /// Get the metadata for this provider type
     fn metadata() -> ProviderMetadata
     where
         Self: Sized;
-
-    /// Get the name of this provider
-    fn get_name(&self) -> String {
-        std::any::type_name::<Self>()
-            .split("::")
-            .last()
-            .unwrap_or("unknown")
-            .to_string()
-    }
 
     /// Generate the next message using the configured model and other parameters
     ///
@@ -193,9 +183,19 @@ pub trait Provider: Send + Sync + Downcast {
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
-}
 
-impl_downcast!(Provider);
+    /// Check if this provider supports embeddings
+    fn supports_embeddings(&self) -> bool {
+        false
+    }
+
+    /// Create embeddings if supported. Default implementation returns an error.
+    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        Err(ProviderError::ExecutionError(
+            "This provider does not support embeddings".to_string(),
+        ))
+    }
+}
 
 #[cfg(test)]
 mod tests {

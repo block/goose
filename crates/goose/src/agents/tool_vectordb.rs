@@ -129,6 +129,7 @@ impl ToolVectorDB {
         Ok(())
     }
 
+    #[cfg(test)]
     pub async fn clear_tools(&self) -> Result<()> {
         let connection = self.connection.write().await;
 

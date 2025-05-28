@@ -1,6 +1,5 @@
 mod agent;
 mod context;
-pub(crate) mod embeddings;
 pub mod extension;
 pub mod extension_manager;
 mod large_response_handler;

@@ -3442,7 +3442,6 @@ dependencies = [
  "criterion",
  "ctor",
  "dotenv",
- "downcast-rs",
  "etcetera",
  "fs2",
  "futures",

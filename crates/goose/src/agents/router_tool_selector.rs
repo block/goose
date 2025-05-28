@@ -2,18 +2,17 @@ use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
 use mcp_core::{Content, ToolError};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::VecDeque;
+use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::agents::embeddings::{
-    create_embedding_provider, create_embedding_provider_from_instance, EmbeddingProviderTrait,
-};
 use crate::agents::tool_vectordb::ToolVectorDB;
-use crate::providers::base::Provider;
+use crate::model::ModelConfig;
+use crate::providers::{self, base::Provider};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
@@ -24,7 +23,6 @@ pub enum RouterToolSelectionStrategy {
 pub trait RouterToolSelector: Send + Sync {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError>;
     async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError>;
-    async fn clear_tools(&self) -> Result<(), ToolError>;
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError>;
@@ -33,7 +31,7 @@ pub trait RouterToolSelector: Send + Sync {
 
 pub struct VectorToolSelector {
     vector_db: Arc<RwLock<ToolVectorDB>>,
-    embedding_provider: Arc<Box<dyn EmbeddingProviderTrait>>,
+    embedding_provider: Arc<dyn Provider>,
     recent_tool_calls: Arc<RwLock<VecDeque<String>>>,
 }
 
@@ -41,18 +39,28 @@ impl VectorToolSelector {
     pub async fn new(provider: Arc<dyn Provider>, table_name: String) -> Result<Self> {
         let vector_db = ToolVectorDB::new(Some(table_name)).await?;
 
-        let embedding_provider =
-            if let Ok(embedding_provider_name) = std::env::var("EMBEDDING_MODEL_PROVIDER") {
-                // If env var is set, use the provided embedding model to create a new provider
-                create_embedding_provider().await?
-            } else {
-                // Otherwise fall back to using the same provider instance as used for base goose model
-                create_embedding_provider_from_instance(provider.clone()).await?
-            };
+        let embedding_provider = if env::var("EMBEDDING_MODEL_PROVIDER").is_ok() {
+            // If env var is set, create a new provider for embeddings
+            // Get embedding model and provider from environment variables
+            let embedding_model = env::var("EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+            let embedding_provider_name =
+                env::var("EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+
+            // Create the provider using the factory
+            let model_config = ModelConfig::new(embedding_model);
+            providers::create(&embedding_provider_name, model_config).context(format!(
+                "Failed to create {} provider for embeddings. If using OpenAI, make sure OPENAI_API_KEY env var is set or that you have configured the OpenAI provider via Goose before.",
+                embedding_provider_name
+            ))?
+        } else {
+            // Otherwise fall back to using the same provider instance as used for base goose model
+            provider.clone()
+        };
 
         Ok(Self {
             vector_db: Arc::new(RwLock::new(vector_db)),
-            embedding_provider: Arc::new(embedding_provider),
+            embedding_provider,
             recent_tool_calls: Arc::new(RwLock::new(VecDeque::with_capacity(100))),
         })
     }
@@ -75,14 +83,27 @@ impl RouterToolSelector for VectorToolSelector {
 
         // Generate embedding for the query
         eprintln!("[DEBUG] Generating embedding for query...");
-        let query_embedding = self
+
+        // Check if provider supports embeddings
+        if !self.embedding_provider.supports_embeddings() {
+            return Err(ToolError::ExecutionError(
+                "Embedding provider does not support embeddings".to_string(),
+            ));
+        }
+
+        let embeddings = self
             .embedding_provider
-            .embed_single(query.to_string())
+            .create_embeddings(vec![query.to_string()])
             .await
             .map_err(|e| {
                 eprintln!("[DEBUG] Embedding generation failed: {}", e);
                 ToolError::ExecutionError(format!("Failed to generate query embedding: {}", e))
             })?;
+
+        let query_embedding = embeddings
+            .into_iter()
+            .next()
+            .ok_or_else(|| ToolError::ExecutionError("No embedding returned".to_string()))?;
         eprintln!("[DEBUG] Successfully generated embedding");
 
         // Search for similar tools
@@ -136,9 +157,15 @@ impl RouterToolSelector for VectorToolSelector {
             .collect();
 
         // Generate embeddings for all tools at once
+        if !self.embedding_provider.supports_embeddings() {
+            return Err(ToolError::ExecutionError(
+                "Embedding provider does not support embeddings".to_string(),
+            ));
+        }
+
         let embeddings = self
             .embedding_provider
-            .embed(texts_to_embed)
+            .create_embeddings(texts_to_embed)
             .await
             .map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to generate tool embeddings: {}", e))
@@ -168,15 +195,6 @@ impl RouterToolSelector for VectorToolSelector {
             .map_err(|e| ToolError::ExecutionError(format!("Failed to index tools: {}", e)))?;
 
         eprintln!("[DEBUG] Successfully indexed tools in batch");
-        Ok(())
-    }
-
-    async fn clear_tools(&self) -> Result<(), ToolError> {
-        let vector_db = self.vector_db.write().await;
-        vector_db
-            .clear_tools()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to clear tools: {}", e)))?;
         Ok(())
     }
 

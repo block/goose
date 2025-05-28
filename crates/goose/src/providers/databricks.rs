@@ -188,7 +188,6 @@ impl DatabricksProvider {
             .client
             .post(url)
             .header("Authorization", auth_header)
-            .header("Content-Type", "application/json")
             .json(&payload)
             .send()
             .await?;
@@ -308,6 +307,16 @@ impl Provider for DatabricksProvider {
 
         Ok((message, ProviderUsage::new(model, usage)))
     }
+
+    fn supports_embeddings(&self) -> bool {
+        true
+    }
+
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, texts)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
 }
 
 #[async_trait]
@@ -320,13 +329,10 @@ impl EmbeddingCapable for DatabricksProvider {
         // Create request in Databricks format for embeddings
         let request = json!({
             "input": texts,
-            "instruction": "Represent this sentence for searching relevant passages:"
         });
 
         let response = self.post(request).await?;
-        // eprintln!("Databricks embedding response: {}", serde_json::to_string_pretty(&response)?);
 
-        // Extract embeddings from Databricks response format
         let embeddings = response["data"]
             .as_array()
             .ok_or_else(|| anyhow::anyhow!("Invalid response format: missing data array"))?
