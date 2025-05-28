@@ -7,6 +7,8 @@ pub mod permission;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
+pub mod scheduler;
 pub mod session;
 pub mod token_counter;
+pub mod tool_monitor;
 pub mod tracing;

@@ -140,7 +140,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 
   2. Select `Add Extension` from the menu.
 
-  3. Choose the type of extension you’d like to add:
+  3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
@@ -246,6 +246,59 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
   </TabItem>
 </Tabs>
 
+
+### Deeplinks
+
+Extensions can be installed using Goose's deep link protocol. The URL format varies based on the extension type:
+
+<Tabs groupId="interface">
+  <TabItem value="stdio" label="StandardIO" default>
+```
+goose://extension?cmd=<command>&arg=<argument>&id=<id>&name=<name>&description=<description>
+```
+
+Required parameters:
+- `cmd`: The base command to run, one of `jbang`, `npx`, `uvx`, `goosed`, or `docker`
+- `arg`: (cmd only) Command arguments (can be repeated for multiple arguments: `&arg=...&arg=...`)
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
+
+```
+goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&timeout=<timeout>&id=<id>&name=<name>&description=<description>
+```
+
+Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
+  </TabItem>
+  <TabItem value="sse" label="Server-Sent Events">
+```
+goose://extension?url=<remote-sse-url>&id=<id>&name=<name>&description=<description>
+```
+
+Parameters:
+- `url`: The URL of the remote SSE server
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+For example, a deeplink for a URL like `http://localhost:8080/sse` would look like this when URL-encoded:
+
+```
+goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&timeout=<timeout>&id=<id>&name=<name>&description=<description>>
+```
+
+  </TabItem>
+</Tabs>
+
+:::note
+All parameters in the deeplink must be URL-encoded. For example, spaces should be replaced with `%20`, and `@` should be replaced with `%40`.
+:::
+
+
 ### Config Entry
 For advanced users, you can also directly edit the config file (`~/.config/goose/config.yaml`) to add, remove, or update an extension:
 
@@ -299,9 +352,130 @@ You can enable or disable installed extensions based on your workflow needs.
   </TabItem>
 </Tabs>
 
-:::tip
-Goose can automatically detect and suggest the right extensions for your tasks as you chat. Learn more about this smart feature in the [Smart Extension](/docs/guides/smart-extension-recommendation) guide.
+## Automatically Enabled Extensions
+
+The Smart Extension Recommendation system in Goose automatically identifies and suggests relevant extensions based on your tasks and needs. This section explains how to use this feature effectively and understand its capabilities and limitations.
+
+When you request a task, Goose checks its enabled extensions and their tools to determine if it can fulfill the request. If not, it suggests or enables additional extensions as needed. You can also request specific extensions by name.
+
+
+:::warning
+Any extensions enabled dynamically are only enabled for the current session. To keep extensions enabled between sessions, see [Enabling/Disabling Extensions](#enablingdisabling-extensions).
 :::
+
+### Automatic Detection
+
+Goose automatically detects when an extension is needed based on your task requirements. Here's an example of how Goose identifies and enables a needed extension during a conversation:
+
+<Tabs groupId="interface">
+<TabItem value="ui" label="Goose Desktop" default>
+
+#### Goose Prompt
+```plaintext
+Find all orders with pending status from our production database
+```
+
+#### Goose Output
+
+```plaintext
+I'll help you search for available extensions that might help us interact with PostgreSQL databases.
+
+🔍 Search Available Extensions
+└─ Output ▼
+
+ I see there's a PostgreSQL extension available. Let me enable it so we can query your database.
+
+🔧 Manage Extensions
+└─ action           enable
+   extension_name   postgresql
+
+The extension 'postgresql' has been installed successfully
+
+Great! Now I can help you query the database...
+```
+
+</TabItem>
+<TabItem value="cli" label="Goose CLI">
+
+#### Goose Prompt
+```plaintext
+Find all orders with pending status from our production database
+```
+
+#### Goose Output
+
+```sh
+I apologize, but I notice that I don't currently have access to your database. Let me search if there are any database-related extensions available.
+─── search_available_extensions | platform ──────────────────────────
+
+I see that there is a "postgresql" extension available. Let me enable it so I can help you query your database.
+─── enable_extension | platform ──────────────────────────
+extension_name: postgresql
+
+
+■  Goose would like to enable the following extension, do you approve?
+// highlight-start
+| ● Yes, for this session 
+// highlight-end
+| ○ No
+```
+
+</TabItem>
+</Tabs>
+
+### Direct Request
+
+Goose responds to explicit requests for extensions, allowing users to manually enable specific tools they need. Here's an example of how Goose handles a direct request to enable an extension:
+
+<Tabs groupId="interface">
+<TabItem value="ui" label="Goose Desktop" default>
+
+#### Goose Prompt
+
+```plaintext
+Use PostgreSQL extension
+```
+
+#### Goose Output
+
+```plaintext
+I'll help enable the PostgreSQL extension for you.
+
+🔧 Manage Extensions
+└─ action           enable
+   extension_name   postgresql
+
+The extension 'postgresql' has been installed successfully
+
+The PostgreSQL extension is now ready to use. What would you like to do with it?
+```
+
+</TabItem>
+<TabItem value="cli" label="Goose CLI">
+
+#### Goose Prompt
+
+```sh
+Use the PostgreSQL extension
+```
+
+#### Goose Output
+
+```sh
+I'll help enable the PostgreSQL extension for you.
+─── enable_extension | platform ──────────────────────────
+extension_name: postgresql
+
+
+■  Goose would like to enable the following extension, do you approve?
+// highlight-start
+| ● Yes, for this session 
+// highlight-end
+| ○ No
+```
+
+</TabItem>
+</Tabs>
 
 ## Removing Extensions
 
@@ -342,9 +516,6 @@ You can remove installed extensions.
     5. Press Enter to save
   </TabItem>
 </Tabs>
-
-
-
 
 
 ## Starting Session with Extensions
@@ -409,6 +580,7 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 :::info
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
+
 
 ### Remote Extensions over SSE
 

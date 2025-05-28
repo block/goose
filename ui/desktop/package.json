@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Goose App",
   "engines": {
     "node": "^23.0.0"
@@ -47,6 +47,7 @@
     "@hey-api/openapi-ts": "^0.64.4",
     "@modelcontextprotocol/sdk": "^1.8.0",
     "@playwright/test": "^1.51.1",
+    "@tailwindcss/line-clamp": "^0.4.4",
     "@tailwindcss/typography": "^0.5.15",
     "@types/cors": "^2.8.17",
     "@types/electron": "^1.4.38",
@@ -102,6 +103,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
+    "cronstrue": "^2.48.0",
     "dotenv": "^16.4.5",
     "electron-log": "^5.2.2",
     "electron-squirrel-startup": "^1.0.1",
@@ -116,7 +118,6 @@
     "react-select": "^5.9.0",
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^8.0.0",
-    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",

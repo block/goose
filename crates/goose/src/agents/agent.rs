@@ -12,6 +12,7 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
+use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -24,6 +25,10 @@ use crate::agents::platform_tools::{
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
+use crate::agents::router_tool_selector::{
+    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
+};
+use crate::agents::router_tools::ROUTER_VECTOR_SEARCH_TOOL_NAME;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use mcp_core::{
@@ -31,6 +36,7 @@ use mcp_core::{
 };
 
 use super::platform_tools;
+use super::router_tools;
 use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
 /// The main goose Agent
@@ -44,6 +50,8 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
+    pub(super) router_tool_selector: Mutex<Option<Box<dyn RouterToolSelector>>>,
 }
 
 impl Agent {
@@ -51,6 +59,16 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+
+        let router_tool_selection_strategy = std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .ok()
+            .and_then(|s| {
+                if s.eq_ignore_ascii_case("vector") {
+                    Some(RouterToolSelectionStrategy::Vector)
+                } else {
+                    None
+                }
+            });
 
         Self {
             provider: Mutex::new(None),
@@ -62,6 +80,26 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            tool_monitor: Mutex::new(None),
+            router_tool_selector: Mutex::new(Some(create_tool_selector(
+                router_tool_selection_strategy,
+            ))),
+        }
+    }
+
+    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
+        let mut tool_monitor = self.tool_monitor.lock().await;
+        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    }
+
+    pub async fn get_tool_stats(&self) -> Option<HashMap<String, u32>> {
+        let tool_monitor = self.tool_monitor.lock().await;
+        tool_monitor.as_ref().map(|monitor| monitor.get_stats())
+    }
+
+    pub async fn reset_tool_monitor(&self) {
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            monitor.reset();
         }
     }
 }
@@ -116,6 +154,20 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        // Check if this tool call should be allowed based on repetition monitoring
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
+
+            if !monitor.check_tool_call(tool_call_info) {
+                return (
+                    request_id,
+                    Err(ToolError::ExecutionError(
+                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
+                    )),
+                );
+            }
+        }
+
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
@@ -151,6 +203,15 @@ impl Agent {
             Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
             ))
+        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
+            let router_tool_selector = self.router_tool_selector.lock().await;
+            if let Some(selector) = router_tool_selector.as_ref() {
+                selector.select_tools(tool_call.arguments.clone()).await
+            } else {
+                Err(ToolError::ExecutionError(
+                    "Encountered vector search error.".to_string(),
+                ))
+            }
         } else {
             extension_manager
                 .dispatch_tool_call(tool_call.clone())
@@ -162,7 +223,10 @@ impl Agent {
             "output" = serde_json::to_string(&result).unwrap(),
         );
 
-        (request_id, result)
+        // Process the response to handle large text content
+        let processed_result = super::large_response_handler::process_tool_response(result);
+
+        (request_id, processed_result)
     }
 
     pub(super) async fn manage_extensions(
@@ -279,6 +343,29 @@ impl Agent {
             }
         }
 
+        prefixed_tools
+    }
+
+    pub async fn list_tools_for_router(
+        &self,
+        strategy: Option<RouterToolSelectionStrategy>,
+    ) -> Vec<Tool> {
+        let extension_manager = self.extension_manager.lock().await;
+
+        let mut prefixed_tools = vec![];
+        match strategy {
+            Some(RouterToolSelectionStrategy::Vector) => {
+                prefixed_tools.push(router_tools::vector_search_tool());
+            }
+            None => {}
+        }
+        prefixed_tools.push(platform_tools::search_available_extensions_tool());
+        prefixed_tools.push(platform_tools::manage_extensions_tool());
+
+        if extension_manager.supports_resources() {
+            prefixed_tools.push(platform_tools::read_resource_tool());
+            prefixed_tools.push(platform_tools::list_resources_tool());
+        }
         prefixed_tools
     }
 
@@ -438,7 +525,7 @@ impl Agent {
                                 &permission_check_result.needs_approval,
                                 tool_futures_arc.clone(),
                                 &mut permission_manager,
-                                message_tool_response.clone(),
+                                message_tool_response.clone()
                             );
 
                             // We have a stream of tool_approval_requests to handle
@@ -593,6 +680,7 @@ impl Agent {
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
+            None,
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;

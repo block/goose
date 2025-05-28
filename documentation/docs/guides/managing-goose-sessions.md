@@ -18,12 +18,24 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
+        You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
+        
+        | Action | macOS | Windows/Linux |
+        |--------|-------|---------------|
+        | New Session in Current Directory | `Cmd+N`  | `Ctrl+N`  |
+        | New Session in Different Directory  | `Cmd+O` | `Ctrl+O` |
+        | Focus Goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         From your terminal, navigate to the directory from which you'd like to start, and run:
         ```sh
         goose session 
         ```
+
+        :::tip
+        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
+        :::
     </TabItem>
 </Tabs>
 
@@ -95,6 +107,59 @@ Note that sessions are automatically saved when you exit.
         :::tip
         While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
         :::
+
+        :::tip
+        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
+        :::
+    </TabItem>
+</Tabs>
+
+### Search Session History
+
+<Tabs>
+    <TabItem value="ui" label="Goose Desktop" default>
+        In Goose Desktop, you can search session metadata including the description, filename, and working directory path. The search is text-based and supports case-sensitive matching, but doesn't search session content or support regex patterns.
+
+        1. Click `...` in the upper right corner
+        2. Click `Previous Sessions`
+        3. Use `Cmd+F` to open the search bar
+        4. Enter your search term
+        5. Use search features to refine and navigate results
+
+        | Action | macOS | Windows/Linux |
+        |--------|-------|---------------|
+        | Next Match | `Cmd+G`<br />or `↓` | `Ctrl+G`<br />or `↓` |
+        | Previous Match | `Shift+Cmd+G`<br />or `↑` | `Shift+Ctrl+G`<br />or `↑` |
+        | Toggle Case-Sensitivity | `Aa` | `Aa` |
+        | Focus Search Bar | `Cmd+F` | `Ctrl+F` |
+        | Close Search | `Esc` or X | `Esc` or X |
+
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        The Goose CLI supports [listing session history](/docs/guides/goose-cli-commands/#session-list-options) but doesn't provide search functionality. As a workaround, you can use your terminal's search capabilities (including regex support). Examples for macOS:
+
+        ```bash
+        # Search session IDs (filenames)
+        ls ~/.local/share/goose/sessions/ | grep "full or partial session id"
+
+        # List sessions modified in last 7 days
+        find ~/.local/share/goose/sessions/ -mtime -7 -name "*.jsonl"
+
+        # Show first line (metadata) of each session file
+        for f in ~/.local/share/goose/sessions/*.jsonl; do
+            head -n1 "$f" | grep "your search term" && echo "Found in: $(basename "$f" .jsonl)"
+        done
+
+        # Find search term in session content
+        rg "your search term" ~/.local/share/goose/sessions/
+
+        # Search and show session IDs that contain search term
+        for f in ~/.local/share/goose/sessions/*.jsonl; do
+          if grep -q "your search term" "$f"; then
+            echo "Found in session: $(basename "$f" .jsonl)"
+          fi
+        done
+        ```
 
     </TabItem>
 </Tabs>
@@ -175,8 +240,9 @@ Search allows you to find specific content within your current session. The sear
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
         | Open Search | `Cmd+F`  | `Ctrl+F`  |
-        | Previous Match | `↑` | `↑` |
-        | Next Match | `↓` | `↓` |
+        | Next Match | `Cmd+G`<br />or `↓` | `Ctrl+G`<br />or `↓` |
+        | Previous Match | `Shift+Cmd+G`<br />or `↑` | `Shift+Ctrl+G`<br />or `↑` |
+        | Use Selection for Find | `Cmd+E` | n/a |
         | Toggle Case-Sensitivity | `Aa` | `Aa` |
         | Close Search | `Esc` or X | `Esc` or X |
 

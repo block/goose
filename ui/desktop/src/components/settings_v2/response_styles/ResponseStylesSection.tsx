@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { all_response_styles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
 
 export const ResponseStylesSection = () => {
-  const [currentStyle, setCurrentStyle] = useState('detailed');
+  const [currentStyle, setCurrentStyle] = useState('concise');
 
   useEffect(() => {
     const savedStyle = localStorage.getItem('response_style');
@@ -12,6 +12,10 @@ export const ResponseStylesSection = () => {
       } catch (error) {
         console.error('Error parsing response style:', error);
       }
+    } else {
+      // Set default to concise for new users
+      localStorage.setItem('response_style', 'concise');
+      setCurrentStyle('concise');
     }
   }, []);
 

@@ -2,7 +2,7 @@
 export default {
   darkMode: ['class'],
   content: ['./src/**/*.{js,jsx,ts,tsx}', './index.html'],
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography'), require('@tailwindcss/line-clamp') ],
   theme: {
     extend: {
       fontFamily: {

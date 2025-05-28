@@ -1,0 +1,15 @@
+You are evaluating an AI assistant's response to a restaurant research task. The instructions were:
+
+'Search the internet for and provide a current, detailed list of the best Sichuanese restaurants specifically in the East Village neighborhood of NYC. Format your response in Markdown using bullet points (either - or *) for each restaurant. For each restaurant include:
+- Restaurant name and what they're known for
+- Signature dishes
+- Atmosphere/setting
+- Any relevant details about reservations or dining experience
+- What distinguishes them from others
+
+Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants. If you encounter a page you cannot access, try another one. Do not ask me for confirmation just conduct the searches yourself until you find the needed information. Remember to use your tools if applicable.'
+
+Give a score of 0, 1, or 2:
+0 = does not provide any restaurants at all
+1 = provides some restaurants, but not all are Sichuanese or in the East Village NYC
+2 = provides all Sichuanese restaurants in the East Village, probably including Mala project and Szechuan Mountain House, or Uluh. Use your memory/knowledge of the East Village NYC restaurants to double check non-East Village restaurants.

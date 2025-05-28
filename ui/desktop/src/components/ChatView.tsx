@@ -55,11 +55,13 @@ const isUserMessage = (message: Message): boolean => {
 };
 
 export default function ChatView({
+  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
   setIsGoosehintsModalOpen,
 }: {
+  readyForAutoUserPrompt: boolean;
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -68,6 +70,7 @@ export default function ChatView({
   return (
     <ChatContextManagerProvider>
       <ChatContent
+        readyForAutoUserPrompt={readyForAutoUserPrompt}
         chat={chat}
         setChat={setChat}
         setView={setView}
@@ -78,11 +81,13 @@ export default function ChatView({
 }
 
 function ChatContent({
+  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
   setIsGoosehintsModalOpen,
 }: {
+  readyForAutoUserPrompt: boolean;
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -97,6 +102,7 @@ function ChatContent({
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const hasSentPromptRef = useRef(false);
 
   const {
     summaryContent,
@@ -278,17 +284,29 @@ function ChatContent({
     }
   }, [messages]);
 
+  useEffect(() => {
+    const prompt = recipeConfig?.prompt;
+    if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
+      append(prompt);
+      hasSentPromptRef.current = true;
+    }
+  }, [recipeConfig?.prompt, append, readyForAutoUserPrompt]);
+
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
     const customEvent = e as unknown as CustomEvent;
-    const content = customEvent.detail?.value || '';
+    // ChatInput now sends a single 'value' field with text and appended image paths
+    const combinedTextFromInput = customEvent.detail?.value || '';
 
-    if (content.trim()) {
+    if (combinedTextFromInput.trim()) {
       setLastInteractionTime(Date.now());
 
+      // createUserMessage was reverted to only accept text.
+      // It will create a Message with a single TextContent part containing text + paths.
+      const userMessage = createUserMessage(combinedTextFromInput.trim());
+
       if (summarizedThread.length > 0) {
-        // move current `messages` to `ancestorMessages` and `messages` to `summarizedThread`
         resetMessagesWithSummary(
           messages,
           setMessages,
@@ -296,23 +314,21 @@ function ChatContent({
           setAncestorMessages,
           summaryContent
         );
-
-        // update the chat with new sessionId
-
-        // now call the llm
         setTimeout(() => {
-          append(createUserMessage(content));
+          append(userMessage);
           if (scrollRef.current?.scrollToBottom) {
             scrollRef.current.scrollToBottom();
           }
         }, 150);
       } else {
-        // Normal flow (existing code)
-        append(createUserMessage(content));
+        append(userMessage);
         if (scrollRef.current?.scrollToBottom) {
           scrollRef.current.scrollToBottom();
         }
       }
+    } else {
+      // If nothing was actually submitted (e.g. empty input and no images pasted)
+      window.electron.stopPowerSaveBlocker();
     }
   };
 
@@ -476,7 +492,6 @@ function ChatContent({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
-
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
