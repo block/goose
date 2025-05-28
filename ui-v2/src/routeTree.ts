@@ -1,8 +1,6 @@
 import { createRouter } from '@tanstack/react-router';
 
-import { rootRoute, timelineRoute } from './routes';
-
-const routeTree = rootRoute.addChildren([timelineRoute]);
+import { routeTree } from './routeTree.gen';
 
 export const router = createRouter({ routeTree });
 

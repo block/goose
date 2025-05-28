@@ -22,6 +22,7 @@
     "noImplicitReturns": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
       "@platform": ["src/services/platform/electron"],
       "@platform/*": ["src/services/platform/electron/*"]
     },
