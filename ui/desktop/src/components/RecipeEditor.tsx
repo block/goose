@@ -291,75 +291,62 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             <RecipeActivityEditor activities={activities} setActivities={setActivities} />
           </div>
 
-            {/* Deep Link Display */}
-            <div className="w-full p-4 bg-bgSubtle rounded-lg">
-              {!title.trim() || !description.trim() ? (
+          {/* Deep Link Display */}
+          <div className="w-full p-4 bg-bgSubtle rounded-lg">
+            {!requiredFieldsAreFilled() ? (
+              <div className="text-sm text-textSubtle text-xs text-textSubtle">
+                Fill in required fields to generate link
+              </div>
+            ) : (
+              <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-textSubtle text-xs text-textSubtle">
-                  Fill in required fields to generate link
+                  Copy this link to share with friends or paste directly in Chrome to open
                 </div>
-              ) : (
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-textSubtle text-xs text-textSubtle">
-                    Copy this link to share with friends or paste directly in Chrome to open
-                  </div>
-                  <button
-                    onClick={() => validateForm() && handleCopy()}
-                    className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-iconSubtle" />
-                    )}
-                    <span className="ml-1 text-sm text-textSubtle">
-                      {copied ? 'Copied!' : 'Copy'}
-                    </span>
-                  </button>
-                </div>
-              )}
-              {title.trim() && description.trim() && (
-                <div
+                <button
                   onClick={() => validateForm() && handleCopy()}
-                  className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
+                  className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                 >
-                  {deeplink}
-                </div>
-              )}
-            </div>
-            {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 pt-1">
-              <button
-                onClick={() => {
-                  localStorage.removeItem('recipe_editor_extensions');
-                  window.close();
-                }}
-                className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-iconSubtle" />
+                  )}
+                  <span className="ml-1 text-sm text-textSubtle">
+                    {copied ? 'Copied!' : 'Copy'}
+                  </span>
+                </button>
+              </div>
+            )}
+            {requiredFieldsAreFilled() && (
+              <div
+                onClick={() => validateForm() && handleCopy()}
+                className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
               >
-                Close
-              </button>
-            </div>
+                {deeplink}
+              </div>
+            )}
           </div>
-        );
-    }
-  };
-
-  return (
-    <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
-      {activeSection === 'none' && (
-        <div className="flex flex-col items-center mb-6 px-6 pt-10">
-          <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
-            <Geese className="w-12 h-12 text-iconProminent" />
+          {/* Action Buttons */}
+          <div className="flex flex-col space-y-2 pt-1">
+            <button
+              onClick={() => {
+                localStorage.removeItem('recipe_editor_extensions');
+                window.close();
+              }}
+              className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
+            >
+              Close
+            </button>
           </div>
-          <h1 className="text-2xl font-medium text-center text-textProminent">
-            Create an agent recipe
-          </h1>
-          <p className="text-textSubtle text-center mt-2 text-sm">
-            Your custom agent recipe can be shared with others. Fill in the sections below to
-            create!
-          </p>
         </div>
-      )}
-      <div className="flex-1 overflow-y-auto px-6">{renderSectionContent()}</div>
+      </div>
+      <RecipeInfoModal
+        infoLabel={recipeInfoModelProps?.label}
+        originalValue={recipeInfoModelProps?.value}
+        isOpen={isRecipeInfoModalOpen}
+        onClose={() => setRecipeInfoModalOpen(false)}
+        onSaveValue={recipeInfoModelProps?.setValue}
+      />
     </div>
   );
 }
