@@ -29,6 +29,7 @@ use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
 use crate::agents::router_tools::ROUTER_VECTOR_SEARCH_TOOL_NAME;
+use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
@@ -276,15 +277,19 @@ impl Agent {
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
         // Update vector index if operation was successful and vector routing is enabled
-        eprintln!("now index vector tools");
         if result.is_ok() {
             let selector = self.router_tool_selector.lock().await.clone();
-            if let Some(selector) = selector {
-                if selector.selector_type() == RouterToolSelectionStrategy::Vector {
+            if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+                if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
-                    if let Err(e) = self
-                        .update_tools_vector_index(&extension_name, vector_action)
-                        .await
+                    let extension_manager = self.extension_manager.lock().await;
+                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                        &selector,
+                        &extension_manager,
+                        &extension_name,
+                        vector_action,
+                    )
+                    .await
                     {
                         return (
                             request_id,
@@ -337,11 +342,16 @@ impl Agent {
 
         // If vector tool selection is enabled, index the tools
         let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            if selector.selector_type() == RouterToolSelectionStrategy::Vector {
-                if let Err(e) = self
-                    .update_tools_vector_index(&extension.name(), "add")
-                    .await
+        if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+            if let Some(selector) = selector {
+                let extension_manager = self.extension_manager.lock().await;
+                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    &extension.name(),
+                    "add",
+                )
+                .await
                 {
                     return Err(ExtensionError::SetupError(format!(
                         "Failed to index tools for extension {}: {}",
@@ -418,9 +428,16 @@ impl Agent {
 
         // If vector tool selection is enabled, remove tools from the index
         let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            if selector.selector_type() == RouterToolSelectionStrategy::Vector {
-                self.update_tools_vector_index(name, "remove").await?;
+        if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+            if let Some(selector) = selector {
+                let extension_manager = self.extension_manager.lock().await;
+                ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    name,
+                    "remove",
+                )
+                .await?;
             }
         }
 
@@ -702,21 +719,13 @@ impl Agent {
                     anyhow!("Failed to create tool selector: {}", e)
                 })?;
 
-            eprintln!("[DEBUG] Clearing existing tools from vector database...");
-            // // Clear tools from the vector database
-            // selector
-            //     .clear_tools()
-            //     .await
-            //     .map_err(|e| {
-            //         eprintln!("[DEBUG] Failed to clear tools: {}", e);
-            //         anyhow!("Failed to clear tools: {}", e)
-            //     })?;
-
             eprintln!("[DEBUG] Setting router tool selector...");
-            *self.router_tool_selector.lock().await = Some(Arc::new(selector));
+            let selector = Arc::new(selector);
+            *self.router_tool_selector.lock().await = Some(selector.clone());
 
             eprintln!("[DEBUG] Indexing platform tools...");
-            self.index_platform_tools().await?;
+            let extension_manager = self.extension_manager.lock().await;
+            ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
             eprintln!("[DEBUG] Router tool selector initialization complete");
         } else {
             eprintln!(
@@ -788,107 +797,6 @@ impl Agent {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             tracing::error!("Failed to send tool result: {}", e);
         }
-    }
-
-    async fn update_tools_vector_index(&self, extension_name: &str, action: &str) -> Result<()> {
-        // Clone the Arc to avoid holding the lock for too long
-        let selector = self.router_tool_selector.lock().await.clone();
-
-        if let Some(selector) = selector {
-            let extension_manager = self.extension_manager.lock().await;
-
-            match action {
-                "add" => {
-                    // Get tools for specific extension
-                    let tools = extension_manager
-                        .get_prefixed_tools(Some(extension_name.to_string()))
-                        .await?;
-                    for tool in &tools {
-                        let schema_str = serde_json::to_string_pretty(&tool.input_schema)
-                            .unwrap_or_else(|_| "{}".to_string());
-
-                        selector
-                            .index_tool(tool.name.clone(), tool.description.clone(), schema_str)
-                            .await
-                            .map_err(|e| anyhow!("Failed to index tool {}: {}", tool.name, e))?;
-                    }
-                    tracing::info!(
-                        "Indexed {} tools for extension {}",
-                        tools.len(),
-                        extension_name
-                    );
-                }
-                "remove" => {
-                    // Get tool names for the extension to remove them
-                    let tools = extension_manager
-                        .get_prefixed_tools(Some(extension_name.to_string()))
-                        .await?;
-                    for tool in &tools {
-                        selector
-                            .remove_tool(&tool.name)
-                            .await
-                            .map_err(|e| anyhow!("Failed to remove tool {}: {}", tool.name, e))?;
-                    }
-                    tracing::info!(
-                        "Removed {} tools for extension {}",
-                        tools.len(),
-                        extension_name
-                    );
-                }
-                _ => {
-                    anyhow::bail!("Invalid action '{}' for tool indexing", action);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn index_platform_tools(&self) -> Result<()> {
-        let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            let extension_manager = self.extension_manager.lock().await;
-
-            // Index the standard platform tools
-            let search_tool = platform_tools::search_available_extensions_tool();
-            let schema_str = serde_json::to_string_pretty(&search_tool.input_schema)
-                .unwrap_or_else(|_| "{}".to_string());
-            selector
-                .index_tool(search_tool.name, search_tool.description, schema_str)
-                .await
-                .map_err(|e| anyhow!("Failed to index search_available_extensions tool: {}", e))?;
-
-            let manage_tool = platform_tools::manage_extensions_tool();
-            let schema_str = serde_json::to_string_pretty(&manage_tool.input_schema)
-                .unwrap_or_else(|_| "{}".to_string());
-            selector
-                .index_tool(manage_tool.name, manage_tool.description, schema_str)
-                .await
-                .map_err(|e| anyhow!("Failed to index manage_extensions tool: {}", e))?;
-
-            // Index resource tools if supported
-            if extension_manager.supports_resources() {
-                let read_tool = platform_tools::read_resource_tool();
-                let schema_str = serde_json::to_string_pretty(&read_tool.input_schema)
-                    .unwrap_or_else(|_| "{}".to_string());
-                selector
-                    .index_tool(read_tool.name, read_tool.description, schema_str)
-                    .await
-                    .map_err(|e| anyhow!("Failed to index read_resource tool: {}", e))?;
-
-                let list_tool = platform_tools::list_resources_tool();
-                let schema_str = serde_json::to_string_pretty(&list_tool.input_schema)
-                    .unwrap_or_else(|_| "{}".to_string());
-                selector
-                    .index_tool(list_tool.name, list_tool.description, schema_str)
-                    .await
-                    .map_err(|e| anyhow!("Failed to index list_resources tool: {}", e))?;
-            }
-
-            tracing::info!("Indexed platform tools for vector search");
-        }
-
-        Ok(())
     }
 
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {

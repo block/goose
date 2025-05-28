@@ -1,4 +1,5 @@
 use mcp_core::content::TextContent;
+use mcp_core::tool::Tool;
 use mcp_core::{Content, ToolError};
 
 use anyhow::Result;
@@ -22,12 +23,7 @@ pub enum RouterToolSelectionStrategy {
 #[async_trait]
 pub trait RouterToolSelector: Send + Sync {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError>;
-    async fn index_tool(
-        &self,
-        tool_name: String,
-        description: String,
-        schema: String,
-    ) -> Result<(), ToolError>;
+    async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError>;
     async fn clear_tools(&self) -> Result<(), ToolError>;
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError>;
@@ -126,38 +122,52 @@ impl RouterToolSelector for VectorToolSelector {
         Ok(selected_tools)
     }
 
-    async fn index_tool(
-        &self,
-        tool_name: String,
-        description: String,
-        schema: String,
-    ) -> Result<(), ToolError> {
-        // Create text to embed
-        let text_to_embed = format!("{} {} {}", tool_name, description, schema);
+    async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError> {
+        eprintln!("[DEBUG] Indexing {} tools in batch", tools.len());
 
-        // Generate embedding
-        let embedding = self
+        // Prepare texts for embedding
+        let texts_to_embed: Vec<String> = tools
+            .iter()
+            .map(|tool| {
+                let schema_str = serde_json::to_string_pretty(&tool.input_schema)
+                    .unwrap_or_else(|_| "{}".to_string());
+                format!("{} {} {}", tool.name, tool.description, schema_str)
+            })
+            .collect();
+
+        // Generate embeddings for all tools at once
+        let embeddings = self
             .embedding_provider
-            .embed_single(text_to_embed)
+            .embed(texts_to_embed)
             .await
             .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to generate tool embedding: {}", e))
+                ToolError::ExecutionError(format!("Failed to generate tool embeddings: {}", e))
             })?;
 
-        // Index the tool
+        // Create tool records
+        let tool_records: Vec<crate::agents::tool_vectordb::ToolRecord> = tools
+            .iter()
+            .zip(embeddings.into_iter())
+            .map(|(tool, vector)| {
+                let schema_str = serde_json::to_string_pretty(&tool.input_schema)
+                    .unwrap_or_else(|_| "{}".to_string());
+                crate::agents::tool_vectordb::ToolRecord {
+                    tool_name: tool.name.clone(),
+                    description: tool.description.clone(),
+                    schema: schema_str,
+                    vector,
+                }
+            })
+            .collect();
+
+        // Index all tools at once
         let vector_db = self.vector_db.read().await;
-        let tool_record = crate::agents::tool_vectordb::ToolRecord {
-            tool_name,
-            description,
-            schema,
-            vector: embedding,
-        };
-
         vector_db
-            .index_tools(vec![tool_record])
+            .index_tools(tool_records)
             .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to index tool: {}", e)))?;
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to index tools: {}", e)))?;
 
+        eprintln!("[DEBUG] Successfully indexed tools in batch");
         Ok(())
     }
 
