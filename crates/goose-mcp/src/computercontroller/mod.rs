@@ -8,6 +8,9 @@ use std::{
 };
 use tokio::process::Command;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
@@ -742,6 +745,23 @@ impl ComputerControllerRouter {
                 fs::write(&script_path, script).map_err(|e| {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
+
+                // Set execute permissions on Unix systems
+                #[cfg(unix)]
+                {
+                    let mut perms = fs::metadata(&script_path)
+                        .map_err(|e| {
+                            ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
+                        })?
+                        .permissions();
+                    perms.set_mode(0o755); // rwxr-xr-x
+                    fs::set_permissions(&script_path, perms).map_err(|e| {
+                        ToolError::ExecutionError(format!(
+                            "Failed to set execute permissions: {}",
+                            e
+                        ))
+                    })?;
+                }
 
                 script_path.display().to_string()
             }
