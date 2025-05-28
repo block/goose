@@ -24,7 +24,7 @@ interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
-  commandHistory?: string[];
+  commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
   droppedFiles?: string[];
   setView: (view: View) => void;
@@ -47,10 +47,11 @@ export default function ChatInput({
   setMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue);
+  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
+  // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
@@ -66,10 +67,12 @@ export default function ChatInput({
       return []; // Return a new empty array
     });
 
+    // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
+  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
@@ -128,12 +131,15 @@ export default function ChatInput({
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
+  // If we have dropped files, add them to the input and update our state.
   useEffect(() => {
     if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
+      // Append file paths that aren't in displayValue.
       const currentText = displayValue || '';
       const joinedPaths = currentText.trim()
         ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
         : droppedFiles.join(' ');
+
       setDisplayValue(joinedPaths);
       setValue(joinedPaths);
       textAreaRef.current?.focus();
@@ -141,16 +147,18 @@ export default function ChatInput({
     }
   }, [droppedFiles, processedFilePaths, displayValue]);
 
+  // Debounced function to update actual value
   const debouncedSetValue = useCallback((val: string) => {
     debounce((value: string) => {
       setValue(value);
     }, 150)(val);
   }, []);
 
+  // Debounced autosize function
   const debouncedAutosize = useCallback(
     (textArea: HTMLTextAreaElement) => {
       debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px';
+        element.style.height = '0px'; // Reset height
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
       }, 150)(textArea);
@@ -166,8 +174,8 @@ export default function ChatInput({
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
-    setDisplayValue(val);
-    debouncedSetValue(val);
+    setDisplayValue(val); // Update display immediately
+    debouncedSetValue(val); // Debounce the actual state update
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -253,6 +261,7 @@ export default function ChatInput({
     }
   };
 
+  // Cleanup debounced functions on unmount
   useEffect(() => {
     return () => {
       debouncedSetValue.cancel?.();
@@ -260,47 +269,72 @@ export default function ChatInput({
     };
   }, [debouncedSetValue, debouncedAutosize]);
 
-  const handleCompositionStart = () => setIsComposing(true);
-  const handleCompositionEnd = () => setIsComposing(false);
+  // Handlers for composition events, which are crucial for proper IME behavior
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
+  };
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isUp = evt.key === 'ArrowUp';
     const isDown = evt.key === 'ArrowDown';
 
+    // Only handle up/down keys with Cmd/Ctrl modifier
     if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
       return;
     }
+
     evt.preventDefault();
+
+    // Get global history once to avoid multiple calls
     const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+
+    // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue || '');
       setIsInGlobalHistory(commandHistory.length === 0);
     }
+
+    // Determine which history we're using
     const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
     let newIndex = historyIndex;
     let newValue = '';
+
+    // Handle navigation
     if (isUp) {
+      // Moving up through history
       if (newIndex < currentHistory.length - 1) {
+        // Still have items in current history
         newIndex = historyIndex + 1;
         newValue = currentHistory[newIndex];
       } else if (!isInGlobalHistory && globalHistory.length > 0) {
+        // Switch to global history
         setIsInGlobalHistory(true);
         newIndex = 0;
         newValue = globalHistory[newIndex];
       }
     } else {
+      // Moving down through history
       if (newIndex > 0) {
+        // Still have items in current history
         newIndex = historyIndex - 1;
         newValue = currentHistory[newIndex];
       } else if (isInGlobalHistory && commandHistory.length > 0) {
+        // Switch to chat history
         setIsInGlobalHistory(false);
         newIndex = commandHistory.length - 1;
         newValue = commandHistory[newIndex];
       } else {
+        // Return to original input
         newIndex = -1;
         newValue = savedInput;
       }
     }
+
+    // Update display if we have a new value
     if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
       if (newIndex === -1) {
@@ -344,15 +378,23 @@ export default function ChatInput({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle history navigation first
     handleHistoryNavigation(evt);
+
     if (evt.key === 'Enter') {
-      if (evt.shiftKey || isComposing) return;
+      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
+      if (evt.shiftKey || isComposing) {
+        // Allow line break for Shift+Enter, or during IME composition
+        return;
+      }
+
       if (evt.altKey) {
         const newValue = displayValue + '\n';
         setDisplayValue(newValue);
         setValue(newValue);
         return;
       }
+
       evt.preventDefault();
       const canSubmit =
         !isLoading &&

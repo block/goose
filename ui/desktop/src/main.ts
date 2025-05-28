@@ -54,24 +54,28 @@ async function ensureTempDirExists(): Promise<string> {
       const files = await fs.readdir(gooseTempDir);
       const now = Date.now();
       const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      
+
       for (const file of files) {
         const filePath = path.join(gooseTempDir, file);
         try {
           const fileStats = await fs.lstat(filePath);
-          
+
           // Always remove symlinks
           if (fileStats.isSymbolicLink()) {
-            console.warn(`[Main] Found symlink in temp directory during startup: ${filePath}. Removing it.`);
+            console.warn(
+              `[Main] Found symlink in temp directory during startup: ${filePath}. Removing it.`
+            );
             await fs.unlink(filePath);
             continue;
           }
-          
+
           // Remove old files (older than 24 hours)
           if (fileStats.isFile()) {
             const fileAge = now - fileStats.mtime.getTime();
             if (fileAge > MAX_AGE) {
-              console.log(`[Main] Removing old temp file during startup: ${filePath} (age: ${Math.round(fileAge / (60 * 60 * 1000))} hours)`);
+              console.log(
+                `[Main] Removing old temp file during startup: ${filePath} (age: ${Math.round(fileAge / (60 * 60 * 1000))} hours)`
+              );
               await fs.unlink(filePath);
             }
           }
@@ -802,20 +806,25 @@ ipcMain.handle('get-temp-image', async (event, filePath: string) => {
     // Get the real paths for both the temp directory and the file to handle symlinks properly
     let realTempDir: string;
     let actualPath = filePath;
-    
+
     try {
       realTempDir = await fs.realpath(gooseTempDir);
       const realPath = await fs.realpath(filePath);
-      
+
       // Double-check that the real path is still within our real temp directory
       if (!realPath.startsWith(realTempDir + path.sep)) {
-        console.warn(`[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`);
+        console.warn(
+          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
+        );
         return null;
       }
       actualPath = realPath;
     } catch (realpathError) {
       // If realpath fails, use the original path validation
-      console.log(`[Main] realpath failed for ${filePath}, using original path validation:`, realpathError.message);
+      console.log(
+        `[Main] realpath failed for ${filePath}, using original path validation:`,
+        realpathError.message
+      );
     }
 
     // Read the file and return as base64 data URL
@@ -868,20 +877,25 @@ ipcMain.on('delete-temp-file', async (event, filePath: string) => {
 
     // Get the real paths for both the temp directory and the file to handle symlinks properly
     let actualPath = filePath;
-    
+
     try {
       const realTempDir = await fs.realpath(gooseTempDir);
       const realPath = await fs.realpath(filePath);
-      
+
       // Double-check that the real path is still within our real temp directory
       if (!realPath.startsWith(realTempDir + path.sep)) {
-        console.warn(`[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`);
+        console.warn(
+          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
+        );
         return;
       }
       actualPath = realPath;
     } catch (realpathError) {
       // If realpath fails, use the original path validation
-      console.log(`[Main] realpath failed for ${filePath}, using original path validation:`, realpathError.message);
+      console.log(
+        `[Main] realpath failed for ${filePath}, using original path validation:`,
+        realpathError.message
+      );
     }
 
     await fs.unlink(actualPath);
@@ -1416,11 +1430,6 @@ app.whenReady().then(async () => {
     }
     return false;
   });
-
-  // Handle binary path requests (duplicate removed, original kept)
-  // ipcMain.handle('get-binary-path', (_event, binaryName) => {
-  //   return getBinaryPath(app, binaryName);
-  // });
 
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
