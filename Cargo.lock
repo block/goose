@@ -3441,7 +3441,6 @@ dependencies = [
  "chrono",
  "criterion",
  "ctor",
- "dirs 5.0.1",
  "dotenv",
  "downcast-rs",
  "etcetera",
