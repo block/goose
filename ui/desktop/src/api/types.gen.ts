@@ -529,6 +529,10 @@ export type ToolResultSchema = {
     success: boolean;
 };
 
+export type UpdateScheduleRequest = {
+    cron: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -963,6 +967,42 @@ export type ListSchedulesResponses = {
 };
 
 export type ListSchedulesResponse2 = ListSchedulesResponses[keyof ListSchedulesResponses];
+
+export type UpdateScheduleData = {
+    body: UpdateScheduleRequest;
+    path: {
+        /**
+         * ID of the schedule to update
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}';
+};
+
+export type UpdateScheduleErrors = {
+    /**
+     * Cannot update a currently running job or invalid request
+     */
+    400: unknown;
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateScheduleResponses = {
+    /**
+     * Scheduled job updated successfully
+     */
+    200: ScheduledJob;
+};
+
+export type UpdateScheduleResponse = UpdateScheduleResponses[keyof UpdateScheduleResponses];
 
 export type PauseScheduleData = {
     body?: never;

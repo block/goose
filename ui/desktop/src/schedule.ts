@@ -4,6 +4,7 @@ import {
   deleteSchedule as apiDeleteSchedule,
   pauseSchedule as apiPauseSchedule,
   unpauseSchedule as apiUnpauseSchedule,
+  updateSchedule as apiUpdateSchedule,
   sessionsHandler as apiGetScheduleSessions,
   runNowHandler as apiRunScheduleNow,
 } from './api';
@@ -129,6 +130,24 @@ export async function unpauseSchedule(scheduleId: string): Promise<void> {
     });
   } catch (error) {
     console.error(`Error unpausing schedule ${scheduleId}:`, error);
+    throw error;
+  }
+}
+
+export async function updateSchedule(scheduleId: string, cron: string): Promise<ScheduledJob> {
+  try {
+    const response = await apiUpdateSchedule<true>({
+      path: { id: scheduleId },
+      body: { cron },
+    });
+
+    if (response && response.data) {
+      return response.data as ScheduledJob;
+    }
+    console.error('Unexpected response format from apiUpdateSchedule', response);
+    throw new Error('Failed to update schedule: Unexpected response format');
+  } catch (error) {
+    console.error(`Error updating schedule ${scheduleId}:`, error);
     throw error;
   }
 }

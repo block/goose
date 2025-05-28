@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,11 @@ use goose::scheduler::ScheduledJob;
 pub struct CreateScheduleRequest {
     id: String,
     recipe_source: String,
+    cron: String,
+}
+
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct UpdateScheduleRequest {
     cron: String,
 }
 
@@ -333,11 +338,63 @@ async fn unpause_schedule(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    put,
+    path = "/schedule/{id}",
+    params(
+        ("id" = String, Path, description = "ID of the schedule to update")
+    ),
+    request_body = UpdateScheduleRequest,
+    responses(
+        (status = 200, description = "Scheduled job updated successfully", body = ScheduledJob),
+        (status = 404, description = "Scheduled job not found"),
+        (status = 400, description = "Cannot update a currently running job or invalid request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "schedule"
+)]
+#[axum::debug_handler]
+async fn update_schedule(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(req): Json<UpdateScheduleRequest>,
+) -> Result<Json<ScheduledJob>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+    let scheduler = state
+        .scheduler()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    scheduler
+        .update_schedule(&id, req.cron)
+        .await
+        .map_err(|e| {
+            eprintln!("Error updating schedule '{}': {:?}", id, e);
+            match e {
+                goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
+                goose::scheduler::SchedulerError::AnyhowError(_) => StatusCode::BAD_REQUEST,
+                goose::scheduler::SchedulerError::CronParseError(_) => StatusCode::BAD_REQUEST,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    // Return the updated schedule
+    let jobs = scheduler.list_scheduled_jobs().await;
+    let updated_job = jobs
+        .into_iter()
+        .find(|job| job.id == id)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(updated_job))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/schedule/create", post(create_schedule))
         .route("/schedule/list", get(list_schedules))
         .route("/schedule/delete/{id}", delete(delete_schedule)) // Corrected
+        .route("/schedule/{id}", put(update_schedule))
         .route("/schedule/{id}/run_now", post(run_now_handler)) // Corrected
         .route("/schedule/{id}/pause", post(pause_schedule))
         .route("/schedule/{id}/unpause", post(unpause_schedule))
