@@ -8,6 +8,7 @@ use tracing_subscriber::{
     Registry,
 };
 
+use goose::config::APP_STRATEGY;
 use goose::tracing::langfuse_layer;
 
 /// Returns the directory where log files should be stored.
@@ -17,8 +18,8 @@ fn get_log_directory() -> Result<PathBuf> {
     // - macOS/Linux: ~/.local/state/goose/logs/server
     // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\server
     // - Windows has no convention for state_dir, use data_dir instead
-    let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
-        .context("HOME environment variable not set")?;
+    let home_dir =
+        choose_app_strategy(APP_STRATEGY.clone()).context("HOME environment variable not set")?;
 
     let base_log_dir = home_dir
         .in_state_dir("logs/server")

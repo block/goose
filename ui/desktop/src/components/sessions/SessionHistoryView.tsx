@@ -26,6 +26,7 @@ interface SessionHistoryViewProps {
   onBack: () => void;
   onResume: () => void;
   onRetry: () => void;
+  showActionButtons?: boolean;
 }
 
 const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
@@ -35,6 +36,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onBack,
   onResume,
   onRetry,
+  showActionButtons = true,
 }) => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareLink, setShareLink] = useState<string>('');
@@ -47,7 +49,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     if (savedSessionConfig) {
       try {
         const config = JSON.parse(savedSessionConfig);
-        // If config.enabled is true and config.baseUrl is non-empty, we can share
         if (config.enabled && config.baseUrl) {
           setCanShare(true);
         }
@@ -61,7 +62,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     setIsSharing(true);
 
     try {
-      // Get the session sharing configuration from localStorage
       const savedSessionConfig = localStorage.getItem('session_sharing_config');
       if (!savedSessionConfig) {
         throw new Error('Session sharing is not configured. Please configure it in settings.');
@@ -72,7 +72,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         throw new Error('Session sharing is not enabled or base URL is not configured.');
       }
 
-      // Create a shared session
       const shareToken = await createSharedSession(
         config.baseUrl,
         session.metadata.working_dir,
@@ -81,7 +80,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         session.metadata.total_tokens
       );
 
-      // Create the shareable link
       const shareableLink = `goose://sessions/${shareToken}`;
       setShareLink(shareableLink);
       setIsShareModalOpen(true);
@@ -112,9 +110,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     <div className="h-screen w-full flex flex-col">
       <MoreMenuLayout showMenu={false} />
 
-      {/* Top Row - back, info, reopen thread (fixed) */}
       <SessionHeaderCard onBack={onBack}>
-        {/* Session info row */}
         <div className="ml-8">
           <h1 className="text-lg text-textStandardInverse">
             {session.metadata.description || session.session_id}
@@ -143,37 +139,39 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </div>
         </div>
 
-        <div className="ml-auto flex items-center space-x-4">
-          <button
-            onClick={handleShare}
-            title="Share Session"
-            disabled={!canShare || isSharing}
-            className={`flex items-center text-textStandardInverse px-2 py-1 ${
-              canShare
-                ? 'hover:font-bold hover:scale-110 transition-all duration-150'
-                : 'cursor-not-allowed opacity-50'
-            }`}
-          >
-            {isSharing ? (
-              <>
-                <LoaderCircle className="w-7 h-7 animate-spin mr-2" />
-                <span>Sharing...</span>
-              </>
-            ) : (
-              <>
-                <Share2 className="w-7 h-7" />
-              </>
-            )}
-          </button>
+        {showActionButtons && (
+          <div className="ml-auto flex items-center space-x-4">
+            <button
+              onClick={handleShare}
+              title="Share Session"
+              disabled={!canShare || isSharing}
+              className={`flex items-center text-textStandardInverse px-2 py-1 ${
+                canShare
+                  ? 'hover:font-bold hover:scale-110 transition-all duration-150'
+                  : 'cursor-not-allowed opacity-50'
+              }`}
+            >
+              {isSharing ? (
+                <>
+                  <LoaderCircle className="w-7 h-7 animate-spin mr-2" />
+                  <span>Sharing...</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-7 h-7" />
+                </>
+              )}
+            </button>
 
-          <button
-            onClick={onResume}
-            title="Resume Session"
-            className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
-          >
-            <Sparkles className="w-7 h-7" />
-          </button>
-        </div>
+            <button
+              onClick={onResume}
+              title="Resume Session"
+              className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
+            >
+              <Sparkles className="w-7 h-7" />
+            </button>
+          </div>
+        )}
       </SessionHeaderCard>
 
       <SessionMessages
@@ -183,20 +181,16 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         onRetry={onRetry}
       />
 
-      {/* Share Link Modal */}
       <Modal open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
         <ModalContent className="sm:max-w-md p-0 bg-bgApp dark:bg-bgApp dark:border-borderSubtle">
-          {/* Share Icon */}
           <div className="flex justify-center mt-4">
             <Share2 className="w-6 h-6 text-textStandard" />
           </div>
 
-          {/* Centered Title */}
           <div className="mt-2 px-6 text-center">
             <h2 className="text-lg font-semibold text-textStandard">Share Session (beta)</h2>
           </div>
 
-          {/* Description & Link */}
           <div className="px-6 flex flex-col gap-4 mt-2">
             <p className="text-sm text-center text-textSubtle">
               Share this session link to give others a read only view of your goose chat.
@@ -219,7 +213,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             </div>
           </div>
 
-          {/* Footer */}
           <div>
             <Button
               type="button"

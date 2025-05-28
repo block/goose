@@ -41,12 +41,12 @@ export default function HighlightTile({
 
       {/* Content */}
       <div className="p-4 h-full flex flex-col justify-between relative z-10">
-        <div className="w-6 h-6">
+        <div className="w-6 h-6 text-text-default dark:text-white">
           {icon}
         </div>
 
         <div>
-          <div className="text-gray-600 dark:text-white/40 text-sm mb-1">{title}</div>
+          <div className="text-gray-600 dark:text-white/60 text-sm mb-1">{title}</div>
           <div 
             className="text-gray-900 dark:text-white text-2xl font-semibold"
             style={{ color: accentColor }}

@@ -125,17 +125,14 @@ export default function MoreMenu({
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    // Handler for system theme changes
     const handleThemeChange = (e: { matches: boolean }) => {
       if (themeMode === 'system') {
         setDarkMode(e.matches);
       }
     };
 
-    // Add listener for system theme changes
     mediaQuery.addEventListener('change', handleThemeChange);
 
-    // Initial setup
     if (themeMode === 'system') {
       setDarkMode(mediaQuery.matches);
       localStorage.setItem('use_system_theme', 'true');
@@ -145,7 +142,6 @@ export default function MoreMenu({
       localStorage.setItem('theme', themeMode);
     }
 
-    // Cleanup
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [themeMode]);
 
@@ -220,6 +216,16 @@ export default function MoreMenu({
               >
                 Session history
               </MenuButton>
+
+              {process.env.ALPHA && (
+                <MenuButton
+                  onClick={() => setView('schedules')}
+                  subtitle="Manage scheduled runs"
+                  icon={<Time className="w-4 h-4" />}
+                >
+                  Scheduler
+                </MenuButton>
+              )}
 
               <MenuButton
                 onClick={() => setIsGoosehintsModalOpen(true)}

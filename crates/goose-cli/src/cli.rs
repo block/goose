@@ -9,6 +9,11 @@ use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
+// Import the new handlers from commands::schedule
+use crate::commands::schedule::{
+    handle_schedule_add, handle_schedule_list, handle_schedule_remove, handle_schedule_run_now,
+    handle_schedule_sessions,
+};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
@@ -96,6 +101,46 @@ enum SessionCommand {
         id: Option<String>,
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SchedulerCommand {
+    #[command(about = "Add a new scheduled job")]
+    Add {
+        #[arg(long, help = "Unique ID for the job")]
+        id: String,
+        #[arg(long, help = "Cron string for the schedule (e.g., '0 0 * * * *')")]
+        cron: String,
+        #[arg(
+            long,
+            help = "Recipe source (path to file, or base64 encoded recipe string)"
+        )]
+        recipe_source: String,
+    },
+    #[command(about = "List all scheduled jobs")]
+    List {},
+    #[command(about = "Remove a scheduled job by ID")]
+    Remove {
+        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
+        id: String,
+    },
+    /// List sessions created by a specific schedule
+    #[command(about = "List sessions created by a specific schedule")]
+    Sessions {
+        /// ID of the schedule
+        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
+        id: String,
+        /// Maximum number of sessions to return
+        #[arg(long, help = "Maximum number of sessions to return")]
+        limit: Option<u32>,
+    },
+    /// Run a scheduled job immediately
+    #[command(about = "Run a scheduled job immediately")]
+    RunNow {
+        /// ID of the schedule to run
+        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
+        id: String,
     },
 }
 
@@ -418,6 +463,13 @@ enum Command {
         command: RecipeCommand,
     },
 
+    /// Manage scheduled jobs
+    #[command(about = "Manage scheduled jobs", visible_alias = "sched")]
+    Schedule {
+        #[command(subcommand)]
+        command: SchedulerCommand,
+    },
+
     /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
     Update {
@@ -636,6 +688,32 @@ pub async fn cli() -> Result<()> {
                 std::process::exit(1);
             }
 
+            return Ok(());
+        }
+        Some(Command::Schedule { command }) => {
+            match command {
+                SchedulerCommand::Add {
+                    id,
+                    cron,
+                    recipe_source,
+                } => {
+                    handle_schedule_add(id, cron, recipe_source).await?;
+                }
+                SchedulerCommand::List {} => {
+                    handle_schedule_list().await?;
+                }
+                SchedulerCommand::Remove { id } => {
+                    handle_schedule_remove(id).await?;
+                }
+                SchedulerCommand::Sessions { id, limit } => {
+                    // New arm
+                    handle_schedule_sessions(id, limit).await?;
+                }
+                SchedulerCommand::RunNow { id } => {
+                    // New arm
+                    handle_schedule_run_now(id).await?;
+                }
+            }
             return Ok(());
         }
         Some(Command::Update {
