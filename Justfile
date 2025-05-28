@@ -1,5 +1,7 @@
 # Justfile
 
+lib_ext := if os() == "windows" { "dll" } else if os() == "macos" { "dylib" } else { "so" }
+
 # list all tasks
 default:
   @just --list
@@ -369,15 +371,23 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
+build-goose-llm:
+    cargo build -p goose-llm
+
+generate-kotlin-bindings: build-goose-llm
+    cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
+        --library ./target/debug/libgoose_llm.{{lib_ext}} --language kotlin --no-format --out-dir bindings/kotlin
+
+generate-python-bindings: build-goose-llm
+    cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
+        --library ./target/debug/libgoose_llm.{{lib_ext}} --language python --out-dir bindings/python
+
+generate-bindings: generate-kotlin-bindings generate-python-bindings
+
 ### Build and run the Kotlin example with 
 ### auto-generated bindings for goose-llm 
-kotlin-example:
-    # Build Rust dylib and generate Kotlin bindings
-    cargo build -p goose-llm
-    cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
-        --library ./target/debug/libgoose_llm.dylib --language kotlin --out-dir bindings/kotlin
-
-    # Compile and run the Kotlin example
+kotlin-example: generate-kotlin-bindings
+    #Compile and run the Kotlin example
     cd bindings/kotlin/ && kotlinc \
       example/Usage.kt \
       uniffi/goose_llm/goose_llm.kt \
