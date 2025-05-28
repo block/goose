@@ -349,14 +349,14 @@ mod tests {
         env::set_var("OPENAI_API_KEY", "test_key");
         let provider = EmbeddingProvider::new(Arc::new(MockProvider)).unwrap();
         assert_eq!(provider.token, "test_key");
-        assert_eq!(provider.model, "mock-model");
+        assert_eq!(provider.model.model_name, "mock-model");
         assert_eq!(provider.base_url, "https://api.openai.com/v1");
 
         // Test with custom configuration
         env::set_var("EMBEDDING_MODEL", "custom-model");
         env::set_var("EMBEDDING_BASE_URL", "https://custom.api.com");
         let provider = EmbeddingProvider::new(Arc::new(MockProvider)).unwrap();
-        assert_eq!(provider.model, "custom-model");
+        assert_eq!(provider.model.model_name, "custom-model");
         assert_eq!(provider.base_url, "https://custom.api.com");
 
         // Cleanup

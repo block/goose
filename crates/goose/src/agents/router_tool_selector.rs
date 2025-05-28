@@ -90,7 +90,10 @@ impl RouterToolSelector for VectorToolSelector {
                 eprintln!("[DEBUG] Vector search failed: {}", e);
                 ToolError::ExecutionError(format!("Failed to search tools: {}", e))
             })?;
-        eprintln!("[DEBUG] Vector search completed, found {} tools", tools.len());
+        eprintln!(
+            "[DEBUG] Vector search completed, found {} tools",
+            tools.len()
+        );
 
         // Convert tool records to Content
         let selected_tools: Vec<Content> = tools
@@ -107,7 +110,10 @@ impl RouterToolSelector for VectorToolSelector {
             })
             .collect();
 
-        eprintln!("[DEBUG] Successfully converted {} tools to Content", selected_tools.len());
+        eprintln!(
+            "[DEBUG] Successfully converted {} tools to Content",
+            selected_tools.len()
+        );
         Ok(selected_tools)
     }
 

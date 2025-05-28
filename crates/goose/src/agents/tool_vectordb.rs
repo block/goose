@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use arrow::array::{FixedSizeListBuilder, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use chrono::Local;
+use dirs;
 use futures::TryStreamExt;
 use lancedb::connect;
 use lancedb::connection::Connection;
@@ -10,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use dirs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolRecord {
@@ -62,8 +62,7 @@ impl ToolVectorDB {
 
         // Ensure the directory exists
         if let Some(parent) = home_dir.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create database directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create database directory")?;
         }
 
         Ok(home_dir)
@@ -130,7 +129,9 @@ impl ToolVectorDB {
                 .create_table(&self.table_name, Box::new(reader))
                 .execute()
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to create tools table '{}': {}", self.table_name, e))?;
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to create tools table '{}': {}", self.table_name, e)
+                })?;
         }
 
         Ok(())
@@ -255,11 +256,7 @@ impl ToolVectorDB {
         Ok(())
     }
 
-    pub async fn search_tools(
-        &self,
-        query_vector: Vec<f32>,
-        k: usize,
-    ) -> Result<Vec<ToolRecord>> {
+    pub async fn search_tools(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<ToolRecord>> {
         let connection = self.connection.read().await;
 
         let table = connection
