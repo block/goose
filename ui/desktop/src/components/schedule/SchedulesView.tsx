@@ -27,6 +27,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Individual loading states for each action to prevent double-clicks
+  const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
+  const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
 
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
@@ -149,10 +153,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
   const handleDeleteSchedule = async (idToDelete: string) => {
     if (!window.confirm(`Are you sure you want to delete schedule "${idToDelete}"?`)) return;
+    
+    // Immediately add to deleting set to disable button
+    setDeletingScheduleIds(prev => new Set(prev).add(idToDelete));
+    
     if (viewingScheduleId === idToDelete) {
       setViewingScheduleId(null);
     }
-    setIsLoading(true);
     setApiError(null);
     try {
       await deleteSchedule(idToDelete);
@@ -163,12 +170,19 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         error instanceof Error ? error.message : `Unknown error deleting "${idToDelete}".`
       );
     } finally {
-      setIsLoading(false);
+      // Remove from deleting set
+      setDeletingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToDelete);
+        return newSet;
+      });
     }
   };
 
   const handlePauseSchedule = async (idToPause: string) => {
-    setIsLoading(true);
+    // Immediately add to pausing set to disable button
+    setPausingScheduleIds(prev => new Set(prev).add(idToPause));
+    
     setApiError(null);
     try {
       await pauseSchedule(idToPause);
@@ -186,12 +200,19 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         msg: errorMsg,
       });
     } finally {
-      setIsLoading(false);
+      // Remove from pausing set
+      setPausingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToPause);
+        return newSet;
+      });
     }
   };
 
   const handleUnpauseSchedule = async (idToUnpause: string) => {
-    setIsLoading(true);
+    // Immediately add to pausing set to disable button
+    setPausingScheduleIds(prev => new Set(prev).add(idToUnpause));
+    
     setApiError(null);
     try {
       await unpauseSchedule(idToUnpause);
@@ -209,7 +230,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
         msg: errorMsg,
       });
     } finally {
-      setIsLoading(false);
+      // Remove from pausing set
+      setPausingScheduleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(idToUnpause);
+        return newSet;
+      });
     }
   };
 
@@ -346,7 +372,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                               }}
                               className="text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
                               title={`Edit schedule ${job.id}`}
-                              disabled={isLoading}
+                              disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id) || isSubmitting}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -367,7 +393,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                                   : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-100/50 dark:hover:bg-orange-900/30'
                               }`}
                               title={job.paused ? `Unpause schedule ${job.id}` : `Pause schedule ${job.id}`}
-                              disabled={isLoading}
+                              disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)}
                             >
                               {job.paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                             </Button>
@@ -382,7 +408,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           }}
                           className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                           title={`Delete schedule ${job.id}`}
-                          disabled={isLoading}
+                          disabled={pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)}
                         >
                           <TrashIcon className="w-5 h-5" />
                         </Button>

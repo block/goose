@@ -40,6 +40,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  
+  // Individual loading states for each action to prevent double-clicks
+  const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
 
   const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
   const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
@@ -134,6 +137,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   const handlePauseSchedule = async () => {
     if (!scheduleId) return;
+    setPauseUnpauseLoading(true);
     try {
       await pauseSchedule(scheduleId);
       toastSuccess({
@@ -145,11 +149,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       console.error('Failed to pause schedule:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to pause schedule';
       toastError({ title: 'Pause Schedule Error', msg: errorMsg });
+    } finally {
+      setPauseUnpauseLoading(false);
     }
   };
 
   const handleUnpauseSchedule = async () => {
     if (!scheduleId) return;
+    setPauseUnpauseLoading(true);
     try {
       await unpauseSchedule(scheduleId);
       toastSuccess({
@@ -161,6 +168,8 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       console.error('Failed to unpause schedule:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to unpause schedule';
       toastError({ title: 'Unpause Schedule Error', msg: errorMsg });
+    } finally {
+      setPauseUnpauseLoading(false);
     }
   };
 
@@ -377,6 +386,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     onClick={handleOpenEditModal}
                     variant="outline"
                     className="w-full md:w-auto flex items-center gap-2 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    disabled={runNowLoading || pauseUnpauseLoading || isEditSubmitting}
                   >
                     <Edit className="w-4 h-4" />
                     Edit Schedule
@@ -389,16 +399,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                         ? 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                         : 'text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20'
                     }`}
+                    disabled={runNowLoading || pauseUnpauseLoading || isEditSubmitting}
                   >
                     {scheduleDetails.paused ? (
                       <>
                         <Play className="w-4 h-4" />
-                        Unpause Schedule
+                        {pauseUnpauseLoading ? 'Unpausing...' : 'Unpause Schedule'}
                       </>
                     ) : (
                       <>
                         <Pause className="w-4 h-4" />
-                        Pause Schedule
+                        {pauseUnpauseLoading ? 'Pausing...' : 'Pause Schedule'}
                       </>
                     )}
                   </Button>
