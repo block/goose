@@ -130,7 +130,6 @@ impl DatabricksProvider {
     ///
     /// * `host` - The Databricks host URL
     /// * `token` - The Databricks API token
-    /// * `model` - The model configuration
     ///
     /// # Returns
     ///
@@ -170,7 +169,7 @@ impl DatabricksProvider {
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Check if this is an embedding request by looking at the payload structure
-        let is_embedding = payload.get("input").is_some() && !payload.get("messages").is_some();
+        let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let path = if is_embedding {
             // For embeddings, use the embeddings endpoint
             format!("serving-endpoints/{}/invocations", "text-embedding-3-small")

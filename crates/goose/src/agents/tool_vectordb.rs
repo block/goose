@@ -291,7 +291,7 @@ impl ToolVectorDB {
 
             for i in 0..batch.num_rows() {
                 let tool_name = tool_names.value(i).to_string();
-                let distance = distances.value(i);
+                let _distance = distances.value(i);
 
                 tools.push(ToolRecord {
                     tool_name,
