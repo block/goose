@@ -63,6 +63,7 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
+          PROTOC: /usr/bin/protoc
         run: |
           # Install protoc if on Ubuntu
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
