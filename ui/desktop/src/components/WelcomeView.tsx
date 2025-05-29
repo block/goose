@@ -1,4 +1,3 @@
-import React from 'react';
 import { ProviderGrid } from './ProviderGrid';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';

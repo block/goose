@@ -1,4 +1,3 @@
-import React from 'react';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';

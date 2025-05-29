@@ -1,6 +1,5 @@
 import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 import { Input } from '../../../../../ui/input';
-import React from 'react';
 
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';

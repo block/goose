@@ -30,10 +30,11 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       // Keep the selected session null if there's an error
       setSelectedSession(null);
 
+      const errorMessage = err instanceof Error ? err.message : String(err);
       toastError({
         title: 'Failed to load session. The file may be corrupted.',
         msg: 'Please try again later.',
-        traceback: err,
+        traceback: errorMessage,
       });
     } finally {
       setIsLoadingSession(false);

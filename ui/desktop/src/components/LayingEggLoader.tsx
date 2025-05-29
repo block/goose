@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Geese } from './icons/Geese';
 
 export default function LayingEggLoader() {
