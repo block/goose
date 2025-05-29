@@ -326,7 +326,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           onSearch={handleSearch}
           onClose={handleCloseSearch}
           onNavigate={handleNavigate}
-          searchResults={searchResults || internalSearchResults}
+          searchResults={searchResults || internalSearchResults || undefined}
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
         />

@@ -148,7 +148,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
           return extensionsList;
         }
 
-        const extensionResponse: ExtensionResponse = result.data;
+        const extensionResponse: ExtensionResponse = result.data!;
         setExtensionsList(extensionResponse.extensions);
         return extensionResponse.extensions;
       }

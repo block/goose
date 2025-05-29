@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
+import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
@@ -9,6 +10,7 @@ import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
+import { type Recipe } from './recipe';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -530,7 +532,7 @@ export default function App() {
           {view === 'schedules' && <SchedulesView onClose={() => setView('chat')} />}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions?.sessionDetails}
+              session={viewOptions?.sessionDetails as SharedSessionDetails | null || null}
               isLoading={isLoadingSharedSession}
               error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}
@@ -556,7 +558,7 @@ export default function App() {
           )}
           {view === 'recipeEditor' && (
             <RecipeEditor
-              config={viewOptions?.config || window.electron.getConfig().recipeConfig}
+              config={(viewOptions?.config as Recipe) || window.electron.getConfig().recipeConfig}
             />
           )}
           {view === 'permission' && (

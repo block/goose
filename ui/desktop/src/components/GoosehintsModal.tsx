@@ -125,7 +125,7 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
       <ModalHelpText />
       <div className="flex flex-col flex-1">
         {goosehintsFileReadError ? (
-          <ModalError error={goosehintsFileReadError} />
+          <ModalError error={new Error(goosehintsFileReadError)} />
         ) : (
           <div className="flex flex-col flex-1 space-y-2 h-full">
             <ModalFileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />
