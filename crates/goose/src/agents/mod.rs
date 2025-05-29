@@ -9,6 +9,8 @@ mod reply_parts;
 mod router_tool_selector;
 mod router_tools;
 mod tool_execution;
+mod tool_router_index_manager;
+pub(crate) mod tool_vectordb;
 mod types;
 
 pub use agent::Agent;
