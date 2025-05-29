@@ -33,7 +33,7 @@ function getArticle(word: string): string {
   return 'aeiouAEIOU'.indexOf(word[0]) >= 0 ? 'an' : 'a';
 }
 
-export function getProviderDescription(provider) {
+export function getProviderDescription(provider: string) {
   const descriptions = {
     OpenAI: 'Access GPT-4 and other OpenAI models, including OpenAI compatible ones',
     Anthropic: 'Access Claude and other Anthropic models',
@@ -43,7 +43,7 @@ export function getProviderDescription(provider) {
     OpenRouter: 'Access a variety of AI models through OpenRouter',
     Ollama: 'Run and use open-source models locally',
   };
-  return descriptions[provider] || `Access ${provider} models`;
+  return descriptions[provider as keyof typeof descriptions] || `Access ${provider} models`;
 }
 
 function BaseProviderCard({

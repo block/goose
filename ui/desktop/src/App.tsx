@@ -8,6 +8,7 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { type ExtensionConfig } from './extensions';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -46,10 +47,28 @@ export type View =
   | 'recipeEditor'
   | 'permission';
 
-export type ViewOptions =
-  | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
-  | Record<string, unknown>;
+export type ViewOptions = {
+  // Settings view options
+  extensionId?: string;
+  showEnvVars?: boolean;
+  deepLinkConfig?: ExtensionConfig;
+  
+  // Session view options  
+  resumedSession?: SessionDetails;
+  sessionDetails?: SessionDetails;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+  
+  // Recipe editor options
+  config?: unknown;
+  
+  // Permission view options
+  parentView?: View;
+  
+  // Generic options
+  [key: string]: unknown;
+};
 
 export type ViewConfig = {
   view: View;
@@ -231,9 +250,9 @@ export default function App() {
         setIsLoadingSharedSession(false);
       }
     };
-    window.electron.on('open-shared-session', handleOpenSharedSession as any);
+    window.electron.on('open-shared-session', handleOpenSharedSession);
     return () => {
-      window.electron.off('open-shared-session', handleOpenSharedSession as any);
+      window.electron.off('open-shared-session', handleOpenSharedSession);
     };
   }, []);
 
@@ -266,9 +285,9 @@ export default function App() {
       console.error('Is loading session:', isLoadingSession);
       setFatalError(errorMessage);
     };
-    window.electron.on('fatal-error', handleFatalError as any);
+    window.electron.on('fatal-error', handleFatalError);
     return () => {
-      window.electron.off('fatal-error', handleFatalError as any);
+      window.electron.off('fatal-error', handleFatalError);
     };
   }, [view, isLoadingSession]);
 
@@ -292,8 +311,8 @@ export default function App() {
         setView(viewFromUrl as View);
       }
     }
-    window.electron.on('set-view', handleSetView as any);
-    return () => window.electron.off('set-view', handleSetView as any);
+    window.electron.on('set-view', handleSetView);
+    return () => window.electron.off('set-view', handleSetView);
   }, []);
 
   useEffect(() => {
@@ -375,9 +394,9 @@ export default function App() {
         console.error('Error handling add-extension event:', error);
       }
     };
-    window.electron.on('add-extension', handleAddExtension as any);
+    window.electron.on('add-extension', handleAddExtension);
     return () => {
-      window.electron.off('add-extension', handleAddExtension as any);
+      window.electron.off('add-extension', handleAddExtension);
     };
   }, [STRICT_ALLOWLIST]);
 
@@ -388,9 +407,9 @@ export default function App() {
         inputField.focus();
       }
     };
-    window.electron.on('focus-input', handleFocusInput as any);
+    window.electron.on('focus-input', handleFocusInput);
     return () => {
-      window.electron.off('focus-input', handleFocusInput as any);
+      window.electron.off('focus-input', handleFocusInput);
     };
   }, []);
 
