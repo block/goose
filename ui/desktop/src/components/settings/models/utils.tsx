@@ -49,7 +49,7 @@ export function useHandleModelSelection() {
   };
 }
 
-export function createSelectedModel(selectedProvider, modelName) {
+export function createSelectedModel(selectedProvider: string, modelName: string) {
   let selectedModel = gooseModels.find(
     (model) =>
       model.provider.toLowerCase() === selectedProvider &&

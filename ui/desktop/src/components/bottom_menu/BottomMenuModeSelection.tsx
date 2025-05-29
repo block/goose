@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from '../settings_v2/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
 import { View, ViewOptions } from '../../App';

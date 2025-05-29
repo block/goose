@@ -1,4 +1,3 @@
-import React from 'react';
 import OpenAILogo from './icons/openai@3x.png';
 import AnthropicLogo from './icons/anthropic@3x.png';
 import GoogleLogo from './icons/google@3x.png';

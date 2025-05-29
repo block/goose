@@ -24,6 +24,7 @@ interface OllamaBattleGameProps {
 
 export function OllamaBattleGame({ onComplete, requiredKeys: _ }: OllamaBattleGameProps) {
   // Use Audio element type for audioRef
+  // eslint-disable-next-line no-undef
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
 

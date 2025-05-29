@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 import { GOOSE_MODEL, GOOSE_PROVIDER } from '../../../env_vars';
 import { gooseModels } from './GooseModels'; // Assuming hardcoded models are here
 

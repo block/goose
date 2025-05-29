@@ -272,7 +272,7 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat) => {
+    setChat((prevChat: ChatType) => {
       const updatedChat = { ...prevChat, messages };
       return updatedChat;
     });
