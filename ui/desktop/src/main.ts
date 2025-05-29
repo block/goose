@@ -142,7 +142,7 @@ if (process.platform === 'win32') {
               }
             }
 
-            createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+            createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
           });
           return; // Skip the rest of the handler
         }
@@ -185,9 +185,10 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    // For bot/recipe URLs, skip existing window processing
-    // and let processProtocolUrl handle it entirely
-    processProtocolUrl(parsedUrl, null);
+    // For bot/recipe URLs, get existing window or create new one
+    const existingWindows = BrowserWindow.getAllWindows();
+    const targetWindow = existingWindows.length > 0 ? existingWindows[0] : await createChat(app, undefined, openDir);
+    processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();

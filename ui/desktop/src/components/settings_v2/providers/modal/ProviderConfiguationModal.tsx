@@ -156,7 +156,7 @@ export default function ProviderConfigurationModal() {
       // Call onDelete callback if provided
       // This should trigger the refreshProviders function
       if (modalProps.onDelete) {
-        modalProps.onDelete(currentProvider.name);
+        modalProps.onDelete(currentProvider.name as unknown);
       }
 
       // Reset the delete confirmation state before closing
