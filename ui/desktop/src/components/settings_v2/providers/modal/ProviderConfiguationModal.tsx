@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';

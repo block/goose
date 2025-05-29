@@ -1,6 +1,5 @@
-import React from 'react';
 
-export default function ChevronDown({ className }) {
+export default function ChevronDown({ className }: { className?: string }) {
   return (
     <svg
       width="1.5rem"

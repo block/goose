@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function VertDots({ size }: { size: number }) {
   return (

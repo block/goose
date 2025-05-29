@@ -1,5 +1,4 @@
 import { Input } from '../../../ui/input';
-import React from 'react';
 
 interface ExtensionTimeoutFieldProps {
   timeout: number;
