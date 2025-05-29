@@ -148,21 +148,20 @@ export default function ChatInput({
   }, [droppedFiles, processedFilePaths, displayValue]);
 
   // Debounced function to update actual value
-  const debouncedSetValue = useCallback((val: string) => {
+  const debouncedSetValue = useCallback(
     debounce((value: string) => {
       setValue(value);
-    }, 150)(val);
-  }, []);
+    }, 150),
+    []
+  );
 
   // Debounced autosize function
   const debouncedAutosize = useCallback(
-    (textArea: HTMLTextAreaElement) => {
-      debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
-        const scrollHeight = element.scrollHeight;
-        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-      }, 150)(textArea);
-    },
+    debounce((element: HTMLTextAreaElement) => {
+      element.style.height = '0px'; // Reset height
+      const scrollHeight = element.scrollHeight;
+      element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+    }, 150),
     [maxHeight]
   );
 

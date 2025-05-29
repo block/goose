@@ -29,11 +29,11 @@ export async function extensionApiCall(
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
-  const extensionName = isActivating ? payload.name : payload;
+  const extensionName = isActivating ? (payload as ExtensionConfig).name : payload as string;
   let toastId;
 
   // Step 1: Show loading toast (only for activation of stdio)
-  if (isActivating && (payload as ExtensionConfig) && payload.type == 'stdio') {
+  if (isActivating && typeof payload === 'object' && payload.type === 'stdio') {
     toastId = toastService.loading({
       title: extensionName,
       msg: `${action.verb} ${extensionName} extension...`,

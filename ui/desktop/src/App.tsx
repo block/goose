@@ -46,10 +46,28 @@ export type View =
   | 'recipeEditor'
   | 'permission';
 
-export type ViewOptions =
-  | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
-  | Record<string, unknown>;
+export type ViewOptions = {
+  // Settings view options
+  extensionId?: string;
+  showEnvVars?: boolean;
+  deepLinkConfig?: any;
+  
+  // Session view options  
+  resumedSession?: SessionDetails;
+  sessionDetails?: SessionDetails;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+  
+  // Recipe editor options
+  config?: any;
+  
+  // Permission view options
+  parentView?: View;
+  
+  // Generic options
+  [key: string]: any;
+};
 
 export type ViewConfig = {
   view: View;

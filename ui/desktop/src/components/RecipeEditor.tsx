@@ -125,7 +125,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           delete cleanExtension.enabled;
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
-          delete cleanExtension.envs;
+          if ('envs' in cleanExtension) {
+            delete (cleanExtension as any).envs;
+          }
           return cleanExtension;
         })
         .filter(Boolean) as FullExtensionConfig[],
