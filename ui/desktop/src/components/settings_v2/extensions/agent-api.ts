@@ -96,7 +96,7 @@ function handleErrorResponse(
   response: Response,
   extensionName: string,
   action: { type: string; verb: string },
-  toastId: string
+  toastId: string | number | undefined
 ): never {
   const errorMsg = `Server returned ${response.status}: ${response.statusText}`;
   console.error(errorMsg);

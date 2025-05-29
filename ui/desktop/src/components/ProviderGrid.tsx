@@ -46,7 +46,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
   const handleConfigure = async (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
     const providerId = provider.id.toLowerCase();
 
-    const modelName = getDefaultModel(providerId);
+    const modelName = getDefaultModel(providerId) || 'default-model';
     const model = createSelectedModel(providerId, modelName);
 
     await initializeSystem(providerId, model.name);
