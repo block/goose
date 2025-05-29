@@ -1,11 +1,10 @@
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
-import { ChildProcessByStdio } from 'node:child_process';
-import { Readable, Buffer } from 'node:stream';
+import { Buffer } from 'node:stream';
 import { App } from 'electron';
 import type { ProcessEnv } from 'node:process';
 
@@ -66,7 +65,7 @@ export const startGoosed = async (
   app: App,
   dir: string | null = null,
   env: Partial<GooseProcessEnv> = {}
-): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
+) => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
@@ -135,7 +134,7 @@ export const startGoosed = async (
   const spawnOptions = {
     cwd: dir,
     env: processEnv,
-    stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe'] as const,
     // Hide terminal window on Windows
     windowsHide: true,
     // Run detached on Windows only to avoid terminal windows
@@ -148,18 +147,18 @@ export const startGoosed = async (
   log.info('Spawn options:', JSON.stringify(spawnOptions, null, 2));
 
   // Spawn the goosed process
-  const goosedProcess = spawn(goosedPath, ['agent'], spawnOptions);
+  const goosedProcess: ChildProcess = spawn(goosedPath, ['agent'], spawnOptions);
 
   // Only unref on Windows to allow it to run independently of the parent
   if (isWindows) {
-    goosedProcess.unref();
+    goosedProcess.unref?.();
   }
 
-  goosedProcess.stdout.on('data', (data: Buffer) => {
+  goosedProcess.stdout?.on('data', (data: Buffer) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
   });
 
-  goosedProcess.stderr.on('data', (data: Buffer) => {
+  goosedProcess.stderr?.on('data', (data: Buffer) => {
     log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
   });
 
@@ -180,9 +179,9 @@ export const startGoosed = async (
     try {
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
-        spawn('taskkill', ['/pid', goosedProcess.pid.toString(), '/T', '/F']);
+        spawn('taskkill', ['/pid', goosedProcess.pid?.toString() || "0", '/T', '/F']);
       } else {
-        goosedProcess.kill();
+        goosedProcess.kill?.();
       }
     } catch (error) {
       log.error('Error while terminating goosed process:', error);
@@ -197,9 +196,9 @@ export const startGoosed = async (
     try {
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
-        spawn('taskkill', ['/pid', goosedProcess.pid.toString(), '/T', '/F']);
+        spawn('taskkill', ['/pid', goosedProcess.pid?.toString() || "0", '/T', '/F']);
       } else {
-        goosedProcess.kill();
+        goosedProcess.kill?.();
       }
     } catch (error) {
       log.error('Error while terminating goosed process:', error);

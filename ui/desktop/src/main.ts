@@ -565,7 +565,7 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    if (goosedProcess) {
+    if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
   });
@@ -651,7 +651,7 @@ const buildRecentFilesMenu = () => {
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
-  });
+  }) as { canceled: boolean; filePaths: string[] };
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
@@ -706,7 +706,7 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  });
+  }) as { canceled: boolean; filePaths: string[] };
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1618,24 +1618,26 @@ app.on('before-quit', (event) => {
   event.preventDefault();
 
   // Show confirmation dialog
-  dialog
-    .showMessageBox({
+  try {
+    const result = await dialog.showMessageBox({
       type: 'question',
       buttons: ['Quit', 'Cancel'],
       defaultId: 1, // Default to Cancel
       title: 'Confirm Quit',
       message: 'Are you sure you want to quit Goose?',
       detail: 'Any unsaved changes may be lost.',
-    })
-    .then(({ response }: { response: number }) => {
-      if (response === 0) {
+    }) as { response: number };
+    
+    if (result.response === 0) {
         // User clicked "Quit"
         // Set a flag to avoid showing the dialog again
         app.removeAllListeners('before-quit');
         // Actually quit the app
         app.quit();
       }
-    });
+    } catch (error) {
+      console.error('Error showing quit dialog:', error);
+    }
 });
 
 app.on('window-all-closed', () => {
