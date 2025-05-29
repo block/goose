@@ -1,4 +1,11 @@
 # Configuration for cross-compiling using cross
+[build.env]
+passthrough = [
+    "PROTOC",
+    "RUST_LOG",
+    "RUST_BACKTRACE"
+]
+
 [target.aarch64-unknown-linux-gnu]
 xargo = false
 pre-build = [
@@ -9,7 +16,8 @@ pre-build = [
      pkg-config \
      libssl-dev:arm64 \
      libdbus-1-dev:arm64 \
-     libxcb1-dev:arm64
+     libxcb1-dev:arm64 \
+     protobuf-compiler
     """
 ]
 
@@ -24,6 +32,7 @@ pre-build = [
      libssl-dev \
      libdbus-1-dev \
      libxcb1-dev \
+     protobuf-compiler
     """
 ]
 

@@ -91,8 +91,15 @@ jobs:
           which protoc
           echo "Using PROTOC from: $PROTOC"
 
+          # Make sure the protoc path is absolute and exists
+          PROTOC_PATH=$(which protoc)
+          echo "PROTOC_PATH=$PROTOC_PATH"
+
           # 'cross' is used to cross-compile for different architectures (see Cross.toml)
-          PROTOC=$PROTOC cross build --release --target ${TARGET} -p goose-cli -vv
+          echo "Testing cross environment:"
+          PROTOC=$PROTOC_PATH cross run --target ${TARGET} -- env | grep PROTOC
+          echo "Building with explicit PROTOC path..."
+          PROTOC=$PROTOC_PATH cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release
