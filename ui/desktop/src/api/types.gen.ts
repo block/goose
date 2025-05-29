@@ -172,6 +172,16 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type InspectJobResponse = {
+    processStartTime?: string | null;
+    runningDurationSeconds?: number | null;
+    sessionId?: string | null;
+};
+
+export type KillJobResponse = {
+    message: string;
+};
+
 export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
@@ -304,10 +314,12 @@ export type RunNowResponse = {
 
 export type ScheduledJob = {
     cron: string;
+    current_session_id?: string | null;
     currently_running?: boolean;
     id: string;
     last_run?: string | null;
     paused?: boolean;
+    process_start_time?: string | null;
     source: string;
 };
 
@@ -1003,6 +1015,54 @@ export type UpdateScheduleResponses = {
 };
 
 export type UpdateScheduleResponse = UpdateScheduleResponses[keyof UpdateScheduleResponses];
+
+export type InspectRunningJobData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the schedule to inspect
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/inspect';
+};
+
+export type InspectRunningJobErrors = {
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type InspectRunningJobResponses = {
+    /**
+     * Running job information
+     */
+    200: InspectJobResponse;
+};
+
+export type InspectRunningJobResponse = InspectRunningJobResponses[keyof InspectRunningJobResponses];
+
+export type KillRunningJobData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/kill';
+};
+
+export type KillRunningJobResponses = {
+    /**
+     * Running job killed successfully
+     */
+    200: unknown;
+};
 
 export type PauseScheduleData = {
     body?: never;

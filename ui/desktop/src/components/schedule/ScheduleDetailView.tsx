@@ -5,11 +5,11 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
-import { getScheduleSessions, runScheduleNow, pauseSchedule, unpauseSchedule, updateSchedule, listSchedules, ScheduledJob } from '../../schedule';
+import { getScheduleSessions, runScheduleNow, pauseSchedule, unpauseSchedule, updateSchedule, listSchedules, killRunningJob, inspectRunningJob, ScheduledJob } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
-import { Loader2, Pause, Play, Edit } from 'lucide-react';
+import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 
 interface ScheduleSessionMeta {
@@ -43,6 +43,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
+  const [killJobLoading, setKillJobLoading] = useState(false);
+  const [inspectJobLoading, setInspectJobLoading] = useState(false);
+  
+  // Track if we explicitly killed a job to distinguish from natural completion
+  const [jobWasKilled, setJobWasKilled] = useState(false);
 
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
@@ -79,6 +84,12 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       const allSchedules = await listSchedules();
       const schedule = allSchedules.find((s) => s.id === sId);
       if (schedule) {
+        // Only reset runNowLoading if we explicitly killed the job
+        // This prevents interfering with natural job completion
+        if (!schedule.currently_running && runNowLoading && jobWasKilled) {
+          setRunNowLoading(false);
+          setJobWasKilled(false); // Reset the flag
+        }
         setScheduleDetails(schedule);
       } else {
         setScheduleError('Schedule not found');
@@ -89,7 +100,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     } finally {
       setIsLoadingSchedule(false);
     }
-  }, []);
+  }, [runNowLoading, jobWasKilled]);
 
   const getReadableCron = (cronString: string) => {
     try {
@@ -111,6 +122,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       setSelectedSessionDetails(null);
       setScheduleDetails(null);
       setScheduleError(null);
+      setJobWasKilled(false); // Reset kill flag when changing schedules
     }
   }, [scheduleId, fetchScheduleSessions, fetchScheduleDetails, selectedSessionDetails]);
 
@@ -184,6 +196,57 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditApiError(null);
+  };
+
+  const handleKillRunningJob = async () => {
+    if (!scheduleId) return;
+    setKillJobLoading(true);
+    try {
+      const result = await killRunningJob(scheduleId);
+      toastSuccess({
+        title: 'Job Killed',
+        msg: result.message,
+      });
+      // Mark that we explicitly killed this job
+      setJobWasKilled(true);
+      // Clear the runNowLoading state immediately when job is killed
+      setRunNowLoading(false);
+      fetchScheduleDetails(scheduleId);
+    } catch (err) {
+      console.error('Failed to kill running job:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to kill running job';
+      toastError({ title: 'Kill Job Error', msg: errorMsg });
+    } finally {
+      setKillJobLoading(false);
+    }
+  };
+
+  const handleInspectRunningJob = async () => {
+    if (!scheduleId) return;
+    setInspectJobLoading(true);
+    try {
+      const result = await inspectRunningJob(scheduleId);
+      if (result.sessionId) {
+        const duration = result.runningDurationSeconds 
+          ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
+          : 'Unknown';
+        toastSuccess({
+          title: 'Job Inspection',
+          msg: `Session: ${result.sessionId}\nRunning for: ${duration}`,
+        });
+      } else {
+        toastSuccess({
+          title: 'Job Inspection',
+          msg: 'No detailed information available for this job',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to inspect running job:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to inspect running job';
+      toastError({ title: 'Inspect Job Error', msg: errorMsg });
+    } finally {
+      setInspectJobLoading(false);
+    }
   };
 
   const handleEditScheduleSubmit = async (cron: string) => {
@@ -261,6 +324,18 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       clearInterval(intervalId);
     };
   }, [scheduleId, fetchScheduleDetails]);
+
+  // Monitor schedule state changes and reset loading states appropriately
+  useEffect(() => {
+    if (scheduleDetails) {
+      // Only reset runNowLoading if we explicitly killed the job
+      // This prevents interfering with natural job completion
+      if (!scheduleDetails.currently_running && runNowLoading && jobWasKilled) {
+        setRunNowLoading(false);
+        setJobWasKilled(false); // Reset the flag
+      }
+    }
+  }, [scheduleDetails, runNowLoading, jobWasKilled]);
 
   const loadAndShowSessionDetails = async (sessionId: string) => {
     setIsLoadingSessionDetails(true);
@@ -400,6 +475,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                       ? new Date(scheduleDetails.last_run).toLocaleString()
                       : 'Never'}
                   </p>
+                  {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Current Session:</span> {scheduleDetails.current_session_id}
+                    </p>
+                  )}
+                  {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Process Started:</span>{' '}
+                      {new Date(scheduleDetails.process_start_time).toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </Card>
             )}
@@ -448,6 +534,29 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                         {pauseUnpauseLoading ? 'Pausing...' : 'Pause Schedule'}
                       </>
                     )}
+                  </Button>
+                </>
+              )}
+              
+              {scheduleDetails && scheduleDetails.currently_running && (
+                <>
+                  <Button
+                    onClick={handleInspectRunningJob}
+                    variant="outline"
+                    className="w-full md:w-auto flex items-center gap-2 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    disabled={inspectJobLoading}
+                  >
+                    <Eye className="w-4 h-4" />
+                    {inspectJobLoading ? 'Inspecting...' : 'Inspect Running Job'}
+                  </Button>
+                  <Button
+                    onClick={handleKillRunningJob}
+                    variant="outline"
+                    className="w-full md:w-auto flex items-center gap-2 text-red-600 dark:text-red-400 border-red-300 dark:border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    disabled={killJobLoading}
+                  >
+                    <Square className="w-4 h-4" />
+                    {killJobLoading ? 'Killing...' : 'Kill Running Job'}
                   </Button>
                 </>
               )}
