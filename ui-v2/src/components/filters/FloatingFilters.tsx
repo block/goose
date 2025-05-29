@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ReactElement } from 'react';
+
 import { FilterOption } from './types';
 
 interface FloatingFiltersProps {
@@ -6,7 +7,7 @@ interface FloatingFiltersProps {
 }
 
 const getBarColor = (filters: FilterOption[], isDarkMode: boolean): string => {
-  const activeFilter = filters.find(f => f.isActive);
+  const activeFilter = filters.find((f) => f.isActive);
   switch (activeFilter?.id) {
     case 'tasks':
       return '#05C168';
@@ -21,13 +22,15 @@ const getBarColor = (filters: FilterOption[], isDarkMode: boolean): string => {
   }
 };
 
-export function FloatingFilters({ children }: FloatingFiltersProps) {
+export function FloatingFilters({ children }: FloatingFiltersProps): ReactElement {
   const [isVisible, setIsVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    const filterPills = React.Children.toArray(children)[0] as React.ReactElement;
+    const filterPills = React.Children.toArray(children)[0] as React.ReactElement<{
+      filters?: FilterOption[];
+    }>;
     if (filterPills?.props?.filters) {
       setActiveFilters(filterPills.props.filters);
     }
@@ -47,7 +50,7 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
 
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class']
+      attributeFilter: ['class'],
     });
 
     return () => observer.disconnect();
@@ -56,7 +59,7 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
   const barColor = getBarColor(activeFilters, isDarkMode);
 
   return (
-    <div 
+    <div
       className="fixed left-0 right-0 z-40"
       style={{ top: 0 }}
       onMouseEnter={() => setIsVisible(true)}
@@ -67,7 +70,7 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
 
       {/* Indicator bar */}
       <div className="absolute left-0 right-0 h-16 bg-transparent flex justify-center">
-        <div 
+        <div
           className={`
             w-[200px] h-[6px]
             rounded-b-[24px]
@@ -80,12 +83,13 @@ export function FloatingFilters({ children }: FloatingFiltersProps) {
       </div>
 
       {/* Filters container */}
-      <div 
+      <div
         className={`
           transform transition-all duration-300 ease-out w-full
-          ${isVisible 
-            ? 'translate-y-0 opacity-100 scale-y-100 origin-top' 
-            : 'translate-y-[calc(-100%+6px)] opacity-0 scale-y-95 origin-top'
+          ${
+            isVisible
+              ? 'translate-y-0 opacity-100 scale-y-100 origin-top'
+              : 'translate-y-[calc(-100%+6px)] opacity-0 scale-y-95 origin-top'
           }
         `}
       >

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, ReactElement } from 'react';
 
 interface TimelineDotsProps {
   height: number | string;
@@ -12,33 +12,43 @@ interface Dot {
   opacity: number;
 }
 
-export default function TimelineDots({ height, isUpper = false, isCurrentDay = false }: TimelineDotsProps) {
+export default function TimelineDots({
+  height,
+  isUpper = false,
+  isCurrentDay = false,
+}: TimelineDotsProps): ReactElement {
   // Generate random dots with clusters
   const dots = useMemo(() => {
     const generateDots = () => {
       const dots: Dot[] = [];
       const numDots = Math.floor(Math.random() * 8) + 8; // 8-15 dots
-      
+
       // Create 2-3 cluster points
-      const clusterPoints = Array.from({ length: Math.floor(Math.random() * 2) + 2 }, 
-        () => Math.random() * 100);
-      
+      const clusterPoints = Array.from(
+        { length: Math.floor(Math.random() * 2) + 2 },
+        () => Math.random() * 100
+      );
+
       for (let i = 0; i < numDots; i++) {
         // Decide if this dot should be part of a cluster
         const isCluster = Math.random() < 0.7; // 70% chance of being in a cluster
-        
+
         let top;
-        if (isCluster) {
+        if (isCluster && clusterPoints.length > 0) {
           // Pick a random cluster point and add some variation
           const clusterPoint = clusterPoints[Math.floor(Math.random() * clusterPoints.length)];
-          top = clusterPoint + (Math.random() - 0.5) * 15; // ±7.5% variation
+          if (clusterPoint !== undefined) {
+            top = clusterPoint + (Math.random() - 0.5) * 15; // ±7.5% variation
+          } else {
+            top = Math.random() * 100;
+          }
         } else {
           top = Math.random() * 100;
         }
-        
+
         // Ensure dot is within bounds
         top = Math.max(5, Math.min(95, top));
-        
+
         dots.push({
           top: `${top}%`,
           size: Math.random() * 2 + 2, // 2-4px
@@ -47,17 +57,17 @@ export default function TimelineDots({ height, isUpper = false, isCurrentDay = f
       }
       return dots;
     };
-    
+
     return generateDots();
   }, []); // Empty dependency array means this only runs once
 
   return (
-    <div 
+    <div
       className="flex h-full left-1/2 -translate-x-[0.375px] flex flex-col items-center"
-      style={{ 
+      style={{
         height: height,
         bottom: isUpper ? 'calc(50% + 96px)' : '0',
-        top: isUpper ? undefined : 'calc(50% + 96px)'
+        top: isUpper ? undefined : 'calc(50% + 96px)',
       }}
     >
       {/* Main line */}
@@ -71,11 +81,11 @@ export default function TimelineDots({ height, isUpper = false, isCurrentDay = f
               height: '4px',
               left: '-1.625px', // Center 4px dot on 0.75px line
               top: '0',
-              transform: 'translateY(-50%)'
+              transform: 'translateY(-50%)',
             }}
           />
         )}
-        
+
         {/* Random dots */}
         {dots.map((dot, index) => (
           <div
@@ -93,4 +103,4 @@ export default function TimelineDots({ height, isUpper = false, isCurrentDay = f
       </div>
     </div>
   );
-};
+}

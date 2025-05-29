@@ -109,6 +109,8 @@ pub struct ScheduledJob {
     pub last_run: Option<DateTime<Utc>>,
     #[serde(default)]
     pub currently_running: bool,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 async fn persist_jobs_from_arc(
@@ -219,6 +221,21 @@ impl Scheduler {
             let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
 
             Box::pin(async move {
+                // Check if the job is paused before executing
+                let should_execute = {
+                    let jobs_map_guard = current_jobs_arc.lock().await;
+                    if let Some((_, current_job_in_map)) = jobs_map_guard.get(&task_job_id) {
+                        !current_job_in_map.paused
+                    } else {
+                        false
+                    }
+                };
+
+                if !should_execute {
+                    tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
+                    return;
+                }
+
                 let current_time = Utc::now();
                 let mut needs_persist = false;
                 {
@@ -319,6 +336,21 @@ impl Scheduler {
                 let job_to_execute = job_for_task.clone(); // Clone for run_scheduled_job_internal
 
                 Box::pin(async move {
+                    // Check if the job is paused before executing
+                    let should_execute = {
+                        let jobs_map_guard = current_jobs_arc.lock().await;
+                        if let Some((_, stored_job)) = jobs_map_guard.get(&task_job_id) {
+                            !stored_job.paused
+                        } else {
+                            false
+                        }
+                    };
+
+                    if !should_execute {
+                        tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
+                        return;
+                    }
+
                     let current_time = Utc::now();
                     let mut needs_persist = false;
                     {
@@ -513,6 +545,168 @@ impl Scheduler {
                 sched_id,
                 e.error
             ))),
+        }
+    }
+
+    pub async fn pause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        let mut jobs_guard = self.jobs.lock().await;
+        match jobs_guard.get_mut(sched_id) {
+            Some((_, job_def)) => {
+                if job_def.currently_running {
+                    return Err(SchedulerError::AnyhowError(anyhow!(
+                        "Cannot pause schedule '{}' while it's currently running",
+                        sched_id
+                    )));
+                }
+                job_def.paused = true;
+                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+                Ok(())
+            }
+            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
+        }
+    }
+
+    pub async fn unpause_schedule(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        let mut jobs_guard = self.jobs.lock().await;
+        match jobs_guard.get_mut(sched_id) {
+            Some((_, job_def)) => {
+                job_def.paused = false;
+                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+                Ok(())
+            }
+            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
+        }
+    }
+
+    pub async fn update_schedule(
+        &self,
+        sched_id: &str,
+        new_cron: String,
+    ) -> Result<(), SchedulerError> {
+        let mut jobs_guard = self.jobs.lock().await;
+        match jobs_guard.get_mut(sched_id) {
+            Some((job_uuid, job_def)) => {
+                if job_def.currently_running {
+                    return Err(SchedulerError::AnyhowError(anyhow!(
+                        "Cannot edit schedule '{}' while it's currently running",
+                        sched_id
+                    )));
+                }
+
+                if new_cron == job_def.cron {
+                    // No change needed
+                    return Ok(());
+                }
+
+                // Remove the old job from the scheduler
+                self.internal_scheduler
+                    .remove(job_uuid)
+                    .await
+                    .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+                // Create new job with updated cron
+                let job_for_task = job_def.clone();
+                let jobs_arc_for_task = self.jobs.clone();
+                let storage_path_for_task = self.storage_path.clone();
+
+                let cron_task = Job::new_async(&new_cron, move |_uuid, _l| {
+                    let task_job_id = job_for_task.id.clone();
+                    let current_jobs_arc = jobs_arc_for_task.clone();
+                    let local_storage_path = storage_path_for_task.clone();
+                    let job_to_execute = job_for_task.clone();
+
+                    Box::pin(async move {
+                        // Check if the job is paused before executing
+                        let should_execute = {
+                            let jobs_map_guard = current_jobs_arc.lock().await;
+                            if let Some((_, current_job_in_map)) = jobs_map_guard.get(&task_job_id)
+                            {
+                                !current_job_in_map.paused
+                            } else {
+                                false
+                            }
+                        };
+
+                        if !should_execute {
+                            tracing::info!("Skipping execution of paused job '{}'", &task_job_id);
+                            return;
+                        }
+
+                        let current_time = Utc::now();
+                        let mut needs_persist = false;
+                        {
+                            let mut jobs_map_guard = current_jobs_arc.lock().await;
+                            if let Some((_, current_job_in_map)) =
+                                jobs_map_guard.get_mut(&task_job_id)
+                            {
+                                current_job_in_map.last_run = Some(current_time);
+                                current_job_in_map.currently_running = true;
+                                needs_persist = true;
+                            }
+                        }
+
+                        if needs_persist {
+                            if let Err(e) =
+                                persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                            {
+                                tracing::error!(
+                                    "Failed to persist last_run update for job {}: {}",
+                                    &task_job_id,
+                                    e
+                                );
+                            }
+                        }
+
+                        let result = run_scheduled_job_internal(job_to_execute, None).await;
+
+                        // Update the job status after execution
+                        {
+                            let mut jobs_map_guard = current_jobs_arc.lock().await;
+                            if let Some((_, current_job_in_map)) =
+                                jobs_map_guard.get_mut(&task_job_id)
+                            {
+                                current_job_in_map.currently_running = false;
+                                needs_persist = true;
+                            }
+                        }
+
+                        if needs_persist {
+                            if let Err(e) =
+                                persist_jobs_from_arc(&local_storage_path, &current_jobs_arc).await
+                            {
+                                tracing::error!(
+                                    "Failed to persist running status update for job {}: {}",
+                                    &task_job_id,
+                                    e
+                                );
+                            }
+                        }
+
+                        if let Err(e) = result {
+                            tracing::error!(
+                                "Scheduled job '{}' execution failed: {}",
+                                &e.job_id,
+                                e.error
+                            );
+                        }
+                    })
+                })
+                .map_err(|e| SchedulerError::CronParseError(e.to_string()))?;
+
+                let new_job_uuid = self
+                    .internal_scheduler
+                    .add(cron_task)
+                    .await
+                    .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
+
+                // Update the job UUID and cron expression
+                *job_uuid = new_job_uuid;
+                job_def.cron = new_cron;
+
+                self.persist_jobs_to_storage_with_guard(&jobs_guard).await?;
+                Ok(())
+            }
+            None => Err(SchedulerError::JobNotFound(sched_id.to_string())),
         }
     }
 }
@@ -858,6 +1052,7 @@ mod tests {
             cron: "* * * * * * ".to_string(), // Runs every second for quick testing
             last_run: None,
             currently_running: false,
+            paused: false,
         };
 
         // Create the mock provider instance for the test
