@@ -57,6 +57,16 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
+      - name: Install protobuf
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            sudo apt-get update
+            sudo apt-get install -y protobuf-compiler
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            brew install protobuf
+          fi
+          echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
+
       - name: Build CLI
         env:
           CROSS_NO_WARNINGS: 0
