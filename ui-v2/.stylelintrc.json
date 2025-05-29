@@ -4,9 +4,11 @@
     "at-rule-no-unknown": [
       true,
       {
-        "ignoreAtRules": ["tailwind", "apply", "variants", "responsive", "screen"]
+        "ignoreAtRules": ["tailwind", "apply", "variants", "responsive", "screen", "theme", "custom-variant"]
       }
     ],
+    "at-rule-no-deprecated": null,
+    "custom-property-pattern": null,
     "no-descending-specificity": null
   }
 }

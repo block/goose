@@ -25,8 +25,9 @@ export const gooseModels: Model[] = [
   { id: 22, name: 'claude-3-5-sonnet-v2@20241022', provider: 'GCP Vertex AI' },
   { id: 23, name: 'claude-3-5-sonnet@20240620', provider: 'GCP Vertex AI' },
   { id: 24, name: 'claude-3-5-haiku@20241022', provider: 'GCP Vertex AI' },
-  { id: 25, name: 'gemini-2.0-pro-exp-02-05', provider: 'GCP Vertex AI' },
-  { id: 26, name: 'gemini-2.0-flash-001', provider: 'GCP Vertex AI' },
-  { id: 27, name: 'gemini-1.5-pro-002', provider: 'GCP Vertex AI' },
-  { id: 28, name: 'gemini-2.5-pro-exp-03-25', provider: 'GCP Vertex AI' },
+  { id: 25, name: 'claude-sonnet-4@20250514', provider: 'GCP Vertex AI' },
+  { id: 26, name: 'gemini-2.0-pro-exp-02-05', provider: 'GCP Vertex AI' },
+  { id: 27, name: 'gemini-2.0-flash-001', provider: 'GCP Vertex AI' },
+  { id: 28, name: 'gemini-1.5-pro-002', provider: 'GCP Vertex AI' },
+  { id: 29, name: 'gemini-2.5-pro-exp-03-25', provider: 'GCP Vertex AI' },
 ];

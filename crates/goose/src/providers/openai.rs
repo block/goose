@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
@@ -80,18 +81,8 @@ impl OpenAiProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join(&self.base_path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
-
-        let mut request = self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key));
-
+    /// Helper function to add OpenAI-specific headers to a request
+    fn add_headers(&self, mut request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         // Add organization header if present
         if let Some(org) = &self.organization {
             request = request.header("OpenAI-Organization", org);
@@ -102,11 +93,29 @@ impl OpenAiProvider {
             request = request.header("OpenAI-Project", project);
         }
 
+        // Add custom headers if present
         if let Some(custom_headers) = &self.custom_headers {
             for (key, value) in custom_headers {
                 request = request.header(key, value);
             }
         }
+
+        request
+    }
+
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        let base_url = url::Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join(&self.base_path).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
+
+        let request = self
+            .client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", self.api_key));
+
+        let request = self.add_headers(request);
 
         let response = request.json(&payload).send().await?;
 
@@ -209,6 +218,16 @@ impl Provider for OpenAiProvider {
         models.sort();
         Ok(Some(models))
     }
+
+    fn supports_embeddings(&self) -> bool {
+        true
+    }
+
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, texts)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
 }
 
 fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -220,4 +239,58 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
             Some((key, value))
         })
         .collect()
+}
+
+#[async_trait]
+impl EmbeddingCapable for OpenAiProvider {
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Get embedding model from env var or use default
+        let embedding_model = std::env::var("EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+
+        let request = EmbeddingRequest {
+            input: texts,
+            model: embedding_model,
+        };
+
+        // Construct embeddings endpoint URL
+        let base_url =
+            url::Url::parse(&self.host).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
+        let url = base_url
+            .join("v1/embeddings")
+            .map_err(|e| anyhow::anyhow!("Failed to construct embeddings URL: {e}"))?;
+
+        let req = self
+            .client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .json(&request);
+
+        let req = self.add_headers(req);
+
+        let response = req
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to send embedding request: {e}"))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(anyhow::anyhow!("Embedding API error: {}", error_text));
+        }
+
+        let embedding_response: EmbeddingResponse = response
+            .json()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to parse embedding response: {e}"))?;
+
+        Ok(embedding_response
+            .data
+            .into_iter()
+            .map(|d| d.embedding)
+            .collect())
+    }
 }
