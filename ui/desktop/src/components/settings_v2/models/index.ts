@@ -37,7 +37,7 @@ export async function changeModel({ model, writeToConfig }: changeModelProps) {
     toastError({
       title: CHANGE_MODEL_ERROR_TITLE,
       msg: SWITCH_MODEL_AGENT_ERROR_MSG,
-      traceback: error,
+      traceback: error instanceof Error ? error.message : String(error),
     });
     // don't write to config
     return;
@@ -51,7 +51,7 @@ export async function changeModel({ model, writeToConfig }: changeModelProps) {
     toastError({
       title: CHANGE_MODEL_ERROR_TITLE,
       msg: CONFIG_UPDATE_ERROR_MSG,
-      traceback: error,
+      traceback: error instanceof Error ? error.message : String(error),
     });
     // agent and config will be out of sync at this point
     // TODO: reset agent to use current config settings

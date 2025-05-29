@@ -110,7 +110,7 @@ export async function addToAgentOnStartup({
     toastService.error({
       title: extensionConfig.name,
       msg: 'Extension failed to start and will be disabled.',
-      traceback: finalError instanceof Error ? finalError : new Error(String(finalError)),
+      traceback: finalError instanceof Error ? finalError.message : String(finalError),
     });
 
     try {

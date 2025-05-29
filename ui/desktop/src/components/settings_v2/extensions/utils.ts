@@ -111,7 +111,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       name: formData.name,
       description: formData.description,
       timeout: formData.timeout,
-      uri: formData.endpoint,
+      uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else {
