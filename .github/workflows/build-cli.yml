@@ -57,8 +57,14 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Install protobuf
+      - name: Build CLI
+        env:
+          CROSS_NO_WARNINGS: 0
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          CROSS_VERBOSE: 1
         run: |
+          # Install protoc if on Ubuntu
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             sudo apt-get update
             sudo apt-get install -y protobuf-compiler
@@ -66,20 +72,12 @@ jobs:
             protoc --version
             echo "Protoc path:"
             which protoc
-            echo "PROTOC_PATH=$(which protoc)" >> $GITHUB_ENV
+            export PROTOC=$(which protoc)
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             brew install protobuf
-            echo "PROTOC_PATH=$(which protoc)" >> $GITHUB_ENV
+            export PROTOC=$(which protoc)
           fi
 
-      - name: Build CLI
-        env:
-          CROSS_NO_WARNINGS: 0
-          RUST_LOG: debug
-          RUST_BACKTRACE: 1
-          CROSS_VERBOSE: 1
-          PROTOC: ${{ env.PROTOC_PATH }}
-        run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
           echo "Building for target: ${TARGET}"
@@ -92,7 +90,6 @@ jobs:
           echo "Protoc path:"
           which protoc
           echo "Using PROTOC from: $PROTOC"
-          echo "PROTOC_PATH from env: ${{ env.PROTOC_PATH }}"
 
           # 'cross' is used to cross-compile for different architectures (see Cross.toml)
           PROTOC=$PROTOC cross build --release --target ${TARGET} -p goose-cli -vv
