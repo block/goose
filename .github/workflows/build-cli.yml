@@ -62,6 +62,8 @@ jobs:
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             sudo apt-get update
             sudo apt-get install -y protobuf-compiler
+            echo "Protoc version after installation:"
+            protoc --version
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             brew install protobuf
           fi
@@ -73,6 +75,7 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
+          PROTOC: ${{ env.PROTOC }}
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
@@ -81,6 +84,8 @@ jobs:
           rustup show
           echo "Cross version:"
           cross --version
+          echo "Protoc version:"
+          protoc --version
 
           # 'cross' is used to cross-compile for different architectures (see Cross.toml)
           cross build --release --target ${TARGET} -p goose-cli -vv
