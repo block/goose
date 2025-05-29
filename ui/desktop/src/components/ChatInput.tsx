@@ -365,7 +365,7 @@ export default function ChatInput({
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
-      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }));
+      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent);
 
       setDisplayValue('');
       setValue('');

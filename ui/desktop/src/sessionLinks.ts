@@ -1,7 +1,7 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { type View } from './App';
 
-interface SessionLinksViewOptions {
+export interface SessionLinksViewOptions {
   sessionDetails?: SharedSessionDetails | null;
   error?: string;
   shareToken?: string;
