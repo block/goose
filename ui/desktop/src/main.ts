@@ -90,7 +90,7 @@ async function ensureTempDirExists(): Promise<string> {
         }
       }
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
         // Directory doesn't exist, create it
         await fs.mkdir(gooseTempDir, { recursive: true });
       } else {
@@ -772,7 +772,7 @@ ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId
     return { id: uniqueId, filePath: filePath };
   } catch (error) {
     console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
-    return { id: uniqueId, error: error.message || 'Failed to save image' };
+    return { id: uniqueId, error: error instanceof Error ? error.message : 'Failed to save image' };
   }
 });
 
@@ -823,7 +823,7 @@ ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
       // If realpath fails, use the original path validation
       console.log(
         `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError.message
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
       );
     }
 
@@ -894,14 +894,14 @@ ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
       // If realpath fails, use the original path validation
       console.log(
         `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError.message
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
       );
     }
 
     await fs.unlink(actualPath);
     console.log(`[Main] Deleted temp file: ${filePath}`);
   } catch (error) {
-    if (error.code !== 'ENOENT') {
+    if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT') {
       // ENOENT means file doesn't exist, which is fine
       console.error(`[Main] Failed to delete temp file: ${filePath}`, error);
     } else {
@@ -1594,7 +1594,7 @@ app.on('will-quit', async () => {
       console.error('[Main] Error while cleaning up temp directory contents:', err);
     }
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');
     } else {
       console.error(

@@ -97,7 +97,10 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       resetForm();
     } catch (error) {
       console.error('Error configuring extension:', error);
-      toastError({ title: 'Failed to configure extension', traceback: error.message });
+      toastError({ 
+        title: 'Failed to configure extension', 
+        traceback: error instanceof Error ? error.message : String(error) 
+      });
     }
   };
 

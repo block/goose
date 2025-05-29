@@ -151,7 +151,7 @@ export async function addExtension(
     toastError({
       title: extension.name,
       msg: 'Failed to add extension',
-      traceback: error.message,
+      traceback: error instanceof Error ? error.message : String(error),
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -193,7 +193,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     toastError({
       title: name,
       msg: 'Error removing extension',
-      traceback: error.message,
+      traceback: error instanceof Error ? error.message : String(error),
       toastOptions: { autoClose: false },
     });
     throw error;

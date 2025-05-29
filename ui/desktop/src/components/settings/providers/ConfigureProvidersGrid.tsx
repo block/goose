@@ -165,7 +165,7 @@ export function ConfigureProvidersGrid() {
       toastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration`,
-        traceback: error.message,
+        traceback: error instanceof Error ? error.message : String(error),
       });
     }
   };
@@ -228,7 +228,7 @@ export function ConfigureProvidersGrid() {
       toastError({
         title: providerToDelete.name,
         msg: 'Failed to delete configuration',
-        traceback: error.message,
+        traceback: error instanceof Error ? error.message : String(error),
       });
     }
     setIsConfirmationOpen(false);
