@@ -96,9 +96,6 @@ jobs:
           PROTOC_PATH=$(which protoc)
           echo "PROTOC_PATH=$PROTOC_PATH"
 
-          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
-          echo "Testing cross environment:"
-          PROTOC=$PROTOC_PATH cross run --target ${TARGET} -- env | grep PROTOC
           echo "Building with explicit PROTOC path..."
           PROTOC=$PROTOC_PATH cross build --release --target ${TARGET} -p goose-cli -vv
 
