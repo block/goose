@@ -7,6 +7,7 @@ import { ModeSection } from './mode/ModeSection';
 import { ToolSelectionStrategySection } from './tool_selection_strategy/ToolSelectionStrategySection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import { ResponseStylesSection } from './response_styles/ResponseStylesSection';
+import AppSettingsSection from './app/AppSettingsSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
@@ -53,6 +54,8 @@ export default function SettingsView({
               <ResponseStylesSection />
               {/* Tool Selection Strategy */}
               <ToolSelectionStrategySection setView={setView} />
+              {/* App Settings */}
+              <AppSettingsSection />
             </div>
           </div>
         </div>
