@@ -145,9 +145,10 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 <Select
                   options={typeOptions}
                   value={typeOptions.find((option) => option.value === formData.type)}
-                  onChange={(option: { value: string; label: string } | null) =>
-                    setFormData({ ...formData, type: option?.value as FullExtensionConfig['type'] })
-                  }
+                  onChange={(newValue: unknown) => {
+                    const option = newValue as { value: string; label: string } | null;
+                    setFormData({ ...formData, type: option?.value as FullExtensionConfig['type'] });
+                  }}
                 />
               </div>
 

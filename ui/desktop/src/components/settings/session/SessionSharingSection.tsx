@@ -146,7 +146,7 @@ export default function SessionSharingSection() {
                   placeholder="https://example.com/api"
                   value={sessionSharingConfig.baseUrl}
                   disabled={!!envBaseUrlShare}
-                  onChange={envBaseUrlShare ? undefined : handleBaseUrlChange}
+                  onChange={envBaseUrlShare ? () => {} : handleBaseUrlChange}
                 />
               </div>
               {urlError && <p className="text-red-500 text-sm">{urlError}</p>}

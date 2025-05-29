@@ -189,7 +189,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       {showSetupModal && selectedId && (
         <div className="relative z-[9999]">
           <ProviderSetupModal
-            provider={providers.find((p) => p.id === selectedId)?.name}
+            provider={providers.find((p) => p.id === selectedId)?.name || 'Unknown Provider'}
             model="Example Model"
             endpoint="Example Endpoint"
             onSubmit={handleModalSubmit}

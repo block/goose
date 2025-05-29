@@ -76,7 +76,8 @@ export function AddModelInline() {
         <Select
           options={providerOptions}
           value={providerOptions.find((option) => option.value === selectedProvider) || null}
-          onChange={(option: { value: string | null }) => {
+          onChange={(newValue: unknown) => {
+            const option = newValue as { value: string | null } | null;
             setSelectedProvider(option?.value || null);
             setModelName(''); // Clear model name when provider changes
             setFilteredModels([]);

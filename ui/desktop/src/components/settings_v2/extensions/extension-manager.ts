@@ -100,7 +100,7 @@ export async function addToAgentOnStartup({
       retries: 3,
       delayMs: 1000,
       shouldRetry: (error: ExtensionError) =>
-        error.message &&
+        !!error.message &&
         (error.message.includes('428') ||
           error.message.includes('Precondition Required') ||
           error.message.includes('Agent is not initialized')),
@@ -110,7 +110,7 @@ export async function addToAgentOnStartup({
     toastService.error({
       title: extensionConfig.name,
       msg: 'Extension failed to start and will be disabled.',
-      traceback: finalError as Error,
+      traceback: finalError instanceof Error ? finalError : new Error(String(finalError)),
     });
 
     try {
