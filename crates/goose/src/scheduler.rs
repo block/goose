@@ -283,7 +283,7 @@ impl Scheduler {
                     Some(task_job_id.clone()),
                 ));
 
-                // Store the abort handle
+                // Store the abort handle at the scheduler level
                 {
                     let mut running_tasks_guard = running_tasks_arc.lock().await;
                     running_tasks_guard.insert(task_job_id.clone(), job_task.abort_handle());
@@ -439,7 +439,7 @@ impl Scheduler {
                         Some(task_job_id.clone()),
                     ));
 
-                    // Store the abort handle
+                    // Store the abort handle at the scheduler level
                     {
                         let mut running_tasks_guard = running_tasks_arc.lock().await;
                         running_tasks_guard.insert(task_job_id.clone(), job_task.abort_handle());
@@ -621,8 +621,28 @@ impl Scheduler {
             }
         };
 
-        // Pass None for provider_override in normal execution
-        let run_result = run_scheduled_job_internal(job_to_run.clone(), None, None, None).await;
+        // Spawn the job execution as an abortable task for run_now
+        let job_task = tokio::spawn(run_scheduled_job_internal(
+            job_to_run.clone(),
+            None,
+            Some(self.jobs.clone()),
+            Some(sched_id.to_string()),
+        ));
+
+        // Store the abort handle for run_now jobs
+        {
+            let mut running_tasks_guard = self.running_tasks.lock().await;
+            running_tasks_guard.insert(sched_id.to_string(), job_task.abort_handle());
+        }
+
+        // Wait for the job to complete or be aborted
+        let run_result = job_task.await;
+
+        // Remove the abort handle
+        {
+            let mut running_tasks_guard = self.running_tasks.lock().await;
+            running_tasks_guard.remove(sched_id);
+        }
 
         // Clear the currently_running flag after execution
         {
@@ -639,11 +659,23 @@ impl Scheduler {
         self.persist_jobs().await?;
 
         match run_result {
-            Ok(session_id) => Ok(session_id),
-            Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
+            Ok(Ok(session_id)) => Ok(session_id),
+            Ok(Err(e)) => Err(SchedulerError::AnyhowError(anyhow!(
                 "Failed to execute job '{}' immediately: {}",
                 sched_id,
                 e.error
+            ))),
+            Err(join_error) if join_error.is_cancelled() => {
+                tracing::info!("Run now job '{}' was cancelled/killed", sched_id);
+                Err(SchedulerError::AnyhowError(anyhow!(
+                    "Job '{}' was successfully cancelled",
+                    sched_id
+                )))
+            }
+            Err(join_error) => Err(SchedulerError::AnyhowError(anyhow!(
+                "Failed to execute job '{}' immediately: {}",
+                sched_id,
+                join_error
             ))),
         }
     }
@@ -768,7 +800,7 @@ impl Scheduler {
                             Some(task_job_id.clone()),
                         ));
 
-                        // Store the abort handle
+                        // Store the abort handle at the scheduler level
                         {
                             let mut running_tasks_guard = running_tasks_arc.lock().await;
                             running_tasks_guard
@@ -877,6 +909,8 @@ impl Scheduler {
                     if let Some(abort_handle) = running_tasks_guard.remove(sched_id) {
                         abort_handle.abort();
                         tracing::info!("Aborted running task for job '{}'", sched_id);
+                    } else {
+                        tracing::warn!("No abort handle found for job '{}' in running tasks map", sched_id);
                     }
                 }
 

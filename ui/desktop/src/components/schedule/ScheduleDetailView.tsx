@@ -5,7 +5,17 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
-import { getScheduleSessions, runScheduleNow, pauseSchedule, unpauseSchedule, updateSchedule, listSchedules, killRunningJob, inspectRunningJob, ScheduledJob } from '../../schedule';
+import {
+  getScheduleSessions,
+  runScheduleNow,
+  pauseSchedule,
+  unpauseSchedule,
+  updateSchedule,
+  listSchedules,
+  killRunningJob,
+  inspectRunningJob,
+  ScheduledJob,
+} from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
@@ -40,17 +50,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  
+
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
   const [killJobLoading, setKillJobLoading] = useState(false);
   const [inspectJobLoading, setInspectJobLoading] = useState(false);
-  
+
   // Track if we explicitly killed a job to distinguish from natural completion
   const [jobWasKilled, setJobWasKilled] = useState(false);
-
-  // Individual loading states for each action to prevent double-clicks
-  const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
 
   const [selectedSessionDetails, setSelectedSessionDetails] = useState<SessionDetails | null>(null);
   const [isLoadingSessionDetails, setIsLoadingSessionDetails] = useState(false);
@@ -76,31 +83,34 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     }
   }, []);
 
-  const fetchScheduleDetails = useCallback(async (sId: string) => {
-    if (!sId) return;
-    setIsLoadingSchedule(true);
-    setScheduleError(null);
-    try {
-      const allSchedules = await listSchedules();
-      const schedule = allSchedules.find((s) => s.id === sId);
-      if (schedule) {
-        // Only reset runNowLoading if we explicitly killed the job
-        // This prevents interfering with natural job completion
-        if (!schedule.currently_running && runNowLoading && jobWasKilled) {
-          setRunNowLoading(false);
-          setJobWasKilled(false); // Reset the flag
+  const fetchScheduleDetails = useCallback(
+    async (sId: string) => {
+      if (!sId) return;
+      setIsLoadingSchedule(true);
+      setScheduleError(null);
+      try {
+        const allSchedules = await listSchedules();
+        const schedule = allSchedules.find((s) => s.id === sId);
+        if (schedule) {
+          // Only reset runNowLoading if we explicitly killed the job
+          // This prevents interfering with natural job completion
+          if (!schedule.currently_running && runNowLoading && jobWasKilled) {
+            setRunNowLoading(false);
+            setJobWasKilled(false); // Reset the flag
+          }
+          setScheduleDetails(schedule);
+        } else {
+          setScheduleError('Schedule not found');
         }
-        setScheduleDetails(schedule);
-      } else {
-        setScheduleError('Schedule not found');
+      } catch (err) {
+        console.error('Failed to fetch schedule details:', err);
+        setScheduleError(err instanceof Error ? err.message : 'Failed to fetch schedule details');
+      } finally {
+        setIsLoadingSchedule(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch schedule details:', err);
-      setScheduleError(err instanceof Error ? err.message : 'Failed to fetch schedule details');
-    } finally {
-      setIsLoadingSchedule(false);
-    }
-  }, [runNowLoading, jobWasKilled]);
+    },
+    [runNowLoading, jobWasKilled]
+  );
 
   const getReadableCron = (cronString: string) => {
     try {
@@ -130,11 +140,18 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     if (!scheduleId) return;
     setRunNowLoading(true);
     try {
-      const newSessionId = await runScheduleNow(scheduleId); // MODIFIED
-      toastSuccess({
-        title: 'Schedule Triggered',
-        msg: `Successfully triggered schedule. New session ID: ${newSessionId}`,
-      });
+      const newSessionId = await runScheduleNow(scheduleId);
+      if (newSessionId === 'CANCELLED') {
+        toastSuccess({
+          title: 'Job Cancelled',
+          msg: 'The job was cancelled while starting up.',
+        });
+      } else {
+        toastSuccess({
+          title: 'Schedule Triggered',
+          msg: `Successfully triggered schedule. New session ID: ${newSessionId}`,
+        });
+      }
       setTimeout(() => {
         if (scheduleId) {
           fetchScheduleSessions(scheduleId);
@@ -227,7 +244,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     try {
       const result = await inspectRunningJob(scheduleId);
       if (result.sessionId) {
-        const duration = result.runningDurationSeconds 
+        const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
           : 'Unknown';
         toastSuccess({
@@ -247,39 +264,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     } finally {
       setInspectJobLoading(false);
     }
-  };
-
-  const handleEditScheduleSubmit = async (cron: string) => {
-    if (!scheduleId) return;
-
-    setIsEditSubmitting(true);
-    setEditApiError(null);
-    try {
-      await updateSchedule(scheduleId, cron);
-      toastSuccess({
-        title: 'Schedule Updated',
-        msg: `Successfully updated schedule "${scheduleId}"`,
-      });
-      fetchScheduleDetails(scheduleId);
-      setIsEditModalOpen(false);
-    } catch (err) {
-      console.error('Failed to update schedule:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to update schedule';
-      setEditApiError(errorMsg);
-      toastError({ title: 'Update Schedule Error', msg: errorMsg });
-    } finally {
-      setIsEditSubmitting(false);
-    }
-  };
-
-  const handleOpenEditModal = () => {
-    setEditApiError(null);
-    setIsEditModalOpen(true);
-  };
-
-  const handleCloseEditModal = () => {
-    setIsEditModalOpen(false);
-    setEditApiError(null);
   };
 
   const handleEditScheduleSubmit = async (cron: string) => {
@@ -477,7 +461,8 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                   </p>
                   {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      <span className="font-semibold">Current Session:</span> {scheduleDetails.current_session_id}
+                      <span className="font-semibold">Current Session:</span>{' '}
+                      {scheduleDetails.current_session_id}
                     </p>
                   )}
                   {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
@@ -501,7 +486,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
               >
                 {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
               </Button>
-              
+
               {scheduleDetails && !scheduleDetails.currently_running && (
                 <>
                   <Button
@@ -537,7 +522,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                   </Button>
                 </>
               )}
-              
+
               {scheduleDetails && scheduleDetails.currently_running && (
                 <>
                   <Button
@@ -561,16 +546,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                 </>
               )}
             </div>
-            
+
             {scheduleDetails?.currently_running && (
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
                 Cannot trigger or modify a schedule while it's already running.
               </p>
             )}
-            
+
             {scheduleDetails?.paused && (
               <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
-                This schedule is paused and will not run automatically. Use "Run Schedule Now" to trigger it manually or unpause to resume automatic execution.
+                This schedule is paused and will not run automatically. Use "Run Schedule Now" to
+                trigger it manually or unpause to resume automatic execution.
               </p>
             )}
           </section>
