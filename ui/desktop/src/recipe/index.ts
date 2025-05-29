@@ -15,6 +15,8 @@ export interface Recipe {
   extensions?: FullExtensionConfig[];
   goosehints?: string;
   context?: string[];
+  profile?: string;
+  mcps?: number;
 }
 
 export interface CreateRecipeRequest {

@@ -19,7 +19,7 @@ export function AddModelInline() {
 
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [modelName, setModelName] = useState<string>('');
-  const [filteredModels, setFilteredModels] = useState([]);
+  const [filteredModels, setFilteredModels] = useState<{ id: string; name: string; provider: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const handleModelSelection = useHandleModelSelection();
 
@@ -61,7 +61,7 @@ export function AddModelInline() {
     setShowSuggestions(false);
   };
 
-  const handleSelectSuggestion = (suggestion) => {
+  const handleSelectSuggestion = (suggestion: { provider: string; name: string }) => {
     setModelName(suggestion.name);
     setShowSuggestions(false); // Hide suggestions after selection
   };

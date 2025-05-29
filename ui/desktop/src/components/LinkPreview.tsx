@@ -85,10 +85,11 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
         if (mounted) {
           setMetadata(data);
         }
-      } catch (error) {
+      } catch (err) {
         if (mounted) {
-          console.error('❌ Failed to fetch metadata:', error);
-          setError(error.message || 'Failed to fetch metadata');
+          console.error('❌ Failed to fetch metadata:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metadata';
+          setError(errorMessage);
         }
       } finally {
         if (mounted) {

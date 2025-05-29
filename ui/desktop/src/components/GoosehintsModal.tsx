@@ -48,7 +48,7 @@ const ModalHelpText = () => (
   </div>
 );
 
-const ModalError = ({ error }: { error: any }) => (
+const ModalError = ({ error }: { error: Error }) => (
   <div className="text-sm text-textSubtle">
     <div className="text-red-600">Error reading .goosehints file: {JSON.stringify(error)}</div>
   </div>
