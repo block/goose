@@ -126,6 +126,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
           if ('envs' in cleanExtension) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (cleanExtension as any).envs;
           }
           return cleanExtension;
