@@ -13,19 +13,19 @@ import { useConfig } from '../../../ConfigContext';
 import { AlertTriangle } from 'lucide-react';
 import { getCurrentModelAndProvider } from '../../models'; // Import the utility
 
-const customSubmitHandlerMap = {
+const customSubmitHandlerMap: Record<string, unknown> = {
   provider_name: OllamaSubmitHandler, // example
 };
 
-const customFormsMap = {
+const customFormsMap: Record<string, unknown> = {
   provider_name: OllamaForm, // example
 };
 
 export default function ProviderConfigurationModal() {
-  const [validationErrors, setValidationErrors] = useState({});
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove, read } = useConfig(); // Add read to the destructured values
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
-  const [configValues, setConfigValues] = useState({});
+  const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isActiveProvider, setIsActiveProvider] = useState(false); // New state for tracking active provider
 
@@ -65,7 +65,7 @@ export default function ProviderConfigurationModal() {
 
     // Validation logic
     const parameters = currentProvider.metadata.config_keys || [];
-    const errors = {};
+    const errors: Record<string, string> = {};
 
     // Check required fields
     parameters.forEach((parameter) => {
