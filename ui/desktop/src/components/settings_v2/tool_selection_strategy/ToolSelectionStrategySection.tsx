@@ -10,7 +10,7 @@ export const all_tool_selection_strategies = [
   {
     key: 'default',
     label: 'Default',
-    description: 'Loads all tools from enabled extension',
+    description: 'Loads all tools from enabled extensions',
   },
   {
     key: 'vector',
@@ -54,11 +54,12 @@ export const ToolSelectionStrategySection = ({
   return (
     <section id="tool-selection-strategy" className="px-8">
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-medium text-textStandard">Tool Selection Strategy</h2>
+        <h2 className="text-xl font-medium text-textStandard">Tool Selection Strategy (preview)</h2>
       </div>
       <div className="border-b border-borderSubtle pb-8">
         <p className="text-sm text-textStandard mb-6">
-          Configure how Goose selects tools for your requests
+          Configure how Goose selects tools for your requests. Available only with Claude models
+          served on Databricks.
         </p>
         <div>
           {all_tool_selection_strategies.map((strategy) => (
