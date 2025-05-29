@@ -183,6 +183,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y protobuf-compiler
+
       # Build the project
       - name: Build goosed
         run: cargo build --release -p goose-server
