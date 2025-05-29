@@ -12,7 +12,17 @@ import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { useModel } from '../../../settings/models/ModelContext';
 
-const ModalButtons = ({ onSubmit, onCancel, _isValid: _, _validationErrors: __ }) => (
+const ModalButtons = ({ 
+  onSubmit, 
+  onCancel, 
+  _isValid: _, 
+  _validationErrors: __ 
+}: { 
+  onSubmit: () => void; 
+  onCancel: () => void; 
+  _isValid: boolean; 
+  _validationErrors: { provider: string; model: string }; 
+}) => (
   <div>
     <Button
       type="submit"
@@ -158,7 +168,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     : [];
 
   // Handle model selection change
-  const handleModelChange = (selectedOption) => {
+  const handleModelChange = (selectedOption: { value: string; label: string; provider: string } | null) => {
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
@@ -252,7 +262,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
               <Select
                 options={providerOptions}
                 value={providerOptions.find((option) => option.value === provider) || null}
-                onChange={(option) => {
+                onChange={(option: { value: string; label: string } | null) => {
                   if (option?.value === 'configure_providers') {
                     // Navigate to ConfigureProviders view
                     setView('ConfigureProviders');

@@ -1626,7 +1626,7 @@ app.on('before-quit', (event) => {
       message: 'Are you sure you want to quit Goose?',
       detail: 'Any unsaved changes may be lost.',
     })
-    .then(({ response }) => {
+    .then(({ response }: { response: number }) => {
       if (response === 0) {
         // User clicked "Quit"
         // Set a flag to avoid showing the dialog again

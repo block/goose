@@ -56,7 +56,7 @@ export default function ProviderConfigurationModal() {
   const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
   const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
 
-  const handleSubmitForm = async (e) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 

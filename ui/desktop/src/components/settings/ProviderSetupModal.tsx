@@ -59,7 +59,7 @@ export function ProviderSetupModal({
           ) : (
             <form onSubmit={handleSubmit}>
               <div className="mt-[24px] space-y-4">
-                {requiredKeys.map((keyName) => (
+                {requiredKeys.map((keyName: string) => (
                   <div key={keyName}>
                     <Input
                       type={isSecretKey(keyName) ? 'password' : 'text'}

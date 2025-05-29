@@ -9,7 +9,15 @@ import { useModel } from '../models/ModelContext';
 import { Button } from '../../ui/button';
 import { toastError, toastSuccess } from '../../../toasts';
 
-function ConfirmationModal({ message, onConfirm, onCancel }) {
+function ConfirmationModal({ 
+  message, 
+  onConfirm, 
+  onCancel 
+}: { 
+  message: string; 
+  onConfirm: () => void; 
+  onCancel: () => void; 
+}) {
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[9999]">
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
@@ -62,13 +70,13 @@ export function ConfigureProvidersGrid() {
     });
   }, [activeKeys]);
 
-  const handleAddKeys = (provider) => {
+  const handleAddKeys = (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
     setSelectedForSetup(provider.id);
     setModalMode('setup');
     setShowSetupModal(true);
   };
 
-  const handleConfigure = (provider) => {
+  const handleConfigure = (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
     setSelectedForSetup(provider.id);
     setModalMode('edit');
     setShowSetupModal(true);
@@ -162,7 +170,7 @@ export function ConfigureProvidersGrid() {
     }
   };
 
-  const handleDelete = async (provider) => {
+  const handleDelete = async (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
     setProviderToDelete(provider);
     setIsConfirmationOpen(true);
   };

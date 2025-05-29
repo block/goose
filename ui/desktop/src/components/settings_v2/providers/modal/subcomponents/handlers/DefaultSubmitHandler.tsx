@@ -2,10 +2,14 @@
  * Standalone function to submit provider configuration
  * Useful for components that don't want to use the hook
  */
-export const DefaultSubmitHandler = async (upsertFn, provider, configValues) => {
+export const DefaultSubmitHandler = async (
+  upsertFn: (key: string, value: unknown, isSecret: boolean) => Promise<void>,
+  provider: { metadata: { config_keys?: Array<{ name: string; required?: boolean; default?: unknown; secret?: boolean }> } },
+  configValues: Record<string, unknown>
+) => {
   const parameters = provider.metadata.config_keys || [];
 
-  const upsertPromises = parameters.map((parameter) => {
+  const upsertPromises = parameters.map((parameter: { name: string; required?: boolean; default?: unknown; secret?: boolean }) => {
     // Skip parameters that don't have a value and aren't required
     if (!configValues[parameter.name] && !parameter.required) {
       return Promise.resolve();
