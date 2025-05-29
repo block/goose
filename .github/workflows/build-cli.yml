@@ -64,10 +64,13 @@ jobs:
             sudo apt-get install -y protobuf-compiler
             echo "Protoc version after installation:"
             protoc --version
+            echo "Protoc path:"
+            which protoc
+            echo "PROTOC_PATH=$(which protoc)" >> $GITHUB_ENV
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
             brew install protobuf
+            echo "PROTOC_PATH=$(which protoc)" >> $GITHUB_ENV
           fi
-          echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
 
       - name: Build CLI
         env:
@@ -75,7 +78,7 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
-          PROTOC: ${{ env.PROTOC }}
+          PROTOC: ${{ env.PROTOC_PATH }}
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
@@ -86,9 +89,13 @@ jobs:
           cross --version
           echo "Protoc version:"
           protoc --version
+          echo "Protoc path:"
+          which protoc
+          echo "Using PROTOC from: $PROTOC"
+          echo "PROTOC_PATH from env: ${{ env.PROTOC_PATH }}"
 
           # 'cross' is used to cross-compile for different architectures (see Cross.toml)
-          cross build --release --target ${TARGET} -p goose-cli -vv
+          PROTOC=$PROTOC cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release
