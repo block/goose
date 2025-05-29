@@ -168,7 +168,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     : [];
 
   // Handle model selection change
-  const handleModelChange = (selectedOption: { value: string; label: string; provider: string } | null) => {
+  const handleModelChange = (newValue: unknown) => {
+    const selectedOption = newValue as { value: string; label: string; provider: string } | null;
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
@@ -231,8 +232,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
           <ModalButtons
             onSubmit={onSubmit}
             onCancel={onClose}
-            isValid={isValid}
-            validationErrors={validationErrors}
+            _isValid={isValid}
+            _validationErrors={validationErrors}
           />
         }
       >
@@ -262,7 +263,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
               <Select
                 options={providerOptions}
                 value={providerOptions.find((option) => option.value === provider) || null}
-                onChange={(option: { value: string; label: string } | null) => {
+                onChange={(newValue: unknown) => {
+                  const option = newValue as { value: string; label: string } | null;
                   if (option?.value === 'configure_providers') {
                     // Navigate to ConfigureProviders view
                     setView('ConfigureProviders');

@@ -52,7 +52,7 @@ export function BaseModelsList({
           );
           // no matches so just create a model object (maybe user updated config.yaml from CLI usage, manual editing etc)
           if (!match) {
-            currentModel = { name: result.model, provider: result.provider };
+            currentModel = { name: String(result.model), provider: String(result.provider) };
           } else {
             currentModel = match;
           }
@@ -136,10 +136,11 @@ export function BaseModelsList({
       {modelList.map((model) =>
         renderItem({
           model,
-          isSelected:
+          isSelected: !!(
             selectedModel &&
             selectedModel.name === model.name &&
-            selectedModel.provider === model.provider,
+            selectedModel.provider === model.provider
+          ),
           onSelect: () => handleRadioChange(model),
         })
       )}
