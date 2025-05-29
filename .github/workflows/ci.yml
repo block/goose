@@ -57,7 +57,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev protobuf-compiler
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
