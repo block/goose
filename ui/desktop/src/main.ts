@@ -187,7 +187,7 @@ async function handleProtocolUrl(url: string) {
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     // For bot/recipe URLs, get existing window or create new one
     const existingWindows = BrowserWindow.getAllWindows();
-    const targetWindow = existingWindows.length > 0 ? existingWindows[0] : await createChat(app, undefined, openDir);
+    const targetWindow = existingWindows.length > 0 ? existingWindows[0] : await createChat(app, undefined, openDir || undefined);
     processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
@@ -199,7 +199,7 @@ async function handleProtocolUrl(url: string) {
       }
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (firstOpenWindow) {
@@ -234,7 +234,7 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       }
     }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+    createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
 }
@@ -258,7 +258,7 @@ app.on('open-url', async (_event, url) => {
       }
 
       // Create a new window directly
-      await createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+      await createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
       return; // Skip the rest of the handler
     }
 
@@ -271,7 +271,7 @@ app.on('open-url', async (_event, url) => {
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (parsedUrl.hostname === 'extension') {
@@ -609,7 +609,7 @@ const showWindow = async () => {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir);
+    await createChat(app, undefined, openDir || undefined);
     return;
   }
 
