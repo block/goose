@@ -24,7 +24,10 @@ Tool Router introduces a smarter way to handle tool selection through vector-bas
 
 ## Configuration
 
-To configure Tool Router, follow these steps:
+To enable this feature, change the Tool Selection Strategy from default to vector.
+
+#### CLI
+To configure Tool Router in the CLI, follow these steps:
 
 1. Run the configuration command:
 ```bash
@@ -57,6 +60,9 @@ The configuration process will look like this:
 └  Set to Vector Strategy - using vector-based similarity for tool selection
 ```
 
+#### UI
+Toggle the settings button on the top right and head to 'Advanced Settings', then 'Tool Selection Strategy' at the botoom.
+
 ## Benefits
 
 - Reduced token consumption
@@ -70,3 +76,11 @@ The configuration process will look like this:
 ### Model Compatibility
 
 Tool Router currently only works with Claude models served through Databricks. The embedding functionality uses OpenAI's `text-embedding-3-small` model by default.
+
+### Feedback & Next Steps
+
+We'd love to hear your thoughts on this feature! Please reach out in the Goose Discord channel to share your use case and experience.
+
+Our roadmap includes:
+- Expanding Tool Router support to OpenAI models
+- Adding customization options for the `k` parameter that controls how many similar tools are returned during vector similarity search
