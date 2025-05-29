@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
@@ -148,16 +148,16 @@ export default function ChatInput({
   }, [droppedFiles, processedFilePaths, displayValue]);
 
   // Debounced function to update actual value
-  const debouncedSetValue = useCallback(
-    debounce((value: string) => {
+  const debouncedSetValue = useMemo(
+    () => debounce((value: string) => {
       setValue(value);
     }, 150),
-    []
+    [setValue]
   );
 
   // Debounced autosize function
-  const debouncedAutosize = useCallback(
-    debounce((element: HTMLTextAreaElement) => {
+  const debouncedAutosize = useMemo(
+    () => debounce((element: HTMLTextAreaElement) => {
       element.style.height = '0px'; // Reset height
       const scrollHeight = element.scrollHeight;
       element.style.height = Math.min(scrollHeight, maxHeight) + 'px';

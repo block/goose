@@ -8,6 +8,7 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { type ExtensionConfig } from './extensions';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -50,7 +51,7 @@ export type ViewOptions = {
   // Settings view options
   extensionId?: string;
   showEnvVars?: boolean;
-  deepLinkConfig?: any;
+  deepLinkConfig?: ExtensionConfig;
   
   // Session view options  
   resumedSession?: SessionDetails;
@@ -60,13 +61,13 @@ export type ViewOptions = {
   baseUrl?: string;
   
   // Recipe editor options
-  config?: any;
+  config?: unknown;
   
   // Permission view options
   parentView?: View;
   
   // Generic options
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export type ViewConfig = {
