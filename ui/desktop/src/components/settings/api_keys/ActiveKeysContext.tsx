@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { getActiveProviders } from './utils';
 import SuspenseLoader from '../../../suspense-loader';
 
