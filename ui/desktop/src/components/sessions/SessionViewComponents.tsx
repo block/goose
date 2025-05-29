@@ -6,9 +6,11 @@ import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
+import ImagePreview from '../ImagePreview';
 import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
 import { type Message } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
+import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
 
 /**
  * Get tool responses map from messages
@@ -106,10 +108,19 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
               messages
                 .map((message, index) => {
                   // Extract text content from the message
-                  const textContent = message.content
+                  let textContent = message.content
                     .filter((c) => c.type === 'text')
                     .map((c) => c.text)
                     .join('\n');
+
+                  // Extract image paths from the message
+                  const imagePaths = extractImagePaths(textContent);
+
+                  // Remove image paths from text for display
+                  const displayText =
+                    imagePaths.length > 0
+                      ? removeImagePathsFromText(textContent, imagePaths)
+                      : textContent;
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -148,9 +159,24 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                       <div className="flex flex-col w-full">
                         {/* Text content */}
-                        {textContent && (
-                          <div className={`${toolRequests.length > 0 ? 'mb-4' : ''}`}>
-                            <MarkdownContent content={textContent} />
+                        {displayText && (
+                          <div
+                            className={`${toolRequests.length > 0 || imagePaths.length > 0 ? 'mb-4' : ''}`}
+                          >
+                            <MarkdownContent content={displayText} />
+                          </div>
+                        )}
+
+                        {/* Render images if any */}
+                        {imagePaths.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                            {imagePaths.map((imagePath, imageIndex) => (
+                              <ImagePreview
+                                key={imageIndex}
+                                src={imagePath}
+                                alt={`Image ${imageIndex + 1}`}
+                              />
+                            ))}
                           </div>
                         )}
 

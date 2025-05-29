@@ -168,7 +168,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <div className="flex items-center gap-1">
               <div className="w-16 text-right text-sm text-textStandardInverse flex items-center justify-end">
                 {(() => {
-                  return localSearchResults?.count > 0 && searchTerm
+                  return localSearchResults?.count && localSearchResults.count > 0 && searchTerm
                     ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
                     : null;
                 })()}

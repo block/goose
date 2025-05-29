@@ -1,11 +1,19 @@
-import React from 'react';
+import { ReactElement } from 'react';
 
 interface BrandCardProps {
   date?: Date;
   className?: string;
 }
 
-export default function BrandCard({  }: BrandCardProps) {
+const pastDayMessages = [
+  { title: 'Great work!', message: 'You accomplished so much' },
+  { title: 'Well done!', message: 'Another successful day' },
+  { title: 'Fantastic job!', message: 'Making progress every day' },
+  { title: 'Nice one!', message: 'Another day in the books' },
+  { title: 'Awesome work!', message: 'Keep up the momentum' },
+];
+
+export default function BrandCard({ date, className }: BrandCardProps): ReactElement {
   const isToday = date ? new Date().toDateString() === date.toDateString() : true;
 
   // Get a consistent message for each date
@@ -19,34 +27,34 @@ export default function BrandCard({  }: BrandCardProps) {
   const pastMessage = date ? getPastDayMessage(date) : pastDayMessages[0];
 
   return (
-    <div 
+    <div
       className={`
         flex flex-col justify-between 
         p-4 
         w-[366px] h-[256px] 
-        ${isToday 
-          ? 'bg-textStandard dark:bg-white' 
-          : 'bg-gray-400/40 dark:bg-gray-400/40'
-        }
+        ${isToday ? 'bg-textStandard dark:bg-white' : 'bg-gray-400/40 dark:bg-gray-400/40'}
         rounded-[18px]
         relative
         overflow-hidden
         transition-all duration-200
         shadow-[0_0_13.7px_rgba(0,0,0,0.04)]
         dark:shadow-[0_0_24px_rgba(255,255,255,0.02)]
-        ${className}
+        ${className || ''}
       `}
     >
       {/* Content */}
       <div className="relative z-10 w-full">
         {/* Logo */}
-        <div className={`
+        <div
+          className={`
           w-6 h-6 
-          ${isToday 
-            ? '[&_path]:fill-current text-white dark:text-gray-900'
-            : '[&_path]:fill-current text-white/60 dark:text-white/60'
+          ${
+            isToday
+              ? '[&_path]:fill-current text-white dark:text-gray-900'
+              : '[&_path]:fill-current text-white/60 dark:text-white/60'
           }
-        `}>
+        `}
+        >
           <svg width="24" height="23" viewBox="0 0 24 23" xmlns="http://www.w3.org/2000/svg">
             <g>
               <path d="M0.5 10.5733C0.5 8.19815 2.41385 6.27271 4.77471 6.27271H6.67984C9.04069 6.27271 10.9545 8.19816 10.9545 10.5733V18.6994C10.9545 21.0745 9.04069 23 6.67983 23H4.77471C2.41385 23 0.5 21.0745 0.5 18.6994V10.5733Z" />
@@ -70,7 +78,7 @@ export default function BrandCard({  }: BrandCardProps) {
         {isToday ? (
           <>
             {/* Today's content */}
-            <h2 
+            <h2
               className={`
                 font-['Cash_Sans'] font-semibold text-base
                 text-white dark:text-gray-600
@@ -82,7 +90,7 @@ export default function BrandCard({  }: BrandCardProps) {
               Good morning
             </h2>
 
-            <h1 
+            <h1
               style={{ fontWeight: 200 }}
               className={`
                 font-['Cash_Sans'] text-[32px]
@@ -92,13 +100,13 @@ export default function BrandCard({  }: BrandCardProps) {
                 transition-colors
               `}
             >
-              You've got 3 major updates this morning
+              You&apos;ve got 3 major updates this morning
             </h1>
           </>
         ) : (
           <>
             {/* Past/Future date content */}
-            <h2 
+            <h2
               className={`
                 font-['Cash_Sans'] font-semibold text-base
                 text-white/60 dark:text-white/60
@@ -110,7 +118,7 @@ export default function BrandCard({  }: BrandCardProps) {
               {pastMessage?.title || 'Hello'}
             </h2>
 
-            <h1 
+            <h1
               style={{ fontWeight: 200 }}
               className={`
                 font-['Cash_Sans'] text-[32px]

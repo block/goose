@@ -33,10 +33,10 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 className={cn(
                   'h-[2px] w-[2px] rounded-full',
                   alert.type === AlertType.Info
-                    ? i < Math.round((alert.progress.current / alert.progress.total) * 30)
+                    ? i < Math.round((alert.progress!.current / alert.progress!.total) * 30)
                       ? 'dark:bg-black bg-white'
                       : 'dark:bg-black/20 bg-white/20'
-                    : i < Math.round((alert.progress.current / alert.progress.total) * 30)
+                    : i < Math.round((alert.progress!.current / alert.progress!.total) * 30)
                       ? 'bg-white'
                       : 'bg-white/20'
                 )}
@@ -46,18 +46,18 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
               <span className={'dark:text-black/60 text-white/60'}>
-                {alert.progress.current >= 1000
-                  ? (alert.progress.current / 1000).toFixed(1) + 'k'
-                  : alert.progress.current}
+                {alert.progress!.current >= 1000
+                  ? (alert.progress!.current / 1000).toFixed(1) + 'k'
+                  : alert.progress!.current}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>
-                {Math.round((alert.progress.current / alert.progress.total) * 100)}%
+                {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
               </span>
             </div>
             <span className={'dark:text-black/60 text-white/60'}>
-              {alert.progress.total >= 1000
-                ? (alert.progress.total / 1000).toFixed(0) + 'k'
-                : alert.progress.total}
+              {alert.progress!.total >= 1000
+                ? (alert.progress!.total / 1000).toFixed(0) + 'k'
+                : alert.progress!.total}
             </span>
           </div>
         </div>

@@ -55,7 +55,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Create the agent
     let agent: Agent = Agent::new();
     let new_provider = create(&provider_name, model_config).unwrap();
-    let _ = agent.update_provider(new_provider).await;
+    agent
+        .update_provider(new_provider)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
 
     // Configure tool monitoring if max_tool_repetitions is set
     if let Some(max_repetitions) = session_config.max_tool_repetitions {

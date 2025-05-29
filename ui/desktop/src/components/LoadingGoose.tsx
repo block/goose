@@ -1,4 +1,3 @@
-import React from 'react';
 import GooseLogo from './GooseLogo';
 
 const LoadingGoose = () => {

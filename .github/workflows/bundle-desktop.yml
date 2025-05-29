@@ -154,6 +154,11 @@ jobs:
           # Check disk space after cleanup
           df -h
 
+      - name: Install protobuf
+        run: |
+          brew install protobuf
+          echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
         with:

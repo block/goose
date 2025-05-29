@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { initializeSystem } from './utils/providerUtils';
@@ -8,6 +8,7 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { type ExtensionConfig } from './extensions';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -49,10 +50,28 @@ export type View =
   | 'permission'
   | 'recipeParameters';
 
-export type ViewOptions =
-  | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
-  | Record<string, unknown>;
+export type ViewOptions = {
+  // Settings view options
+  extensionId?: string;
+  showEnvVars?: boolean;
+  deepLinkConfig?: ExtensionConfig;
+
+  // Session view options
+  resumedSession?: SessionDetails;
+  sessionDetails?: SessionDetails;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+
+  // Recipe editor options
+  config?: unknown;
+
+  // Permission view options
+  parentView?: View;
+
+  // Generic options
+  [key: string]: unknown;
+};
 
 export type ViewConfig = {
   view: View;
@@ -106,7 +125,7 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
-  function extractRemoteUrl(link: string): string {
+  function extractRemoteUrl(link: string): string | null {
     const url = new URL(link);
     return url.searchParams.get('url');
   }
@@ -131,11 +150,11 @@ export default function App() {
     }
 
     try {
-      await initializeSystem(provider, model, {
+      await initializeSystem(provider as string, model as string, {
         getExtensions,
         addExtension,
       });
-      return { provider, model };
+      return { provider: provider as string, model: model as string };
     } catch (error) {
       console.error('Error in initialization:', error);
 
@@ -214,9 +233,29 @@ export default function App() {
           return;
         }
 
-        const initResult = await initializeProviderAndModel();
-        if (initResult) {
+        const config = window.electron.getConfig();
+        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+        if (provider && model) {
           setView('chat');
+          try {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+          } catch (error) {
+            console.error('Error in initialization:', error);
+            if (error instanceof MalformedConfigError) {
+              throw error;
+            }
+            setView('welcome');
+          }
+        } else {
+          const initResult = await initializeProviderAndModel();
+          if (initResult) {
+            setView('chat');
+          }
         }
       } catch (error) {
         setFatalError(
@@ -316,6 +355,20 @@ export default function App() {
       console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewFromUrl = urlParams.get('view');
+    if (viewFromUrl) {
+      const windowConfig = window.electron.getConfig();
+      if (viewFromUrl === 'recipeEditor') {
+        const initialViewOptions = {
+          recipeConfig: windowConfig?.recipeConfig,
+          view: viewFromUrl,
+        };
+        setView(viewFromUrl, initialViewOptions);
+      } else {
+        setView(viewFromUrl as View);
+      }
+    }
     window.electron.on('set-view', handleSetView);
     return () => {
       window.electron.off('set-view', handleSetView);

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, ReactElement } from 'react';
+
 import { useTimeline } from '../contexts/TimelineContext';
 
-export function DateDisplay() {
+export function DateDisplay(): ReactElement {
   const { currentDate } = useTimeline();
   const [displayDate, setDisplayDate] = useState(currentDate);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -17,13 +18,26 @@ export function DateDisplay() {
   }, [currentDate]);
 
   const formatDate = (date: Date) => {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
+
     return {
       month: monthNames[date.getMonth()],
       day: date.getDate(),
-      weekday: dayNames[date.getDay()]
+      weekday: dayNames[date.getDay()],
     };
   };
 
@@ -31,7 +45,7 @@ export function DateDisplay() {
 
   return (
     <div className="fixed top-[2px] left-1/2 -translate-x-1/2 z-40">
-      <div 
+      <div
         className={`
           flex items-center gap-2 px-4 py-2
           text-text-default dark:text-white/70

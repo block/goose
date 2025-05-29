@@ -19,8 +19,8 @@ interface ProviderSetupModalProps {
 
 export function ProviderSetupModal({
   provider,
-  _model,
-  _endpoint,
+  _model: _,
+  _endpoint: __,
   title,
   onSubmit,
   onCancel,

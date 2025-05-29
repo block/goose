@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Back({ className = '' }) {
   return (
     <svg

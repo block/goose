@@ -1,29 +1,31 @@
+import { useState, useEffect, ReactElement } from 'react';
 
-import React, { useState, useEffect } from 'react';
 import { useTimelineStyles } from '../../hooks/useTimelineStyles.ts';
-import waveBg from '../../assets/backgrounds/wave-bg.png';
+
+// Use string path for the background image
+const waveBgUrl = '/src/assets/backgrounds/wave-bg.png';
 
 interface ClockCardProps {
   date?: Date;
 }
 
-export default function ClockTile({ date }: ClockCardProps) {
+export default function ClockTile({ date }: ClockCardProps): ReactElement | null {
   const { contentCardStyle, isPastDate } = useTimelineStyles(date);
   const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // Don't render for past dates
-  if (isPastDate) {
-    return null;
-  }
-  
+
   // Update time every second for current day
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, []);
+
+  // Don't render for past dates
+  if (isPastDate) {
+    return null;
+  }
 
   // Format hours (12-hour format)
   const hours = currentTime.getHours() % 12 || 12;
@@ -35,7 +37,7 @@ export default function ClockTile({ date }: ClockCardProps) {
   const dayName = dayNames[currentTime.getDay()];
 
   return (
-    <div 
+    <div
       className={`
         flex flex-col justify-between
         p-4 
@@ -48,18 +50,16 @@ export default function ClockTile({ date }: ClockCardProps) {
       `}
     >
       {/* Background Image with Gradient Overlay */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-500"
-        style={{ 
-          backgroundImage: `url(${waveBg})`,
-          opacity: 0.8
+        style={{
+          backgroundImage: `url(${waveBgUrl})`,
+          opacity: 0.8,
         }}
       />
-      
+
       {/* Gradient Overlay */}
-      <div 
-        className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"
-      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
 
       {/* Time Display */}
       <div className="flex flex-col items-start mt-auto relative z-10">
@@ -67,13 +67,9 @@ export default function ClockTile({ date }: ClockCardProps) {
           <span className="font-['Cash_Sans'] text-[48px] font-light text-white leading-none">
             {hours}:{minutes}
           </span>
-          <span className="ml-1 font-['Cash_Sans'] text-xl font-light text-white">
-            {period}
-          </span>
+          <span className="ml-1 font-['Cash_Sans'] text-xl font-light text-white">{period}</span>
         </div>
-        <span className="text-sm text-white/80 mt-1">
-          {dayName}
-        </span>
+        <span className="text-sm text-white/80 mt-1">{dayName}</span>
       </div>
     </div>
   );

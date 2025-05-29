@@ -1,5 +1,4 @@
 import { BaseModal } from './BaseModal';
-import React from 'react';
 
 export function ConfirmationModal({
   isOpen,

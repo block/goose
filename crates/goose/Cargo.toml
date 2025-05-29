@@ -76,6 +76,10 @@ blake3 = "1.5"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
 
+# Vector database for tool selection
+lancedb = "0.13"
+arrow = "52.2"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 

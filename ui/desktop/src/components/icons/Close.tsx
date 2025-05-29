@@ -1,6 +1,4 @@
-import React from 'react';
-
-export default function Close({ className }) {
+export default function Close({ className }: { className?: string }) {
   return (
     <svg
       fill="none"

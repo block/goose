@@ -24,10 +24,10 @@ export interface Recipe {
   goosehints?: string;
   context?: string[];
   parameters?: RecipeParameter[];
-  _paramValues?: Record<string, string>; // Filled at runtime
+  _paramValues?: Record<string, string>;
   profile?: string;
   mcps?: number;
-  [key: string]: unknown; // Index signature for compatibility with RecipeConfig
+  [key: string]: unknown;
 }
 
 export interface CreateRecipeRequest {

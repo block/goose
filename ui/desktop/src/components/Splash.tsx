@@ -1,4 +1,3 @@
-import React from 'react';
 import SplashPills from './SplashPills';
 import GooseLogo from './GooseLogo';
 

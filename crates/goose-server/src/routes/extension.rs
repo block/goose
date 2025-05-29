@@ -268,12 +268,16 @@ async fn remove_extension(
         .get_agent()
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-    agent.remove_extension(&name).await;
-
-    Ok(Json(ExtensionResponse {
-        error: false,
-        message: None,
-    }))
+    match agent.remove_extension(&name).await {
+        Ok(_) => Ok(Json(ExtensionResponse {
+            error: false,
+            message: None,
+        })),
+        Err(e) => Ok(Json(ExtensionResponse {
+            error: true,
+            message: Some(format!("Failed to remove extension: {:?}", e)),
+        })),
+    }
 }
 
 /// Registers the extension management routes with the Axum router.

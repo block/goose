@@ -76,12 +76,13 @@ export function ConfigureExtensionModal({
       });
       onSubmit();
       onClose();
-    } catch (error) {
-      console.error('Error configuring extension:', error);
+    } catch (err) {
+      console.error('Error configuring extension:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       toastError({
         title: extension.name,
         msg: `Failed to configure extension`,
-        traceback: error.message,
+        traceback: errorMessage,
       });
     } finally {
       setIsSubmitting(false);

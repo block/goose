@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * CustomRadio - A reusable radio button component with dark mode support
  * @param {Object} props - Component props

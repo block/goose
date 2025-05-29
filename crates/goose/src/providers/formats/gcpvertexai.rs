@@ -81,6 +81,8 @@ pub enum ClaudeVersion {
     Sonnet37,
     /// Claude 3.5 Haiku
     Haiku35,
+    /// Claude Sonnet 4
+    Sonnet4,
     /// Generic Claude model for custom or new versions
     Generic(String),
 }
@@ -108,6 +110,7 @@ impl fmt::Display for GcpVertexAIModel {
                 ClaudeVersion::Sonnet35V2 => "claude-3-5-sonnet-v2@20241022",
                 ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
                 ClaudeVersion::Haiku35 => "claude-3-5-haiku@20241022",
+                ClaudeVersion::Sonnet4 => "claude-sonnet-4@20250514",
                 ClaudeVersion::Generic(name) => name,
             },
             Self::Gemini(version) => match version {
@@ -125,7 +128,7 @@ impl fmt::Display for GcpVertexAIModel {
 impl GcpVertexAIModel {
     /// Returns the default GCP location for the model.
     ///
-    /// Each model family has a well-known location:
+    /// Each model family has a well-known location based on availability:
     /// - Claude models default to Ohio (us-east5)
     /// - Gemini models default to Iowa (us-central1)
     pub fn known_location(&self) -> GcpLocation {
@@ -146,6 +149,7 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "claude-3-5-sonnet-v2@20241022" => Ok(Self::Claude(ClaudeVersion::Sonnet35V2)),
             "claude-3-7-sonnet@20250219" => Ok(Self::Claude(ClaudeVersion::Sonnet37)),
             "claude-3-5-haiku@20241022" => Ok(Self::Claude(ClaudeVersion::Haiku35)),
+            "claude-sonnet-4@20250514" => Ok(Self::Claude(ClaudeVersion::Sonnet4)),
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
             "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
             "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
@@ -340,6 +344,7 @@ mod tests {
             "claude-3-5-sonnet-v2@20241022",
             "claude-3-7-sonnet@20250219",
             "claude-3-5-haiku@20241022",
+            "claude-sonnet-4@20250514",
             "gemini-1.5-pro-002",
             "gemini-2.0-flash-001",
             "gemini-2.0-pro-exp-02-05",
@@ -362,6 +367,7 @@ mod tests {
             ("claude-3-5-sonnet-v2@20241022", GcpLocation::Ohio),
             ("claude-3-7-sonnet@20250219", GcpLocation::Ohio),
             ("claude-3-5-haiku@20241022", GcpLocation::Ohio),
+            ("claude-sonnet-4@20250514", GcpLocation::Ohio),
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
             ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),

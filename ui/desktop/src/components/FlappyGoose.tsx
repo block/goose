@@ -216,7 +216,7 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
   useEffect(() => {
     const frames = [svg1, svg7];
     frames.forEach((src, index) => {
-      const img = new Image();
+      const img = new Image() as HTMLImageElement;
       img.src = src;
       img.onload = () => {
         framesLoaded.current += 1;

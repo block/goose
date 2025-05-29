@@ -74,7 +74,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
-    setConfig(response.data.config || {});
+    setConfig(response.data?.config || {});
   }, []);
 
   const upsert = useCallback(
@@ -186,7 +186,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     (async () => {
       // Load config
       const configResponse = await readAllConfig();
-      setConfig(configResponse.data.config || {});
+      setConfig(configResponse.data?.config || {});
 
       // Load providers
       try {
@@ -199,7 +199,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        setExtensionsList(extensionsResponse.data.extensions);
+        setExtensionsList(extensionsResponse.data?.extensions || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }

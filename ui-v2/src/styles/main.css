@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import url('tailwindcss');
+@import url('tw-animate-css');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -8,8 +8,8 @@
   --color-*: initial;
 
   /* constants */
-  --color-white: #ffffff;
-  --color-black: #000000;
+  --color-white: #fff;
+  --color-black: #000;
 
   /* slate */
   --color-slate-100: #f0f2f8;
@@ -22,13 +22,10 @@
   /* utility  */
   --color-red-100: #ff6b6b;
   --color-red-200: #f94b4b;
-
   --color-blue-100: #7cacff;
   --color-blue-200: #5c98f9;
-
   --color-green-100: #a3d795;
   --color-green-200: #91cb80;
-
   --color-yellow-100: #ffd966;
   --color-yellow-200: #fbcd44;
 }
@@ -53,7 +50,6 @@
   --background-success: var(--color-green-200);
   --background-info: var(--color-blue-200);
   --background-warning: var(--color-yellow-200);
-
   --border-default: var(--color-slate-200);
   --border-input: var(--color-slate-200);
   --border-strong: var(--color-slate-300);
@@ -62,7 +58,6 @@
   --border-success: var(--color-green-200);
   --border-warning: var(--color-yellow-200);
   --border-info: var(--color-blue-200);
-
   --text-default: var(--color-slate-600);
   --text-muted: var(--color-slate-400);
   --text-inverse: var(--color-white);
@@ -70,15 +65,12 @@
   --text-success: var(--color-green-200);
   --text-warning: var(--color-yellow-200);
   --text-info: var(--color-blue-200);
-
   --ring: var(--border-strong);
-
   --chart-1: #f6b44a;
   --chart-2: #7585ff;
   --chart-3: #d76a6a;
   --chart-4: #d185e0;
   --chart-5: #91cb80;
-
   --sidebar: var(--background-default);
   --sidebar-foreground: var(--text-default);
   --sidebar-primary: var(--background-accent);
@@ -104,7 +96,6 @@
   --background-success: var(--color-green-100);
   --background-info: var(--color-blue-100);
   --background-warning: var(--color-yellow-100);
-
   --border-default: var(--color-slate-600);
   --border-input: var(--color-slate-600);
   --border-strong: var(--color-slate-200);
@@ -113,7 +104,6 @@
   --border-success: var(--color-green-200);
   --border-warning: var(--color-yellow-200);
   --border-info: var(--color-blue-200);
-
   --text-default: var(--color-white);
   --text-muted: var(--color-slate-300);
   --text-inverse: var(--color-black);
@@ -121,15 +111,12 @@
   --text-success: var(--color-green-100);
   --text-warning: var(--color-yellow-100);
   --text-info: var(--color-blue-100);
-
   --ring: var(--border-strong);
-
   --chart-1: #f6b44a;
   --chart-2: #7585ff;
   --chart-3: #d76a6a;
   --chart-4: #d185e0;
   --chart-5: #91cb80;
-
   --sidebar: var(--background-default);
   --sidebar-foreground: var(--text-default);
   --sidebar-primary: var(--background-accent);
@@ -150,11 +137,9 @@
   --color-background-success: var(--background-success);
   --color-background-info: var(--background-info);
   --color-background-warning: var(--background-warning);
-
   --color-background-accent: var(--background-accent);
   --color-border-accent: var(--border-accent);
   --color-text-accent: var(--text-accent);
-
   --color-border-default: var(--border-default);
   --color-border-input: var(--border-input);
   --color-border-strong: var(--border-strong);
@@ -163,7 +148,6 @@
   --color-border-success: var(--border-success);
   --color-border-warning: var(--border-warning);
   --color-border-info: var(--border-info);
-
   --color-text-default: var(--text);
   --color-text-muted: var(--text-muted);
   --color-text-inverse: var(--text-inverse);
@@ -173,8 +157,8 @@
   --color-text-info: var(--text-info);
 
   /* fonts */
-  --font-sans: "Cash Sans", sans-serif;
-  --font-mono: "Cash Sans Mono", monospace;
+  --font-sans: 'Cash Sans', sans-serif;
+  --font-mono: 'Cash Sans Mono', monospace;
   --font-serif: serif;
 
   /* shape */
@@ -182,15 +166,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
   --color-ring: var(--ring);
-
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -202,45 +183,48 @@
 }
 
 @font-face {
-  font-family: "Cash Sans";
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Light.woff2)
-  format("woff2"),
-  url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Light.woff)
-  format("woff");
+  font-family: 'Cash Sans';
+  src:
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Light.woff2')
+      format('woff2'),
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Light.woff')
+      format('woff');
   font-weight: 300;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "Cash Sans";
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
-  format("woff2"),
-  url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Regular.woff)
-  format("woff");
+  font-family: 'Cash Sans';
+  src:
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2')
+      format('woff2'),
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Regular.woff')
+      format('woff');
   font-weight: 400;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "Cash Sans";
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
-  format("woff2"),
-  url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Medium.woff)
-  format("woff");
+  font-family: 'Cash Sans';
+  src:
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2')
+      format('woff2'),
+    url('https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Medium.woff')
+      format('woff');
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "Cash Sans Mono";
-  src: url(../assets/fonts/CashSansMono-Light.woff2) format("woff2");
+  font-family: 'Cash Sans Mono';
+  src: url('../assets/fonts/CashSansMono-Light.woff2') format('woff2');
   font-weight: 300;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "Cash Sans Mono";
-  src: url(../assets/fonts/CashSansMono-Regular.woff2) format("woff2");
+  font-family: 'Cash Sans Mono';
+  src: url('../assets/fonts/CashSansMono-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
 }
@@ -249,6 +233,7 @@
   * {
     @apply border-border-default;
   }
+
   body {
     @apply bg-background-default text-text-default;
   }

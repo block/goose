@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { motion } from 'framer-motion';
 
 interface ChatDockProps {
@@ -7,15 +8,15 @@ interface ChatDockProps {
 
 export const ChatDock: React.FC<ChatDockProps> = ({ onTileCreatorToggle }) => {
   return (
-    <motion.div 
+    <motion.div
       className="flex items-center gap-2 mb-2 px-2"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ 
+      transition={{
         delay: 0.2,
-        type: "spring",
+        type: 'spring',
         stiffness: 300,
-        damping: 30
+        damping: 30,
       }}
     >
       <motion.button

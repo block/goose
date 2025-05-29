@@ -1,4 +1,3 @@
-import React from 'react';
 import { RecentModels } from './RecentModels';
 import { ProviderButtons } from './ProviderButtons';
 import BackButton from '../../ui/BackButton';

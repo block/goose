@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+
 import { motion } from 'framer-motion';
 
 interface ChatInputProps {
@@ -11,7 +12,7 @@ interface ChatInputProps {
 export const ChatInput: React.FC<ChatInputProps> = ({
   handleSubmit,
   isLoading = false,
-  onStop,
+  onStop: _onStop,
   initialValue = '',
 }) => {
   const [input, setInput] = useState(initialValue);
@@ -36,7 +37,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
-          setKey(prev => prev + 1); // Force textarea to re-render
+          setKey((prev) => prev + 1); // Force textarea to re-render
         }
       });
     });
@@ -50,7 +51,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    
+
     handleSubmit(e);
     setInput('');
     if (textareaRef.current) {
@@ -72,12 +73,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       className="w-full bg-black dark:bg-white rounded-xl shadow-lg"
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ 
-        type: "spring",
+      transition={{
+        type: 'spring',
         stiffness: 300,
-        damping: 30
+        damping: 30,
       }}
-    >      
+    >
       <form onSubmit={handleFormSubmit} className="relative px-4 py-3">
         <div className="flex items-center gap-3">
           <textarea
@@ -94,7 +95,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                      placeholder:text-zinc-500"
             style={{ overflow: input.split('\n').length > 1 ? 'auto' : 'hidden' }}
           />
-          
+
           <motion.button
             type="submit"
             disabled={!input.trim()}
@@ -103,20 +104,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             className={`
               p-2 rounded-lg w-10 h-10 flex items-center justify-center
               transition-colors duration-200
-              ${input.trim() 
-                ? 'hover:bg-zinc-800 active:bg-zinc-700 dark:hover:bg-zinc-100 dark:active:bg-zinc-200' 
-                : 'cursor-not-allowed'
+              ${
+                input.trim()
+                  ? 'hover:bg-zinc-800 active:bg-zinc-700 dark:hover:bg-zinc-100 dark:active:bg-zinc-200'
+                  : 'cursor-not-allowed'
               }
             `}
           >
-            <svg 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
               stroke={input.trim() ? 'currentColor' : '#666'}
               strokeWidth="2"
-              strokeLinecap="round" 
+              strokeLinecap="round"
               strokeLinejoin="round"
               className={`
                 transition-colors duration-200

@@ -83,7 +83,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint: extension.type === 'sse' ? extension.uri : undefined,
     enabled: extension.enabled,
-    timeout: extension.timeout,
+    timeout: 'timeout' in extension ? extension.timeout : undefined,
     envVars,
   };
 }
