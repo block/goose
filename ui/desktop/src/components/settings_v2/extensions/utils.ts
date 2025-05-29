@@ -94,7 +94,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 
   if (formData.type === 'stdio') {
     // we put the cmd + args all in the form cmd field but need to split out into cmd + args
-    const { cmd, args } = splitCmdAndArgs(formData.cmd);
+    const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
 
     return {
       type: 'stdio',

@@ -5,6 +5,14 @@ import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { ViewOptions, View } from '../../App';
 
+interface RecipeConfig {
+  id: string;
+  title: string;
+  description: string;
+  instructions: string;
+  activities: string[];
+}
+
 interface MenuButtonProps {
   onClick: () => void;
   children: React.ReactNode;
@@ -244,7 +252,7 @@ export default function MoreMenu({
                       undefined, // dir
                       undefined, // version
                       undefined, // resumeSessionId
-                      recipeConfig as unknown, // recipe config
+                      recipeConfig as RecipeConfig | undefined, // recipe config
                       'recipeEditor' // view type
                     );
                   }}
