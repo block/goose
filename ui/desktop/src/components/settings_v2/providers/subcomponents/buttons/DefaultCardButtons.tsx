@@ -1,4 +1,3 @@
-import React from 'react';
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
 import { ProviderDetails } from '../../../../../api';
 

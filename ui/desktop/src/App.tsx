@@ -8,6 +8,7 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { type ExtensionConfig } from './extensions';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -46,10 +47,28 @@ export type View =
   | 'recipeEditor'
   | 'permission';
 
-export type ViewOptions =
-  | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
-  | Record<string, unknown>;
+export type ViewOptions = {
+  // Settings view options
+  extensionId?: string;
+  showEnvVars?: boolean;
+  deepLinkConfig?: ExtensionConfig;
+  
+  // Session view options  
+  resumedSession?: SessionDetails;
+  sessionDetails?: SessionDetails;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+  
+  // Recipe editor options
+  config?: unknown;
+  
+  // Permission view options
+  parentView?: View;
+  
+  // Generic options
+  [key: string]: unknown;
+};
 
 export type ViewConfig = {
   view: View;
@@ -164,7 +183,7 @@ export default function App() {
         if (provider && model) {
           setView('chat');
           try {
-            await initializeSystem(provider, model, {
+            await initializeSystem(provider as string, model as string, {
               getExtensions,
               addExtension,
             });
@@ -289,7 +308,7 @@ export default function App() {
         };
         setView(viewFromUrl, initialViewOptions);
       } else {
-        setView(viewFromUrl);
+        setView(viewFromUrl as View);
       }
     }
     window.electron.on('set-view', handleSetView);

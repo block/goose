@@ -231,23 +231,19 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       highlighterRef.current = null;
     }
 
-    // Cancel any pending highlight operations
-    debouncedHighlight.cancel?.();
-
     // Clear search when closing
     onSearch?.('', false);
-  }, [debouncedHighlight, onSearch]);
+  }, [onSearch]);
 
-  // Clean up highlighter and debounced functions on unmount
+  // Clean up highlighter on unmount
   useEffect(() => {
     return () => {
       if (highlighterRef.current) {
         highlighterRef.current.destroy();
         highlighterRef.current = null;
       }
-      debouncedHighlight.cancel?.();
     };
-  }, [debouncedHighlight]);
+  }, []);
 
   // Listen for keyboard events
   useEffect(() => {

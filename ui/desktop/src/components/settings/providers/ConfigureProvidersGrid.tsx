@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
 import { BaseProviderGrid, getProviderDescription } from './BaseProviderGrid';
 import { supported_providers, provider_aliases, required_keys } from '../models/hardcoded_stuff';
@@ -43,7 +43,7 @@ export function ConfigureProvidersGrid() {
   const [selectedForSetup, setSelectedForSetup] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<'edit' | 'setup' | 'battle'>('setup');
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
-  const [providerToDelete, setProviderToDelete] = useState(null);
+  const [providerToDelete, setProviderToDelete] = useState<{ name: string; id: string; isConfigured: boolean; description: string } | null>(null);
   const { currentModel } = useModel();
 
   const providers = useMemo(() => {
@@ -169,8 +169,8 @@ export function ConfigureProvidersGrid() {
 
   const confirmDelete = async () => {
     if (!providerToDelete) return;
-
-    const requiredKeys = required_keys[providerToDelete.name];
+    
+    const requiredKeys = required_keys[providerToDelete.name as keyof typeof required_keys];
     if (!requiredKeys || requiredKeys.length === 0) {
       console.error(`No keys found for provider ${providerToDelete.name}`);
       return;
