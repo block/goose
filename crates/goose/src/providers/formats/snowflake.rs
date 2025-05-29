@@ -382,7 +382,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello! How can I assist you today?"
             }],
-            "model": "claude-3-5-sonnet-latest",
+            "model": "claude-3-5-sonnet",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -419,7 +419,7 @@ mod tests {
                 "name": "calculator",
                 "input": {"expression": "2 + 2"}
             }],
-            "model": "claude-3-sonnet-20240229",
+            "model": "claude-3-5-sonnet",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -512,7 +512,8 @@ mod tests {
             "Get weather information"
         );
 
-        // Verify cache control is added to last tool
+        // Verify cache control is only added to the last tool (not the first)
+        assert!(spec[0]["tool_spec"].get("cache_control").is_none());
         assert!(spec[1]["tool_spec"].get("cache_control").is_some());
     }
 
