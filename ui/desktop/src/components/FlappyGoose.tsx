@@ -20,7 +20,7 @@ interface FlappyGooseProps {
 }
 
 const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);
   const gooseImages = useRef<HTMLImageElement[]>([]);
@@ -272,7 +272,7 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
       onClick={flap}
     >
       <canvas
-        ref={canvasRef}
+        ref={(el) => { canvasRef.current = el; }}
         style={{
           border: '2px solid #333',
           borderRadius: '8px',

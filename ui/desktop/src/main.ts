@@ -377,7 +377,7 @@ const createChat = async (
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
-  let goosedProcess = null;
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
   if (viewType === 'recipeEditor') {
     // For recipeEditor, get the port from existing windows' config
@@ -404,7 +404,10 @@ const createChat = async (
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
-    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    port = newPort;
+    working_dir = newWorkingDir;
+    goosedProcess = newGoosedProcess;
   }
 
   const mainWindow = new BrowserWindow({
@@ -1073,7 +1076,7 @@ app.whenReady().then(async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
+        'Content-Security-Policy': 
           "default-src 'self';" +
             // Allow inline styles since we use them in our React components
             "style-src 'self' 'unsafe-inline';" +
@@ -1101,7 +1104,6 @@ app.whenReady().then(async () => {
             "worker-src 'self';" +
             // Upgrade insecure requests
             'upgrade-insecure-requests;',
-        ],
       },
     });
   });
@@ -1185,7 +1187,7 @@ app.whenReady().then(async () => {
       },
       {
         label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
@@ -1608,7 +1610,7 @@ app.on('will-quit', async () => {
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 // Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', (event) => {
+app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode

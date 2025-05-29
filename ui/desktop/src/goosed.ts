@@ -65,7 +65,7 @@ export const startGoosed = async (
   app: App,
   dir: string | null = null,
   env: Partial<GooseProcessEnv> = {}
-) => {
+): Promise<[number, string, ChildProcess]> => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
