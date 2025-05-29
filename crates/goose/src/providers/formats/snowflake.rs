@@ -102,21 +102,14 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
     let mut tool_specs = Vec::new();
 
-    for (i, tool) in tools.iter().enumerate() {
+    for tool in tools.iter() {
         if unique_tools.insert(tool.name.clone()) {
-            let mut tool_spec = json!({
+            let tool_spec = json!({
                 "type": "generic",
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.input_schema
             });
-
-            // Add cache control to the last tool
-            if i == tools.len() - 1 {
-                if let Some(obj) = tool_spec.as_object_mut() {
-                    obj.insert("cache_control".to_string(), json!({"type": "ephemeral"}));
-                }
-            }
 
             tool_specs.push(json!({"tool_spec": tool_spec}));
         }
@@ -511,10 +504,6 @@ mod tests {
             spec[1]["tool_spec"]["description"],
             "Get weather information"
         );
-
-        // Verify cache control is only added to the last tool (not the first)
-        assert!(spec[0]["tool_spec"].get("cache_control").is_none());
-        assert!(spec[1]["tool_spec"].get("cache_control").is_some());
     }
 
     #[test]
