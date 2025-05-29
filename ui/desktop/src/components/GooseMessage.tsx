@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import ImagePreview from './ImagePreview';
 import GooseResponseForm from './GooseResponseForm';

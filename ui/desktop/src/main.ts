@@ -121,7 +121,7 @@ if (process.platform === 'win32') {
   if (!gotTheLock) {
     app.quit();
   } else {
-    app.on('second-instance', (event, commandLine) => {
+    app.on('second-instance', (_event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -238,7 +238,7 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   pendingDeepLink = null;
 }
 
-app.on('open-url', async (event, url) => {
+app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
@@ -368,7 +368,7 @@ const createChat = async (
   app: App,
   query?: string,
   dir?: string,
-  version?: string,
+  _version?: string,
   resumeSessionId?: string,
   recipeConfig?: RecipeConfig, // Bot configuration
   viewType?: string // View type
@@ -714,7 +714,7 @@ ipcMain.handle('select-file-or-directory', async () => {
 });
 
 // IPC handler to save data URL to a temporary file
-ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId: string) => {
+ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
   try {
     // Input validation for uniqueId - only allow alphanumeric characters and hyphens
@@ -777,7 +777,7 @@ ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId:
 });
 
 // IPC handler to serve temporary image files
-ipcMain.handle('get-temp-image', async (event, filePath: string) => {
+ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
   console.log(`[Main] Received get-temp-image for path: ${filePath}`);
 
   // Input validation
@@ -849,7 +849,7 @@ ipcMain.handle('get-temp-image', async (event, filePath: string) => {
     return null;
   }
 });
-ipcMain.on('delete-temp-file', async (event, filePath: string) => {
+ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
   // Input validation
