@@ -574,7 +574,17 @@ const createChat = async (
 // Track tray instance
 let tray: Tray | null = null;
 
+const destroyTray = () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+};
+
 const createTray = () => {
+  // If tray already exists, destroy it first
+  destroyTray();
+
   const isDev = process.env.NODE_ENV === 'development';
   let iconPath: string;
 
@@ -699,6 +709,73 @@ ipcMain.on('react-ready', () => {
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
+});
+
+// Handle menu bar icon visibility
+ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showMenuBarIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      createTray();
+    } else {
+      destroyTray();
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting menu bar icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-menu-bar-icon-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showMenuBarIcon ?? true;
+  } catch (error) {
+    console.error('Error getting menu bar icon state:', error);
+    return true;
+  }
+});
+
+// Handle dock icon visibility (macOS only)
+ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
+  try {
+    if (process.platform !== 'darwin') return false;
+
+    const settings = loadSettings();
+    settings.showDockIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      await app.dock.show();
+    } else {
+      // Only hide the dock if we have a menu bar icon to maintain accessibility
+      if (settings.showMenuBarIcon) {
+        app.dock.hide();
+        setTimeout(() => {
+          focusWindow();
+        }, 50);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting dock icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-dock-icon-state', () => {
+  try {
+    if (process.platform !== 'darwin') return true;
+    const settings = loadSettings();
+    return settings.showDockIcon ?? true;
+  } catch (error) {
+    console.error('Error getting dock icon state:', error);
+    return true;
+  }
 });
 
 // Add file/directory selection handler
@@ -1122,10 +1199,20 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
+  // Create tray if enabled in settings
+  const settings = loadSettings();
+  if (settings.showMenuBarIcon) {
+    createTray();
+  }
+
+  // Handle dock icon visibility (macOS only)
+  if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
+    app.dock.hide();
+  }
+
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
-  createTray();
   createNewWindow(app, dirPath);
 
   // Get the existing menu
