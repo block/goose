@@ -220,7 +220,9 @@ async fn run_now_handler(
                     // Check if this is a cancellation error
                     if err.to_string().contains("was successfully cancelled") {
                         // Return a special session_id to indicate cancellation
-                        Ok(Json(RunNowResponse { session_id: "CANCELLED".to_string() }))
+                        Ok(Json(RunNowResponse {
+                            session_id: "CANCELLED".to_string(),
+                        }))
                     } else {
                         Err(StatusCode::INTERNAL_SERVER_ERROR)
                     }

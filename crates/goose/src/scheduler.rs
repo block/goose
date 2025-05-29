@@ -910,7 +910,10 @@ impl Scheduler {
                         abort_handle.abort();
                         tracing::info!("Aborted running task for job '{}'", sched_id);
                     } else {
-                        tracing::warn!("No abort handle found for job '{}' in running tasks map", sched_id);
+                        tracing::warn!(
+                            "No abort handle found for job '{}' in running tasks map",
+                            sched_id
+                        );
                     }
                 }
 
