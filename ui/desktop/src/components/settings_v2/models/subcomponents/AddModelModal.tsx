@@ -90,7 +90,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     const isFormValid = validateForm();
 
     if (isFormValid) {
-      const providerMetaData = await getProviderMetadata(provider, getProviders);
+      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
       const providerDisplayName = providerMetaData.display_name;
 
       const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;

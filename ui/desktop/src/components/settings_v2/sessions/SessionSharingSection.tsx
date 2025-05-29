@@ -15,7 +15,7 @@ export default function SessionSharingSection() {
   const [urlError, setUrlError] = useState('');
   // isUrlConfigured is true if the user has configured a baseUrl and it is valid.
   const isUrlConfigured =
-    !envBaseUrlShare && sessionSharingConfig.enabled && isValidUrl(sessionSharingConfig.baseUrl);
+    !envBaseUrlShare && sessionSharingConfig.enabled && isValidUrl(String(sessionSharingConfig.baseUrl));
 
   // Only load saved config from localStorage if the env variable is not provided.
   useEffect(() => {

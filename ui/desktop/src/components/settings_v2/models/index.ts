@@ -92,7 +92,7 @@ export async function getCurrentModelAndProvider({
 }
 
 export async function getFallbackModelAndProvider(
-  writeToConfig: (key: string, value: unknown, is_secret: boolean) => Promise<void>
+  writeToConfig?: (key: string, value: unknown, is_secret: boolean) => Promise<void>
 ) {
   const provider = window.appConfig.get('GOOSE_DEFAULT_PROVIDER');
   const model = window.appConfig.get('GOOSE_DEFAULT_MODEL');
@@ -125,7 +125,7 @@ export async function getCurrentModelAndProviderForDisplay({
   let metadata: ProviderMetadata;
 
   try {
-    metadata = await getProviderMetadata(gooseProvider, getProviders);
+    metadata = await getProviderMetadata(String(gooseProvider), getProviders);
   } catch (error) {
     return { model: gooseModel, provider: gooseProvider };
   }
