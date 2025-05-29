@@ -578,10 +578,10 @@ impl DeveloperRouter {
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let output_str = output_task
-            .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+        let output_str = match output_task.await {
+            Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
+            Err(e) => return Err(ToolError::ExecutionError(e.to_string())),
+        };
 
         // Check the character count of the output
         const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
