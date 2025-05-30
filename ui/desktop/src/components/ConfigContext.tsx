@@ -19,7 +19,7 @@ import type {
   ExtensionQuery,
   ExtensionConfig,
 } from '../api/types.gen';
-import { removeShims } from './settings_v2/extensions/utils';
+import { removeShims } from './settings/extensions/utils';
 
 export type { ExtensionConfig } from '../api/types.gen';
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { snakeToTitleCase } from '../utils';
-import PermissionModal from './settings_v2/permission/PermissionModal';
+import PermissionModal from './settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
 import { confirmPermission } from '../api';
 
