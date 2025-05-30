@@ -14,7 +14,7 @@ use nix::sys::signal::{kill, Signal};
 #[cfg(unix)]
 use nix::unistd::{getpgid, Pid};
 
-use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
+use super::{serialize_and_send, Error, Transport, TransportHandle};
 
 // Global to track process groups we've created
 static PROCESS_GROUP: AtomicI32 = AtomicI32::new(-1);
@@ -23,8 +23,8 @@ static PROCESS_GROUP: AtomicI32 = AtomicI32::new(-1);
 ///
 /// It uses channels for message passing and handles responses asynchronously through a background task.
 pub struct StdioActor {
-    receiver: Option<mpsc::Receiver<TransportMessage>>,
-    pending_requests: Arc<PendingRequests>,
+    receiver: Option<mpsc::Receiver<String>>,
+    sender: Option<mpsc::Sender<JsonRpcMessage>>,
     process: Child, // we store the process to keep it alive
     error_sender: mpsc::Sender<Error>,
     stdin: Option<ChildStdin>,
@@ -55,11 +55,11 @@ impl StdioActor {
 
         let stdout = self.stdout.take().expect("stdout should be available");
         let stdin = self.stdin.take().expect("stdin should be available");
-        let receiver = self.receiver.take().expect("receiver should be available");
+        let msg_inbox = self.receiver.take().expect("receiver should be available");
+        let msg_outbox = self.sender.take().expect("sender should be available");
 
-        let incoming = Self::handle_incoming_messages(stdout, self.pending_requests.clone());
-        let outgoing =
-            Self::handle_outgoing_messages(receiver, stdin, self.pending_requests.clone());
+        let incoming = Self::handle_proc_output(stdout, msg_outbox);
+        let outgoing = Self::handle_proc_input(stdin, msg_inbox);
 
         // take ownership of futures for tokio::select
         pin!(incoming);
@@ -96,12 +96,9 @@ impl StdioActor {
                     .await;
             }
         }
-
-        // Clean up regardless of which path we took
-        self.pending_requests.clear().await;
     }
 
-    async fn handle_incoming_messages(stdout: ChildStdout, pending_requests: Arc<PendingRequests>) {
+    async fn handle_proc_output(stdout: ChildStdout, sender: mpsc::Sender<JsonRpcMessage>) {
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
         loop {
@@ -116,20 +113,12 @@ impl StdioActor {
                             message = ?message,
                             "Received incoming message"
                         );
-
-                        match &message {
-                            JsonRpcMessage::Response(response) => {
-                                if let Some(id) = &response.id {
-                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
-                                }
-                            }
-                            JsonRpcMessage::Error(error) => {
-                                if let Some(id) = &error.id {
-                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
-                                }
-                            }
-                            _ => {} // TODO: Handle other variants (Request, etc.)
-                        }
+                        let _ = sender.send(message).await;
+                    } else {
+                        tracing::warn!(
+                            message = ?line,
+                            "Failed to parse incoming message"
+                        );
                     }
                     line.clear();
                 }
@@ -141,44 +130,20 @@ impl StdioActor {
         }
     }
 
-    async fn handle_outgoing_messages(
-        mut receiver: mpsc::Receiver<TransportMessage>,
-        mut stdin: ChildStdin,
-        pending_requests: Arc<PendingRequests>,
-    ) {
-        while let Some(mut transport_msg) = receiver.recv().await {
-            let message_str = match serde_json::to_string(&transport_msg.message) {
-                Ok(s) => s,
-                Err(e) => {
-                    if let Some(tx) = transport_msg.response_tx.take() {
-                        let _ = tx.send(Err(Error::Serialization(e)));
-                    }
-                    continue;
-                }
-            };
-
-            tracing::debug!(message = ?transport_msg.message, "Sending outgoing message");
-
-            if let Some(response_tx) = transport_msg.response_tx.take() {
-                if let JsonRpcMessage::Request(request) = &transport_msg.message {
-                    if let Some(id) = &request.id {
-                        pending_requests.insert(id.to_string(), response_tx).await;
-                    }
-                }
-            }
+    async fn handle_proc_input(mut stdin: ChildStdin, mut receiver: mpsc::Receiver<String>) {
+        while let Some(message_str) = receiver.recv().await {
+            tracing::debug!(message = ?message_str, "Sending outgoing message");
 
             if let Err(e) = stdin
                 .write_all(format!("{}\n", message_str).as_bytes())
                 .await
             {
                 tracing::error!(error = ?e, "Error writing message to child process");
-                pending_requests.clear().await;
                 break;
             }
 
             if let Err(e) = stdin.flush().await {
                 tracing::error!(error = ?e, "Error flushing message to child process");
-                pending_requests.clear().await;
                 break;
             }
         }
@@ -187,17 +152,23 @@ impl StdioActor {
 
 #[derive(Clone)]
 pub struct StdioTransportHandle {
-    sender: mpsc::Sender<TransportMessage>,
+    sender: mpsc::Sender<String>,                         // to process
+    receiver: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>, // from process
     error_receiver: Arc<Mutex<mpsc::Receiver<Error>>>,
 }
 
 #[async_trait::async_trait]
 impl TransportHandle for StdioTransportHandle {
-    async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
-        let result = send_message(&self.sender, message).await;
+    async fn send(&self, message: JsonRpcMessage) -> Result<(), Error> {
+        let result = serialize_and_send(&self.sender, message).await;
         // Check for any pending errors even if send is successful
         self.check_for_errors().await?;
         result
+    }
+
+    async fn receive(&self) -> Result<JsonRpcMessage, Error> {
+        let mut receiver = self.receiver.lock().await;
+        receiver.recv().await.ok_or(Error::ChannelClosed)
     }
 }
 
@@ -289,12 +260,13 @@ impl Transport for StdioTransport {
 
     async fn start(&self) -> Result<Self::Handle, Error> {
         let (process, stdin, stdout, stderr) = self.spawn_process().await?;
-        let (message_tx, message_rx) = mpsc::channel(32);
+        let (outbox_tx, outbox_rx) = mpsc::channel(32);
+        let (inbox_tx, inbox_rx) = mpsc::channel(32);
         let (error_tx, error_rx) = mpsc::channel(1);
 
         let actor = StdioActor {
-            receiver: Some(message_rx),
-            pending_requests: Arc::new(PendingRequests::new()),
+            receiver: Some(outbox_rx), // client to process
+            sender: Some(inbox_tx),    // process to client
             process,
             error_sender: error_tx,
             stdin: Some(stdin),
@@ -305,7 +277,8 @@ impl Transport for StdioTransport {
         tokio::spawn(actor.run());
 
         let handle = StdioTransportHandle {
-            sender: message_tx,
+            sender: outbox_tx,                        // client to process
+            receiver: Arc::new(Mutex::new(inbox_rx)), // process to client
             error_receiver: Arc::new(Mutex::new(error_rx)),
         };
         Ok(handle)

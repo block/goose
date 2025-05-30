@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
-use tokio::process::Command;
+use tokio::{process::Command, sync::mpsc};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -14,7 +14,7 @@ use std::os::unix::fs::PermissionsExt;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations},
     Content,
@@ -1155,6 +1155,7 @@ impl Router for ComputerControllerRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

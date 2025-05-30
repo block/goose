@@ -249,7 +249,7 @@ impl EmbeddingCapable for OpenAiProvider {
         }
 
         // Get embedding model from env var or use default
-        let embedding_model = std::env::var("EMBEDDING_MODEL")
+        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
             .unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
         let request = EmbeddingRequest {

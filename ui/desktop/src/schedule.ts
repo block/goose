@@ -7,6 +7,8 @@ import {
   updateSchedule as apiUpdateSchedule,
   sessionsHandler as apiGetScheduleSessions,
   runNowHandler as apiRunScheduleNow,
+  killRunningJob as apiKillRunningJob,
+  inspectRunningJob as apiInspectRunningJob,
 } from './api';
 
 export interface ScheduledJob {
@@ -16,6 +18,8 @@ export interface ScheduledJob {
   last_run?: string | null;
   currently_running?: boolean;
   paused?: boolean;
+  current_session_id?: string | null;
+  process_start_time?: string | null;
 }
 
 export interface ScheduleSession {
@@ -148,6 +152,50 @@ export async function updateSchedule(scheduleId: string, cron: string): Promise<
     throw new Error('Failed to update schedule: Unexpected response format');
   } catch (error) {
     console.error(`Error updating schedule ${scheduleId}:`, error);
+    throw error;
+  }
+}
+
+export interface KillJobResponse {
+  message: string;
+}
+
+export interface InspectJobResponse {
+  sessionId?: string | null;
+  processStartTime?: string | null;
+  runningDurationSeconds?: number | null;
+}
+
+export async function killRunningJob(scheduleId: string): Promise<KillJobResponse> {
+  try {
+    const response = await apiKillRunningJob<true>({
+      path: { id: scheduleId },
+    });
+
+    if (response && response.data) {
+      return response.data as KillJobResponse;
+    }
+    console.error('Unexpected response format from apiKillRunningJob', response);
+    throw new Error('Failed to kill running job: Unexpected response format');
+  } catch (error) {
+    console.error(`Error killing running job ${scheduleId}:`, error);
+    throw error;
+  }
+}
+
+export async function inspectRunningJob(scheduleId: string): Promise<InspectJobResponse> {
+  try {
+    const response = await apiInspectRunningJob<true>({
+      path: { id: scheduleId },
+    });
+
+    if (response && response.data) {
+      return response.data as InspectJobResponse;
+    }
+    console.error('Unexpected response format from apiInspectRunningJob', response);
+    throw new Error('Failed to inspect running job: Unexpected response format');
+  } catch (error) {
+    console.error(`Error inspecting running job ${scheduleId}:`, error);
     throw error;
   }
 }

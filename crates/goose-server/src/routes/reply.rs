@@ -10,7 +10,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
-    agents::SessionConfig,
+    agents::{AgentEvent, SessionConfig},
     message::{Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
@@ -18,7 +18,7 @@ use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{role::Role, Content, ToolResult};
+use mcp_core::{protocol::JsonRpcMessage, role::Role, Content, ToolResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -79,9 +79,19 @@ impl IntoResponse for SseResponse {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 enum MessageEvent {
-    Message { message: Message },
-    Error { error: String },
-    Finish { reason: String },
+    Message {
+        message: Message,
+    },
+    Error {
+        error: String,
+    },
+    Finish {
+        reason: String,
+    },
+    Notification {
+        request_id: String,
+        message: JsonRpcMessage,
+    },
 }
 
 async fn stream_event(
@@ -200,7 +210,7 @@ async fn handler(
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
-                        Ok(Some(Ok(message))) => {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             all_messages.push(message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
@@ -222,6 +232,20 @@ async fn handler(
                                     tracing::error!("Failed to store session history: {:?}", e);
                                 }
                             });
+                        }
+                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                            if let Err(e) = stream_event(MessageEvent::Notification{
+                                request_id: request_id.clone(),
+                                message: n,
+                            }, &tx).await {
+                                tracing::error!("Error sending message through channel: {}", e);
+                                let _ = stream_event(
+                                    MessageEvent::Error {
+                                        error: e.to_string(),
+                                    },
+                                    &tx,
+                                ).await;
+                            }
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
@@ -317,7 +341,7 @@ async fn ask_handler(
 
     while let Some(response) = stream.next().await {
         match response {
-            Ok(message) => {
+            Ok(AgentEvent::Message(message)) => {
                 if message.role == Role::Assistant {
                     for content in &message.content {
                         if let MessageContent::Text(text) = content {
@@ -327,6 +351,10 @@ async fn ask_handler(
                         response_message.content.push(content.clone());
                     }
                 }
+            }
+            Ok(AgentEvent::McpNotification(n)) => {
+                // Handle notifications if needed
+                tracing::info!("Received notification: {:?}", n);
             }
             Err(e) => {
                 tracing::error!("Error processing as_ai message: {}", e);

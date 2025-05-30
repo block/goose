@@ -39,13 +39,13 @@ impl VectorToolSelector {
     pub async fn new(provider: Arc<dyn Provider>, table_name: String) -> Result<Self> {
         let vector_db = ToolVectorDB::new(Some(table_name)).await?;
 
-        let embedding_provider = if env::var("EMBEDDING_MODEL_PROVIDER").is_ok() {
+        let embedding_provider = if env::var("GOOSE_EMBEDDING_MODEL_PROVIDER").is_ok() {
             // If env var is set, create a new provider for embeddings
             // Get embedding model and provider from environment variables
-            let embedding_model = env::var("EMBEDDING_MODEL")
+            let embedding_model = env::var("GOOSE_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "text-embedding-3-small".to_string());
             let embedding_provider_name =
-                env::var("EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+                env::var("GOOSE_EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
 
             // Create the provider using the factory
             let model_config = ModelConfig::new(embedding_model);

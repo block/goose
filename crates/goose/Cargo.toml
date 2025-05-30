@@ -71,10 +71,10 @@ aws-sdk-bedrockruntime = "1.74.0"
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"
 
-# Added blake3 hashing library as a dependency
 blake3 = "1.5"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
+tokio-stream = "0.1.17"
 
 # Vector database for tool selection
 lancedb = "0.13"

@@ -1,23 +1,35 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_stream::try_stream;
-use futures::stream::BoxStream;
-use futures::StreamExt;
+use futures::stream::{self, BoxStream};
+use futures::{Stream, StreamExt};
+use mcp_core::protocol::JsonRpcMessage;
 use tokio::sync::Mutex;
 
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
-use mcp_core::{Content, ToolError};
+use mcp_core::{Content, ToolResult};
 
-// Type alias for ToolFutures - used in the agent loop to join all futures together
-pub(crate) type ToolFuture<'a> =
-    Pin<Box<dyn Future<Output = (String, Result<Vec<Content>, ToolError>)> + Send + 'a>>;
-pub(crate) type ToolFuturesVec<'a> = Arc<Mutex<Vec<ToolFuture<'a>>>>;
+// ToolCallResult combines the result of a tool call with an optional notification stream that
+// can be used to receive notifications from the tool.
+pub struct ToolCallResult {
+    pub result: Box<dyn Future<Output = ToolResult<Vec<Content>>> + Send + Unpin>,
+    pub notification_stream: Option<Box<dyn Stream<Item = JsonRpcMessage> + Send + Unpin>>,
+}
 
+impl From<ToolResult<Vec<Content>>> for ToolCallResult {
+    fn from(result: ToolResult<Vec<Content>>) -> Self {
+        Self {
+            result: Box::new(futures::future::ready(result)),
+            notification_stream: None,
+        }
+    }
+}
+
+use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
@@ -37,7 +49,7 @@ impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
-        tool_futures: ToolFuturesVec<'a>,
+        tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
@@ -56,9 +68,19 @@ impl Agent {
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone()).await;
                                 let mut futures = tool_futures.lock().await;
-                                futures.push(Box::pin(tool_future));
+
+                                futures.push((req_id, match tool_result {
+                                    Ok(result) => tool_stream(
+                                        result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                                        result.result,
+                                    ),
+                                    Err(e) => tool_stream(
+                                        Box::new(stream::empty()),
+                                        futures::future::ready(Err(e)),
+                                    ),
+                                }));
 
                                 if confirmation.permission == Permission::AlwaysAllow {
                                     permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);

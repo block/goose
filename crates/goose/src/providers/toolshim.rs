@@ -38,6 +38,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolCall};
+use mcp_core::Content;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -164,7 +165,10 @@ impl OllamaInterpreter {
         payload["stream"] = json!(false); // needed for the /api/chat endpoint to work
         payload["format"] = format_schema;
 
-        // tracing::warn!("payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        tracing::info!(
+            "Tool interpreter payload: {}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
 
         let response = self.client.post(&url).json(&payload).send().await?;
 
@@ -193,7 +197,10 @@ impl OllamaInterpreter {
 
     fn process_interpreter_response(response: &Value) -> Result<Vec<ToolCall>, ProviderError> {
         let mut tool_calls = Vec::new();
-
+        tracing::info!(
+            "Tool interpreter response is {}",
+            serde_json::to_string_pretty(&response).unwrap_or_default()
+        );
         // Extract tool_calls array from the response
         if response.get("message").is_some() && response["message"].get("content").is_some() {
             let content = response["message"]["content"].as_str().unwrap_or_default();
@@ -296,6 +303,72 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
         ));
     }
     tool_info
+}
+
+/// Convert messages containing ToolRequest/ToolResponse to text messages for toolshim mode
+/// This is necessary because some providers (like Bedrock) validate that tool_use/tool_result
+/// blocks can only exist when tools are defined, but in toolshim mode we pass empty tools
+pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
+    messages
+        .iter()
+        .map(|message| {
+            let mut new_content = Vec::new();
+            let mut has_tool_content = false;
+
+            for content in &message.content {
+                match content {
+                    MessageContent::ToolRequest(req) => {
+                        has_tool_content = true;
+                        // Convert tool request to text format
+                        let text = if let Ok(tool_call) = &req.tool_call {
+                            format!(
+                                "Using tool: {}\n{{\n  \"name\": \"{}\",\n  \"arguments\": {}\n}}",
+                                tool_call.name,
+                                tool_call.name,
+                                serde_json::to_string_pretty(&tool_call.arguments)
+                                    .unwrap_or_default()
+                            )
+                        } else {
+                            "Tool request failed".to_string()
+                        };
+                        new_content.push(MessageContent::text(text));
+                    }
+                    MessageContent::ToolResponse(res) => {
+                        has_tool_content = true;
+                        // Convert tool response to text format
+                        let text = match &res.tool_result {
+                            Ok(contents) => {
+                                let text_contents: Vec<String> = contents
+                                    .iter()
+                                    .filter_map(|c| match c {
+                                        Content::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                format!("Tool result:\n{}", text_contents.join("\n"))
+                            }
+                            Err(e) => format!("Tool error: {}", e),
+                        };
+                        new_content.push(MessageContent::text(text));
+                    }
+                    _ => {
+                        // Keep other content types as-is
+                        new_content.push(content.clone());
+                    }
+                }
+            }
+
+            if has_tool_content {
+                Message {
+                    role: message.role.clone(),
+                    content: new_content,
+                    created: message.created,
+                }
+            } else {
+                message.clone()
+            }
+        })
+        .collect()
 }
 
 /// Modifies the system prompt to include tool usage instructions when tool interpretation is enabled

@@ -13,7 +13,7 @@ mod tool_router_index_manager;
 pub(crate) mod tool_vectordb;
 mod types;
 
-pub use agent::Agent;
+pub use agent::{Agent, AgentEvent};
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;

@@ -1,17 +1,17 @@
-use crate::transport::{Error, PendingRequests, TransportMessage};
+use crate::transport::Error;
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+use mcp_core::protocol::JsonRpcMessage;
 use reqwest::Client as HttpClient;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::time::{timeout, Duration};
 use tracing::warn;
 use url::Url;
 
-use super::{send_message, Transport, TransportHandle};
+use super::{serialize_and_send, Transport, TransportHandle};
 
 // Timeout for the endpoint discovery
 const ENDPOINT_TIMEOUT_SECS: u64 = 5;
@@ -21,9 +21,9 @@ const ENDPOINT_TIMEOUT_SECS: u64 = 5;
 /// - Sends outgoing messages via HTTP POST (once the post endpoint is known).
 pub struct SseActor {
     /// Receives messages (requests/notifications) from the handle
-    receiver: mpsc::Receiver<TransportMessage>,
-    /// Map of request-id -> oneshot sender
-    pending_requests: Arc<PendingRequests>,
+    receiver: mpsc::Receiver<String>,
+    /// Sends messages (responses) back to the handle
+    sender: mpsc::Sender<JsonRpcMessage>,
     /// Base SSE URL
     sse_url: String,
     /// For sending HTTP POST requests
@@ -34,14 +34,14 @@ pub struct SseActor {
 
 impl SseActor {
     pub fn new(
-        receiver: mpsc::Receiver<TransportMessage>,
-        pending_requests: Arc<PendingRequests>,
+        receiver: mpsc::Receiver<String>,
+        sender: mpsc::Sender<JsonRpcMessage>,
         sse_url: String,
         post_endpoint: Arc<RwLock<Option<String>>>,
     ) -> Self {
         Self {
             receiver,
-            pending_requests,
+            sender,
             sse_url,
             post_endpoint,
             http_client: HttpClient::new(),
@@ -54,15 +54,14 @@ impl SseActor {
     pub async fn run(self) {
         tokio::join!(
             Self::handle_incoming_messages(
+                self.sender,
                 self.sse_url.clone(),
-                Arc::clone(&self.pending_requests),
                 Arc::clone(&self.post_endpoint)
             ),
             Self::handle_outgoing_messages(
                 self.receiver,
                 self.http_client.clone(),
                 Arc::clone(&self.post_endpoint),
-                Arc::clone(&self.pending_requests),
             )
         );
     }
@@ -72,14 +71,13 @@ impl SseActor {
     /// - If a `message` event is received, parse it as `JsonRpcMessage`
     ///   and respond to pending requests if it's a `Response`.
     async fn handle_incoming_messages(
+        sender: mpsc::Sender<JsonRpcMessage>,
         sse_url: String,
-        pending_requests: Arc<PendingRequests>,
         post_endpoint: Arc<RwLock<Option<String>>>,
     ) {
         let client = match eventsource_client::ClientBuilder::for_url(&sse_url) {
             Ok(builder) => builder.build(),
             Err(e) => {
-                pending_requests.clear().await;
                 warn!("Failed to connect SSE client: {}", e);
                 return;
             }
@@ -105,83 +103,53 @@ impl SseActor {
         }
 
         // Now handle subsequent events
-        while let Ok(Some(event)) = stream.try_next().await {
-            match event {
-                SSE::Event(e) if e.event_type == "message" => {
-                    // Attempt to parse the SSE data as a JsonRpcMessage
-                    match serde_json::from_str::<JsonRpcMessage>(&e.data) {
-                        Ok(message) => {
-                            match &message {
-                                JsonRpcMessage::Response(response) => {
-                                    if let Some(id) = &response.id {
-                                        pending_requests
-                                            .respond(&id.to_string(), Ok(message))
-                                            .await;
-                                    }
+        loop {
+            match stream.try_next().await {
+                Ok(Some(event)) => {
+                    match event {
+                        SSE::Event(e) if e.event_type == "message" => {
+                            // Attempt to parse the SSE data as a JsonRpcMessage
+                            match serde_json::from_str::<JsonRpcMessage>(&e.data) {
+                                Ok(message) => {
+                                    let _ = sender.send(message).await;
                                 }
-                                JsonRpcMessage::Error(error) => {
-                                    if let Some(id) = &error.id {
-                                        pending_requests
-                                            .respond(&id.to_string(), Ok(message))
-                                            .await;
-                                    }
+                                Err(err) => {
+                                    warn!("Failed to parse SSE message: {err}");
                                 }
-                                _ => {} // TODO: Handle other variants (Request, etc.)
                             }
                         }
-                        Err(err) => {
-                            warn!("Failed to parse SSE message: {err}");
-                        }
+                        _ => { /* ignore other events */ }
                     }
                 }
-                _ => { /* ignore other events */ }
+                Ok(None) => {
+                    // Stream ended
+                    tracing::info!("SSE stream ended.");
+                    break;
+                }
+                Err(e) => {
+                    warn!("Error reading SSE stream: {e}");
+                    break;
+                }
             }
         }
 
-        // SSE stream ended or errored; signal any pending requests
-        tracing::error!("SSE stream ended or encountered an error; clearing pending requests.");
-        pending_requests.clear().await;
+        tracing::error!("SSE stream ended or encountered an error.");
     }
 
-    /// Continuously receives messages from the `mpsc::Receiver`.
-    /// - If it's a request, store the oneshot in `pending_requests`.
-    /// - POST the message to the discovered endpoint (once known).
     async fn handle_outgoing_messages(
-        mut receiver: mpsc::Receiver<TransportMessage>,
+        mut receiver: mpsc::Receiver<String>,
         http_client: HttpClient,
         post_endpoint: Arc<RwLock<Option<String>>>,
-        pending_requests: Arc<PendingRequests>,
     ) {
-        while let Some(transport_msg) = receiver.recv().await {
+        while let Some(message_str) = receiver.recv().await {
             let post_url = match post_endpoint.read().await.as_ref() {
                 Some(url) => url.clone(),
                 None => {
-                    if let Some(response_tx) = transport_msg.response_tx {
-                        let _ = response_tx.send(Err(Error::NotConnected));
-                    }
+                    // TODO: the endpoint isn't discovered yet. This shouldn't happen -- we only return the handle
+                    // after the endpoint is set.
                     continue;
                 }
             };
-
-            // Serialize the JSON-RPC message
-            let message_str = match serde_json::to_string(&transport_msg.message) {
-                Ok(s) => s,
-                Err(e) => {
-                    if let Some(tx) = transport_msg.response_tx {
-                        let _ = tx.send(Err(Error::Serialization(e)));
-                    }
-                    continue;
-                }
-            };
-
-            // If it's a request, store the channel so we can respond later
-            if let Some(response_tx) = transport_msg.response_tx {
-                if let JsonRpcMessage::Request(JsonRpcRequest { id: Some(id), .. }) =
-                    &transport_msg.message
-                {
-                    pending_requests.insert(id.to_string(), response_tx).await;
-                }
-            }
 
             // Perform the HTTP POST
             match http_client
@@ -209,26 +177,25 @@ impl SseActor {
             }
         }
 
-        // mpsc channel closed => no more outgoing messages
-        let pending = pending_requests.len().await;
-        if pending > 0 {
-            tracing::error!("SSE stream ended or encountered an error with {pending} unfulfilled pending requests.");
-            pending_requests.clear().await;
-        } else {
-            tracing::info!("SseActor shutdown cleanly. No pending requests.");
-        }
+        tracing::info!("SseActor shut down.");
     }
 }
 
 #[derive(Clone)]
 pub struct SseTransportHandle {
-    sender: mpsc::Sender<TransportMessage>,
+    sender: mpsc::Sender<String>,
+    receiver: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
 }
 
 #[async_trait::async_trait]
 impl TransportHandle for SseTransportHandle {
-    async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
-        send_message(&self.sender, message).await
+    async fn send(&self, message: JsonRpcMessage) -> Result<(), Error> {
+        serialize_and_send(&self.sender, message).await
+    }
+
+    async fn receive(&self) -> Result<JsonRpcMessage, Error> {
+        let mut receiver = self.receiver.lock().await;
+        receiver.recv().await.ok_or(Error::ChannelClosed)
     }
 }
 
@@ -279,17 +246,13 @@ impl Transport for SseTransport {
 
         // Create a channel for outgoing TransportMessages
         let (tx, rx) = mpsc::channel(32);
+        let (otx, orx) = mpsc::channel(32);
 
         let post_endpoint: Arc<RwLock<Option<String>>> = Arc::new(RwLock::new(None));
         let post_endpoint_clone = Arc::clone(&post_endpoint);
 
         // Build the actor
-        let actor = SseActor::new(
-            rx,
-            Arc::new(PendingRequests::new()),
-            self.sse_url.clone(),
-            post_endpoint,
-        );
+        let actor = SseActor::new(rx, otx, self.sse_url.clone(), post_endpoint);
 
         // Spawn the actor task
         tokio::spawn(actor.run());
@@ -301,7 +264,10 @@ impl Transport for SseTransport {
         )
         .await
         {
-            Ok(_) => Ok(SseTransportHandle { sender: tx }),
+            Ok(_) => Ok(SseTransportHandle {
+                sender: tx,
+                receiver: Arc::new(Mutex::new(orx)),
+            }),
             Err(e) => Err(Error::SseConnection(e.to_string())),
         }
     }
