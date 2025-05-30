@@ -267,7 +267,7 @@ Search allows you to find specific content within your current session. The sear
 
 <Tabs>
     <TabItem value="ui" label="Goose Desktop" default>
-        You can share files with Goose in three ways:
+        Share files with Goose in three ways:
 
         1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
 
@@ -276,7 +276,7 @@ Search allows you to find specific content within your current session. The sear
         3. **Manual Path**: Type or paste the file path directly into the chat input.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-        In the CLI, you can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
+        You can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
 
         ```bash
         # Reference a specific file
