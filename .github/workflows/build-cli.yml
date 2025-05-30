@@ -63,7 +63,6 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
-          PROTOC: /usr/local/bin/protoc
         run: |
           # Install protoc if on macOS
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
@@ -79,11 +78,8 @@ jobs:
           echo "Cross version:"
           cross --version
 
-          echo "Protoc version:"
-          /usr/local/bin/protoc --version
-
           echo "Building with explicit PROTOC path..."
-          PROTOC=/usr/local/bin/protoc cross build --release --target ${TARGET} -p goose-cli -vv
+          cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release
