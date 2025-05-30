@@ -18,7 +18,7 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
-        You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
+        You can use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
@@ -260,5 +260,33 @@ Search allows you to find specific content within your current session. The sear
         :::info
         Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
         :::
+    </TabItem>
+</Tabs>
+
+## Share Files in Session
+
+<Tabs>
+    <TabItem value="ui" label="Goose Desktop" default>
+        You can share files with Goose in three ways:
+
+        1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
+
+        2. **File Browser**: Click the paperclip icon (📎) in the bottom left corner of the chat input to open your system's file browser and select files.
+
+        3. **Manual Path**: Type or paste the file path directly into the chat input.
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        In the CLI, you can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
+
+        ```bash
+        # Reference a specific file
+        What does this code do? ./src/main.rs
+
+        # Use tab completion
+        Can you explain the function in ./src/lib<tab>
+
+        # Use shell expansion
+        Review these test files: ./tests/*.rs
+        ```
     </TabItem>
 </Tabs>
