@@ -139,7 +139,7 @@ export const initializeSystem = async (
 
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
-    const botPrompt = recipeConfig?.instructions;
+    const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',

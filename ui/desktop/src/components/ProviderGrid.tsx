@@ -46,7 +46,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
   const handleConfigure = async (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
     const providerId = provider.id.toLowerCase();
 
-    const modelName = getDefaultModel(providerId);
+    const modelName = getDefaultModel(providerId) || 'default-model';
     const model = createSelectedModel(providerId, modelName);
 
     await initializeSystem(providerId, model.name);
@@ -189,9 +189,9 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       {showSetupModal && selectedId && (
         <div className="relative z-[9999]">
           <ProviderSetupModal
-            provider={providers.find((p) => p.id === selectedId)?.name}
-            model="Example Model"
-            endpoint="Example Endpoint"
+            provider={providers.find((p) => p.id === selectedId)?.name || 'Unknown Provider'}
+            _model="Example Model"
+            _endpoint="Example Endpoint"
             onSubmit={handleModalSubmit}
             onCancel={() => {
               setShowSetupModal(false);

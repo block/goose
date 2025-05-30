@@ -46,7 +46,6 @@ const DEFAULT_SETTINGS: SettingsType = {
       enabled: true,
     },
   ],
-  // @ts-expect-error "we actually do always have all the properties required for builtins, but tsc cannot tell for some reason"
   extensions: BUILT_IN_EXTENSIONS,
 };
 

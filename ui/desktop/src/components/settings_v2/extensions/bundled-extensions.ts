@@ -63,10 +63,10 @@ export async function syncBundledExtensions(
             description: bundledExt.description,
             type: bundledExt.type,
             timeout: bundledExt.timeout,
-            cmd: bundledExt.cmd,
-            args: bundledExt.args,
+            cmd: bundledExt.cmd || '',
+            args: bundledExt.args || [],
             envs: bundledExt.envs,
-            env_keys: bundledExt.env_keys,
+            env_keys: bundledExt.env_keys || [],
             bundled: true,
           };
           break;
@@ -76,7 +76,7 @@ export async function syncBundledExtensions(
             description: bundledExt.description,
             type: bundledExt.type,
             timeout: bundledExt.timeout,
-            uri: bundledExt.uri,
+            uri: bundledExt.uri || '',
             bundled: true,
           };
       }

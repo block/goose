@@ -37,7 +37,12 @@ export function AddModelInline() {
           model.provider.toLowerCase() === selectedProvider &&
           model.name.toLowerCase().includes(modelName.toLowerCase())
       )
-      .slice(0, 5); // Limit suggestions to top 5
+      .slice(0, 5) // Limit suggestions to top 5
+      .map(model => ({
+        id: String(model.id || ''),
+        name: model.name,
+        provider: model.provider
+      }));
     setFilteredModels(filtered);
     setShowSuggestions(filtered.length > 0);
   }, [modelName, selectedProvider]);
@@ -76,7 +81,8 @@ export function AddModelInline() {
         <Select
           options={providerOptions}
           value={providerOptions.find((option) => option.value === selectedProvider) || null}
-          onChange={(option: { value: string | null }) => {
+          onChange={(newValue: unknown) => {
+            const option = newValue as { value: string | null } | null;
             setSelectedProvider(option?.value || null);
             setModelName(''); // Clear model name when provider changes
             setFilteredModels([]);
