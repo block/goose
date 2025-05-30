@@ -78,14 +78,12 @@ jobs:
           rustup show
           echo "Cross version:"
           cross --version
+
           echo "Protoc version:"
-          protoc --version
-          echo "Protoc path:"
-          which protoc
-          echo "Using PROTOC from: $PROTOC"
+          /usr/local/bin/protoc --version
 
           echo "Building with explicit PROTOC path..."
-          cross build --release --target ${TARGET} -p goose-cli -vv
+          PROTOC=/usr/local/bin/protoc cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release
