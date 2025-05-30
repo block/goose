@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Select } from '../ui/select';
+import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 
 type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
