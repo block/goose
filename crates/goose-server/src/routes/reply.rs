@@ -10,7 +10,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
-    agents::SessionConfig,
+    agents::{AgentEvent, SessionConfig},
     message::{Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
@@ -18,7 +18,7 @@ use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{role::Role, Content, ToolResult};
+use mcp_core::{protocol::JsonRpcMessage, role::Role, Content, ToolResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -35,7 +35,6 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use utoipa::ToSchema;
 
-// Direct message serialization for the chat request
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
     messages: Vec<Message>,
@@ -43,7 +42,6 @@ struct ChatRequest {
     session_working_dir: String,
 }
 
-// Custom SSE response type for streaming messages
 pub struct SseResponse {
     rx: ReceiverStream<String>,
 }
@@ -78,16 +76,24 @@ impl IntoResponse for SseResponse {
     }
 }
 
-// Message event types for SSE streaming
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 enum MessageEvent {
-    Message { message: Message },
-    Error { error: String },
-    Finish { reason: String },
+    Message {
+        message: Message,
+    },
+    Error {
+        error: String,
+    },
+    Finish {
+        reason: String,
+    },
+    Notification {
+        request_id: String,
+        message: JsonRpcMessage,
+    },
 }
 
-// Stream a message as an SSE event
 async fn stream_event(
     event: MessageEvent,
     tx: &mpsc::Sender<String>,
@@ -108,19 +114,16 @@ async fn handler(
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Create channel for streaming
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
 
     let messages = request.messages;
     let session_working_dir = request.session_working_dir;
 
-    // Generate a new session ID if not provided in the request
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    // Spawn task to handle streaming
     tokio::spawn(async move {
         let agent = state.get_agent().await;
         let agent = match agent {
@@ -166,7 +169,6 @@ async fn handler(
             }
         };
 
-        // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
         let mut stream = match agent
@@ -175,6 +177,7 @@ async fn handler(
                 Some(SessionConfig {
                     id: session::Identifier::Name(session_id.clone()),
                     working_dir: PathBuf::from(session_working_dir),
+                    schedule_id: None,
                 }),
             )
             .await
@@ -200,7 +203,6 @@ async fn handler(
             }
         };
 
-        // Collect all messages for storage
         let mut all_messages = messages.clone();
         let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
@@ -208,7 +210,7 @@ async fn handler(
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
-                        Ok(Some(Ok(message))) => {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             all_messages.push(message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
@@ -221,7 +223,7 @@ async fn handler(
                                 break;
                             }
 
-                            // Store messages and generate description in background
+
                             let session_path = session_path.clone();
                             let messages = all_messages.clone();
                             let provider = Arc::clone(provider.as_ref().unwrap());
@@ -230,6 +232,20 @@ async fn handler(
                                     tracing::error!("Failed to store session history: {:?}", e);
                                 }
                             });
+                        }
+                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                            if let Err(e) = stream_event(MessageEvent::Notification{
+                                request_id: request_id.clone(),
+                                message: n,
+                            }, &tx).await {
+                                tracing::error!("Error sending message through channel: {}", e);
+                                let _ = stream_event(
+                                    MessageEvent::Error {
+                                        error: e.to_string(),
+                                    },
+                                    &tx,
+                                ).await;
+                            }
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
@@ -255,7 +271,6 @@ async fn handler(
             }
         }
 
-        // Send finish event
         let _ = stream_event(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
@@ -280,7 +295,6 @@ struct AskResponse {
     response: String,
 }
 
-// Simple ask an AI for a response, non streaming
 async fn ask_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -290,7 +304,6 @@ async fn ask_handler(
 
     let session_working_dir = request.session_working_dir;
 
-    // Generate a new session ID if not provided in the request
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
@@ -300,13 +313,10 @@ async fn ask_handler(
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
-    // Get the provider first, before starting the reply stream
     let provider = agent.provider().await;
 
-    // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
 
-    // Get response from agent
     let mut response_text = String::new();
     let mut stream = match agent
         .reply(
@@ -314,6 +324,7 @@ async fn ask_handler(
             Some(SessionConfig {
                 id: session::Identifier::Name(session_id.clone()),
                 working_dir: PathBuf::from(session_working_dir),
+                schedule_id: None,
             }),
         )
         .await
@@ -325,13 +336,12 @@ async fn ask_handler(
         }
     };
 
-    // Collect all messages for storage
     let mut all_messages = messages.clone();
     let mut response_message = Message::assistant();
 
     while let Some(response) = stream.next().await {
         match response {
-            Ok(message) => {
+            Ok(AgentEvent::Message(message)) => {
                 if message.role == Role::Assistant {
                     for content in &message.content {
                         if let MessageContent::Text(text) = content {
@@ -342,6 +352,10 @@ async fn ask_handler(
                     }
                 }
             }
+            Ok(AgentEvent::McpNotification(n)) => {
+                // Handle notifications if needed
+                tracing::info!("Received notification: {:?}", n);
+            }
             Err(e) => {
                 tracing::error!("Error processing as_ai message: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -349,15 +363,12 @@ async fn ask_handler(
         }
     }
 
-    // Add the complete response message to the conversation history
     if !response_message.content.is_empty() {
         all_messages.push(response_message);
     }
 
-    // Get the session path - file will be created when needed
     let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
-    // Store messages and generate description in background
     let session_path = session_path.clone();
     let messages = all_messages.clone();
     let provider = Arc::clone(provider.as_ref().unwrap());
@@ -438,13 +449,11 @@ async fn submit_tool_result(
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Log the raw request for debugging
     tracing::info!(
         "Received tool result request: {}",
         serde_json::to_string_pretty(&raw.0).unwrap()
     );
 
-    // Try to parse into our struct
     let payload: ToolResultRequest = match serde_json::from_value(raw.0.clone()) {
         Ok(req) => req,
         Err(e) => {
@@ -465,7 +474,6 @@ async fn submit_tool_result(
     Ok(Json(json!({"status": "ok"})))
 }
 
-// Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/reply", post(handler))
@@ -488,7 +496,6 @@ mod tests {
     };
     use mcp_core::tool::Tool;
 
-    // Mock Provider implementation for testing
     #[derive(Clone)]
     struct MockProvider {
         model_config: ModelConfig,
@@ -523,10 +530,8 @@ mod tests {
         use std::sync::Arc;
         use tower::ServiceExt;
 
-        // This test requires tokio runtime
         #[tokio::test]
         async fn test_ask_endpoint() {
-            // Create a mock app state with mock provider
             let mock_model_config = ModelConfig::new("test-model".to_string());
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
@@ -534,11 +539,15 @@ mod tests {
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
+            let scheduler_path = goose::scheduler::get_default_scheduler_storage_path()
+                .expect("Failed to get default scheduler storage path");
+            let scheduler = goose::scheduler::Scheduler::new(scheduler_path)
+                .await
+                .unwrap();
+            state.set_scheduler(scheduler).await;
 
-            // Build router
             let app = routes(state);
 
-            // Create request
             let request = Request::builder()
                 .uri("/ask")
                 .method("POST")
@@ -554,10 +563,8 @@ mod tests {
                 ))
                 .unwrap();
 
-            // Send request
             let response = app.oneshot(request).await.unwrap();
 
-            // Assert response status
             assert_eq!(response.status(), StatusCode::OK);
         }
     }

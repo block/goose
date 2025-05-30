@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.23"
+    "version": "1.0.24"
   },
   "paths": {
     "/agent/tools": {
@@ -453,6 +453,349 @@
         ]
       }
     },
+    "/schedule/create": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "create_schedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled job created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJob"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/delete/{id}": {
+      "delete": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "delete_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job deleted successfully"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/list": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "list_schedules",
+        "responses": {
+          "200": {
+            "description": "A list of scheduled jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSchedulesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}": {
+      "put": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "update_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to update",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled job updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot update a currently running job or invalid request"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/inspect": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "inspect_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to inspect",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/kill": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "kill_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job killed successfully"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/pause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "pause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to pause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job paused successfully"
+          },
+          "400": {
+            "description": "Cannot pause a currently running job"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/run_now": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "run_now_handler",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to run",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled job triggered successfully, returns new session ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNowResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error when trying to run the job"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/sessions": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "sessions_handler",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of session display info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionDisplayInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/unpause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "unpause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to unpause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job unpaused successfully"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/sessions": {
       "get": {
         "tags": [
@@ -728,6 +1071,25 @@
               "minimum": 0
             },
             "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "CreateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "recipe_source",
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "recipe_source": {
+            "type": "string"
           }
         }
       },
@@ -1027,6 +1389,49 @@
           },
           "mimeType": {
             "type": "string"
+          }
+        }
+      },
+      "InspectJobResponse": {
+        "type": "object",
+        "properties": {
+          "processStartTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "runningDurationSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "KillJobResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ListSchedulesResponse": {
+        "type": "object",
+        "required": [
+          "jobs"
+        ],
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledJob"
+            }
           }
         }
       },
@@ -1334,15 +1739,13 @@
         ],
         "properties": {
           "is_configured": {
-            "type": "boolean",
-            "description": "Indicates whether the provider is fully configured"
+            "type": "boolean"
           },
           "metadata": {
             "$ref": "#/components/schemas/ProviderMetadata"
           },
           "name": {
-            "type": "string",
-            "description": "Unique identifier and name of the provider"
+            "type": "string"
           }
         }
       },
@@ -1469,6 +1872,118 @@
           "assistant"
         ]
       },
+      "RunNowResponse": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ScheduledJob": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string"
+          },
+          "current_session_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "currently_running": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_run": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "process_start_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionDisplayInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "workingDir",
+          "messageCount"
+        ],
+        "properties": {
+          "accumulatedInputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "accumulatedOutputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "messageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "scheduleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "workingDir": {
+            "type": "string"
+          }
+        }
+      },
       "SessionHistoryResponse": {
         "type": "object",
         "required": [
@@ -1579,6 +2094,11 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
+          "schedule_id": {
+            "type": "string",
+            "description": "ID of the schedule that triggered this session, if any",
+            "nullable": true
+          },
           "total_tokens": {
             "type": "integer",
             "format": "int32",
@@ -1589,6 +2109,16 @@
             "type": "string",
             "description": "Working directory for the session",
             "example": "/home/user/sessions/session1"
+          }
+        }
+      },
+      "SessionsQuery": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -1757,8 +2287,7 @@
             "$ref": "#/components/schemas/PermissionLevel"
           },
           "tool_name": {
-            "type": "string",
-            "description": "Unique identifier and name of the tool, format <extension_name>__<tool_name>"
+            "type": "string"
           }
         }
       },
@@ -1815,6 +2344,17 @@
         "example": {
           "data": {},
           "success": true
+        }
+      },
+      "UpdateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string"
+          }
         }
       },
       "UpsertConfigQuery": {

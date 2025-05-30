@@ -64,6 +64,12 @@ jobs:
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
         run: |
+          # Install protoc if on macOS
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            brew install protobuf
+            export PROTOC=$(which protoc)
+          fi
+
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
           echo "Building for target: ${TARGET}"
@@ -72,7 +78,7 @@ jobs:
           echo "Cross version:"
           cross --version
 
-          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
+          echo "Building with explicit PROTOC path..."
           cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2

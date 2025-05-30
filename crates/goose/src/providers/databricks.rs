@@ -11,6 +11,7 @@ use tokio::pin;
 use tokio_util::io::StreamReader;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, get_usage, response_to_message};
 use super::oauth;
@@ -20,6 +21,7 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::databricks::response_to_streaming_message;
 use mcp_core::tool::Tool;
+use serde_json::json;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use url::Url;
@@ -193,7 +195,6 @@ impl DatabricksProvider {
     ///
     /// * `host` - The Databricks host URL
     /// * `token` - The Databricks API token
-    /// * `model` - The model configuration
     ///
     /// # Returns
     ///
@@ -231,7 +232,17 @@ impl DatabricksProvider {
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
+
+        // Check if this is an embedding request by looking at the payload structure
+        let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
+        let path = if is_embedding {
+            // For embeddings, use the embeddings endpoint
+            format!("serving-endpoints/{}/invocations", "text-embedding-3-small")
+        } else {
+            // For chat completions, use the model name in the path
+            format!("serving-endpoints/{}/invocations", self.model.model_name)
+        };
+
         let url = base_url.join(&path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
@@ -374,5 +385,48 @@ impl Provider for DatabricksProvider {
 
     fn supports_streaming(&self) -> bool {
         true
+    }
+
+    fn supports_embeddings(&self) -> bool {
+        true
+    }
+
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, texts)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
+}
+
+#[async_trait]
+impl EmbeddingCapable for DatabricksProvider {
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Create request in Databricks format for embeddings
+        let request = json!({
+            "input": texts,
+        });
+
+        let response = self.post(request).await?;
+
+        let embeddings = response["data"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("Invalid response format: missing data array"))?
+            .iter()
+            .map(|item| {
+                item["embedding"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding format"))?
+                    .iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<f32>>>()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding values"))
+            })
+            .collect::<Result<Vec<Vec<f32>>>>()?;
+
+        Ok(embeddings)
     }
 }

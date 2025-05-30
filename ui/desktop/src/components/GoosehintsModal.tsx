@@ -3,7 +3,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Check } from './icons';
 
-const Modal = ({ children }) => (
+const Modal = ({ children }: { children: React.ReactNode }) => (
   <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] z-[1000]">
     <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col min-w-[80%] min-h-[80%] bg-bgApp rounded-xl overflow-hidden shadow-none px-8 pt-[24px] pb-0">
       <div className="flex flex-col flex-1 space-y-8 text-base text-textStandard h-full">
@@ -48,13 +48,13 @@ const ModalHelpText = () => (
   </div>
 );
 
-const ModalError = ({ error }) => (
+const ModalError = ({ error }: { error: Error }) => (
   <div className="text-sm text-textSubtle">
     <div className="text-red-600">Error reading .goosehints file: {JSON.stringify(error)}</div>
   </div>
 );
 
-const ModalFileInfo = ({ filePath, found }) => (
+const ModalFileInfo = ({ filePath, found }: { filePath: string; found: boolean }) => (
   <div className="text-sm font-medium">
     {found ? (
       <div className="text-green-600">
@@ -66,7 +66,7 @@ const ModalFileInfo = ({ filePath, found }) => (
   </div>
 );
 
-const ModalButtons = ({ onSubmit, onCancel }) => (
+const ModalButtons = ({ onSubmit, onCancel }: { onSubmit: () => void; onCancel: () => void }) => (
   <div className="-ml-8 -mr-8">
     <Button
       type="submit"
@@ -87,7 +87,7 @@ const ModalButtons = ({ onSubmit, onCancel }) => (
   </div>
 );
 
-const getGoosehintsFile = async (filePath) => await window.electron.readFile(filePath);
+const getGoosehintsFile = async (filePath: string) => await window.electron.readFile(filePath);
 
 type GoosehintsModalProps = {
   directory: string;

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::StreamExt;
-use goose::agents::Agent;
+use goose::agents::{Agent, AgentEvent};
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
@@ -132,7 +132,10 @@ async fn run_truncate_test(
     let mut responses = Vec::new();
     while let Some(response_result) = reply_stream.next().await {
         match response_result {
-            Ok(response) => responses.push(response),
+            Ok(AgentEvent::Message(response)) => responses.push(response),
+            Ok(AgentEvent::McpNotification(n)) => {
+                println!("MCP Notification: {n:?}");
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -152,9 +155,26 @@ async fn run_truncate_test(
 
     assert_eq!(responses[0].content.len(), 1);
 
-    let response_text = responses[0].content[0].as_text().unwrap();
-    assert!(response_text.to_lowercase().contains("no"));
-    assert!(!response_text.to_lowercase().contains("yes"));
+    match responses[0].content[0] {
+        goose::message::MessageContent::Text(ref text_content) => {
+            assert!(text_content.text.to_lowercase().contains("no"));
+            assert!(!text_content.text.to_lowercase().contains("yes"));
+        }
+        goose::message::MessageContent::ContextLengthExceeded(_) => {
+            // This is an acceptable outcome for providers that don't truncate themselves
+            // and correctly report that the context length was exceeded.
+            println!(
+                "Received ContextLengthExceeded as expected for {:?}",
+                provider_type
+            );
+        }
+        _ => {
+            panic!(
+                "Unexpected message content type: {:?}",
+                responses[0].content[0]
+            );
+        }
+    }
 
     Ok(())
 }

@@ -7,6 +7,7 @@ mod thinking;
 
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -26,6 +27,8 @@ use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
 
+use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::protocol::JsonRpcNotification;
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -555,7 +558,16 @@ impl Session {
 
                     let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
                     let should_summarize =
-                        cliclack::confirm(prompt).initial_value(true).interact()?;
+                        match cliclack::confirm(prompt).initial_value(true).interact() {
+                            Ok(choice) => choice,
+                            Err(e) => {
+                                if e.kind() == std::io::ErrorKind::Interrupted {
+                                    false // If interrupted, set should_summarize to false
+                                } else {
+                                    return Err(e.into());
+                                }
+                            }
+                        };
 
                     if should_summarize {
                         println!("{}", console::style("Summarizing conversation...").yellow());
@@ -624,10 +636,21 @@ impl Session {
         match planner_response_type {
             PlannerResponseType::Plan => {
                 println!();
-                let should_act =
-                    cliclack::confirm("Do you want to clear message history & act on this plan?")
-                        .initial_value(true)
-                        .interact()?;
+                let should_act = match cliclack::confirm(
+                    "Do you want to clear message history & act on this plan?",
+                )
+                .initial_value(true)
+                .interact()
+                {
+                    Ok(choice) => choice,
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::Interrupted {
+                            false // If interrupted, set should_act to false
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                };
                 if should_act {
                     output::render_act_on_plan();
                     self.run_mode = RunMode::Normal;
@@ -688,16 +711,20 @@ impl Session {
                     id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
+                    schedule_id: None,
                 }),
             )
             .await?;
+
+        let mut progress_bars = output::McpSpinners::new();
 
         use futures::StreamExt;
         loop {
             tokio::select! {
                 result = stream.next() => {
+                    let _ = progress_bars.hide();
                     match result {
-                        Some(Ok(message)) => {
+                        Some(Ok(AgentEvent::Message(message))) => {
                             // If it's a confirmation request, get approval but otherwise do not render/persist
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
@@ -750,11 +777,23 @@ impl Session {
                                 if interactive {
                                     // In interactive mode, ask the user what to do
                                     let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
-                                    let selected = cliclack::select(prompt)
+                                    let selected_result = cliclack::select(prompt)
                                         .item("clear", "Clear Session", "Removes all messages from Goose's memory")
                                         .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
                                         .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
-                                        .interact()?;
+                                        .item("cancel", "Cancel", "Cancel and return to chat")
+                                        .interact();
+
+                                    let selected = match selected_result {
+                                        Ok(s) => s,
+                                        Err(e) => {
+                                            if e.kind() == std::io::ErrorKind::Interrupted {
+                                                "cancel" // If interrupted, set selected to cancel
+                                            } else {
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    };
 
                                     match selected {
                                         "clear" => {
@@ -775,6 +814,9 @@ impl Session {
                                             // Use the helper function to summarize context
                                             Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose summarized messages for you.").await?;
                                         }
+                                        "cancel" => {
+                                            break; // Return to main prompt
+                                        }
                                         _ => {
                                             unreachable!()
                                         }
@@ -793,6 +835,7 @@ impl Session {
                                             id: session_id.clone(),
                                             working_dir: std::env::current_dir()
                                                 .expect("failed to get current session working directory"),
+                                            schedule_id: None,
                                         }),
                                     )
                                     .await?;
@@ -807,6 +850,51 @@ impl Session {
                                 if interactive {output::hide_thinking()};
                                 output::render_message(&message, self.debug);
                                 if interactive {output::show_thinking()};
+                            }
+                        }
+                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                                if let JsonRpcMessage::Notification(JsonRpcNotification{
+                                    method,
+                                    params: Some(Value::Object(o)),
+                                    ..
+                                }) = message {
+                                match method.as_str() {
+                                    "notifications/message" => {
+                                        let data = o.get("data").unwrap_or(&Value::Null);
+                                        let message = match data {
+                                            Value::String(s) => s.clone(),
+                                            Value::Object(o) => {
+                                                if let Some(Value::String(output)) = o.get("output") {
+                                                    output.to_owned()
+                                                } else {
+                                                    data.to_string()
+                                                }
+                                            },
+                                            v => {
+                                                    v.to_string()
+                                            },
+                                        };
+                                        // output::render_text_no_newlines(&message, None, true);
+                                        progress_bars.log(&message);
+                                    },
+                                    "notifications/progress" => {
+                                        let progress = o.get("progress").and_then(|v| v.as_f64());
+                                        let token = o.get("progressToken").map(|v| v.to_string());
+                                        let message = o.get("message").and_then(|v| v.as_str());
+                                        let total = o
+                                            .get("total")
+                                            .and_then(|v| v.as_f64());
+                                        if let (Some(progress), Some(token)) = (progress, token) {
+                                            progress_bars.update(
+                                                token.as_str(),
+                                                progress,
+                                                total,
+                                                message,
+                                            );
+                                        }
+                                    },
+                                    _ => (),
+                                }
                             }
                         }
                         Some(Err(e)) => {
@@ -836,6 +924,7 @@ impl Session {
             }
         }
         println!();
+
         Ok(())
     }
 

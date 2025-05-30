@@ -217,6 +217,18 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
+    /// Check if this provider supports embeddings
+    fn supports_embeddings(&self) -> bool {
+        false
+    }
+
+    /// Create embeddings if supported. Default implementation returns an error.
+    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        Err(ProviderError::ExecutionError(
+            "This provider does not support embeddings".to_string(),
+        ))
+    }
+
     async fn stream(
         &self,
         _system: &str,

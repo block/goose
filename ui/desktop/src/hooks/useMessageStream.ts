@@ -6,11 +6,25 @@ import { Message, createUserMessage, hasCompletedToolCalls } from '../types/mess
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface NotificationEvent {
+  type: 'Notification';
+  request_id: string;
+  message: {
+    method: string;
+    params: {
+      [key: string]: JsonValue;
+    };
+  };
+}
+
 // Event types for SSE stream
 type MessageEvent =
   | { type: 'Message'; message: Message }
   | { type: 'Error'; error: string }
-  | { type: 'Finish'; reason: string };
+  | { type: 'Finish'; reason: string }
+  | NotificationEvent;
 
 export interface UseMessageStreamOptions {
   /**
@@ -124,6 +138,8 @@ export interface UseMessageStreamHelpers {
 
   /** Modify body (session id and/or work dir mid-stream) **/
   updateMessageStreamBody?: (newBody: object) => void;
+
+  notifications: NotificationEvent[];
 }
 
 /**
@@ -150,6 +166,8 @@ export function useMessageStream({
   const { data: messages, mutate } = useSWR<Message[]>([chatKey, 'messages'], null, {
     fallbackData: initialMessages,
   });
+
+  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -262,6 +280,14 @@ export function useMessageStream({
                     }
 
                     mutate(currentMessages, false);
+                    break;
+                  }
+
+                  case 'Notification': {
+                    const newNotification = {
+                      ...parsedEvent,
+                    };
+                    setNotifications((prev) => [...prev, newNotification]);
                     break;
                   }
 
@@ -534,5 +560,6 @@ export function useMessageStream({
     isLoading: isLoading || false,
     addToolResult,
     updateMessageStreamBody,
+    notifications,
   };
 }

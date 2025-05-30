@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Import actual PNG images
 import llamaSprite from '../../assets/battle-game/llama.png';
@@ -22,11 +22,10 @@ interface OllamaBattleGameProps {
   requiredKeys: string[];
 }
 
-export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGameProps) {
+export function OllamaBattleGame({ onComplete, requiredKeys: _ }: OllamaBattleGameProps) {
   // Use Audio element type for audioRef
-  const audioRef = useRef<{ play: () => Promise<void>; pause: () => void; volume: number } | null>(
-    null
-  );
+  // eslint-disable-next-line no-undef
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
 
   const [battleState, setBattleState] = useState<BattleState>({
@@ -169,10 +168,10 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
     if (!currentStep) return;
 
     // Handle host input
-    if (currentStep.action === 'host_input' && value) {
+    if (currentStep.action === 'host_input' && value && currentStep.configKey) {
       setConfigValues((prev) => ({
         ...prev,
-        [currentStep.configKey]: value,
+        [currentStep.configKey!]: value,
       }));
       return;
     }
@@ -405,8 +404,12 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
                 !battleState.processingAction && (
                   <div className="space-y-2">
                     {(typeof battleSteps[battleState.currentStep].choices === 'function'
-                      ? battleSteps[battleState.currentStep].choices(battleState.lastChoice || '')
-                      : battleSteps[battleState.currentStep].choices
+                      ? (
+                          battleSteps[battleState.currentStep].choices as (
+                            choice: string
+                          ) => string[]
+                        )(battleState.lastChoice || '')
+                      : (battleSteps[battleState.currentStep].choices as string[])
                     )?.map((choice: string) => (
                       <button
                         key={choice}

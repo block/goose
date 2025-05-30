@@ -22,4 +22,6 @@ pub struct SessionConfig {
     pub id: session::Identifier,
     /// Working directory for the session
     pub working_dir: PathBuf,
+    /// ID of the schedule that triggered this session, if any
+    pub schedule_id: Option<String>, // NEW
 }
