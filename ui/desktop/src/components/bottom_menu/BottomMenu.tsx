@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useModel } from '../settings/models/ModelContext';
 import { AlertType, useAlerts } from '../alerts';
 import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
@@ -34,7 +33,6 @@ export default function BottomMenu({
   setMessages: (messages: Message[]) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const { currentModel } = useModel();
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
@@ -116,8 +114,7 @@ export default function BottomMenu({
   // Initial load and refresh when model changes
   useEffect(() => {
     loadProviderDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel]);
+  }, []);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
