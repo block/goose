@@ -43,6 +43,15 @@ export interface ChatType {
   messages: Message[];
 }
 
+// interface _RecipeConfig {
+//   id: string;
+//   name: string;
+//   description: string;
+//   instructions?: string;
+//   activities?: string[];
+//   [key: string]: unknown;
+// }
+
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
