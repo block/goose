@@ -7,10 +7,11 @@ import { ViewOptions, View } from '../../App';
 
 interface RecipeConfig {
   id: string;
-  title: string;
+  name: string;
   description: string;
-  instructions: string;
-  activities: string[];
+  instructions?: string;
+  activities?: string[];
+  [key: string]: unknown;
 }
 
 interface MenuButtonProps {
@@ -252,7 +253,7 @@ export default function MoreMenu({
                       undefined, // dir
                       undefined, // version
                       undefined, // resumeSessionId
-                      recipeConfig as RecipeConfig | undefined, // recipe config
+                      recipeConfig as RecipeConfig, // recipe config
                       'recipeEditor' // view type
                     );
                   }}

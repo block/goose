@@ -25,7 +25,7 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions =
   const { retries = 3, delayMs = 1000, backoffFactor = 1.5, shouldRetry = () => true } = options;
 
   let attempt = 0;
-  let lastError: ExtensionError;
+  let lastError: ExtensionError = new Error('Unknown error');
 
   while (attempt <= retries) {
     try {
@@ -110,7 +110,7 @@ export async function addToAgentOnStartup({
     toastService.error({
       title: extensionConfig.name,
       msg: 'Extension failed to start and will be disabled.',
-      traceback: finalError instanceof Error ? finalError : new Error(String(finalError)),
+      traceback: finalError instanceof Error ? finalError.message : String(finalError),
     });
 
     try {

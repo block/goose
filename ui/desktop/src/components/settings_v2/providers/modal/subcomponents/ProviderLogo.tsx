@@ -8,7 +8,7 @@ import OpenRouterLogo from './icons/openrouter@3x.png';
 import DefaultLogo from './icons/default@3x.png';
 
 // Map provider names to their logos
-const providerLogos = {
+const providerLogos: Record<string, string> = {
   openai: OpenAILogo,
   anthropic: AnthropicLogo,
   google: GoogleLogo,
