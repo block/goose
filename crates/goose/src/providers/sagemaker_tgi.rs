@@ -81,25 +81,17 @@ impl SageMakerTgiProvider {
         })
     }
 
-    fn create_tgi_request(&self, system: &str, messages: &[Message], tools: &[Tool]) -> Result<Value> {
-        // Check if we should use tool calling format
-        let use_tool_calling = self.supports_tool_calling();
-        
-        if use_tool_calling && !tools.is_empty() {
-            // Use OpenAI-compatible format for models that support it
-            return self.create_tool_calling_request(system, messages, tools);
-        }
-        
+    fn create_tgi_request(&self, system: &str, messages: &[Message], _tools: &[Tool]) -> Result<Value> {
         // Create a simplified prompt for basic TGI models
         // Skip the complex system prompt and tool descriptions that cause the model to mimic tool formats
         let mut prompt = String::new();
         
-        // Use a very simple system prompt if provided
-        if !system.is_empty() && !system.contains("Available tools") && system.len() < 200 {
+        // Use a very simple system prompt if provided, but ensure it doesn't contain HTML instructions
+        if !system.is_empty() && !system.contains("Available tools") && system.len() < 200 && !system.contains("HTML") && !system.contains("markdown") {
             prompt.push_str(&format!("System: {}\n\n", system));
         } else {
-            // Use a minimal system prompt for TGI
-            prompt.push_str("System: You are a helpful AI assistant.\n\n");
+            // Use a minimal system prompt for TGI that explicitly avoids HTML
+            prompt.push_str("System: You are a helpful AI assistant. Provide responses in plain text only. Do not use HTML tags, markup, or formatting.\n\n");
         }
 
         // Only include the most recent user messages to avoid overwhelming the model
@@ -119,8 +111,8 @@ impl SageMakerTgiProvider {
                     prompt.push_str("Assistant: ");
                     for content in &message.content {
                         if let MessageContent::Text(text) = content {
-                            // Skip responses that look like tool descriptions
-                            if !text.text.contains("__") && !text.text.contains("Available tools") {
+                            // Skip responses that look like tool descriptions or contain HTML
+                            if !text.text.contains("__") && !text.text.contains("Available tools") && !text.text.contains("<") {
                                 prompt.push_str(&text.text);
                             }
                         }
@@ -150,125 +142,6 @@ impl SageMakerTgiProvider {
         Ok(request)
     }
 
-    fn supports_tool_calling(&self) -> bool {
-        // Check if the model supports tool calling
-        // You can configure this via environment variable or model name detection
-        std::env::var("GOOSE_SAGEMAKER_SUPPORTS_TOOLS")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false)
-    }
-
-    fn create_tool_calling_request(&self, system: &str, messages: &[Message], tools: &[Tool]) -> Result<Value> {
-        // Convert messages to OpenAI format
-        let mut openai_messages = Vec::new();
-        
-        if !system.is_empty() {
-            openai_messages.push(json!({
-                "role": "system",
-                "content": system
-            }));
-        }
-
-        for message in messages {
-            match &message.role {
-                Role::User => {
-                    let content = message.content.iter()
-                        .filter_map(|c| {
-                            if let MessageContent::Text(text) = c {
-                                Some(text.text.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    
-                    openai_messages.push(json!({
-                        "role": "user",
-                        "content": content
-                    }));
-                }
-                Role::Assistant => {
-                    let content = message.content.iter()
-                        .filter_map(|c| {
-                            if let MessageContent::Text(text) = c {
-                                Some(text.text.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    
-                    if !content.is_empty() {
-                        openai_messages.push(json!({
-                            "role": "assistant",
-                            "content": content
-                        }));
-                    }
-                }
-            }
-        }
-
-        // Convert tools to OpenAI format, cleaning up unsupported schema formats
-        let openai_tools: Vec<Value> = tools.iter().map(|tool| {
-            let cleaned_schema = self.clean_schema_for_tgi(&tool.input_schema);
-            json!({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": cleaned_schema
-                }
-            })
-        }).collect();
-
-        // Create OpenAI-compatible request
-        let request = json!({
-            "messages": openai_messages,
-            "tools": openai_tools,
-            "tool_choice": "auto",
-            "max_tokens": self.model.max_tokens.unwrap_or(150),
-            "temperature": self.model.temperature.unwrap_or(0.7)
-        });
-
-        Ok(request)
-    }
-
-    fn clean_schema_for_tgi(&self, schema: &Value) -> Value {
-        // Recursively clean JSON schema to remove formats unsupported by TGI/Outlines
-        match schema {
-            Value::Object(obj) => {
-                let mut cleaned = serde_json::Map::new();
-                for (key, value) in obj {
-                    if key == "format" {
-                        // Skip format constraints that TGI doesn't support
-                        if let Some(format_str) = value.as_str() {
-                            match format_str {
-                                "uri" | "email" | "date" | "date-time" | "uuid" => {
-                                    // Skip these unsupported formats
-                                    continue;
-                                }
-                                _ => {
-                                    // Keep supported formats
-                                    cleaned.insert(key.clone(), value.clone());
-                                }
-                            }
-                        }
-                    } else {
-                        // Recursively clean nested objects/arrays
-                        cleaned.insert(key.clone(), self.clean_schema_for_tgi(value));
-                    }
-                }
-                Value::Object(cleaned)
-            }
-            Value::Array(arr) => {
-                Value::Array(arr.iter().map(|v| self.clean_schema_for_tgi(v)).collect())
-            }
-            _ => schema.clone(),
-        }
-    }
-
     async fn invoke_endpoint(&self, payload: Value) -> Result<Value, ProviderError> {
         let body = serde_json::to_string(&payload)
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to serialize request: {}", e)))?;
@@ -292,11 +165,6 @@ impl SageMakerTgiProvider {
     }
 
     fn parse_tgi_response(&self, response: Value) -> Result<Message, ProviderError> {
-        // Check if this is an OpenAI-compatible response (tool calling format)
-        if response.get("choices").is_some() {
-            return self.parse_openai_response(response);
-        }
-
         // Handle standard TGI response: [{"generated_text": "..."}]
         let response_array = response.as_array()
             .ok_or_else(|| ProviderError::RequestFailed("Expected array response".to_string()))?;
@@ -310,72 +178,44 @@ impl SageMakerTgiProvider {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ProviderError::RequestFailed("No generated_text in response".to_string()))?;
 
+        // Strip any HTML tags that might have been generated
+        let clean_text = self.strip_html_tags(generated_text);
+
         Ok(Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: vec![MessageContent::Text(TextContent {
-                text: generated_text.to_string(),
+                text: clean_text,
                 annotations: None,
             })],
         })
     }
 
-    fn parse_openai_response(&self, response: Value) -> Result<Message, ProviderError> {
-        let choices = response.get("choices")
-            .and_then(|c| c.as_array())
-            .ok_or_else(|| ProviderError::RequestFailed("No choices in OpenAI response".to_string()))?;
-
-        if choices.is_empty() {
-            return Err(ProviderError::RequestFailed("Empty choices array".to_string()));
+    /// Strip HTML tags from text to ensure clean output
+    fn strip_html_tags(&self, text: &str) -> String {
+        // Simple regex-free approach to strip common HTML tags
+        let mut result = text.to_string();
+        
+        // Remove common HTML tags like <b>, <i>, <strong>, <em>, etc.
+        let tags_to_remove = ["<b>", "</b>", "<i>", "</i>", "<strong>", "</strong>", 
+                             "<em>", "</em>", "<u>", "</u>", "<br>", "<br/>", 
+                             "<p>", "</p>", "<div>", "</div>", "<span>", "</span>"];
+        
+        for tag in &tags_to_remove {
+            result = result.replace(tag, "");
         }
-
-        let choice = &choices[0];
-        let message = choice.get("message")
-            .ok_or_else(|| ProviderError::RequestFailed("No message in choice".to_string()))?;
-
-        let mut content = Vec::new();
-
-        // Handle text content
-        if let Some(text_content) = message.get("content").and_then(|c| c.as_str()) {
-            if !text_content.is_empty() {
-                content.push(MessageContent::Text(TextContent {
-                    text: text_content.to_string(),
-                    annotations: None,
-                }));
+        
+        // Remove any remaining HTML-like tags using a simple pattern
+        // This is a basic implementation - for production use, consider using a proper HTML parser
+        while let Some(start) = result.find('<') {
+            if let Some(end) = result[start..].find('>') {
+                result.replace_range(start..start + end + 1, "");
+            } else {
+                break;
             }
         }
-
-        // Handle tool calls
-        if let Some(tool_calls) = message.get("tool_calls").and_then(|tc| tc.as_array()) {
-            for tool_call in tool_calls {
-                if let (Some(id), Some(function)) = (
-                    tool_call.get("id").and_then(|i| i.as_str()),
-                    tool_call.get("function")
-                ) {
-                    if let (Some(name), Some(arguments)) = (
-                        function.get("name").and_then(|n| n.as_str()),
-                        function.get("arguments").and_then(|a| a.as_str())
-                    ) {
-                        // Parse the tool call arguments
-                        let args: Value = serde_json::from_str(arguments)
-                            .unwrap_or_else(|_| json!({}));
-
-                        let tool_call = mcp_core::tool::ToolCall {
-                            name: name.to_string(),
-                            arguments: args,
-                        };
-
-                        content.push(MessageContent::tool_request(id, Ok(tool_call)));
-                    }
-                }
-            }
-        }
-
-        Ok(Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content,
-        })
+        
+        result.trim().to_string()
     }
 }
 
@@ -400,7 +240,6 @@ impl Provider for SageMakerTgiProvider {
                 ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", false, false, None),
                 ConfigKey::new("AWS_REGION", true, false, Some("us-east-1")),
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
-                ConfigKey::new("GOOSE_SAGEMAKER_SUPPORTS_TOOLS", true, false, Some("false")),
             ],
         )
     }
