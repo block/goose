@@ -18,7 +18,7 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
-        You can use keyboard shortcuts to start a new session or bring focus to open Goose windows.
+        You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
