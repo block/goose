@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::StreamExt;
-use goose::agents::Agent;
+use goose::agents::{Agent, AgentEvent};
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
@@ -132,7 +132,10 @@ async fn run_truncate_test(
     let mut responses = Vec::new();
     while let Some(response_result) = reply_stream.next().await {
         match response_result {
-            Ok(response) => responses.push(response),
+            Ok(AgentEvent::Message(response)) => responses.push(response),
+            Ok(AgentEvent::McpNotification(n)) => {
+                println!("MCP Notification: {n:?}");
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);

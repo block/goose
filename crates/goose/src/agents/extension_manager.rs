@@ -1,8 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
-use futures::future;
 use futures::stream::{FuturesUnordered, StreamExt};
-use mcp_client::McpService;
+use futures::{future, FutureExt};
 use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -10,15 +9,17 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task;
-use tracing::{debug, error, warn};
+use tokio_stream::wrappers::ReceiverStream;
+use tracing::{error, warn};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use super::tool_execution::ToolCallResult;
 use crate::agents::extension::Envs;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
+use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -113,7 +114,8 @@ impl ExtensionManager {
     /// Add a new MCP extension based on the provided client type
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
-        let sanitized_name = normalize(config.key().to_string());
+        let config_name = config.key().to_string();
+        let sanitized_name = normalize(config_name.clone());
 
         /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
         async fn merge_environments(
@@ -183,13 +185,15 @@ impl ExtensionManager {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
                 let transport = SseTransport::new(uri, all_envs);
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
+                Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
             }
             ExtensionConfig::Stdio {
                 cmd,
@@ -202,13 +206,15 @@ impl ExtensionManager {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
                 let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
+                Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
             }
             ExtensionConfig::Builtin {
                 name,
@@ -227,13 +233,15 @@ impl ExtensionManager {
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
+                Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
             }
             _ => unreachable!(),
         };
@@ -609,7 +617,7 @@ impl ExtensionManager {
         }
     }
 
-    pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> ToolResult<Vec<Content>> {
+    pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> Result<ToolCallResult> {
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) = self
             .get_client_for_tool(&tool_call.name)
@@ -620,22 +628,26 @@ impl ExtensionManager {
             .name
             .strip_prefix(client_name)
             .and_then(|s| s.strip_prefix("__"))
-            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
+            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?
+            .to_string();
 
-        let client_guard = client.lock().await;
+        let arguments = tool_call.arguments.clone();
+        let client = client.clone();
+        let notifications_receiver = client.lock().await.subscribe().await;
 
-        let result = client_guard
-            .call_tool(tool_name, tool_call.clone().arguments)
-            .await
-            .map(|result| result.content)
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+        let fut = async move {
+            let client_guard = client.lock().await;
+            client_guard
+                .call_tool(&tool_name, arguments)
+                .await
+                .map(|call| call.content)
+                .map_err(|e| ToolError::ExecutionError(e.to_string()))
+        };
 
-        debug!(
-            "input" = serde_json::to_string(&tool_call).unwrap(),
-            "output" = serde_json::to_string(&result).unwrap(),
-        );
-
-        result
+        Ok(ToolCallResult {
+            result: Box::new(fut.boxed()),
+            notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
+        })
     }
 
     pub async fn list_prompts_from_extension(
@@ -793,10 +805,11 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, ReadResourceResult,
+        CallToolResult, GetPromptResult, InitializeResult, JsonRpcMessage, ListPromptsResult,
+        ListResourcesResult, ListToolsResult, ReadResourceResult,
     };
     use serde_json::json;
+    use tokio::sync::mpsc;
 
     struct MockClient {}
 
@@ -848,6 +861,10 @@ mod tests {
             _arguments: Value,
         ) -> Result<GetPromptResult, Error> {
             Err(Error::NotInitialized)
+        }
+
+        async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage> {
+            mpsc::channel(1).1
         }
     }
 
@@ -970,6 +987,9 @@ mod tests {
 
         let result = extension_manager
             .dispatch_tool_call(invalid_tool_call)
+            .await
+            .unwrap()
+            .result
             .await;
         assert!(matches!(
             result.err().unwrap(),
@@ -986,6 +1006,11 @@ mod tests {
         let result = extension_manager
             .dispatch_tool_call(invalid_tool_call)
             .await;
-        assert!(matches!(result.err().unwrap(), ToolError::NotFound(_)));
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ToolError>().expect("Expected ToolError");
+            assert!(matches!(tool_err, ToolError::NotFound(_)));
+        } else {
+            panic!("Expected ToolError::NotFound");
+        }
     }
 }

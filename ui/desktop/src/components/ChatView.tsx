@@ -148,6 +148,7 @@ function ChatContent({
     handleInputChange: _handleInputChange,
     handleSubmit: _submitMessage,
     updateMessageStreamBody,
+    notifications,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -492,6 +493,16 @@ function ChatContent({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
+
+  const toolCallNotifications = notifications.reduce((map, item) => {
+    const key = item.request_id;
+    if (!map.has(key)) {
+      map.set(key, []);
+    }
+    map.get(key).push(item);
+    return map;
+  }, new Map());
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
@@ -571,6 +582,7 @@ function ChatContent({
                             const updatedMessages = [...messages, newMessage];
                             setMessages(updatedMessages);
                           }}
+                          toolCallNotifications={toolCallNotifications}
                         />
                       )}
                     </>
@@ -578,6 +590,7 @@ function ChatContent({
                 </div>
               ))}
             </SearchView>
+
             {error && (
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
