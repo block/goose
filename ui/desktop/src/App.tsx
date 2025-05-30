@@ -7,26 +7,26 @@ import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
-import { extractExtensionName } from './components/settings_v2/extensions/utils';
+import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
 import { type Recipe } from './recipe';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
-import SettingsView, { SettingsViewOptions } from './components/settings_v2/SettingsView';
+import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
-import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
-import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
+import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
-import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
+import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import { type SessionDetails } from './sessions';
 

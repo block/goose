@@ -11,7 +11,7 @@ import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
-// import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
+// import ExtensionList from './settings/extensions/subcomponents/ExtensionList';
 
 interface RecipeEditorProps {
   config?: Recipe;

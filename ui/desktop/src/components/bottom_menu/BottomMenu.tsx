@@ -4,9 +4,9 @@ import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import type { View, ViewOptions } from '../../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
+import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
-import { getCurrentModelAndProvider } from '../settings_v2/models';
+import { getCurrentModelAndProvider } from '../settings/models';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
