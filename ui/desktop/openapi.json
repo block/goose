@@ -589,6 +589,66 @@
         }
       }
     },
+    "/schedule/{id}/inspect": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "inspect_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to inspect",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/kill": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "kill_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job killed successfully"
+          }
+        }
+      }
+    },
     "/schedule/{id}/pause": {
       "post": {
         "tags": [
@@ -1332,6 +1392,35 @@
           }
         }
       },
+      "InspectJobResponse": {
+        "type": "object",
+        "properties": {
+          "processStartTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "runningDurationSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "KillJobResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "ListSchedulesResponse": {
         "type": "object",
         "required": [
@@ -1805,6 +1894,10 @@
           "cron": {
             "type": "string"
           },
+          "current_session_id": {
+            "type": "string",
+            "nullable": true
+          },
           "currently_running": {
             "type": "boolean"
           },
@@ -1818,6 +1911,11 @@
           },
           "paused": {
             "type": "boolean"
+          },
+          "process_start_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "source": {
             "type": "string"
