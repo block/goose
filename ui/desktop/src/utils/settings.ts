@@ -10,6 +10,8 @@ export interface EnvToggles {
 
 export interface Settings {
   envToggles: EnvToggles;
+  showMenuBarIcon: boolean;
+  showDockIcon: boolean;
 }
 
 // Constants
@@ -20,6 +22,8 @@ const defaultSettings: Settings = {
     GOOSE_SERVER__MEMORY: false,
     GOOSE_SERVER__COMPUTER_CONTROLLER: false,
   },
+  showMenuBarIcon: true,
+  showDockIcon: true,
 };
 
 // Settings management
