@@ -1,4 +1,3 @@
-
 export default function Attach({ className = '' }) {
   return (
     <svg

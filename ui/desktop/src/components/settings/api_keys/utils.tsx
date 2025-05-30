@@ -103,14 +103,17 @@ export async function getConfigSettings(): Promise<Record<string, ProviderRespon
       supported: true,
       description: provider.metadata.description,
       models: provider.metadata.models,
-      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>((acc: Record<string, ConfigDetails>, key: string) => {
-        acc[key] = {
-          key,
-          is_set: provider.is_configured,
-          location: provider.is_configured ? 'config' : undefined,
-        };
-        return acc;
-      }, {}),
+      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>(
+        (acc: Record<string, ConfigDetails>, key: string) => {
+          acc[key] = {
+            key,
+            is_set: provider.is_configured,
+            location: provider.is_configured ? 'config' : undefined,
+          };
+          return acc;
+        },
+        {}
+      ),
     };
   });
 

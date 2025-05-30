@@ -185,9 +185,17 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    // For bot/recipe URLs, skip existing window processing
-    // and let processProtocolUrl handle it entirely
-    processProtocolUrl(parsedUrl, null);
+    let recipeConfig = null;
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
+    // Create a new window and ignore the passed-in window
+    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -378,7 +386,7 @@ const createChat = async (
   let working_dir = '';
   let goosedProcess = null;
 
-  if (viewType === 'recipeEditor') {
+  if (viewType) {
     // For recipeEditor, get the port from existing windows' config
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
@@ -521,6 +529,19 @@ const createChat = async (
     queryParams = queryParams
       ? `${queryParams}&view=${encodeURIComponent(viewType)}`
       : `?view=${encodeURIComponent(viewType)}`;
+  }
+
+  // Check if this is a recipe with parameters that need filling
+  if (
+    recipeConfig &&
+    typeof recipeConfig === 'object' &&
+    'parameters' in recipeConfig &&
+    Array.isArray(recipeConfig.parameters) &&
+    recipeConfig.parameters.length > 0 &&
+    !('_paramValues' in recipeConfig)
+  ) {
+    // Set the view to recipeParameters by default
+    queryParams = queryParams ? `${queryParams}&view=recipeParameters` : `?view=recipeParameters`;
   }
 
   const primaryDisplay = electron.screen.getPrimaryDisplay();

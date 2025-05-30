@@ -1,4 +1,3 @@
-
 export default function Idea({ className = '' }) {
   return (
     <svg

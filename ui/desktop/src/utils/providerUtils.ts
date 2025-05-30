@@ -1,6 +1,7 @@
 import { getApiUrl, getSecretKey } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
+import { Recipe } from '../recipe';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -134,12 +135,28 @@ export const initializeSystem = async (
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
-    await initializeAgent({ provider, model });
-
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipeConfig') as Recipe | undefined;
     const botPrompt = recipeConfig?.instructions;
+    const paramValues = recipeConfig?._paramValues || {};
+
+    // Initialize agent with recipe config and parameters
+    const processedRecipe = await initializeAgent({
+      provider,
+      model,
+      recipeConfig,
+      recipeParams: paramValues,
+    });
+
+    // Update the app config with the processed recipe if we got one back
+    if (processedRecipe) {
+      if (recipeConfig?._paramValues) {
+        processedRecipe._paramValues = recipeConfig._paramValues;
+      }
+
+      window.appConfig.set('recipeConfig', processedRecipe);
+    }
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -155,11 +172,6 @@ export const initializeSystem = async (
     });
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
-    } else {
-      console.log('Extended system prompt with desktop-specific information');
-      if (botPrompt) {
-        console.log('Added custom bot prompt to system prompt');
-      }
     }
 
     if (!options?.getExtensions || !options?.addExtension) {

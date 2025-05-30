@@ -1,4 +1,3 @@
-
 export const BotIcon = () => {
   return (
     <svg

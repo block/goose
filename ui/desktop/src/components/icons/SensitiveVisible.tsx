@@ -1,4 +1,3 @@
-
 export default function SensitiveVisible({ className = '' }) {
   return (
     <svg

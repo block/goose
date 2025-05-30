@@ -1,4 +1,3 @@
-
 export default function ChatSmart({ className = '' }) {
   return (
     <svg

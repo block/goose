@@ -1,4 +1,3 @@
-
 export function Goose({ className = '' }) {
   return (
     <svg

@@ -29,7 +29,7 @@ export async function extensionApiCall(
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
-  const extensionName = isActivating ? (payload as ExtensionConfig).name : payload as string;
+  const extensionName = isActivating ? (payload as ExtensionConfig).name : (payload as string);
   let toastId;
 
   // Step 1: Show loading toast (only for activation of stdio)

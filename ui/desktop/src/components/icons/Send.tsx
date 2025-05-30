@@ -1,4 +1,3 @@
-
 export default function Send({ className = '' }) {
   return (
     <svg

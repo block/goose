@@ -1,4 +1,3 @@
-
 export default function Box({ size }: { size: number }) {
   return (
     <svg

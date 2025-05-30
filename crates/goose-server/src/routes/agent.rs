@@ -10,6 +10,7 @@ use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
+use goose::recipe::apply_recipe_parameters;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -60,11 +61,24 @@ struct ProviderList {
 struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
+    recipe_config: Option<RecipeWithParams>,
+}
+
+#[derive(Deserialize)]
+struct RecipeWithParams {
+    config: goose::recipe::Recipe,
+    parameters: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct UpdateProviderResponse {
+    success: bool,
+    processed_recipe: Option<goose::recipe::Recipe>,
 }
 
 async fn get_versions() -> Json<VersionsResponse> {
@@ -177,7 +191,7 @@ async fn get_tools(
     post,
     path = "/agent/update_provider",
     responses(
-        (status = 200, description = "Update provider completed", body = String),
+        (status = 200, description = "Update provider completed", body = UpdateProviderResponse),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -185,21 +199,34 @@ async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<Json<UpdateProviderResponse>, StatusCode> {
     // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state
         .get_agent()
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    let mut processed_recipe = None;
+
+    // Process recipe parameters if provided
+    if let Some(recipe_with_params) = payload.recipe_config {
+        let mut recipe = recipe_with_params.config;
+        
+        if !recipe_with_params.parameters.is_empty() {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters);
+            }))
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        }
+        
+        if let Some(instructions) = recipe.instructions.clone() {
+            agent.extend_system_prompt(instructions).await;
+        }
+
+        processed_recipe = Some(recipe);
+    }
 
     let config = Config::global();
     let model = payload.model.unwrap_or_else(|| {
@@ -214,7 +241,10 @@ async fn update_agent_provider(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(StatusCode::OK)
+    Ok(Json(UpdateProviderResponse {
+        success: true,
+        processed_recipe,
+    }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

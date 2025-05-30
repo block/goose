@@ -115,16 +115,15 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
+  // Get recipe config from app config
+  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+
   useEffect(() => {
-    // Log all messages when the component first mounts
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount;
-
-  // Get recipeConfig directly from appConfig
-  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -171,6 +170,11 @@ function ChatContent({
           body: 'Click here to expand.',
         });
       }
+    },
+    onError: (error) => {
+      console.error('Message stream error:', error);
+      window.electron.logInfo('Message stream error: ' + error.message);
+      window.electron.stopPowerSaveBlocker();
     },
   });
 
@@ -273,11 +277,12 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat: ChatType) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages, setChat]);
+    const updatedChat: ChatType = {
+      ...chat,
+      messages,
+    };
+    setChat(updatedChat);
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -287,11 +292,24 @@ function ChatContent({
 
   useEffect(() => {
     const prompt = recipeConfig?.prompt;
-    if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
+
+    const hasParameterValues =
+      recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
+    const hasNoParameters = recipeConfig && !recipeConfig.parameters;
+
+    // Allow recipes with no recipes and those with filled parameters to proceed
+    const shouldProceed = readyForAutoUserPrompt || hasParameterValues || hasNoParameters;
+
+    if (prompt && !hasSentPromptRef.current && shouldProceed) {
+      // Start the power save blocker to keep session active
+      window.electron.startPowerSaveBlocker();
+      setLastInteractionTime(Date.now());
+
+      // Send the prompt directly - let useMessageStream handle the rest
       append(prompt);
       hasSentPromptRef.current = true;
     }
-  }, [recipeConfig?.prompt, append, readyForAutoUserPrompt]);
+  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -468,7 +486,9 @@ function ChatContent({
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+        if (sessionDetails.metadata.total_tokens !== null) {
+          setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        }
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }

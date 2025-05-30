@@ -1,4 +1,3 @@
-
 export default function Refresh({ className = '' }) {
   return (
     <svg

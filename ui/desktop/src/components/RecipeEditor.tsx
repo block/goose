@@ -174,7 +174,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         setTimeout(() => setCopied(false), 2000);
       })
       .catch((err) => {
-        console.error('Failed to copy the text:', err);
+        console.error('Failed to copy the text: ', err);
       });
   };
 
@@ -365,7 +365,14 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         recipe={getCurrentConfig()}
         onCreateSchedule={(deepLink) => {
           // Open the schedules view with the deep link pre-filled
-          window.electron.createChatWindow(undefined, undefined, undefined, undefined, undefined, 'schedules');
+          window.electron.createChatWindow(
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            'schedules'
+          );
           // Store the deep link in localStorage for the schedules view to pick up
           localStorage.setItem('pendingScheduleDeepLink', deepLink);
         }}

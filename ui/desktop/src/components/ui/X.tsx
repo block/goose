@@ -1,4 +1,3 @@
-
 export default function X({ size }: { size: number }) {
   return (
     <svg

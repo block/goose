@@ -1,4 +1,3 @@
-
 export default function Back({ className = '' }) {
   return (
     <svg

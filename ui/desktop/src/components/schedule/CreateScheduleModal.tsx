@@ -96,12 +96,12 @@ function parseDeepLink(deepLink: string): Recipe | null {
     if (url.protocol !== 'goose:' || (url.hostname !== 'bot' && url.hostname !== 'recipe')) {
       return null;
     }
-    
+
     const configParam = url.searchParams.get('config');
     if (!configParam) {
       return null;
     }
-    
+
     const configJson = Buffer.from(configParam, 'base64').toString('utf-8');
     return JSON.parse(configJson) as Recipe;
   } catch (error) {
@@ -128,16 +128,16 @@ function recipeToYaml(recipe: Recipe): string {
   }
 
   if (recipe.extensions && recipe.extensions.length > 0) {
-    cleanRecipe.extensions = recipe.extensions.map(ext => {
+    cleanRecipe.extensions = recipe.extensions.map((ext) => {
       const cleanExt: CleanExtension = {
         name: ext.name,
         type: 'builtin', // Default type, will be overridden below
       };
-      
+
       // Handle different extension types
       if ('type' in ext && ext.type) {
         cleanExt.type = ext.type as CleanExtension['type'];
-        
+
         // Add type-specific fields based on the ExtensionConfig union types
         switch (ext.type) {
           case 'sse':
@@ -193,24 +193,24 @@ function recipeToYaml(recipe: Recipe): string {
           cleanExt.type = 'builtin';
         }
       }
-      
+
       // Add common optional fields
       if (ext.env_keys && ext.env_keys.length > 0) {
         cleanExt.env_keys = ext.env_keys;
       }
-      
+
       if ('timeout' in ext && ext.timeout) {
         cleanExt.timeout = ext.timeout as number;
       }
-      
+
       if ('description' in ext && ext.description) {
         cleanExt.description = ext.description as string;
       }
-      
+
       if ('bundled' in ext && ext.bundled !== undefined) {
         cleanExt.bundled = ext.bundled as boolean;
       }
-      
+
       return cleanExt;
     });
   }
@@ -258,27 +258,35 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [readableCronExpression, setReadableCronExpression] = useState<string>('');
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
 
-  const handleDeepLinkChange = useCallback((value: string) => {
-    setDeepLinkInput(value);
-    setInternalValidationError(null);
-    
-    if (value.trim()) {
-      const recipe = parseDeepLink(value.trim());
-      if (recipe) {
-        setParsedRecipe(recipe);
-        // Auto-populate schedule ID from recipe title if available
-        if (recipe.title && !scheduleId) {
-          const cleanId = recipe.title.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-          setScheduleId(cleanId);
+  const handleDeepLinkChange = useCallback(
+    (value: string) => {
+      setDeepLinkInput(value);
+      setInternalValidationError(null);
+
+      if (value.trim()) {
+        const recipe = parseDeepLink(value.trim());
+        if (recipe) {
+          setParsedRecipe(recipe);
+          // Auto-populate schedule ID from recipe title if available
+          if (recipe.title && !scheduleId) {
+            const cleanId = recipe.title
+              .toLowerCase()
+              .replace(/[^a-z0-9-]/g, '-')
+              .replace(/-+/g, '-');
+            setScheduleId(cleanId);
+          }
+        } else {
+          setParsedRecipe(null);
+          setInternalValidationError(
+            'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+          );
         }
       } else {
         setParsedRecipe(null);
-        setInternalValidationError('Invalid deep link format. Please use a goose://bot or goose://recipe link.');
       }
-    } else {
-      setParsedRecipe(null);
-    }
-  }, [scheduleId]);
+    },
+    [scheduleId]
+  );
 
   useEffect(() => {
     // Check for pending deep link when modal opens
@@ -420,7 +428,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
 
     let finalRecipeSource = '';
-    
+
     if (sourceType === 'file') {
       if (!recipeSourcePath) {
         setInternalValidationError('Recipe source file is required.');
@@ -436,7 +444,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         setInternalValidationError('Invalid deep link. Please check the format.');
         return;
       }
-      
+
       try {
         // Convert recipe to YAML and save to a temporary file
         const yamlContent = recipeToYaml(parsedRecipe);
@@ -444,14 +452,14 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
         const tempFilePath = `${tempDir}/${tempFileName}`;
-        
+
         // Write the YAML file
         const writeSuccess = await window.electron.writeFile(tempFilePath, yamlContent);
         if (!writeSuccess) {
           setInternalValidationError('Failed to create temporary recipe file.');
           return;
         }
-        
+
         finalRecipeSource = tempFilePath;
       } catch (error) {
         console.error('Failed to convert recipe to YAML:', error);

@@ -1,4 +1,3 @@
-
 export default function SensitiveHidden({ className = '' }) {
   return (
     <svg

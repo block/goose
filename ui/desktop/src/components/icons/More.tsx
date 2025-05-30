@@ -1,4 +1,3 @@
-
 export default function More({ className = '' }) {
   return (
     <svg
