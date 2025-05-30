@@ -1,7 +1,6 @@
 use mcp_client::{
     client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait},
     transport::{SseTransport, StdioTransport, Transport},
-    McpService,
 };
 use rand::Rng;
 use rand::SeedableRng;
@@ -20,18 +19,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let transport1 = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()], HashMap::new());
     let handle1 = transport1.start().await?;
-    let service1 = McpService::with_timeout(handle1, Duration::from_secs(30));
-    let client1 = McpClient::new(service1);
+    let client1 = McpClient::connect(handle1, Duration::from_secs(30)).await?;
 
     let transport2 = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()], HashMap::new());
     let handle2 = transport2.start().await?;
-    let service2 = McpService::with_timeout(handle2, Duration::from_secs(30));
-    let client2 = McpClient::new(service2);
+    let client2 = McpClient::connect(handle2, Duration::from_secs(30)).await?;
 
     let transport3 = SseTransport::new("http://localhost:8000/sse", HashMap::new());
     let handle3 = transport3.start().await?;
-    let service3 = McpService::with_timeout(handle3, Duration::from_secs(10));
-    let client3 = McpClient::new(service3);
+    let client3 = McpClient::connect(handle3, Duration::from_secs(10)).await?;
 
     // Initialize both clients
     let mut clients: Vec<Box<dyn McpClientTrait>> =

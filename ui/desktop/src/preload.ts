@@ -58,6 +58,10 @@ type ElectronAPI = {
   writeFile: (directory: string, content: string) => Promise<boolean>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  setMenuBarIcon: (show: boolean) => Promise<boolean>;
+  getMenuBarIconState: () => Promise<boolean>;
+  setDockIcon: (show: boolean) => Promise<boolean>;
+  getDockIconState: () => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -117,6 +121,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('write-file', filePath, content),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
+  setMenuBarIcon: (show: boolean) => ipcRenderer.invoke('set-menu-bar-icon', show),
+  getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
+  setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
+  getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

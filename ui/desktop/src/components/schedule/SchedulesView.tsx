@@ -6,6 +6,8 @@ import {
   pauseSchedule,
   unpauseSchedule,
   updateSchedule,
+  killRunningJob,
+  inspectRunningJob,
   ScheduledJob,
 } from '../../schedule';
 import BackButton from '../ui/BackButton';
@@ -14,7 +16,7 @@ import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play, Edit } from 'lucide-react';
+import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import { EditScheduleModal } from './EditScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
@@ -39,6 +41,8 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   // Individual loading states for each action to prevent double-clicks
   const [pausingScheduleIds, setPausingScheduleIds] = useState<Set<string>>(new Set());
   const [deletingScheduleIds, setDeletingScheduleIds] = useState<Set<string>>(new Set());
+  const [killingScheduleIds, setKillingScheduleIds] = useState<Set<string>>(new Set());
+  const [inspectingScheduleIds, setInspectingScheduleIds] = useState<Set<string>>(new Set());
 
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
@@ -249,6 +253,77 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleKillRunningJob = async (scheduleId: string) => {
+    // Immediately add to killing set to disable button
+    setKillingScheduleIds((prev) => new Set(prev).add(scheduleId));
+
+    setApiError(null);
+    try {
+      const result = await killRunningJob(scheduleId);
+      toastSuccess({
+        title: 'Job Killed',
+        msg: result.message,
+      });
+      await fetchSchedules();
+    } catch (error) {
+      console.error(`Failed to kill running job "${scheduleId}":`, error);
+      const errorMsg =
+        error instanceof Error ? error.message : `Unknown error killing job "${scheduleId}".`;
+      setApiError(errorMsg);
+      toastError({
+        title: 'Kill Job Error',
+        msg: errorMsg,
+      });
+    } finally {
+      // Remove from killing set
+      setKillingScheduleIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(scheduleId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleInspectRunningJob = async (scheduleId: string) => {
+    // Immediately add to inspecting set to disable button
+    setInspectingScheduleIds((prev) => new Set(prev).add(scheduleId));
+
+    setApiError(null);
+    try {
+      const result = await inspectRunningJob(scheduleId);
+      if (result.sessionId) {
+        const duration = result.runningDurationSeconds
+          ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
+          : 'Unknown';
+        toastSuccess({
+          title: 'Job Inspection',
+          msg: `Session: ${result.sessionId}\nRunning for: ${duration}`,
+        });
+      } else {
+        toastSuccess({
+          title: 'Job Inspection',
+          msg: 'No detailed information available for this job',
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to inspect running job "${scheduleId}":`, error);
+      const errorMsg =
+        error instanceof Error ? error.message : `Unknown error inspecting job "${scheduleId}".`;
+      setApiError(errorMsg);
+      toastError({
+        title: 'Inspect Job Error',
+        msg: errorMsg,
+      });
+    } finally {
+      // Remove from inspecting set
+      setInspectingScheduleIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(scheduleId);
+        return newSet;
+      });
+    }
+  };
+
   const handleNavigateToScheduleDetail = (scheduleId: string) => {
     setViewingScheduleId(scheduleId);
   };
@@ -423,6 +498,40 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                             </Button>
                           </>
                         )}
+                        {job.currently_running && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleInspectRunningJob(job.id);
+                              }}
+                              className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
+                              title={`Inspect running job ${job.id}`}
+                              disabled={
+                                inspectingScheduleIds.has(job.id) || killingScheduleIds.has(job.id)
+                              }
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleKillRunningJob(job.id);
+                              }}
+                              className="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                              title={`Kill running job ${job.id}`}
+                              disabled={
+                                killingScheduleIds.has(job.id) || inspectingScheduleIds.has(job.id)
+                              }
+                            >
+                              <Square className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -433,7 +542,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                           title={`Delete schedule ${job.id}`}
                           disabled={
-                            pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)
+                            pausingScheduleIds.has(job.id) ||
+                            deletingScheduleIds.has(job.id) ||
+                            killingScheduleIds.has(job.id) ||
+                            inspectingScheduleIds.has(job.id)
                           }
                         >
                           <TrashIcon className="w-5 h-5" />
