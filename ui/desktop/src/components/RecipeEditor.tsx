@@ -123,13 +123,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           if (!extension) return null;
 
           // Create a clean copy of the extension configuration
-          const cleanExtension = { ...extension };
-          delete cleanExtension.enabled;
+          const { enabled: _enabled, ...cleanExtension } = extension;
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
           if ('envs' in cleanExtension) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            delete (cleanExtension as any).envs;
+            const { envs: _envs, ...finalExtension } = cleanExtension as any;
+            return finalExtension;
           }
           return cleanExtension;
         })

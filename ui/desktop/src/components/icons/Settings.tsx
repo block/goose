@@ -1,4 +1,3 @@
-
 export default function Settings({ className = '' }) {
   return (
     <svg

@@ -97,7 +97,10 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       resetForm();
     } catch (error) {
       console.error('Error configuring extension:', error);
-      toastError({ title: 'Failed to configure extension', traceback: error.message });
+      toastError({
+        title: 'Failed to configure extension',
+        traceback: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
@@ -142,9 +145,13 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 <Select
                   options={typeOptions}
                   value={typeOptions.find((option) => option.value === formData.type)}
-                  onChange={(option: { value: string; label: string } | null) =>
-                    setFormData({ ...formData, type: option?.value as FullExtensionConfig['type'] })
-                  }
+                  onChange={(newValue: unknown) => {
+                    const option = newValue as { value: string; label: string } | null;
+                    setFormData({
+                      ...formData,
+                      type: option?.value as FullExtensionConfig['type'],
+                    });
+                  }}
                 />
               </div>
 

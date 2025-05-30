@@ -1,4 +1,3 @@
-
 export default function Edit({ className = '' }) {
   return (
     <svg
