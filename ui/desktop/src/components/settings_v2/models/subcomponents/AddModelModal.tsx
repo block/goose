@@ -132,7 +132,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         ]);
 
         // Format model options by provider
-        const formattedModelOptions = [];
+        const formattedModelOptions: { options: { value: string; label: string; provider: string }[] }[] = [];
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({

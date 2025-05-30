@@ -70,6 +70,8 @@ export function ConfigureApproveMode({
                   showDescription={true}
                   currentMode={approveMode || ''}
                   isApproveModeConfigure={true}
+                  parentView={'settings' as const}
+                  setView={() => {}} // No-op since we're in configure mode
                   handleModeChange={(newMode) => {
                     setApproveMode(newMode);
                   }}
