@@ -1,9 +1,14 @@
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
-use futures::TryStreamExt;
+use futures::{FutureExt, Stream, TryStreamExt};
+use futures_util::stream;
+use futures_util::stream::StreamExt;
+use mcp_core::protocol::JsonRpcMessage;
 
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -39,7 +44,7 @@ use mcp_core::{
 
 use super::platform_tools;
 use super::router_tools;
-use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
 /// The main goose Agent
 pub struct Agent {
@@ -54,6 +59,12 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+}
+
+#[derive(Clone, Debug)]
+pub enum AgentEvent {
+    Message(Message),
+    McpNotification((String, JsonRpcMessage)),
 }
 
 impl Agent {
@@ -100,6 +111,40 @@ impl Default for Agent {
     }
 }
 
+pub enum ToolStreamItem<T> {
+    Message(JsonRpcMessage),
+    Result(T),
+}
+
+pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Content>>>> + Send>>;
+
+// tool_stream combines a stream of JsonRpcMessages with a future representing the
+// final result of the tool call. MCP notifications are not request-scoped, but
+// this lets us capture all notifications emitted during the tool call for
+// simpler consumption
+pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
+where
+    S: Stream<Item = JsonRpcMessage> + Send + Unpin + 'static,
+    F: Future<Output = ToolResult<Vec<Content>>> + Send + 'static,
+{
+    Box::pin(async_stream::stream! {
+        tokio::pin!(done);
+        let mut rx = rx;
+
+        loop {
+            tokio::select! {
+                Some(msg) = rx.next() => {
+                    yield ToolStreamItem::Message(msg);
+                }
+                r = &mut done => {
+                    yield ToolStreamItem::Result(r);
+                    break;
+                }
+            }
+        }
+    })
+}
+
 impl Agent {
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
@@ -143,7 +188,7 @@ impl Agent {
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
+    ) -> (String, Result<ToolCallResult, ToolError>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
@@ -171,52 +216,65 @@ impl Agent {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            return self
+            let (request_id, result) = self
                 .manage_extensions(action, extension_name, request_id)
                 .await;
+
+            return (request_id, Ok(ToolCallResult::from(result)));
         }
 
         let extension_manager = self.extension_manager.lock().await;
-        let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
+        let result: ToolCallResult = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
-            extension_manager
-                .read_resource(tool_call.arguments.clone())
-                .await
+            ToolCallResult::from(
+                extension_manager
+                    .read_resource(tool_call.arguments.clone())
+                    .await,
+            )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
-            extension_manager
-                .list_resources(tool_call.arguments.clone())
-                .await
+            ToolCallResult::from(
+                extension_manager
+                    .list_resources(tool_call.arguments.clone())
+                    .await,
+            )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
-            extension_manager.search_available_extensions().await
+            ToolCallResult::from(extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
-            Err(ToolError::ExecutionError(
+            ToolCallResult::from(Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
-            ))
+            )))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
             let selector = self.router_tool_selector.lock().await.clone();
-            if let Some(selector) = selector {
+            ToolCallResult::from(if let Some(selector) = selector {
                 selector.select_tools(tool_call.arguments.clone()).await
             } else {
                 Err(ToolError::ExecutionError(
                     "Encountered vector search error.".to_string(),
                 ))
-            }
+            })
         } else {
-            extension_manager
+            // Clone the result to ensure no references to extension_manager are returned
+            let result = extension_manager
                 .dispatch_tool_call(tool_call.clone())
-                .await
+                .await;
+            match result {
+                Ok(call_result) => call_result,
+                Err(e) => ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string()))),
+            }
         };
 
-        debug!(
-            "input" = serde_json::to_string(&tool_call).unwrap(),
-            "output" = serde_json::to_string(&result).unwrap(),
-        );
-
-        // Process the response to handle large text content
-        let processed_result = super::large_response_handler::process_tool_response(result);
-
-        (request_id, processed_result)
+        (
+            request_id,
+            Ok(ToolCallResult {
+                notification_stream: result.notification_stream,
+                result: Box::new(
+                    result
+                        .result
+                        .map(super::large_response_handler::process_tool_response),
+                ),
+            }),
+        )
     }
 
     pub(super) async fn manage_extensions(
@@ -466,7 +524,7 @@ impl Agent {
         &self,
         messages: &[Message],
         session: Option<SessionConfig>,
-    ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
+    ) -> anyhow::Result<BoxStream<'_, anyhow::Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
 
@@ -532,9 +590,8 @@ impl Agent {
                                 }
                             }
                         }
-
                         // Yield the assistant's response with frontend tool requests filtered out
-                        yield filtered_response.clone();
+                        yield AgentEvent::Message(filtered_response.clone());
 
                         tokio::task::yield_now().await;
 
@@ -556,7 +613,7 @@ impl Agent {
                         // execution is yeield back to this reply loop, and is of the same Message
                         // type, so we can yield that back up to be handled
                         while let Some(msg) = frontend_tool_stream.try_next().await? {
-                            yield msg;
+                            yield AgentEvent::Message(msg);
                         }
 
                         // Clone goose_mode once before the match to avoid move issues
@@ -584,13 +641,23 @@ impl Agent {
                                 self.provider().await?).await;
 
                             // Handle pre-approved and read-only tools in parallel
-                            let mut tool_futures: Vec<ToolFuture> = Vec::new();
+                            let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
-                                    tool_futures.push(Box::pin(tool_future));
+                                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call, request.id.clone()).await;
+
+                                    tool_futures.push((req_id, match tool_result {
+                                        Ok(result) => tool_stream(
+                                            result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                                            result.result,
+                                        ),
+                                        Err(e) => tool_stream(
+                                            Box::new(stream::empty()),
+                                            futures::future::ready(Err(e)),
+                                        ),
+                                    }));
                                 }
                             }
 
@@ -618,7 +685,7 @@ impl Agent {
                             // type, so we can yield the Message back up to be handled and grab any
                             // confirmations or denials
                             while let Some(msg) = tool_approval_stream.try_next().await? {
-                                yield msg;
+                                yield AgentEvent::Message(msg);
                             }
 
                             tool_futures = {
@@ -628,16 +695,30 @@ impl Agent {
                                 futures_lock.drain(..).collect::<Vec<_>>()
                             };
 
-                            // Wait for all tool calls to complete
-                            let results = futures::future::join_all(tool_futures).await;
+                            let with_id = tool_futures
+                                .into_iter()
+                                .map(|(request_id, stream)| {
+                                    stream.map(move |item| (request_id.clone(), item))
+                                })
+                                .collect::<Vec<_>>();
+
+                            let mut combined = stream::select_all(with_id);
+
                             let mut all_install_successful = true;
 
-                            for (request_id, output) in results.into_iter() {
-                                if enable_extension_request_ids.contains(&request_id) && output.is_err(){
-                                    all_install_successful = false;
+                            while let Some((request_id, item)) = combined.next().await {
+                                match item {
+                                    ToolStreamItem::Result(output) => {
+                                        if enable_extension_request_ids.contains(&request_id) && output.is_err(){
+                                            all_install_successful = false;
+                                        }
+                                        let mut response = message_tool_response.lock().await;
+                                        *response = response.clone().with_tool_response(request_id, output);
+                                    },
+                                    ToolStreamItem::Message(msg) => {
+                                        yield AgentEvent::McpNotification((request_id, msg))
+                                    }
                                 }
-                                let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(request_id, output);
                             }
 
                             // Update system prompt and tools if installations were successful
@@ -647,7 +728,7 @@ impl Agent {
                         }
 
                         let final_message_tool_resp = message_tool_response.lock().await.clone();
-                        yield final_message_tool_resp.clone();
+                        yield AgentEvent::Message(final_message_tool_resp.clone());
 
                         messages.push(response);
                         messages.push(final_message_tool_resp);
@@ -656,15 +737,15 @@ impl Agent {
                         // At this point, the last message should be a user message
                         // because call to provider led to context length exceeded error
                         // Immediately yield a special message and break
-                        yield Message::assistant().with_context_length_exceeded(
+                        yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
                             "The context length of the model has been exceeded. Please start a new session and try again.",
-                        );
+                        ));
                         break;
                     },
                     Err(e) => {
                         // Create an error message & terminate the stream
                         error!("Error: {}", e);
-                        yield Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error."));
+                        yield AgentEvent::Message(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
                         break;
                     }
                 }
