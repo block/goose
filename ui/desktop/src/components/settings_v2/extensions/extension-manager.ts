@@ -25,7 +25,7 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions =
   const { retries = 3, delayMs = 1000, backoffFactor = 1.5, shouldRetry = () => true } = options;
 
   let attempt = 0;
-  let lastError: ExtensionError;
+  let lastError: ExtensionError = new Error('Unknown error');
 
   while (attempt <= retries) {
     try {
