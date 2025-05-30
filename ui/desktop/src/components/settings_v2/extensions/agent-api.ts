@@ -77,11 +77,12 @@ export async function extensionApiCall(
   } catch (error) {
     // Final catch-all error handler
     toastService.dismiss(toastId);
-    const msg = error.length < 70 ? error : `Failed to ${action.presentTense} extension`;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const msg = errorMessage.length < 70 ? errorMessage : `Failed to ${action.presentTense} extension`;
     toastService.error({
       title: extensionName,
       msg: msg,
-      traceback: error,
+      traceback: errorMessage,
     });
     console.error(`Error in extensionApiCall for ${extensionName}:`, error);
     throw error;
@@ -95,7 +96,7 @@ function handleErrorResponse(
   response: Response,
   extensionName: string,
   action: { type: string; verb: string },
-  toastId: string
+  toastId: string | number | undefined
 ): never {
   const errorMsg = `Server returned ${response.status}: ${response.statusText}`;
   console.error(errorMsg);
@@ -150,7 +151,7 @@ export async function addToAgent(
     return await extensionApiCall('/extensions/add', extension, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
-    if (error.message && error.message.includes('428')) {
+    if (error instanceof Error && error.message && error.message.includes('428')) {
       const enhancedError = new Error(
         'Failed to add extension. Goose Agent was still starting up. Please try again.'
       );
