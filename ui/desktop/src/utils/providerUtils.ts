@@ -5,8 +5,8 @@ import {
   initializeBundledExtensions,
   syncBundledExtensions,
   addToAgentOnStartup,
-} from '../components/settings_v2/extensions';
-import { extractExtensionConfig } from '../components/settings_v2/extensions/utils';
+} from '../components/settings/extensions';
+import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
