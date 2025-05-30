@@ -659,7 +659,7 @@ const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
   const result = (await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'] as const,
+    properties: ['openFile', 'openDirectory'],
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -714,10 +714,7 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
-    properties:
-      process.platform === 'darwin'
-        ? (['openFile', 'openDirectory'] as const)
-        : (['openFile'] as const),
+    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {

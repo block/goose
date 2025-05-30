@@ -5,7 +5,15 @@ import BackButton from '../ui/BackButton';
 import { Card } from '../ui/card';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
-import { getScheduleSessions, runScheduleNow, pauseSchedule, unpauseSchedule, updateSchedule, listSchedules, ScheduledJob } from '../../schedule';
+import {
+  getScheduleSessions,
+  runScheduleNow,
+  pauseSchedule,
+  unpauseSchedule,
+  updateSchedule,
+  listSchedules,
+  ScheduledJob,
+} from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
@@ -40,7 +48,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const [scheduleDetails, setScheduleDetails] = useState<ScheduledJob | null>(null);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  
+
   // Individual loading states for each action to prevent double-clicks
   const [pauseUnpauseLoading, setPauseUnpauseLoading] = useState(false);
 
@@ -185,7 +193,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   const handleEditScheduleSubmit = async (cron: string) => {
     if (!scheduleId) return;
-    
+
     setIsEditSubmitting(true);
     setEditApiError(null);
     try {
@@ -379,7 +387,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
               >
                 {runNowLoading ? 'Triggering...' : 'Run Schedule Now'}
               </Button>
-              
+
               {scheduleDetails && !scheduleDetails.currently_running && (
                 <>
                   <Button
@@ -416,16 +424,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                 </>
               )}
             </div>
-            
+
             {scheduleDetails?.currently_running && (
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
                 Cannot trigger or modify a schedule while it's already running.
               </p>
             )}
-            
+
             {scheduleDetails?.paused && (
               <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
-                This schedule is paused and will not run automatically. Use "Run Schedule Now" to trigger it manually or unpause to resume automatic execution.
+                This schedule is paused and will not run automatically. Use "Run Schedule Now" to
+                trigger it manually or unpause to resume automatic execution.
               </p>
             )}
           </section>

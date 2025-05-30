@@ -109,9 +109,9 @@ export function BaseModelsList({
           writeToConfig: upsert,
         });
 
-        const currentModel = modelList.find(
-          (m) => m.name === result.model && m.provider === result.provider
-        ) || { name: String(result.model), provider: String(result.provider) } as Model;
+        const currentModel =
+          modelList.find((m) => m.name === result.model && m.provider === result.provider) ||
+          ({ name: String(result.model), provider: String(result.provider) } as Model);
 
         setSelectedModel(currentModel);
       } catch (secondError) {

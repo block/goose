@@ -92,7 +92,7 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
 
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse.toolResult.value
+      ? toolResponse!.toolResult.value
           .filter((item) => {
             const audience = item.annotations?.audience as string[] | undefined;
             return !audience || audience.includes('user');

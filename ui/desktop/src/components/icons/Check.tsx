@@ -1,4 +1,3 @@
-
 export default function Check({ className = '' }) {
   return (
     <svg

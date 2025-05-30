@@ -12,16 +12,16 @@ import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { useModel } from '../../../settings/models/ModelContext';
 
-const ModalButtons = ({ 
-  onSubmit, 
-  onCancel, 
-  _isValid: _, 
-  _validationErrors: __ 
-}: { 
-  onSubmit: () => void; 
-  onCancel: () => void; 
-  _isValid: boolean; 
-  _validationErrors: { provider: string; model: string }; 
+const ModalButtons = ({
+  onSubmit,
+  onCancel,
+  _isValid: _,
+  _validationErrors: __,
+}: {
+  onSubmit: () => void;
+  onCancel: () => void;
+  _isValid: boolean;
+  _validationErrors: { provider: string; model: string };
 }) => (
   <div>
     <Button
@@ -51,7 +51,9 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const { getProviders, upsert } = useConfig();
   const { switchModel } = useModel();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
-  const [modelOptions, setModelOptions] = useState<{ options: { value: string; label: string; provider: string }[] }[]>([]);
+  const [modelOptions, setModelOptions] = useState<
+    { options: { value: string; label: string; provider: string }[] }[]
+  >([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState(false);
@@ -132,7 +134,9 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         ]);
 
         // Format model options by provider
-        const formattedModelOptions: { options: { value: string; label: string; provider: string }[] }[] = [];
+        const formattedModelOptions: {
+          options: { value: string; label: string; provider: string }[];
+        }[] = [];
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({
@@ -180,7 +184,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   };
 
   // Store the original model options in state, initialized from modelOptions
-  const [originalModelOptions, setOriginalModelOptions] = useState<{ options: { value: string; label: string; provider: string }[] }[]>(modelOptions);
+  const [originalModelOptions, setOriginalModelOptions] =
+    useState<{ options: { value: string; label: string; provider: string }[] }[]>(modelOptions);
 
   const handleInputChange = (inputValue: string) => {
     if (!provider) return;

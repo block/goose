@@ -54,9 +54,9 @@ export default function MoreMenuLayout({
             </Tooltip>
           </TooltipProvider>
 
-          <MoreMenu 
-            setView={setView || (() => {})} 
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen || (() => {})} 
+          <MoreMenu
+            setView={setView || (() => {})}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen || (() => {})}
           />
         </div>
       )}

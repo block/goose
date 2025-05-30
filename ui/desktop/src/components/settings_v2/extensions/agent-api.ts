@@ -29,7 +29,7 @@ export async function extensionApiCall(
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
-  const extensionName = isActivating ? (payload as ExtensionConfig).name : payload as string;
+  const extensionName = isActivating ? (payload as ExtensionConfig).name : (payload as string);
   let toastId;
 
   // Step 1: Show loading toast (only for activation of stdio)
@@ -78,7 +78,8 @@ export async function extensionApiCall(
     // Final catch-all error handler
     toastService.dismiss(toastId);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const msg = errorMessage.length < 70 ? errorMessage : `Failed to ${action.presentTense} extension`;
+    const msg =
+      errorMessage.length < 70 ? errorMessage : `Failed to ${action.presentTense} extension`;
     toastService.error({
       title: extensionName,
       msg: msg,

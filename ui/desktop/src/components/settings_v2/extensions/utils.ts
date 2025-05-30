@@ -78,7 +78,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   return {
     name: extension.name || '',
     description:
-      extension.type === 'stdio' || extension.type === 'sse' ? (extension.description || '') : '',
+      extension.type === 'stdio' || extension.type === 'sse' ? extension.description || '' : '',
     type: extension.type === 'frontend' ? 'stdio' : extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint: extension.type === 'sse' ? extension.uri : undefined,

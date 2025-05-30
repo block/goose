@@ -1,4 +1,3 @@
-
 export default function Document({ className = '' }) {
   return (
     <svg

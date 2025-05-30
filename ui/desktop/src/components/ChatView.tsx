@@ -34,6 +34,7 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
+  TextContent,
 } from '../types/message';
 
 export interface ChatType {
@@ -358,10 +359,11 @@ function ChatContent({
     // check if the last message is a real user's message
     if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
       // Get the text content from the last message before removing it
-      const textContent = lastMessage.content.find((c) => c.type === 'text')?.text || '';
+      const textContent = lastMessage.content.find((c): c is TextContent => c.type === 'text');
+      const textValue = textContent?.text || '';
 
       // Set the text back to the input field
-      _setInput(textContent);
+      _setInput(textValue);
 
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
@@ -457,7 +459,8 @@ function ChatContent({
     return filteredMessages
       .reduce<string[]>((history, message) => {
         if (isUserMessage(message)) {
-          const text = message.content.find((c) => c.type === 'text')?.text?.trim();
+          const textContent = message.content.find((c): c is TextContent => c.type === 'text');
+          const text = textContent?.text?.trim();
           if (text) {
             history.push(text);
           }
@@ -529,7 +532,7 @@ function ChatContent({
         {messages.length === 0 ? (
           <Splash
             append={append}
-            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
+            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig!.activities : null}
             title={recipeConfig?.title}
           />
         ) : (

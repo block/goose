@@ -134,7 +134,12 @@ export default function GooseResponseForm({
 
   function isForm(f: DynamicForm | null): f is DynamicForm {
     return (
-      !!f && !!f.title && !!f.description && !!f.fields && Array.isArray(f.fields) && f.fields.length > 0
+      !!f &&
+      !!f.title &&
+      !!f.description &&
+      !!f.fields &&
+      Array.isArray(f.fields) &&
+      f.fields.length > 0
     );
   }
 

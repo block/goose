@@ -1,4 +1,3 @@
-
 export default function Close({ className }: { className?: string }) {
   return (
     <svg

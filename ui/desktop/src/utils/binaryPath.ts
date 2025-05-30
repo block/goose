@@ -5,17 +5,20 @@ import log from './logger';
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
   // Security validation: Ensure binaryName doesn't contain suspicious characters
-  if (!binaryName || 
-      typeof binaryName !== 'string' ||
-      binaryName.includes('..') || 
-      binaryName.includes('/') || 
-      binaryName.includes('\\') ||
-      binaryName.includes(';') || 
-      binaryName.includes('|') || 
-      binaryName.includes('&') ||
-      binaryName.includes('`') ||
-      binaryName.includes('$') ||
-      binaryName.length > 50) { // Reasonable length limit
+  if (
+    !binaryName ||
+    typeof binaryName !== 'string' ||
+    binaryName.includes('..') ||
+    binaryName.includes('/') ||
+    binaryName.includes('\\') ||
+    binaryName.includes(';') ||
+    binaryName.includes('|') ||
+    binaryName.includes('&') ||
+    binaryName.includes('`') ||
+    binaryName.includes('$') ||
+    binaryName.length > 50
+  ) {
+    // Reasonable length limit
     throw new Error(`Invalid binary name: ${binaryName}`);
   }
 
@@ -33,16 +36,18 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
     try {
       // Security: Resolve the path and validate it's within expected directories
       const resolvedPath = path.resolve(binPath);
-      
+
       // Ensure the resolved path doesn't contain suspicious sequences
-      if (resolvedPath.includes('..') || 
-          resolvedPath.includes(';') || 
-          resolvedPath.includes('|') || 
-          resolvedPath.includes('&')) {
+      if (
+        resolvedPath.includes('..') ||
+        resolvedPath.includes(';') ||
+        resolvedPath.includes('|') ||
+        resolvedPath.includes('&')
+      ) {
         log.error(`Suspicious path detected, skipping: ${resolvedPath}`);
         continue;
       }
-      
+
       if (fs.existsSync(resolvedPath)) {
         // Additional security check: ensure it's a regular file
         const stats = fs.statSync(resolvedPath);

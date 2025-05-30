@@ -1,4 +1,3 @@
-
 export default function Time({ className = '' }) {
   return (
     <svg

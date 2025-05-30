@@ -43,7 +43,12 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     });
   }, [activeKeys]);
 
-  const handleConfigure = async (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
+  const handleConfigure = async (provider: {
+    id: string;
+    name: string;
+    isConfigured: boolean;
+    description: string;
+  }) => {
     const providerId = provider.id.toLowerCase();
 
     const modelName = getDefaultModel(providerId) || 'default-model';
@@ -63,7 +68,12 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     onSubmit?.();
   };
 
-  const handleAddKeys = (provider: { id: string; name: string; isConfigured: boolean; description: string }) => {
+  const handleAddKeys = (provider: {
+    id: string;
+    name: string;
+    isConfigured: boolean;
+    description: string;
+  }) => {
     setSelectedId(provider.id);
     setShowSetupModal(true);
   };

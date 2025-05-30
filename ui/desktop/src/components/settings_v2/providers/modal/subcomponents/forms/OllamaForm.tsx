@@ -5,14 +5,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import CustomRadio from '../../../../../ui/CustomRadio';
 
-export default function OllamaForm({ 
-  configValues, 
-  setConfigValues, 
-  provider 
-}: { 
-  configValues: Record<string, string>; 
-  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>; 
-  provider: { name: string; [key: string]: unknown }; 
+export default function OllamaForm({
+  configValues,
+  setConfigValues,
+  provider,
+}: {
+  configValues: Record<string, string>;
+  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  provider: { name: string; [key: string]: unknown };
 }) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
   const parameters = providerEntry?.details?.parameters || [];
