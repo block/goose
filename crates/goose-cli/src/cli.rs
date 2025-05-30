@@ -491,6 +491,31 @@ enum Command {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
+
+    /// Start a web server with a chat interface
+    #[command(about = "Start a web server with a chat interface")]
+    Web {
+        /// Port to run the web server on
+        #[arg(
+            short,
+            long,
+            default_value = "3000",
+            help = "Port to run the web server on"
+        )]
+        port: u16,
+
+        /// Host to bind the web server to
+        #[arg(
+            long,
+            default_value = "127.0.0.1",
+            help = "Host to bind the web server to"
+        )]
+        host: String,
+
+        /// Open browser automatically
+        #[arg(long, help = "Open browser automatically when server starts")]
+        open: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -753,6 +778,10 @@ pub async fn cli() -> Result<()> {
                     handle_deeplink(&recipe_name)?;
                 }
             }
+            return Ok(());
+        }
+        Some(Command::Web { port, host, open }) => {
+            crate::commands::web::handle_web(port, host, open).await?;
             return Ok(());
         }
         None => {
