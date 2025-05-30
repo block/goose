@@ -1227,7 +1227,8 @@ app.whenReady().then(async () => {
         submenu: Menu.buildFromTemplate(
           createEnvironmentMenu(envToggles, (newToggles) => {
             envToggles = newToggles;
-            saveSettings({ envToggles: newToggles });
+            const currentSettings = loadSettings();
+            saveSettings({ ...currentSettings, envToggles: newToggles });
             updateEnvironmentVariables(newToggles);
           })
         ),
