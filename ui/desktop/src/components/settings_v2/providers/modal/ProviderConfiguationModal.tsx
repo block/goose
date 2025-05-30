@@ -13,6 +13,10 @@ import { useConfig } from '../../../ConfigContext';
 import { AlertTriangle } from 'lucide-react';
 import { getCurrentModelAndProvider } from '../../models'; // Import the utility
 
+interface FormValues {
+  [key: string]: string | number | boolean | null;
+}
+
 const customSubmitHandlerMap: Record<string, unknown> = {
   provider_name: OllamaSubmitHandler, // example
 };
@@ -25,7 +29,7 @@ export default function ProviderConfigurationModal() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove, read } = useConfig(); // Add read to the destructured values
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
-  const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isActiveProvider, setIsActiveProvider] = useState(false); // New state for tracking active provider
 
@@ -53,8 +57,12 @@ export default function ProviderConfigurationModal() {
       : 'This will permanently delete the current provider configuration.'
     : `Add your API key(s) for this provider to integrate into Goose`;
 
-  const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
-  const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
+  const SubmitHandler =
+    (customSubmitHandlerMap[currentProvider.name] as typeof DefaultSubmitHandler) ||
+    DefaultSubmitHandler;
+  const FormComponent =
+    (customFormsMap[currentProvider.name] as typeof DefaultProviderSetupForm) ||
+    DefaultProviderSetupForm;
 
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +102,7 @@ export default function ProviderConfigurationModal() {
 
       // Call onSubmit callback if provided (from modal props)
       if (modalProps.onSubmit) {
-        modalProps.onSubmit(configValues);
+        modalProps.onSubmit(configValues as FormValues);
       }
     } catch (error) {
       console.error('Failed to save configuration:', error);
@@ -156,7 +164,7 @@ export default function ProviderConfigurationModal() {
       // Call onDelete callback if provided
       // This should trigger the refreshProviders function
       if (modalProps.onDelete) {
-        modalProps.onDelete(currentProvider.name as unknown);
+        modalProps.onDelete(currentProvider.name as unknown as FormValues);
       }
 
       // Reset the delete confirmation state before closing

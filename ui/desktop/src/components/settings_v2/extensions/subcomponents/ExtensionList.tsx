@@ -9,6 +9,7 @@ interface ExtensionListProps {
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
+  disableConfiguration?: boolean;
 }
 
 export default function ExtensionList({
@@ -16,6 +17,7 @@ export default function ExtensionList({
   onToggle,
   onConfigure,
   isStatic,
+  disableConfiguration: _disableConfiguration,
 }: ExtensionListProps) {
   return (
     <div className="grid grid-cols-2 gap-2 mb-2">

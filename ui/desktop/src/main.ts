@@ -12,6 +12,7 @@ import {
   App,
   globalShortcut,
 } from 'electron';
+import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
@@ -173,7 +174,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -187,7 +188,10 @@ async function handleProtocolUrl(url: string) {
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     // For bot/recipe URLs, get existing window or create new one
     const existingWindows = BrowserWindow.getAllWindows();
-    const targetWindow = existingWindows.length > 0 ? existingWindows[0] : await createChat(app, undefined, openDir || undefined);
+    const targetWindow =
+      existingWindows.length > 0
+        ? existingWindows[0]
+        : await createChat(app, undefined, openDir || undefined);
     processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
@@ -377,7 +381,7 @@ const createChat = async (
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
-  let goosedProcess = null;
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
   if (viewType === 'recipeEditor') {
     // For recipeEditor, get the port from existing windows' config
@@ -404,7 +408,10 @@ const createChat = async (
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
-    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    port = newPort;
+    working_dir = newWorkingDir;
+    goosedProcess = newGoosedProcess;
   }
 
   const mainWindow = new BrowserWindow({
@@ -447,7 +454,7 @@ const createChat = async (
   //
   // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
-  mainWindow.webContents.on('context-menu', (event, params) => {
+  mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
 
     // Add each spelling suggestion
@@ -648,16 +655,18 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (replaceWindow: boolean = false) => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
-  }) as { canceled: boolean; filePaths: string[] };
+const openDirectoryDialog = async (
+  replaceWindow: boolean = false
+): Promise<OpenDialogReturnValue> => {
+  const result = (await dialog.showOpenDialog({
+    properties: ['openFile', 'openDirectory'] as const,
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
     await createChat(app, undefined, result.filePaths[0]);
-    if (replaceWindow) {
+    if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
   }
@@ -704,9 +713,12 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  }) as { canceled: boolean; filePaths: string[] };
+  const result = (await dialog.showOpenDialog({
+    properties:
+      process.platform === 'darwin'
+        ? (['openFile', 'openDirectory'] as const)
+        : (['openFile'] as const),
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1052,15 +1064,17 @@ const registerGlobalHotkey = (accelerator: string) => {
   globalShortcut.unregisterAll();
 
   try {
-    const ret = globalShortcut.register(accelerator, () => {
+    globalShortcut.register(accelerator, () => {
       focusWindow();
     });
 
-    if (!ret) {
+    // Check if the shortcut was registered successfully
+    if (globalShortcut.isRegistered(accelerator)) {
+      return true;
+    } else {
       console.error('Failed to register global hotkey');
       return false;
     }
-    return true;
   } catch (e) {
     console.error('Error registering global hotkey:', e);
     return false;
@@ -1073,35 +1087,34 @@ app.whenReady().then(async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
+        'Content-Security-Policy':
           "default-src 'self';" +
-            // Allow inline styles since we use them in our React components
-            "style-src 'self' 'unsafe-inline';" +
-            // Scripts only from our app
-            "script-src 'self';" +
-            // Images from our app and data: URLs (for base64 images)
-            "img-src 'self' data: https:;" +
-            // Connect to our local API and specific external services
-            "connect-src 'self' http://127.0.0.1:*" +
-            // Don't allow any plugins
-            "object-src 'none';" +
-            // Don't allow any frames
-            "frame-src 'none';" +
-            // Font sources
-            "font-src 'self';" +
-            // Media sources
-            "media-src 'none';" +
-            // Form actions
-            "form-action 'none';" +
-            // Base URI restriction
-            "base-uri 'self';" +
-            // Manifest files
-            "manifest-src 'self';" +
-            // Worker sources
-            "worker-src 'self';" +
-            // Upgrade insecure requests
-            'upgrade-insecure-requests;',
-        ],
+          // Allow inline styles since we use them in our React components
+          "style-src 'self' 'unsafe-inline';" +
+          // Scripts only from our app
+          "script-src 'self';" +
+          // Images from our app and data: URLs (for base64 images)
+          "img-src 'self' data: https:;" +
+          // Connect to our local API and specific external services
+          "connect-src 'self' http://127.0.0.1:*" +
+          // Don't allow any plugins
+          "object-src 'none';" +
+          // Don't allow any frames
+          "frame-src 'none';" +
+          // Font sources
+          "font-src 'self';" +
+          // Media sources
+          "media-src 'none';" +
+          // Form actions
+          "form-action 'none';" +
+          // Base URI restriction
+          "base-uri 'self';" +
+          // Manifest files
+          "manifest-src 'self';" +
+          // Worker sources
+          "worker-src 'self';" +
+          // Upgrade insecure requests
+          'upgrade-insecure-requests;',
       },
     });
   });
@@ -1185,7 +1198,7 @@ app.whenReady().then(async () => {
       },
       {
         label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
@@ -1608,7 +1621,7 @@ app.on('will-quit', async () => {
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 // Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', (event) => {
+app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode
@@ -1619,25 +1632,25 @@ app.on('before-quit', (event) => {
 
   // Show confirmation dialog
   try {
-    const result = await dialog.showMessageBox({
+    const result = (await dialog.showMessageBox({
       type: 'question',
       buttons: ['Quit', 'Cancel'],
       defaultId: 1, // Default to Cancel
       title: 'Confirm Quit',
       message: 'Are you sure you want to quit Goose?',
       detail: 'Any unsaved changes may be lost.',
-    }) as { response: number };
-    
+    })) as unknown as { response: number };
+
     if (result.response === 0) {
-        // User clicked "Quit"
-        // Set a flag to avoid showing the dialog again
-        app.removeAllListeners('before-quit');
-        // Actually quit the app
-        app.quit();
-      }
-    } catch (error) {
-      console.error('Error showing quit dialog:', error);
+      // User clicked "Quit"
+      // Set a flag to avoid showing the dialog again
+      app.removeAllListeners('before-quit');
+      // Actually quit the app
+      app.quit();
     }
+  } catch (error) {
+    console.error('Error showing quit dialog:', error);
+  }
 });
 
 app.on('window-all-closed', () => {

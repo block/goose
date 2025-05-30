@@ -26,7 +26,7 @@
     "test-e2e:report": "playwright show-report",
     "test-e2e:single": "npm run generate-api && playwright test -g",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix --no-warn-ignored",
-    "lint:check": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0 --no-warn-ignored",
+    "lint:check": "npm run typecheck && eslint \"src/**/*.{ts,tsx}\" --max-warnings 0 --no-warn-ignored",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "prepare": "cd ../.. && husky install",
@@ -73,6 +73,7 @@
   "license": "Apache-2.0",
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
+      "bash -c 'npm run typecheck'",
       "eslint --fix --max-warnings 0 --no-warn-ignored",
       "prettier --write"
     ],
