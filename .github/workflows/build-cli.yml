@@ -63,18 +63,10 @@ jobs:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
-          PROTOC: /usr/bin/protoc
+          PROTOC: /usr/local/bin/protoc
         run: |
-          # Install protoc if on Ubuntu
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            sudo apt-get update
-            sudo apt-get install -y protobuf-compiler
-            echo "Protoc version after installation:"
-            protoc --version
-            echo "Protoc path:"
-            which protoc
-            export PROTOC=$(which protoc)
-          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          # Install protoc if on macOS
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
             brew install protobuf
             export PROTOC=$(which protoc)
           fi
@@ -92,12 +84,8 @@ jobs:
           which protoc
           echo "Using PROTOC from: $PROTOC"
 
-          # Make sure the protoc path is absolute and exists
-          PROTOC_PATH=$(which protoc)
-          echo "PROTOC_PATH=$PROTOC_PATH"
-
           echo "Building with explicit PROTOC path..."
-          PROTOC=$PROTOC_PATH cross build --release --target ${TARGET} -p goose-cli -vv
+          cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release
