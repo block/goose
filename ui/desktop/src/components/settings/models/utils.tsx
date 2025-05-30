@@ -43,7 +43,7 @@ export function useHandleModelSelection() {
       toastError({
         title: model.name,
         msg: `Failed to switch to model`,
-        traceback: error.message,
+        traceback: error instanceof Error ? error.message : String(error),
       });
     }
   };

@@ -40,10 +40,10 @@ export async function getActiveProviders(): Promise<string[]> {
         const configStatus = provider.config_status ?? {};
 
         // Skip if provider isn't in required_keys
-        if (!required_keys[providerName]) return false;
+        if (!required_keys[providerName as keyof typeof required_keys]) return false;
 
         // Get all required keys for this provider
-        const providerRequiredKeys = required_keys[providerName];
+        const providerRequiredKeys = required_keys[providerName as keyof typeof required_keys];
 
         // Special case: If a provider has exactly one required key and that key
         // has a default value, check if it's explicitly set
@@ -103,14 +103,17 @@ export async function getConfigSettings(): Promise<Record<string, ProviderRespon
       supported: true,
       description: provider.metadata.description,
       models: provider.metadata.models,
-      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>((acc: Record<string, ConfigDetails>, key: string) => {
-        acc[key] = {
-          key,
-          is_set: provider.is_configured,
-          location: provider.is_configured ? 'config' : undefined,
-        };
-        return acc;
-      }, {}),
+      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>(
+        (acc: Record<string, ConfigDetails>, key: string) => {
+          acc[key] = {
+            key,
+            is_set: provider.is_configured,
+            location: provider.is_configured ? 'config' : undefined,
+          };
+          return acc;
+        },
+        {}
+      ),
     };
   });
 
