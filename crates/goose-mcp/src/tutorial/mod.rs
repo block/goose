@@ -3,11 +3,12 @@ use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
+use tokio::sync::mpsc;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     role::Role,
     tool::{Tool, ToolAnnotations},
@@ -130,6 +131,7 @@ impl Router for TutorialRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

@@ -2,12 +2,15 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::Error;
 use std::path::Path;
+use std::time::Duration;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -144,6 +147,10 @@ pub fn render_message(message: &Message, debug: bool) {
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
+    render_text_no_newlines(format!("\n{}\n\n", text).as_str(), color, dim);
+}
+
+pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -153,7 +160,7 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
     } else {
         styled_text = styled_text.green();
     }
-    println!("\n{}\n", styled_text);
+    print!("{}", styled_text);
 }
 
 pub fn render_enter_plan_mode() {
@@ -359,7 +366,6 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
         }
         _ => print_params(&call.arguments, 0, debug),
     }
-    println!();
 }
 
 fn render_default_request(call: &ToolCall, debug: bool) {
@@ -566,6 +572,64 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
 
 pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+}
+
+pub struct McpSpinners {
+    bars: HashMap<String, ProgressBar>,
+    log_spinner: Option<ProgressBar>,
+
+    multi_bar: MultiProgress,
+}
+
+impl McpSpinners {
+    pub fn new() -> Self {
+        McpSpinners {
+            bars: HashMap::new(),
+            log_spinner: None,
+            multi_bar: MultiProgress::new(),
+        }
+    }
+
+    pub fn log(&mut self, message: &str) {
+        let spinner = self.log_spinner.get_or_insert_with(|| {
+            let bar = self.multi_bar.add(
+                ProgressBar::new_spinner()
+                    .with_style(
+                        ProgressStyle::with_template("{spinner:.green} {msg}")
+                            .unwrap()
+                            .tick_chars("⠋⠙⠚⠛⠓⠒⠊⠉"),
+                    )
+                    .with_message(message.to_string()),
+            );
+            bar.enable_steady_tick(Duration::from_millis(100));
+            bar
+        });
+
+        spinner.set_message(message.to_string());
+    }
+
+    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+        let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
+            if let Some(total) = total {
+                self.multi_bar.add(
+                    ProgressBar::new((total * 100.0) as u64).with_style(
+                        ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
+                            .unwrap(),
+                    ),
+                )
+            } else {
+                self.multi_bar.add(ProgressBar::new_spinner())
+            }
+        });
+        bar.set_position((value * 100.0) as u64);
+        if let Some(msg) = message {
+            bar.set_message(msg.to_string());
+        }
+    }
+
+    pub fn hide(&mut self) -> Result<(), Error> {
+        self.multi_bar.clear()
+    }
 }
 
 #[cfg(test)]
