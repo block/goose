@@ -173,7 +173,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -660,7 +660,7 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
     await createChat(app, undefined, result.filePaths[0]);
-    if (replaceWindow) {
+    if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
   }
