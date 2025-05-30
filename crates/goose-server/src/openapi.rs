@@ -37,7 +37,17 @@ use utoipa::OpenApi;
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
-        super::routes::session::get_session_history
+        super::routes::session::get_session_history,
+        super::routes::schedule::create_schedule,
+        super::routes::schedule::list_schedules,
+        super::routes::schedule::delete_schedule,
+        super::routes::schedule::update_schedule,
+        super::routes::schedule::run_now_handler,
+        super::routes::schedule::pause_schedule,
+        super::routes::schedule::unpause_schedule,
+        super::routes::schedule::kill_running_job,
+        super::routes::schedule::inspect_running_job,
+        super::routes::schedule::sessions_handler
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -85,6 +95,15 @@ use utoipa::OpenApi;
         ModelInfo,
         SessionInfo,
         SessionMetadata,
+        super::routes::schedule::CreateScheduleRequest,
+        super::routes::schedule::UpdateScheduleRequest,
+        super::routes::schedule::KillJobResponse,
+        super::routes::schedule::InspectJobResponse,
+        goose::scheduler::ScheduledJob,
+        super::routes::schedule::RunNowResponse,
+        super::routes::schedule::ListSchedulesResponse,
+        super::routes::schedule::SessionsQuery,
+        super::routes::schedule::SessionDisplayInfo,
     ))
 )]
 pub struct ApiDoc;

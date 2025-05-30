@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
 import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
-import { ChevronRight } from './icons/ChevronRight';
-import Back from './icons/Back';
-import { Bars } from './icons/Bars';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
 import { Check } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
+import RecipeActivityEditor from './RecipeActivityEditor';
+import RecipeInfoModal from './RecipeInfoModal';
+import RecipeExpandableInfo from './RecipeExpandableInfo';
 // import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
 
 interface RecipeEditorProps {
@@ -28,10 +28,17 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
   const [instructions, setInstructions] = useState(config?.instructions || '');
+  const [prompt, setPrompt] = useState(config?.prompt || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
+  const [recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
+    label: string;
+    value: string;
+    setValue: (value: string) => void;
+  } | null>(null);
 
   // Initialize selected extensions for the recipe from config or localStorage
   const [recipeExtensions] = useState<string[]>(() => {
@@ -47,15 +54,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       }
     }
     // Fall back to config if available, using extension names
-    const exts = [];
+    const exts: string[] = [];
     return exts;
   });
-  const [newActivity, setNewActivity] = useState('');
-
   // Section visibility state
-  const [activeSection, setActiveSection] = useState<
-    'none' | 'activities' | 'instructions' | 'extensions'
-  >('none');
+  const [activeSection, _] = useState<'none' | 'activities' | 'instructions' | 'extensions'>(
+    'none'
+  );
 
   // Load extensions when component mounts and when switching to extensions section
   useEffect(() => {
@@ -95,32 +100,6 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeExtensions, extensionsLoaded]);
 
-  // const handleExtensionToggle = (extension: FixedExtensionEntry) => {
-  //   console.log('Toggling extension:', extension.name);
-  //   setRecipeExtensions((prev) => {
-  //     const isSelected = prev.includes(extension.name);
-  //     const newState = isSelected
-  //       ? prev.filter((extName) => extName !== extension.name)
-  //       : [...prev, extension.name];
-
-  //     // Persist to localStorage
-  //     localStorage.setItem('recipe_editor_extensions', JSON.stringify(newState));
-
-  //     return newState;
-  //   });
-  // };
-
-  const handleAddActivity = () => {
-    if (newActivity.trim()) {
-      setActivities((prev) => [...prev, newActivity.trim()]);
-      setNewActivity('');
-    }
-  };
-
-  const handleRemoveActivity = (activity: string) => {
-    setActivities((prev) => prev.filter((a) => a !== activity));
-  };
-
   const getCurrentConfig = (): Recipe => {
     console.log('Creating config with:', {
       selectedExtensions: recipeExtensions,
@@ -134,6 +113,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       description,
       instructions,
       activities,
+      prompt,
       extensions: recipeExtensions
         .map((name) => {
           const extension = extensionOptions.find((e) => e.name === name);
@@ -145,7 +125,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           delete cleanExtension.enabled;
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
-          delete cleanExtension.envs;
+          if ('envs' in cleanExtension) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (cleanExtension as any).envs;
+          }
           return cleanExtension;
         })
         .filter(Boolean) as FullExtensionConfig[],
@@ -154,15 +137,26 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     return config;
   };
 
-  const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
+  const [errors, setErrors] = useState<{
+    title?: string;
+    description?: string;
+    instructions?: string;
+  }>({});
+
+  const requiredFieldsAreFilled = () => {
+    return title.trim() && description.trim() && instructions.trim();
+  };
 
   const validateForm = () => {
-    const newErrors: { title?: string; description?: string } = {};
+    const newErrors: { title?: string; description?: string; instructions?: string } = {};
     if (!title.trim()) {
       newErrors.title = 'Title is required';
     }
     if (!description.trim()) {
       newErrors.description = 'Description is required';
+    }
+    if (!instructions.trim()) {
+      newErrors.instructions = 'Instructions are required';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -182,214 +176,138 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       });
   };
 
+  const onClickEditTextArea = ({
+    label,
+    value,
+    setValue,
+  }: {
+    label: string;
+    value: string;
+    setValue: (value: string) => void;
+  }) => {
+    setRecipeInfoModalOpen(true);
+    setRecipeInfoModelProps({
+      label,
+      value,
+      setValue,
+    });
+  };
   // Reset extensionsLoaded when section changes away from extensions
   useEffect(() => {
     if (activeSection !== 'extensions') {
       setExtensionsLoaded(false);
     }
   }, [activeSection]);
-
-  // Render expanded section content
-  const renderSectionContent = () => {
-    switch (activeSection) {
-      case 'activities':
-        return (
-          <div className="p-6 pt-10">
-            <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6 text-iconProminent" />
-            </button>
-            <div className="py-2">
-              <Bars className="w-6 h-6 text-iconSubtle" />
-            </div>
-            <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2 text-textProminent">Activities</h2>
-              <p className="text-textSubtle">
-                The top-line prompts and activities that will display within your goose home page.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-3">
-                {activities.map((activity, index) => (
-                  <div
-                    key={index}
-                    className="inline-flex items-center bg-bgApp border-2 border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
-                    title={activity.length > 100 ? activity : undefined}
-                  >
-                    <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
-                    <button
-                      onClick={() => handleRemoveActivity(activity)}
-                      className="ml-2 text-textStandard hover:text-textSubtle transition-colors"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-3 mt-6">
-                <input
-                  type="text"
-                  value={newActivity}
-                  onChange={(e) => setNewActivity(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
-                  className="flex-1 px-4 py-3 bg-bgSubtle text-textStandard rounded-xl placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent"
-                  placeholder="Add new activity..."
-                />
-                <button
-                  onClick={handleAddActivity}
-                  className="px-5 py-3 bg-bgAppInverse text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
-                >
-                  Add activity
-                </button>
-              </div>
-            </div>
+  const page_title = config?.title ? 'View/edit current recipe' : 'Create an agent recipe';
+  const subtitle = config?.title
+    ? "You can edit the recipe below to change the agent's behavior in a new session."
+    : 'Your custom agent recipe can be shared with others. Fill in the sections below to create!';
+  return (
+    <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
+      {activeSection === 'none' && (
+        <div className="flex flex-col items-center mb-2 px-6 pt-10">
+          <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
+            <Geese className="w-12 h-12 text-iconProminent" />
           </div>
-        );
-
-      case 'instructions':
-        return (
-          <div className="p-6 pt-10">
-            <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6 text-iconProminent" />
-            </button>
-            <div className="py-2">
-              <Bars className="w-6 h-6 text-iconSubtle" />
-            </div>
-            <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2 text-textProminent">Instructions</h2>
-              <p className="text-textSubtle">
-                Hidden instructions that will be passed to the provider to help direct and add
-                context to your responses.
-              </p>
-            </div>
-            <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="w-full h-96 p-4 bg-bgSubtle text-textStandard rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-borderProminent"
-              placeholder="Enter instructions..."
+          <h1 className="text-2xl font-medium text-center text-textProminent">{page_title}</h1>
+          <p className="text-textSubtle text-center mt-2 text-sm">{subtitle}</p>
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto px-6">
+        <div className="flex flex-col">
+          <h2 className="text-lg font-medium mb-2 text-textProminent">Agent Recipe Details</h2>
+        </div>
+        <div className="space-y-2 py-2">
+          <div className="pb-6 border-b-2 border-borderSubtle">
+            <label htmlFor="title" className="block text-md text-textProminent mb-2 font-bold">
+              Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (errors.title) {
+                  setErrors({ ...errors, title: undefined });
+                }
+              }}
+              className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent ${
+                errors.title ? 'border-red-500' : 'border-borderSubtle'
+              }`}
+              placeholder="Agent Recipe Title (required)"
+            />
+            {errors.title && <div className="text-red-500 text-sm mt-1">{errors.title}</div>}
+          </div>
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
+            <label
+              htmlFor="description"
+              className="block text-md text-textProminent mb-2 font-bold"
+            >
+              Description <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                if (errors.description) {
+                  setErrors({ ...errors, description: undefined });
+                }
+              }}
+              className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent ${
+                errors.description ? 'border-red-500' : 'border-borderSubtle'
+              }`}
+              placeholder="Description (required)"
+            />
+            {errors.description && (
+              <div className="text-red-500 text-sm mt-1">{errors.description}</div>
+            )}
+          </div>
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
+            <RecipeExpandableInfo
+              infoLabel="Instructions"
+              infoValue={instructions}
+              required={true}
+              onClickEdit={() =>
+                onClickEditTextArea({
+                  label: 'Instructions',
+                  value: instructions,
+                  setValue: setInstructions,
+                })
+              }
+            />
+            {errors.instructions && (
+              <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>
+            )}
+          </div>
+          <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
+            <RecipeExpandableInfo
+              infoLabel="Initial Prompt"
+              infoValue={prompt}
+              required={false}
+              onClickEdit={() =>
+                onClickEditTextArea({ label: 'Initial Prompt', value: prompt, setValue: setPrompt })
+              }
             />
           </div>
-        );
+          <div className="pt-3 pb-6">
+            <RecipeActivityEditor activities={activities} setActivities={setActivities} />
+          </div>
 
-      // case 'extensions':
-      //   return (
-      //     <div className="p-6 pt-10">
-      //       <button onClick={() => setActiveSection('none')} className="mb-6">
-      //         <Back className="w-6 h-6 text-iconProminent" />
-      //       </button>
-      //       <div className="py-2">
-      //         <Bars className="w-6 h-6 text-iconSubtle" />
-      //       </div>
-      //       <div className="mb-8 mt-6">
-      //         <h2 className="text-2xl font-medium mb-2 text-textProminent">Extensions</h2>
-      //         <p className="text-textSubtle">Select extensions to bundle in the recipe</p>
-      //       </div>
-      //       {extensionsLoaded ? (
-      //         <ExtensionList
-      //           extensions={extensionOptions}
-      //           onToggle={handleExtensionToggle}
-      //           isStatic={true}
-      //         />
-      //       ) : (
-      //         <div className="text-center py-8 text-textSubtle">Loading extensions...</div>
-      //       )}
-      //     </div>
-      //   );
-
-      default:
-        return (
-          <div className="space-y-2 py-2">
-            <div>
-              <h2 className="text-lg font-medium mb-2 text-textProminent">Agent</h2>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (errors.title) {
-                    setErrors({ ...errors, title: undefined });
-                  }
-                }}
-                className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard ${
-                  errors.title ? 'border-red-500' : 'border-borderSubtle'
-                }`}
-                placeholder="Agent Recipe Name (required)"
-              />
-              {errors.title && <div className="text-red-500 text-sm mt-1">{errors.title}</div>}
-            </div>
-
-            <div>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  if (errors.description) {
-                    setErrors({ ...errors, description: undefined });
-                  }
-                }}
-                className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard ${
-                  errors.description ? 'border-red-500' : 'border-borderSubtle'
-                }`}
-                placeholder="Description (required)"
-              />
-              {errors.description && (
-                <div className="text-red-500 text-sm mt-1">{errors.description}</div>
-              )}
-            </div>
-
-            {/* Section buttons */}
-            <button
-              onClick={() => setActiveSection('activities')}
-              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
-            >
-              <div className="text-left">
-                <h3 className="font-medium text-textProminent">Activities</h3>
-                <p className="text-textSubtle text-sm">
-                  Starting activities present in the home panel on a fresh session
-                </p>
+          {/* Deep Link Display */}
+          <div className="w-full p-4 bg-bgSubtle rounded-lg">
+            {!requiredFieldsAreFilled() ? (
+              <div className="text-sm text-textSubtle text-xs text-textSubtle">
+                Fill in required fields to generate link
               </div>
-              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
-            </button>
-
-            <button
-              onClick={() => setActiveSection('instructions')}
-              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
-            >
-              <div className="text-left">
-                <h3 className="font-medium text-textProminent">Instructions</h3>
-                <p className="text-textSubtle text-sm">Recipe instructions sent to the model</p>
-              </div>
-              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
-            </button>
-
-            {/* <button
-              onClick={() => setActiveSection('extensions')}
-              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
-            >
-              <div className="text-left">
-                <h3 className="font-medium text-textProminent">Extensions</h3>
-                <p className="text-textSubtle text-sm">
-                  Extensions to be enabled by default with this recipe
-                </p>
-              </div>
-              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
-            </button> */}
-
-            {/* Deep Link Display */}
-            <div className="w-full p-4 bg-bgSubtle rounded-lg">
+            ) : (
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-textSubtle text-xs text-textSubtle mt-2">
+                <div className="text-sm text-textSubtle text-xs text-textSubtle">
                   Copy this link to share with friends or paste directly in Chrome to open
                 </div>
                 <button
                   onClick={() => validateForm() && handleCopy()}
                   className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
-                  title={
-                    !title.trim() || !description.trim()
-                      ? 'Fill in required fields first'
-                      : 'Copy link'
-                  }
-                  disabled={!title.trim() || !description.trim()}
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-500" />
@@ -401,52 +319,37 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   </span>
                 </button>
               </div>
+            )}
+            {requiredFieldsAreFilled() && (
               <div
-                className={`text-sm truncate font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
-                title={
-                  !title.trim() || !description.trim()
-                    ? 'Fill in required fields to generate link'
-                    : deeplink
-                }
+                onClick={() => validateForm() && handleCopy()}
+                className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
               >
                 {deeplink}
               </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 pt-1">
-              <button
-                onClick={() => {
-                  localStorage.removeItem('recipe_editor_extensions');
-                  window.close();
-                }}
-                className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
-              >
-                Cancel
-              </button>
-            </div>
+            )}
           </div>
-        );
-    }
-  };
-
-  return (
-    <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
-      {activeSection === 'none' && (
-        <div className="flex flex-col items-center mb-6 px-6 pt-10">
-          <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
-            <Geese className="w-12 h-12 text-iconProminent" />
+          {/* Action Buttons */}
+          <div className="flex flex-col space-y-2 pt-1">
+            <button
+              onClick={() => {
+                localStorage.removeItem('recipe_editor_extensions');
+                window.close();
+              }}
+              className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
+            >
+              Close
+            </button>
           </div>
-          <h1 className="text-2xl font-medium text-center text-textProminent">
-            Create an agent recipe
-          </h1>
-          <p className="text-textSubtle text-center mt-2 text-sm">
-            Your custom agent recipe can be shared with others. Fill in the sections below to
-            create!
-          </p>
         </div>
-      )}
-      <div className="flex-1 overflow-y-auto px-6">{renderSectionContent()}</div>
+      </div>
+      <RecipeInfoModal
+        infoLabel={recipeInfoModelProps?.label}
+        originalValue={recipeInfoModelProps?.value}
+        isOpen={isRecipeInfoModalOpen}
+        onClose={() => setRecipeInfoModalOpen(false)}
+        onSaveValue={recipeInfoModelProps?.setValue}
+      />
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function ArrowUp({ className = '' }) {
   return (

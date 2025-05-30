@@ -825,6 +825,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "Goose Mode", "Configure Goose mode")
         .item(
+            "goose_router_strategy",
+            "Router Tool Selection Strategy",
+            "Configure the strategy for selecting tools to use",
+        )
+        .item(
             "tool_permission",
             "Tool Permission",
             "Set permission for individual tool of enabled extensions",
@@ -849,6 +854,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
+        }
+        "goose_router_strategy" => {
+            configure_goose_router_strategy_dialog()?;
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
@@ -915,6 +923,49 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         "chat" => {
             config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
             cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
+        }
+        _ => unreachable!(),
+    };
+    Ok(())
+}
+
+pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_ROUTER_STRATEGY is set as an environment variable
+    if std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.");
+    }
+
+    let strategy = cliclack::select("Which router strategy would you like to use?")
+        .item(
+            "vector",
+            "Vector Strategy",
+            "Use vector-based similarity to select tools",
+        )
+        .item(
+            "default",
+            "Default Strategy",
+            "Use the default tool selection strategy",
+        )
+        .interact()?;
+
+    match strategy {
+        "vector" => {
+            config.set_param(
+                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
+                Value::String("vector".to_string()),
+            )?;
+            cliclack::outro(
+                "Set to Vector Strategy - using vector-based similarity for tool selection",
+            )?;
+        }
+        "default" => {
+            config.set_param(
+                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
+                Value::String("default".to_string()),
+            )?;
+            cliclack::outro("Set to Default Strategy - using default tool selection")?;
         }
         _ => unreachable!(),
     };

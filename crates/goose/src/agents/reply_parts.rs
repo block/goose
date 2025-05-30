@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
+use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -19,16 +20,17 @@ impl Agent {
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get tool selection strategy
-        let tool_selection_strategy = std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .ok()
-            .and_then(|s| {
-                if s.eq_ignore_ascii_case("vector") {
-                    Some(RouterToolSelectionStrategy::Vector)
-                } else {
-                    None
-                }
-            });
+        // Get tool selection strategy from config
+        let config = Config::global();
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
+
+        let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
+            "vector" => Some(RouterToolSelectionStrategy::Vector),
+            _ => None,
+        };
+
         // Get tools from extension manager
         let mut tools = match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
@@ -205,18 +207,17 @@ impl Agent {
         usage: &crate::providers::base::ProviderUsage,
         messages_length: usize,
     ) -> Result<()> {
-        let session_file = session::get_path(session_config.id);
-        let mut metadata = session::read_metadata(&session_file)?;
+        let session_file_path = session::storage::get_path(session_config.id.clone());
+        let mut metadata = session::storage::read_metadata(&session_file_path)?;
 
-        metadata.working_dir = session_config.working_dir.clone();
+        metadata.schedule_id = session_config.schedule_id.clone();
+
         metadata.total_tokens = usage.usage.total_tokens;
         metadata.input_tokens = usage.usage.input_tokens;
         metadata.output_tokens = usage.usage.output_tokens;
-        // The message count is the number of messages in the session + 1 for the response
-        // The message count does not include the tool response till next iteration
+
         metadata.message_count = messages_length + 1;
 
-        // Keep running sum of tokens to track cost over the entire session
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
                 (Some(x), Some(y)) => Some(x + y),
@@ -231,7 +232,8 @@ impl Agent {
             metadata.accumulated_output_tokens,
             usage.usage.output_tokens,
         );
-        session::update_metadata(&session_file, &metadata).await?;
+
+        session::storage::update_metadata(&session_file_path, &metadata).await?;
 
         Ok(())
     }

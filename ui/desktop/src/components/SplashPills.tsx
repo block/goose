@@ -1,4 +1,3 @@
-import React from 'react';
 import MarkdownContent from './MarkdownContent';
 
 function truncateText(text: string, maxLength: number = 100): string {

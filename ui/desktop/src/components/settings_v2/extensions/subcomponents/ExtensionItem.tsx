@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '../../../ui/switch';
 import { Gear } from '../../../icons/Gear';
 import { FixedExtensionEntry } from '../../../ConfigContext';

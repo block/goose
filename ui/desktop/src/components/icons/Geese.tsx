@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface Props {
   // eslint-disable-next-line

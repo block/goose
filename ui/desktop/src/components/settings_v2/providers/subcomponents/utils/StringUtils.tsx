@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Functions for string / string-based element creation (e.g. tooltips for each provider, descriptions, etc)
 export function OllamaNotConfiguredTooltipMessage() {
