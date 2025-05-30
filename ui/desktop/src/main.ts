@@ -450,7 +450,7 @@ const createChat = async (
   //
   // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
-  mainWindow.webContents.on('context-menu', (event, params) => {
+  mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
 
     // Add each spelling suggestion

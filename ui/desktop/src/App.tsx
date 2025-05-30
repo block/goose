@@ -239,7 +239,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSharedSession = async (event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
       setIsLoadingSharedSession(true);
@@ -284,7 +284,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up fatal error handler');
-    const handleFatalError = (event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleFatalError = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const errorMessage = args[0] as string;
       console.error('Encountered a fatal error: ', errorMessage);
       console.error('Current view:', view);
@@ -299,7 +299,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up view change handler');
-    const handleSetView = (event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const newView = args[0] as View;
       console.log(`Received view change request to: ${newView}`);
       setView(newView);
@@ -335,7 +335,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = async (event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       try {
         console.log(`Received add-extension event with link: ${link}`);
