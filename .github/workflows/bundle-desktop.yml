@@ -135,6 +135,7 @@ jobs:
           sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
+          source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
@@ -142,6 +143,7 @@ jobs:
       # Pre-build cleanup to ensure enough disk space
       - name: Pre-build cleanup
         run: |
+          source ./bin/activate-hermit
           echo "Performing pre-build cleanup..."
           # Clean npm cache
           npm cache clean --force || true
@@ -217,10 +219,11 @@ jobs:
       - name: Make Unsigned App
         if: ${{ !inputs.signing }}
         run: |
+          source ../../bin/activate-hermit
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            source ../../bin/activate-hermit && npm run bundle:default && break
+            npm run bundle:default && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
@@ -238,10 +241,11 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            source ../../bin/activate-hermit && npm run bundle:default && break
+            npm run bundle:default && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
