@@ -26,6 +26,10 @@ impl<T: TransportHandle> McpService<T> {
     pub async fn respond(&self, id: &str, response: Result<JsonRpcMessage, Error>) {
         self.pending_requests.respond(id, response).await
     }
+
+    pub async fn hangup(&self) {
+        self.pending_requests.broadcast_close().await
+    }
 }
 
 impl<T> Service<JsonRpcMessage> for McpService<T>
@@ -108,6 +112,12 @@ impl PendingRequests {
     pub async fn respond(&self, id: &str, response: Result<JsonRpcMessage, Error>) {
         if let Some(tx) = self.requests.write().await.remove(id) {
             let _ = tx.send(response);
+        }
+    }
+
+    pub async fn broadcast_close(&self) {
+        for (_, tx) in self.requests.write().await.drain() {
+            let _ = tx.send(Err(Error::ChannelClosed));
         }
     }
 

@@ -145,7 +145,8 @@ where
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Error receiving message: {:?}", e);
+                        tracing::error!("transport error: {:?}", e);
+                        service_ptr.hangup().await;
                         break;
                     }
                 }
