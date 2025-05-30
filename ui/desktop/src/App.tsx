@@ -7,17 +7,14 @@ import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
-import { extractExtensionName } from './components/settings/extensions/utils';
+import { extractExtensionName } from './components/settings_v2/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
 import { type Recipe } from './recipe';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
-import { type SettingsViewOptions } from './components/settings/SettingsView';
-import SettingsViewV2 from './components/settings_v2/SettingsView';
-import MoreModelsView from './components/settings/models/MoreModelsView';
-import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
+import SettingsView, { SettingsViewOptions } from './components/settings_v2/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
@@ -496,27 +493,12 @@ export default function App() {
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
           )}
           {view === 'settings' && (
-            <SettingsViewV2
+            <SettingsView
               onClose={() => {
                 setView('chat');
               }}
               setView={setView}
               viewOptions={viewOptions as SettingsViewOptions}
-            />
-          )}
-          {view === 'moreModels' && (
-            <MoreModelsView
-              onClose={() => {
-                setView('settings');
-              }}
-              setView={setView}
-            />
-          )}
-          {view === 'configureProviders' && (
-            <ConfigureProvidersView
-              onClose={() => {
-                setView('settings');
-              }}
             />
           )}
           {view === 'ConfigureProviders' && (

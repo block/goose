@@ -10,7 +10,6 @@ import { useConfig } from '../../../ConfigContext';
 import { changeModel } from '../index';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
-import { useModel } from '../../../settings/models/ModelContext';
 
 const ModalButtons = ({
   onSubmit,
@@ -49,7 +48,6 @@ type AddModelModalProps = {
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const { getProviders, upsert } = useConfig();
-  const { switchModel } = useModel();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelOptions, setModelOptions] = useState<
     { options: { value: string; label: string; provider: string }[] }[]
@@ -101,9 +99,6 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         model: modelObj,
         writeToConfig: upsert,
       });
-
-      // Update the model context
-      switchModel(modelObj);
 
       onClose();
     }
