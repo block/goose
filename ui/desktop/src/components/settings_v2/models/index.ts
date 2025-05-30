@@ -1,6 +1,6 @@
 import { initializeAgent } from '../../../agent';
 import { toastError, toastSuccess } from '../../../toasts';
-import { ProviderDetails } from '@/src/api';
+import { ProviderDetails } from '../../../api';
 import Model, { getProviderMetadata } from './modelInterface';
 import { ProviderMetadata } from '../../../api';
 

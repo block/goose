@@ -1,29 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
-
-interface ConfigParameter {
-  name: string;
-  required: boolean;
-  secret?: boolean;
-  default?: string | number | boolean | null;
-}
-
-interface ProviderMetadata {
-  config_keys?: ConfigParameter[];
-  display_name?: string;
-  description?: string;
-  known_models?: string[];
-  default_model?: string;
-  [key: string]: string | string[] | ConfigParameter[] | undefined;
-}
-
-interface Provider {
-  metadata: ProviderMetadata;
-  name: string;
-  is_configured: boolean;
-  [key: string]: string | boolean | ProviderMetadata;
-}
+import { ProviderDetails, ConfigKey } from '../../../../../../api';
 
 interface ValidationErrors {
   [key: string]: string;
@@ -32,7 +10,7 @@ interface ValidationErrors {
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, string>;
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  provider: Provider;
+  provider: ProviderDetails;
   validationErrors: ValidationErrors;
 }
 
@@ -108,7 +86,7 @@ export default function DefaultProviderSetupForm({
   }, [parameters]);
 
   // Helper function to generate appropriate placeholder text
-  const getPlaceholder = (parameter: ConfigParameter): string => {
+  const getPlaceholder = (parameter: ConfigKey): string => {
     // If default is defined and not null, show it
     if (parameter.default !== undefined && parameter.default !== null) {
       return `Default: ${parameter.default}`;

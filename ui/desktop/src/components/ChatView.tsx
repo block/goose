@@ -244,18 +244,11 @@ function ChatContent({
 
         // Create a new window for the recipe editor
         console.log('Opening recipe editor with config:', response.recipe);
-        const recipeConfig: {
-          id: string;
-          title: string;
-          description: string;
-          instructions: string;
-          activities: string[];
-          prompt: string;
-        } = {
+        const recipeConfig = {
           id: response.recipe.title || 'untitled',
-          title: response.recipe.title,
-          description: response.recipe.description,
-          instructions: response.recipe.instructions,
+          name: response.recipe.title || 'Untitled Recipe',
+          description: response.recipe.description || '',
+          instructions: response.recipe.instructions || '',
           activities: response.recipe.activities || [],
           prompt: response.recipe.prompt || '',
         };
@@ -287,11 +280,8 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat: ChatType) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages, setChat]);
+    setChat({ ...chat, messages });
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {

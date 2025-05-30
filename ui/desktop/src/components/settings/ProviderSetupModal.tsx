@@ -29,7 +29,7 @@ export function ProviderSetupModal({
   const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>(
     default_key_value
   );
-  const requiredKeys = required_keys[provider] || ['API Key'];
+  const requiredKeys = (required_keys as Record<string, string[]>)[provider] || ['API Key'];
   const headerText = title || `Setup ${provider}`;
 
   const shouldShowBattle = React.useMemo(() => {

@@ -10,7 +10,7 @@ export default function SessionSharingSection() {
   // If env is set, force sharing enabled and set the baseUrl accordingly.
   const [sessionSharingConfig, setSessionSharingConfig] = useState({
     enabled: envBaseUrlShare ? true : false,
-    baseUrl: envBaseUrlShare || '',
+    baseUrl: typeof envBaseUrlShare === 'string' ? envBaseUrlShare : '',
   });
   const [urlError, setUrlError] = useState('');
   // isUrlConfigured is true if the user has configured a baseUrl and it is valid.
@@ -23,7 +23,7 @@ export default function SessionSharingSection() {
       // If env variable is set, save the forced configuration to localStorage
       const forcedConfig = {
         enabled: true,
-        baseUrl: envBaseUrlShare,
+        baseUrl: typeof envBaseUrlShare === 'string' ? envBaseUrlShare : '',
       };
       localStorage.setItem('session_sharing_config', JSON.stringify(forcedConfig));
     } else {
@@ -139,7 +139,7 @@ export default function SessionSharingSection() {
                   placeholder="https://example.com/api"
                   value={sessionSharingConfig.baseUrl}
                   disabled={!!envBaseUrlShare}
-                  onChange={envBaseUrlShare ? () => {} : handleBaseUrlChange}
+                  {...(envBaseUrlShare ? {} : { onChange: handleBaseUrlChange })}
                 />
               </div>
               {urlError && <p className="text-red-500 text-sm">{urlError}</p>}

@@ -53,7 +53,7 @@ export function extractUrls(content: string, previousUrls: string[] = []): strin
   const normalizedCurrentUrls = eligibleUrls.map(normalizeUrl);
 
   // Filter out duplicates from previous URLs
-  const uniqueUrls = eligibleUrls.filter((url, index) => {
+  const uniqueUrls = eligibleUrls.filter((_url, index) => {
     const normalized = normalizedCurrentUrls[index];
     const isDuplicate = normalizedPreviousUrls.some(
       (prevUrl) => normalizeUrl(prevUrl) === normalized
