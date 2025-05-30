@@ -147,6 +147,7 @@ where
                     Err(e) => {
                         tracing::error!("transport error: {:?}", e);
                         service_ptr.hangup().await;
+                        subscribers_ptr.lock().await.clear();
                         break;
                     }
                 }
