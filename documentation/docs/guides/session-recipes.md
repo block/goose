@@ -172,103 +172,53 @@ You'll need to provide both instructions and activities for your Recipe.
   </TabItem>
 </Tabs>
 
-## Use Recipe
+## Running Recipes
 
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
+   To use a recipe:
+   - Click the recipe link, or paste in browser address bar
+   - This opens Goose Desktop with the recipe's configuration
 
-   To use a shared recipe, simply click the recipe link, or paste in a browser address bar. This will open Goose Desktop and start a new session with:
-
-   - The recipe's defined instructions  
-   - Suggested activities as clickable bubbles  
-   - The same extensions and project context (if applicable)
-
-   Each person using the recipe gets their own private session, so no data is shared between users, and nothing links back to your original session.
-
+   Each person gets their own private session - no data is shared between users.
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
+   For complete documentation of recipe commands and options, see the [`recipe` command](/docs/guides/goose-cli-commands#recipe) and [`run` command](/docs/guides/goose-cli-commands#run) reference.
 
-   You can start a session with a recipe file in the following ways:
+   <Tabs>
+     <TabItem value="local" label="Local Recipes" default>
+       You can run recipes directly from your filesystem:
+       ```bash
+       # Run once and exit
+       goose run --recipe recipe.yaml
 
-   - Run the recipe once and exit:
+       # Run in interactive mode
+       goose run --recipe recipe.yaml --interactive
 
-   ```sh
-   goose run --recipe recipe.yaml
-   ```
+       # Run with parameters
+       goose run --recipe recipe.yaml --params language=Spanish --params style=formal
 
-   - Run the recipe and enter interactive mode:
+       # Show recipe details
+       goose run --recipe recipe.yaml --explain
+       ```
+     </TabItem>
 
-   ```sh
-   goose run --recipe recipe.yaml --interactive
-   ```
+     <TabItem value="github" label="GitHub Recipes">
+       You can run recipes directly from a GitHub repository:
 
-   - Run the recipe with parameters:
-
-   ```sh
-   goose run --recipe recipe.yaml --interactive --params language=Spanish --params style=formal --params name=Alice
-   ```
-
-   - Explain the recipe with description and parameters:
-
-   ```sh
-   goose run --recipe recipe.yaml --explain
-   ```
-
-  </TabItem>
-</Tabs>
-
-## Discover Recipes
-
-<Tabs>
-  <TabItem value="ui" label="Goose Desktop" default>
-
-   Recipe discovery functionality is coming soon to Goose Desktop! 
-   
-   For now, you can access recipes in these ways:
-   - Use recipe links shared by others
-   - Ask your team members for recipe files
-   - Check the documentation for example recipes
-   - Import recipe files manually
-
-  </TabItem>
-
-  <TabItem value="cli" label="Goose CLI">
-
-   There are two ways to specify which recipe you want to use with CLI commands:
-
-   ##### Option 1: Full File Path
-   Use the exact path to your recipe file:
-      
-   ```sh
-   goose run --recipe ~/my_recipe.yaml
-   goose recipe validate ~/my_recipe.yaml
-   goose recipe deeplink ~/my_recipe.yaml
-   ```
-
-   ##### Option 2: Recipe Name
-   You can use just the recipe name (without the full path). For example:
-
-   ```sh
-   goose run --recipe my_recipe
-   ```
-
-   When you use just the recipe name, Goose searches for your recipe in this order:
-
-   1. **Local Directory Search**
-      - Looks in your current directory for:
-        - `my_recipe.yaml` or
-        - `my_recipe.json`
-
-   2. **GitHub Repository Search**
-      - If you've configured a GitHub repository, Goose will look there next
-      - To configure a repository:
-        - Set `GOOSE_RECIPE_GITHUB_REPO` environment variable, or
-        - Use `goose configure` to set it in Goose Settings
-      - Example repository format: `my_org/goose-recipes`
-      - In the repository, Goose looks for:
-        - `my_recipe/recipe.yaml` or
-        - `my_recipe/recipe.json`
+       1. Configure your recipe repository (see [Environment Variables](/docs/guides/environment-variables#recipe-configuration))
+       2. Run using just the recipe name:
+       ```bash
+       goose run --recipe my-recipe
+       ```
+       
+       Goose will search for:
+       - `my-recipe/recipe.yaml` or 
+       - `my-recipe/recipe.json`
+       in your configured repository
+     </TabItem>
+   </Tabs>
 
   </TabItem>
 </Tabs>
