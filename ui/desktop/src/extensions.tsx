@@ -243,7 +243,6 @@ export async function loadAndAddStoredExtensions() {
     } else {
       console.log('Saving default builtin extensions to localStorage');
       // TODO - Revisit
-      // @ts-expect-error "we actually do always have all the properties required for builtins, but tsc cannot tell for some reason"
       BUILT_IN_EXTENSIONS.forEach(async (extension: FullExtensionConfig) => {
         storeExtensionConfig(extension);
         if (extension.enabled) {

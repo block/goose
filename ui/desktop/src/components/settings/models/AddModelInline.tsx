@@ -37,7 +37,12 @@ export function AddModelInline() {
           model.provider.toLowerCase() === selectedProvider &&
           model.name.toLowerCase().includes(modelName.toLowerCase())
       )
-      .slice(0, 5); // Limit suggestions to top 5
+      .slice(0, 5) // Limit suggestions to top 5
+      .map(model => ({
+        id: String(model.id || ''),
+        name: model.name,
+        provider: model.provider
+      }));
     setFilteredModels(filtered);
     setShowSuggestions(filtered.length > 0);
   }, [modelName, selectedProvider]);

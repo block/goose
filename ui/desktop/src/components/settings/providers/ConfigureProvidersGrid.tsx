@@ -88,7 +88,7 @@ export function ConfigureProvidersGrid() {
     const provider = providers.find((p) => p.id === selectedForSetup)?.name;
     if (!provider) return;
 
-    const requiredKeys = required_keys[provider];
+    const requiredKeys = (required_keys as Record<string, string[]>)[provider];
     if (!requiredKeys || requiredKeys.length === 0) {
       console.error(`No keys found for provider ${provider}`);
       return;
