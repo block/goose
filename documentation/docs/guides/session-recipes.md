@@ -150,7 +150,7 @@ You'll need to provide both instructions and activities for your Recipe.
   --params complexity_threshold=15 \
   --params test_coverage=80 \
   --params style_guide=PEP8
-  ```
+   ```
 
    #### Validate the recipe
    
@@ -169,9 +169,8 @@ You'll need to provide both instructions and activities for your Recipe.
    goose recipe deeplink recipe.yaml
    ```
 
-   </TabItem> 
+  </TabItem>
 </Tabs>
-
 
 ## Use Recipe
 
@@ -210,40 +209,69 @@ You'll need to provide both instructions and activities for your Recipe.
    goose run --recipe recipe.yaml --interactive --params language=Spanish --params style=formal --params name=Alice
    ```
 
-   - Explain the recipe with description and parameters
+   - Explain the recipe with description and parameters:
 
    ```sh
    goose run --recipe recipe.yaml --explain
    ```
 
-   #### Discover recipes
-   When using recipe-related CLI commands, there are a few ways to specify which recipe to use:
-   ##### Option 1: Provide the full file path
-   Use the exact path to the recipe file:
+  </TabItem>
+</Tabs>
+
+## Discover Recipes
+
+<Tabs>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+   Recipe discovery functionality is coming soon to Goose Desktop! 
+   
+   For now, you can access recipes in these ways:
+   - Use recipe links shared by others
+   - Ask your team members for recipe files
+   - Check the documentation for example recipes
+   - Import recipe files manually
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
+
+   There are two ways to specify which recipe you want to use with CLI commands:
+
+   ##### Option 1: Full File Path
+   Use the exact path to your recipe file:
       
    ```sh
    goose run --recipe ~/my_recipe.yaml
    goose recipe validate ~/my_recipe.yaml
    goose recipe deeplink ~/my_recipe.yaml
    ```
-   ##### Option 2: Use the recipe name
-   If your recipe is named my_recipe, you can simply use the name:
+
+   ##### Option 2: Recipe Name
+   You can use just the recipe name (without the full path). For example:
 
    ```sh
    goose run --recipe my_recipe
-   goose recipe validate my_recipe
-   goose recipe deeplink my_recipe
    ```
-   When you use the recipe name, Goose will search for the file in the following order:
-   1. Local search:
-      Goose will search for `my_recipe.yaml` or `my_recipe.json` in the current working directory
-      
-   2. Remote search (GitHub):
-      - If the `GOOSE_RECIPE_GITHUB_REPO` environment variable is set or configured in the `Goose Settings` via `goose configure`, Goose will search the specified GitHub repo. (eg: my_org/goose-recipes).
-      - Goose will look for `my_recipe/recipe.yaml` or `my_recipe/recipe.json` within that GitHub repository.
-   </TabItem> 
-</Tabs>
 
+   When you use just the recipe name, Goose searches for your recipe in this order:
+
+   1. **Local Directory Search**
+      - Looks in your current directory for:
+        - `my_recipe.yaml` or
+        - `my_recipe.json`
+
+   2. **GitHub Repository Search**
+      - If you've configured a GitHub repository, Goose will look there next
+      - To configure a repository:
+        - Set `GOOSE_RECIPE_GITHUB_REPO` environment variable, or
+        - Use `goose configure` to set it in Goose Settings
+      - Example repository format: `my_org/goose-recipes`
+      - In the repository, Goose looks for:
+        - `my_recipe/recipe.yaml` or
+        - `my_recipe/recipe.json`
+
+  </TabItem>
+</Tabs>
 
 ## What's Included
 
@@ -286,4 +314,4 @@ If you're sharing recipes with others, here are some tips:
 
 - You can't create a Recipe from an existing Recipe session. The menu option will be disabled  
 - Make sure you're using the latest version of Goose if something isn't working  
-- Remember that credentials, memory, and certain local setups won't carry over  
+- Remember that credentials, memory, and certain local setups won't carry over
