@@ -2,7 +2,7 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Select } from '../ui/select';
+import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 
 type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
@@ -292,7 +292,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               instanceId="frequency-select-modal"
               options={frequencies}
               value={frequencies.find((f) => f.value === frequency)}
-              onChange={(selectedOption: FrequencyOption | null) => {
+              onChange={(newValue: unknown) => {
+                const selectedOption = newValue as FrequencyOption | null;
                 if (selectedOption) setFrequency(selectedOption.value);
               }}
               placeholder="Select frequency..."

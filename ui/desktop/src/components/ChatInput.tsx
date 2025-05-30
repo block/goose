@@ -365,7 +365,7 @@ export default function ChatInput({
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
-      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }));
+      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent);
 
       setDisplayValue('');
       setValue('');
@@ -502,7 +502,7 @@ export default function ChatInput({
                     className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                     aria-label="Remove image"
                   >
-                    <Close size={14} />
+                    <Close className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>

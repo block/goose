@@ -12,7 +12,17 @@ import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { useModel } from '../../../settings/models/ModelContext';
 
-const ModalButtons = ({ onSubmit, onCancel, _isValid: _, _validationErrors: __ }) => (
+const ModalButtons = ({ 
+  onSubmit, 
+  onCancel, 
+  _isValid: _, 
+  _validationErrors: __ 
+}: { 
+  onSubmit: () => void; 
+  onCancel: () => void; 
+  _isValid: boolean; 
+  _validationErrors: { provider: string; model: string }; 
+}) => (
   <div>
     <Button
       type="submit"
@@ -80,7 +90,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     const isFormValid = validateForm();
 
     if (isFormValid) {
-      const providerMetaData = await getProviderMetadata(provider, getProviders);
+      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
       const providerDisplayName = providerMetaData.display_name;
 
       const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
@@ -122,7 +132,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         ]);
 
         // Format model options by provider
-        const formattedModelOptions = [];
+        const formattedModelOptions: { options: { value: string; label: string; provider: string }[] }[] = [];
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({
@@ -158,7 +168,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     : [];
 
   // Handle model selection change
-  const handleModelChange = (selectedOption) => {
+  const handleModelChange = (newValue: unknown) => {
+    const selectedOption = newValue as { value: string; label: string; provider: string } | null;
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
@@ -221,8 +232,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
           <ModalButtons
             onSubmit={onSubmit}
             onCancel={onClose}
-            isValid={isValid}
-            validationErrors={validationErrors}
+            _isValid={isValid}
+            _validationErrors={validationErrors}
           />
         }
       >
@@ -252,7 +263,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
               <Select
                 options={providerOptions}
                 value={providerOptions.find((option) => option.value === provider) || null}
-                onChange={(option) => {
+                onChange={(newValue: unknown) => {
+                  const option = newValue as { value: string; label: string } | null;
                   if (option?.value === 'configure_providers') {
                     // Navigate to ConfigureProviders view
                     setView('ConfigureProviders');

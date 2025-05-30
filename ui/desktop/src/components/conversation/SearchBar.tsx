@@ -69,13 +69,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }
   }, [initialSearchTerm, caseSensitive, debouncedSearchRef]);
 
-  const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(null);
+  const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(undefined);
 
   // Sync external search results with local state
   useEffect(() => {
     // Only set results if we have a search term
     if (!searchTerm) {
-      setLocalSearchResults(null);
+      setLocalSearchResults(undefined);
     } else {
       setLocalSearchResults(searchResults);
     }

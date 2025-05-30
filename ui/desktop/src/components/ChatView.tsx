@@ -244,12 +244,20 @@ function ChatContent({
 
         // Create a new window for the recipe editor
         console.log('Opening recipe editor with config:', response.recipe);
+        const recipeConfig = {
+          id: response.recipe.title || 'untitled',
+          name: response.recipe.title || 'Untitled Recipe',
+          description: response.recipe.description || '',
+          instructions: response.recipe.instructions || '',
+          activities: response.recipe.activities || [],
+          prompt: response.recipe.prompt || '',
+        };
         window.electron.createChatWindow(
           undefined, // query
           undefined, // dir
           undefined, // version
           undefined, // resumeSessionId
-          response.recipe, // recipe config
+          recipeConfig, // recipe config
           'recipeEditor' // view type
         );
 
@@ -272,11 +280,8 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat: ChatType) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages, setChat]);
+    setChat({ ...chat, messages });
+  }, [messages, setChat, chat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -467,7 +472,7 @@ function ChatContent({
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
-        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+        setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
