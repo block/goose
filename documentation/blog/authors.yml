@@ -97,3 +97,23 @@ ian:
     github: iandouglas
     bluesky: iandouglas736.com
     x: iandouglas736
+
+tomasz:
+  name: Tomasz Tchorz
+  title: Security Engineer
+  image_url: https://avatars.githubusercontent.com/u/75388736?v=4
+  page: true
+  socials:
+    linkedin: tomasztchorz
+    github: tomala90
+
+glenn:
+  name: Glenn Edwards
+  title: Detection Engineer
+  image_url: https://avatars.githubusercontent.com/u/1418309?v=4
+  page: true
+  socials:
+    linkedin: glennpedwardsjr
+    github: hiddenillusion
+    x: hiddenillusion
+    bluesky: hiddenillusion
