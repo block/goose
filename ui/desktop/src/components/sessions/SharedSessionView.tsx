@@ -33,13 +33,13 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
           <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
               <Calendar className="w-4 h-4 mr-1" />
-              {formatMessageTimestamp(session.messages[0]?.created)}
+              {session ? formatMessageTimestamp(session.messages[0]?.created) : 'Unknown'}
             </span>
             <span className="flex items-center">
               <MessageSquareText className="w-4 h-4 mr-1" />
-              {session.message_count}
+              {session ? session.message_count : 0}
             </span>
-            {session.total_tokens !== null && (
+            {session && session.total_tokens !== null && (
               <span className="flex items-center">
                 <Target className="w-4 h-4 mr-1" />
                 {session.total_tokens.toLocaleString()}
@@ -49,7 +49,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
           <div className="flex items-center text-sm text-textSubtle space-x-5">
             <span className="flex items-center">
               <Folder className="w-4 h-4 mr-1" />
-              {session.working_dir}
+              {session ? session.working_dir : 'Unknown'}
             </span>
           </div>
         </div>

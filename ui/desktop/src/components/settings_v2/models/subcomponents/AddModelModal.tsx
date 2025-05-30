@@ -90,7 +90,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     const isFormValid = validateForm();
 
     if (isFormValid) {
-      const providerMetaData = await getProviderMetadata(provider, getProviders);
+      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
       const providerDisplayName = providerMetaData.display_name;
 
       const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
@@ -132,7 +132,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         ]);
 
         // Format model options by provider
-        const formattedModelOptions = [];
+        const formattedModelOptions: { options: { value: string; label: string; provider: string }[] }[] = [];
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({
