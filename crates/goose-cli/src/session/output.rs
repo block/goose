@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -530,7 +531,13 @@ fn shorten_path(path: &str, debug: bool) -> String {
 }
 
 // Session display functions
-pub fn display_session_info(resume: bool, provider: &str, model: &str, session_file: &Path) {
+pub fn display_session_info(
+    resume: bool,
+    provider: &str,
+    model: &str,
+    session_file: &Path,
+    provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
+) {
     let start_session_msg = if resume {
         "resuming session |"
     } else if session_file.to_str() == Some("/dev/null") || session_file.to_str() == Some("NUL") {
@@ -538,14 +545,42 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
     } else {
         "starting session |"
     };
-    println!(
-        "{} {} {} {} {}",
-        style(start_session_msg).dim(),
-        style("provider:").dim(),
-        style(provider).cyan().dim(),
-        style("model:").dim(),
-        style(model).cyan().dim(),
-    );
+
+    // Check if we have lead/worker mode
+    if let Some(provider_inst) = provider_instance {
+        if let Some(lead_worker) = provider_inst.as_lead_worker() {
+            let (lead_model, worker_model) = lead_worker.get_model_info();
+            println!(
+                "{} {} {} {} {} {} {}",
+                style(start_session_msg).dim(),
+                style("provider:").dim(),
+                style(provider).cyan().dim(),
+                style("lead model:").dim(),
+                style(&lead_model).cyan().dim(),
+                style("worker model:").dim(),
+                style(&worker_model).cyan().dim(),
+            );
+        } else {
+            println!(
+                "{} {} {} {} {}",
+                style(start_session_msg).dim(),
+                style("provider:").dim(),
+                style(provider).cyan().dim(),
+                style("model:").dim(),
+                style(model).cyan().dim(),
+            );
+        }
+    } else {
+        // Fallback to original behavior if no provider instance
+        println!(
+            "{} {} {} {} {}",
+            style(start_session_msg).dim(),
+            style("provider:").dim(),
+            style(provider).cyan().dim(),
+            style("model:").dim(),
+            style(model).cyan().dim(),
+        );
+    }
 
     if session_file.to_str() != Some("/dev/null") && session_file.to_str() != Some("NUL") {
         println!(

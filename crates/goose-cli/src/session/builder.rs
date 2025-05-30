@@ -7,6 +7,7 @@ use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
 use std::process;
+use std::sync::Arc;
 
 use super::output;
 use super::Session;
@@ -55,6 +56,22 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Create the agent
     let agent: Agent = Agent::new();
     let new_provider = create(&provider_name, model_config).unwrap();
+
+    // Keep a reference to the provider for display_session_info
+    let provider_for_display = Arc::clone(&new_provider);
+
+    // Log model information at startup
+    if let Some(lead_worker) = new_provider.as_lead_worker() {
+        let (lead_model, worker_model) = lead_worker.get_model_info();
+        tracing::info!(
+            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
+            lead_model,
+            worker_model
+        );
+    } else {
+        tracing::info!("🤖 Using model: {}", model);
+    }
+
     agent
         .update_provider(new_provider)
         .await
@@ -217,6 +234,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session.agent.override_system_prompt(override_prompt).await;
     }
 
-    output::display_session_info(session_config.resume, &provider_name, &model, &session_file);
+    output::display_session_info(
+        session_config.resume,
+        &provider_name,
+        &model,
+        &session_file,
+        Some(&provider_for_display),
+    );
     session
 }
