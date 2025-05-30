@@ -404,8 +404,12 @@ export function OllamaBattleGame({ onComplete, requiredKeys: _ }: OllamaBattleGa
                 !battleState.processingAction && (
                   <div className="space-y-2">
                     {(typeof battleSteps[battleState.currentStep].choices === 'function'
-                      ? (battleSteps[battleState.currentStep].choices as (choice: string) => string[])(battleState.lastChoice || '')
-                      : battleSteps[battleState.currentStep].choices as string[]
+                      ? (
+                          battleSteps[battleState.currentStep].choices as (
+                            choice: string
+                          ) => string[]
+                        )(battleState.lastChoice || '')
+                      : (battleSteps[battleState.currentStep].choices as string[])
                     )?.map((choice: string) => (
                       <button
                         key={choice}

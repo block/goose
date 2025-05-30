@@ -10,6 +10,7 @@ import { FixedExtensionEntry } from './ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
+import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
 // import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
 
 interface RecipeEditorProps {
@@ -34,6 +35,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
     label: string;
     value: string;
@@ -121,13 +123,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           if (!extension) return null;
 
           // Create a clean copy of the extension configuration
-          const cleanExtension = { ...extension };
-          delete cleanExtension.enabled;
+          const { enabled: _enabled, ...cleanExtension } = extension;
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
           if ('envs' in cleanExtension) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            delete (cleanExtension as any).envs;
+            const { envs: _envs, ...finalExtension } = cleanExtension as any;
+            return finalExtension;
           }
           return cleanExtension;
         })
@@ -332,6 +334,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           {/* Action Buttons */}
           <div className="flex flex-col space-y-2 pt-1">
             <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              disabled={!requiredFieldsAreFilled()}
+              className="w-full p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500"
+            >
+              Create Schedule from Recipe
+            </button>
+            <button
               onClick={() => {
                 localStorage.removeItem('recipe_editor_extensions');
                 window.close();
@@ -349,6 +358,17 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         isOpen={isRecipeInfoModalOpen}
         onClose={() => setRecipeInfoModalOpen(false)}
         onSaveValue={recipeInfoModelProps?.setValue}
+      />
+      <ScheduleFromRecipeModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        recipe={getCurrentConfig()}
+        onCreateSchedule={(deepLink) => {
+          // Open the schedules view with the deep link pre-filled
+          window.electron.createChatWindow(undefined, undefined, undefined, undefined, undefined, 'schedules');
+          // Store the deep link in localStorage for the schedules view to pick up
+          localStorage.setItem('pendingScheduleDeepLink', deepLink);
+        }}
       />
     </div>
   );

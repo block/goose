@@ -1,4 +1,3 @@
-
 export function LoadingPlaceholder() {
   return (
     <div className="space-y-2">
