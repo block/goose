@@ -160,6 +160,9 @@ function ToolCallView({
     (entries) => entries.sort((a, b) => b.progress - a.progress)[0]
   );
 
+  const isRenderingProgress =
+    loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
+
   const isShouldExpand = isExpandToolDetails || toolResults.some((v) => v.isExpandToolResults);
 
   // Function to create a compact representation of arguments
@@ -193,7 +196,7 @@ function ToolCallView({
 
   return (
     <ToolCallExpandable
-      isStartExpanded={isShouldExpand}
+      isStartExpanded={isShouldExpand || isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
         <>
@@ -349,7 +352,7 @@ function ToolLogsView({
     >
       <div
         ref={boxRef}
-        className={`flex flex-col items-start space-y-2 overflow-y-auto max-h-[${working ? 4 : 20}rem] bg-bgApp`}
+        className={`flex flex-col items-start space-y-2 overflow-y-auto ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'} bg-bgApp`}
       >
         {logs.map((log, i) => (
           <span key={i} className="font-mono text-sm text-textSubtle">
