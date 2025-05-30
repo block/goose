@@ -114,6 +114,7 @@ export default function BottomMenu({
   // Initial load and refresh when model changes
   useEffect(() => {
     loadProviderDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle tool count alerts and token usage
