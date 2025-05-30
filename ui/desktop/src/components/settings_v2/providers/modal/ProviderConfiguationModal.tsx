@@ -13,6 +13,10 @@ import { useConfig } from '../../../ConfigContext';
 import { AlertTriangle } from 'lucide-react';
 import { getCurrentModelAndProvider } from '../../models'; // Import the utility
 
+interface FormValues {
+  [key: string]: string | number | boolean | null;
+}
+
 const customSubmitHandlerMap: Record<string, unknown> = {
   provider_name: OllamaSubmitHandler, // example
 };
@@ -94,7 +98,7 @@ export default function ProviderConfigurationModal() {
 
       // Call onSubmit callback if provided (from modal props)
       if (modalProps.onSubmit) {
-        modalProps.onSubmit(configValues);
+        modalProps.onSubmit(configValues as FormValues);
       }
     } catch (error) {
       console.error('Failed to save configuration:', error);
@@ -156,7 +160,7 @@ export default function ProviderConfigurationModal() {
       // Call onDelete callback if provided
       // This should trigger the refreshProviders function
       if (modalProps.onDelete) {
-        modalProps.onDelete(currentProvider.name as unknown);
+        modalProps.onDelete(currentProvider.name as FormValues);
       }
 
       // Reset the delete confirmation state before closing

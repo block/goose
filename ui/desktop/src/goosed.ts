@@ -70,17 +70,51 @@ export const startGoosed = async (
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
 
-  // Ensure dir is properly normalized for the platform
+  // Ensure dir is properly normalized for the platform and validate it
   if (!dir) {
     dir = homeDir;
   }
-  dir = path.normalize(dir);
+  
+  // Sanitize and validate the directory path
+  dir = path.resolve(path.normalize(dir));
+  
+  // Security check: Ensure the directory path doesn't contain suspicious characters
+  if (dir.includes('..') || dir.includes(';') || dir.includes('|') || dir.includes('&')) {
+    throw new Error(`Invalid directory path: ${dir}`);
+  }
 
   // Get the goosed binary path using the shared utility
   let goosedPath = getBinaryPath(app, 'goosed');
+  
+  // Security validation: Ensure the binary path is safe
+  const resolvedGoosedPath = path.resolve(goosedPath);
+  
+  // Validate that the binary path doesn't contain suspicious characters or sequences
+  if (resolvedGoosedPath.includes('..') || 
+      resolvedGoosedPath.includes(';') || 
+      resolvedGoosedPath.includes('|') || 
+      resolvedGoosedPath.includes('&') ||
+      resolvedGoosedPath.includes('`') ||
+      resolvedGoosedPath.includes('$')) {
+    throw new Error(`Invalid binary path detected: ${resolvedGoosedPath}`);
+  }
+  
+  // Ensure the binary path is within expected application directories
+  const appPath = app.getAppPath();
+  const resourcesPath = process.resourcesPath;
+  const currentWorkingDir = process.cwd();
+  
+  const isValidPath = resolvedGoosedPath.startsWith(path.resolve(appPath)) ||
+                     resolvedGoosedPath.startsWith(path.resolve(resourcesPath)) ||
+                     resolvedGoosedPath.startsWith(path.resolve(currentWorkingDir));
+  
+  if (!isValidPath) {
+    throw new Error(`Binary path is outside of allowed directories: ${resolvedGoosedPath}`);
+  }
+  
   const port = await findAvailablePort();
 
-  log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}`);
+  log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
 
   // Define additional environment variables
   const additionalEnv: GooseProcessEnv = {
@@ -93,7 +127,7 @@ export const startGoosed = async (
     // Set LOCAL_APPDATA for Windows
     LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
     // Set PATH to include the binary directory
-    PATH: `${path.dirname(goosedPath)}${path.delimiter}${process.env.PATH || ''}`,
+    PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
     // start with the port specified
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
@@ -115,20 +149,25 @@ export const startGoosed = async (
   log.info(`Environment PATH: ${processEnv.PATH}`);
 
   // Ensure proper executable path on Windows
-  if (isWindows && !goosedPath.toLowerCase().endsWith('.exe')) {
-    goosedPath += '.exe';
+  if (isWindows && !resolvedGoosedPath.toLowerCase().endsWith('.exe')) {
+    goosedPath = resolvedGoosedPath + '.exe';
+  } else {
+    goosedPath = resolvedGoosedPath;
   }
   log.info(`Binary path resolved to: ${goosedPath}`);
 
-  // Verify binary exists
+  // Verify binary exists and is a regular file
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fs = require('fs');
     const stats = fs.statSync(goosedPath);
-    log.info(`Binary exists: ${stats.isFile()}`);
+    if (!stats.isFile()) {
+      throw new Error(`Path is not a regular file: ${goosedPath}`);
+    }
+    log.info(`Binary exists and is a regular file: ${stats.isFile()}`);
   } catch (error) {
-    log.error(`Binary not found at ${goosedPath}:`, error);
-    throw new Error(`Binary not found at ${goosedPath}`);
+    log.error(`Binary not found or invalid at ${goosedPath}:`, error);
+    throw new Error(`Binary not found or invalid at ${goosedPath}`);
   }
 
   const spawnOptions = {
@@ -139,15 +178,29 @@ export const startGoosed = async (
     windowsHide: true,
     // Run detached on Windows only to avoid terminal windows
     detached: isWindows,
-    // Never use shell to avoid terminal windows
+    // Never use shell to avoid command injection - this is critical for security
     shell: false,
   };
 
-  // Log spawn options for debugging
-  log.info('Spawn options:', JSON.stringify(spawnOptions, null, 2));
+  // Log spawn options for debugging (excluding sensitive env vars)
+  const safeSpawnOptions = {
+    ...spawnOptions,
+    env: Object.keys(spawnOptions.env || {}).reduce((acc, key) => {
+      if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN')) {
+        acc[key] = '[REDACTED]';
+      } else {
+        acc[key] = spawnOptions.env![key];
+      }
+      return acc;
+    }, {} as Record<string, string>)
+  };
+  log.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
-  // Spawn the goosed process
-  const goosedProcess: ChildProcess = spawn(goosedPath, ['agent'], spawnOptions);
+  // Security: Use only hardcoded, safe arguments
+  const safeArgs = ['agent']; // Only allow the 'agent' argument
+  
+  // Spawn the goosed process with validated inputs
+  const goosedProcess: ChildProcess = spawn(goosedPath, safeArgs, spawnOptions);
 
   // Only unref on Windows to allow it to run independently of the parent
   if (isWindows) {
@@ -179,7 +232,12 @@ export const startGoosed = async (
     try {
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
-        spawn('taskkill', ['/pid', goosedProcess.pid?.toString() || "0", '/T', '/F']);
+        // Security: Validate PID is numeric and use safe arguments
+        const pid = goosedProcess.pid?.toString() || "0";
+        if (!/^\d+$/.test(pid)) {
+          throw new Error(`Invalid PID: ${pid}`);
+        }
+        spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: false });
       } else {
         goosedProcess.kill?.();
       }
@@ -196,7 +254,13 @@ export const startGoosed = async (
     try {
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
-        spawn('taskkill', ['/pid', goosedProcess.pid?.toString() || "0", '/T', '/F']);
+        // Security: Validate PID is numeric and use safe arguments
+        const pid = goosedProcess.pid?.toString() || "0";
+        if (!/^\d+$/.test(pid)) {
+          log.error(`Invalid PID for termination: ${pid}`);
+          return;
+        }
+        spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: false });
       } else {
         goosedProcess.kill?.();
       }
