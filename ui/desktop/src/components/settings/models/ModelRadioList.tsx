@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRecentModels } from './RecentModels';
 import { useModel, Model } from './ModelContext';
 import { useHandleModelSelection } from './utils';
-import type { View } from '@/src/App';
+import type { View } from '../../../App';
 
 interface ModelRadioListProps {
   renderItem: (props: {

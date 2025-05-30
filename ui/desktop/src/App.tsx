@@ -54,20 +54,20 @@ export type ViewOptions = {
   extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: ExtensionConfig;
-  
-  // Session view options  
+
+  // Session view options
   resumedSession?: SessionDetails;
   sessionDetails?: SessionDetails;
   error?: string;
   shareToken?: string;
   baseUrl?: string;
-  
+
   // Recipe editor options
   config?: unknown;
-  
+
   // Permission view options
   parentView?: View;
-  
+
   // Generic options
   [key: string]: unknown;
 };
@@ -245,9 +245,12 @@ export default function App() {
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
-        await openSharedSessionFromDeepLink(link, (view: View, options?: SessionLinksViewOptions) => {
-          setView(view, options as ViewOptions);
-        });
+        await openSharedSessionFromDeepLink(
+          link,
+          (view: View, options?: SessionLinksViewOptions) => {
+            setView(view, options as ViewOptions);
+          }
+        );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
         setView('sessions');
@@ -532,7 +535,9 @@ export default function App() {
           {view === 'schedules' && <SchedulesView onClose={() => setView('chat')} />}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions?.sessionDetails as SharedSessionDetails | null || null}
+              session={
+                (viewOptions?.sessionDetails as unknown as SharedSessionDetails | null) || null
+              }
               isLoading={isLoadingSharedSession}
               error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}

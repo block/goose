@@ -314,11 +314,9 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     <div
       ref={(el) => {
         if (el) {
-          containerRef.current = el;
+          containerRef.current = el as SearchContainerElement;
           // Expose the highlighter instance
-          if (containerRef.current) {
-            containerRef.current._searchHighlighter = highlighterRef.current;
-          }
+          containerRef.current._searchHighlighter = highlighterRef.current;
         }
       }}
       className={`search-container ${className}`}

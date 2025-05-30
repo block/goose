@@ -4,9 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
-import { Buffer } from 'node:stream';
 import { App } from 'electron';
-import type { ProcessEnv } from 'node:process';
+import { Buffer } from 'node:buffer';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
@@ -51,7 +50,8 @@ const checkServerStatus = async (
   return false;
 };
 
-interface GooseProcessEnv extends ProcessEnv {
+interface GooseProcessEnv {
+  [key: string]: string | undefined;
   HOME: string;
   USERPROFILE: string;
   APPDATA: string;
@@ -74,10 +74,10 @@ export const startGoosed = async (
   if (!dir) {
     dir = homeDir;
   }
-  
+
   // Sanitize and validate the directory path
   dir = path.resolve(path.normalize(dir));
-  
+
   // Security check: Ensure the directory path doesn't contain suspicious characters
   if (dir.includes('..') || dir.includes(';') || dir.includes('|') || dir.includes('&')) {
     throw new Error(`Invalid directory path: ${dir}`);
@@ -85,33 +85,36 @@ export const startGoosed = async (
 
   // Get the goosed binary path using the shared utility
   let goosedPath = getBinaryPath(app, 'goosed');
-  
+
   // Security validation: Ensure the binary path is safe
   const resolvedGoosedPath = path.resolve(goosedPath);
-  
+
   // Validate that the binary path doesn't contain suspicious characters or sequences
-  if (resolvedGoosedPath.includes('..') || 
-      resolvedGoosedPath.includes(';') || 
-      resolvedGoosedPath.includes('|') || 
-      resolvedGoosedPath.includes('&') ||
-      resolvedGoosedPath.includes('`') ||
-      resolvedGoosedPath.includes('$')) {
+  if (
+    resolvedGoosedPath.includes('..') ||
+    resolvedGoosedPath.includes(';') ||
+    resolvedGoosedPath.includes('|') ||
+    resolvedGoosedPath.includes('&') ||
+    resolvedGoosedPath.includes('`') ||
+    resolvedGoosedPath.includes('$')
+  ) {
     throw new Error(`Invalid binary path detected: ${resolvedGoosedPath}`);
   }
-  
+
   // Ensure the binary path is within expected application directories
   const appPath = app.getAppPath();
   const resourcesPath = process.resourcesPath;
   const currentWorkingDir = process.cwd();
-  
-  const isValidPath = resolvedGoosedPath.startsWith(path.resolve(appPath)) ||
-                     resolvedGoosedPath.startsWith(path.resolve(resourcesPath)) ||
-                     resolvedGoosedPath.startsWith(path.resolve(currentWorkingDir));
-  
+
+  const isValidPath =
+    resolvedGoosedPath.startsWith(path.resolve(appPath)) ||
+    resolvedGoosedPath.startsWith(path.resolve(resourcesPath)) ||
+    resolvedGoosedPath.startsWith(path.resolve(currentWorkingDir));
+
   if (!isValidPath) {
     throw new Error(`Binary path is outside of allowed directories: ${resolvedGoosedPath}`);
   }
-  
+
   const port = await findAvailablePort();
 
   log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
@@ -173,7 +176,7 @@ export const startGoosed = async (
   const spawnOptions = {
     cwd: dir,
     env: processEnv,
-    stdio: ['ignore', 'pipe', 'pipe'] as const,
+    stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
     // Hide terminal window on Windows
     windowsHide: true,
     // Run detached on Windows only to avoid terminal windows
@@ -185,26 +188,29 @@ export const startGoosed = async (
   // Log spawn options for debugging (excluding sensitive env vars)
   const safeSpawnOptions = {
     ...spawnOptions,
-    env: Object.keys(spawnOptions.env || {}).reduce((acc, key) => {
-      if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN')) {
-        acc[key] = '[REDACTED]';
-      } else {
-        acc[key] = spawnOptions.env![key];
-      }
-      return acc;
-    }, {} as Record<string, string>)
+    env: Object.keys(spawnOptions.env || {}).reduce(
+      (acc, key) => {
+        if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN')) {
+          acc[key] = '[REDACTED]';
+        } else {
+          acc[key] = spawnOptions.env![key] || '';
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    ),
   };
   log.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
   // Security: Use only hardcoded, safe arguments
   const safeArgs = ['agent']; // Only allow the 'agent' argument
-  
+
   // Spawn the goosed process with validated inputs
   const goosedProcess: ChildProcess = spawn(goosedPath, safeArgs, spawnOptions);
 
   // Only unref on Windows to allow it to run independently of the parent
-  if (isWindows) {
-    goosedProcess.unref?.();
+  if (isWindows && goosedProcess.unref) {
+    goosedProcess.unref();
   }
 
   goosedProcess.stdout?.on('data', (data: Buffer) => {
@@ -233,7 +239,7 @@ export const startGoosed = async (
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
         // Security: Validate PID is numeric and use safe arguments
-        const pid = goosedProcess.pid?.toString() || "0";
+        const pid = goosedProcess.pid?.toString() || '0';
         if (!/^\d+$/.test(pid)) {
           throw new Error(`Invalid PID: ${pid}`);
         }
@@ -255,7 +261,7 @@ export const startGoosed = async (
       if (isWindows) {
         // On Windows, use taskkill to forcefully terminate the process tree
         // Security: Validate PID is numeric and use safe arguments
-        const pid = goosedProcess.pid?.toString() || "0";
+        const pid = goosedProcess.pid?.toString() || '0';
         if (!/^\d+$/.test(pid)) {
           log.error(`Invalid PID for termination: ${pid}`);
           return;
