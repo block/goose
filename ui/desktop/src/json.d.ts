@@ -37,3 +37,10 @@ declare module '*.mp4' {
   const value: string;
   export default value;
 }
+
+// Extend CSS properties to include Electron-specific properties
+declare namespace React {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag';
+  }
+}
