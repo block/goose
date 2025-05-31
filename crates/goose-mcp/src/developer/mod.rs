@@ -1,3 +1,4 @@
+mod git;
 mod lang;
 mod shell;
 
@@ -295,11 +296,167 @@ impl DeveloperRouter {
             }),
         );
 
+        // Git tools - only add if feature flag is enabled
+        let mut tools = vec![
+            bash_tool,
+            text_editor_tool,
+            list_windows_tool,
+            screen_capture_tool,
+            image_processor_tool,
+        ];
+
+        // Check if git checkpointing is enabled
+        let git_checkpointing_enabled = std::env::var("GOOSE_GIT_CHECKPOINTING")
+            .map(|val| val.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        if git_checkpointing_enabled {
+            let git_status_tool = Tool::new(
+                "git_status",
+                indoc! {r#"
+                    Check the git status of the current directory.
+                    
+                    This tool will:
+                    1. Check if the current directory is a git repository
+                    2. If not, offer to initialize one
+                    3. Check for unstaged changes
+                    4. Show the current branch
+                    
+                    Use this tool when starting work to understand the current state of the repository.
+                "#},
+                json!({
+                    "type": "object",
+                    "required": [],
+                    "properties": {}
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Git Status".to_string()),
+                    read_only_hint: true,
+                    destructive_hint: false,
+                    idempotent_hint: true,
+                    open_world_hint: false,
+                }),
+            );
+
+            let git_branch_tool = Tool::new(
+                "git_branch",
+                indoc! {r#"
+                    Create or switch to a git branch.
+                    
+                    This tool will:
+                    1. Create a new branch if it doesn't exist
+                    2. Switch to an existing branch
+                    3. List available branches if requested
+                    
+                    Use this tool when starting a new task to create a dedicated branch.
+                "#},
+                json!({
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["create", "switch", "list"],
+                            "description": "The action to perform: create a new branch, switch to an existing branch, or list all branches"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the branch to create or switch to (not needed for 'list' action)"
+                        }
+                    }
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Git Branch".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
+            );
+
+            let git_checkpoint_tool = Tool::new(
+                "git_checkpoint",
+                indoc! {r#"
+                    Create a checkpoint by committing the current changes.
+                    
+                    This tool will:
+                    1. Stage all current changes
+                    2. Commit them with the provided message
+                    
+                    Use this tool at logical points when the code is in a working state.
+                "#},
+                json!({
+                    "type": "object",
+                    "required": ["message"],
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "The commit message describing the checkpoint"
+                        }
+                    }
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Git Checkpoint".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
+            );
+
+            let git_rollback_tool = Tool::new(
+                "git_rollback",
+                indoc! {r#"
+                    Roll back to a previous state.
+                    
+                    This tool will:
+                    1. Show recent commits if requested
+                    2. Reset to the last commit or a specific commit
+                    3. Option to keep or discard changes
+                    
+                    Use this tool when you need to undo changes and return to a previous working state.
+                "#},
+                json!({
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["show_commits", "reset_soft", "reset_hard"],
+                            "description": "The action to perform: show recent commits, soft reset (keep changes), or hard reset (discard changes)"
+                        },
+                        "commit": {
+                            "type": "string",
+                            "description": "The commit hash to reset to (defaults to HEAD for reset actions, not needed for 'show_commits')"
+                        }
+                    }
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Git Rollback".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: true,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
+            );
+
+            // Add git tools to the tools vector
+            tools.push(git_status_tool);
+            tools.push(git_branch_tool);
+            tools.push(git_checkpoint_tool);
+            tools.push(git_rollback_tool);
+        }
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
 
-        let base_instructions = match os {
+        // Check if git checkpointing is enabled for instructions
+        let git_checkpointing_enabled = std::env::var("GOOSE_GIT_CHECKPOINTING")
+            .map(|val| val.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        let mut base_instructions = match os {
             "windows" => formatdoc! {r#"
                 The developer extension gives you the capabilities to edit code files and run shell commands,
                 and can be used to solve a wide range of problems.
@@ -337,6 +494,44 @@ impl DeveloperRouter {
                 cwd=cwd.to_string_lossy(),
             },
         };
+
+        // Add git checkpointing instructions if enabled
+        if git_checkpointing_enabled {
+            let git_instructions = indoc! {r#"
+                To help keep track of changes as you work, you should make use of git to checkpoint your work as you go using the tools below.
+                You can make branches for different logical tasks (check with user if needed) and to rollback if needed.
+                Ensure you have a clean git repo to start with, no unstaged chages, make a git repo if needed to avoid losing work.
+
+                1. `git_status` - Use this at the beginning of your work to check if you're in a git repository and if there are unstaged changes.
+                
+                2. `git_branch` - Use this to:
+                   - Create a new branch for a specific task with `action: "create", name: "branch-name"`
+                   - Switch between branches with `action: "switch", name: "branch-name"`
+                   - List available branches with `action: "list"`
+                
+                3. `git_checkpoint` - Use this to save your progress at logical points when the code is in a working state:
+                   - Commit changes with `message: "Description of changes"`
+                   - Use it when there is a logical task point, things are working, user says it is ok etc, or you need to park changes for a different task.
+                   - avoid just committing everything when you are done without knowing it is worth committing
+                   - summarise your work after making a checkpoint, and before, so user knows what is and has been committed.
+                
+                4. `git_rollback` - Use this if you need to undo changes:
+                   - View recent commits with `action: "show_commits"`
+                   - Soft reset (keep changes unstaged) with `action: "reset_soft", commit: "hash"` 
+                   - Hard reset (discard changes) with `action: "reset_hard", commit: "hash"`
+
+                Recommended workflow:
+                1. Start by checking status with `git_status`
+                2. Create a new branch for your task with `git_branch`
+                3. Make changes to files
+                4. Create checkpoints at logical points with `git_checkpoint`, but only do this if you or the user has validated changes are ok (eg tests passing, or you get the OK)
+                5. If needed, roll back to previous states with `git_rollback`
+                6. When done, consider if you should switch to another branch if it is a totally different task
+
+            "#};
+
+            base_instructions.push_str(git_instructions);
+        }
 
         // choose_app_strategy().config_dir()
         // - macOS/Linux: ~/.config/goose/
@@ -422,13 +617,7 @@ impl DeveloperRouter {
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
         Self {
-            tools: vec![
-                bash_tool,
-                text_editor_tool,
-                list_windows_tool,
-                screen_capture_tool,
-                image_processor_tool,
-            ],
+            tools,
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -1132,6 +1321,10 @@ impl Router for DeveloperRouter {
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
+                "git_status" => git::git_status(&this, arguments).await,
+                "git_branch" => git::git_branch(&this, arguments).await,
+                "git_checkpoint" => git::git_checkpoint(&this, arguments).await,
+                "git_rollback" => git::git_rollback(&this, arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
