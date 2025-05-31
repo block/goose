@@ -187,36 +187,60 @@ You'll need to provide both instructions and activities for your Recipe.
    For complete documentation of recipe commands and options, see the [`recipe` command](/docs/guides/goose-cli-commands#recipe) and [`run` command](/docs/guides/goose-cli-commands#run) reference.
 
    <Tabs>
-     <TabItem value="local" label="Local Recipes" default>
-       You can run recipes directly from your filesystem:
-       ```bash
-       # Run once and exit
-       goose run --recipe recipe.yaml
+     <TabItem value="filepath" label="File Path" default>
+       Use a full file path when you want to run a specific recipe file:
 
+       ```bash
+       # Using absolute path
+       goose run --recipe ~/recipes/my_recipe.yaml
+       
+       # Using relative path
+       goose run --recipe ./my_recipe.yaml
+       ```
+
+       Common options work with file paths:
+       ```bash
        # Run in interactive mode
-       goose run --recipe recipe.yaml --interactive
+       goose run --recipe ./my_recipe.yaml --interactive
 
        # Run with parameters
-       goose run --recipe recipe.yaml --params language=Spanish --params style=formal
+       goose run --recipe ~/recipes/my_recipe.yaml --params language=Spanish
 
        # Show recipe details
-       goose run --recipe recipe.yaml --explain
+       goose run --recipe ./my_recipe.yaml --explain
        ```
      </TabItem>
 
-     <TabItem value="github" label="GitHub Recipes">
-       You can run recipes directly from a GitHub repository:
+     <TabItem value="recipename" label="Recipe Name">
+       When using just the recipe name, Goose will search for the recipe in this order:
 
-       1. Configure your recipe repository (see [Environment Variables](/docs/guides/environment-variables#recipe-configuration))
-       2. Run using just the recipe name:
+       1. **Local Directory**
+          - Looks for `recipe_name.yaml` or `recipe_name.json` in your current directory
+          ```bash
+          goose run --recipe my_recipe
+          ```
+
+       2. **GitHub Repository** (if configured)
+          - Searches in your configured GitHub repository (set via `GOOSE_RECIPE_GITHUB_REPO` or `goose configure`)
+          - Looks for `my_recipe/recipe.yaml` or `my_recipe/recipe.json`
+          ```bash
+          # Same command works for both local and GitHub recipes
+          goose run --recipe my_recipe
+          ```
+
+       The same options work with recipe names:
        ```bash
-       goose run --recipe my-recipe
+       # Run in interactive mode
+       goose run --recipe my_recipe --interactive
+
+       # Run with parameters
+       goose run --recipe my_recipe --params language=Python
+
+       # Show recipe details
+       goose run --recipe my_recipe --explain
        ```
-       
-       Goose will search for:
-       - `my-recipe/recipe.yaml` or 
-       - `my-recipe/recipe.json`
-       in your configured repository
+
+       To configure a GitHub repository for recipes, see [Environment Variables](/docs/guides/environment-variables#recipe-configuration)
      </TabItem>
    </Tabs>
 
