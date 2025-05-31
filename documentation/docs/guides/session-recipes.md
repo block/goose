@@ -146,7 +146,145 @@ You'll need to provide both instructions and activities for your Recipe.
 ## Use Recipe
 
 <Tabs>
-  <TabItem value="ui" label="Goose Desktop" default>
+  <TabItem value="cli" label="Goose CLI" default>
+
+   ### 1. Configure Recipe Location
+
+   Goose looks for recipes in the following locations, in order:
+   1. Local filesystem (current directory or specified path)
+   2. GitHub repository (if configured)
+
+   To configure a GitHub repository for recipes, you have two options:
+
+   #### Option 1: Using goose configure (Recommended)
+   ```sh
+   goose configure
+   ```
+
+   You'll see the following prompts:
+
+   ```sh
+   ┌  goose-configure 
+   │
+   ◆  What would you like to configure?
+   │  ○ Configure Providers 
+   │  ○ Add Extension 
+   │  ○ Toggle Extensions 
+   │  ○ Remove Extension 
+   // highlight-start
+   │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
+   // highlight-end
+   │
+   ◇  What would you like to configure?
+   │  Goose Settings 
+   │
+   ◆  What setting would you like to configure?
+   │  ○ Goose Mode 
+   │  ○ Tool Permission 
+   │  ○ Tool Output 
+   │  ○ Toggle Experiment 
+   // highlight-start
+   │  ● Goose recipe github repo (Goose will pull recipes from this repo if not found locally.)
+   // highlight-end
+   │
+   ◇  What would you like to configure?
+   │  Goose Settings 
+   │
+   ◇  What setting would you like to configure?
+   │  Goose recipe github repo 
+   │
+   ◆  Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes
+   // highlight-start
+   │  squareup/goose-recipes (default)
+   // highlight-end
+   └  
+   ```
+
+   #### Option 2: Edit config file directly
+   Add to your config file (~/.config/goose/config.yaml):
+   ```yaml
+   GOOSE_RECIPE_GITHUB_REPO: "owner/repo"
+   ```
+
+   ### 2. Run a Recipe
+
+   <Tabs>
+     <TabItem value="local" label="Local Recipe" default>
+
+       **Basic Usage** - Run once and exit:
+       ```sh
+       # Using recipe file in current directory
+       goose run --recipe recipe.yaml
+
+       # Using full path
+       goose run --recipe ./recipes/my-recipe.yaml
+       ```
+
+       **Interactive Mode** - Start an interactive session:
+       ```sh
+       goose run --recipe recipe.yaml --interactive
+       ```
+
+       **With Parameters** - Supply values for recipe variables:
+       ```sh
+       goose run --recipe recipe.yaml \
+         --params language=Python \
+         --params style=PEP8
+       ```
+
+       :::tip Recipe Location
+       - Both YAML (.yaml) and JSON (.json) formats are supported
+       - Use relative or absolute paths
+       - Recipe files can be in any directory
+       :::
+
+     </TabItem>
+
+     <TabItem value="github" label="GitHub Recipe">
+
+       Once you've configured your GitHub repository, you can run recipes by name:
+
+       ```sh
+       # This will look for <recipe-name>/recipe.yaml (or .json) in your configured repo
+       goose run --recipe recipe-name
+       ```
+
+       For example, if your repository structure is:
+       ```
+       my-repo/
+       ├── code-review/
+       │   └── recipe.yaml
+       └── setup-project/
+           └── recipe.yaml
+       ```
+
+       You can run:
+       ```sh
+       goose run --recipe code-review
+       # or
+       goose run --recipe setup-project
+       ```
+
+       With parameters:
+       ```sh
+       goose run --recipe code-review \
+         --params language=Python \
+         --interactive
+       ```
+
+     </TabItem>
+   </Tabs>
+
+   :::info Required Parameters
+   If a recipe has required parameters:
+   - **Interactive Mode**: You'll be prompted for values
+   - **Non-interactive Mode**: Command fails with list of required parameters
+   - **Default Values**: Will be used if defined in recipe
+   :::
+
+   </TabItem> 
+
+  <TabItem value="ui" label="Goose Desktop">
 
    There are three ways to use a recipe in Goose Desktop:
 
@@ -177,70 +315,6 @@ You'll need to provide both instructions and activities for your Recipe.
    :::
 
   </TabItem>
-
-  <TabItem value="cli" label="Goose CLI">
-    You can load a recipe from your local filesystem or a configured GitHub repository:
-   <Tabs>
-     <TabItem value="local" label="Local Recipe" default>
-
-       **Basic Usage** - Run once and exit:
-       ```sh
-       goose run --recipe recipe.yaml
-       ```
-
-       **Interactive Mode** - Start an interactive session:
-       ```sh
-       goose run --recipe recipe.yaml --interactive
-       ```
-
-       **With Parameters** - Supply values for recipe variables:
-       ```sh
-       goose run --recipe recipe.yaml \
-         --params language=Python \
-         --params style=PEP8
-       ```
-
-       :::tip Recipe Location
-       - Use filename (e.g., `recipe.yaml`) for current directory
-       - Or full path (e.g., `./recipes/my-recipe.yaml`)
-       - Both YAML and JSON formats are supported
-       :::
-
-     </TabItem>
-
-     <TabItem value="github" label="GitHub Recipe">
-
-       ```sh
-       # Looks for recipe-name/recipe.yaml in GOOSE_RECIPE_GITHUB_REPO
-       goose run --recipe recipe-name
-       ```
-
-       With parameters:
-       ```sh
-       goose run --recipe recipe-name \
-         --params language=Python \
-         --interactive
-       ```
-
-       :::info Setup Required
-       Configure your GitHub repo first:
-       ```sh
-       goose configure
-       # Then select: Goose Settings → Goose recipe github repo
-       ```
-       :::
-
-     </TabItem>
-   </Tabs>
-
-   :::info Required Parameters
-   If a recipe has required parameters:
-   - **Interactive Mode**: You'll be prompted for values
-   - **Non-interactive Mode**: Command fails with list of required parameters
-   - **Default Values**: Will be used if defined in recipe
-   :::
-
-   </TabItem> 
 </Tabs>
 
 
