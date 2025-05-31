@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Goose LLM Mock Provider Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Goose LLM Mock Provider Test</h1>
+    
+    <div class="section">
+        <h2>Mock Provider Configuration</h2>
+        <div>
+            <label for="delay">Delay (ms):</label>
+            <input type="number" id="delay" value="500" min="0" max="5000">
+        </div>
+        <div>
+            <label for="errorType">Error Type (leave blank for no error):</label>
+            <select id="errorType">
+                <option value="">No Error</option>
+                <option value="auth">Authentication Error</option>
+                <option value="context">Context Length Exceeded</option>
+                <option value="rate">Rate Limit Exceeded</option>
+                <option value="server">Server Error</option>
+                <option value="request">Request Failed</option>
+                <option value="execution">Execution Error</option>
+                <option value="usage">Usage Error</option>
+                <option value="parse">Response Parse Error</option>
+            </select>
+        </div>
+        <div>
+            <label for="inputTokens">Input Tokens:</label>
+            <input type="number" id="inputTokens" value="10" min="0">
+        </div>
+        <div>
+            <label for="outputTokens">Output Tokens:</label>
+            <input type="number" id="outputTokens" value="20" min="0">
+        </div>
+        <div>
+            <label for="totalTokens">Total Tokens:</label>
+            <input type="number" id="totalTokens" value="30" min="0">
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>User Input</h2>
+        <div>
+            <label for="userInput">User Message:</label>
+            <textarea id="userInput" rows="3" style="width: 100%">Hello, AI assistant! How are you today?</textarea>
+        </div>
+        <div>
+            <label for="systemPrompt">System Prompt:</label>
+            <textarea id="systemPrompt" rows="2" style="width: 100%">You are a helpful assistant.</textarea>
+        </div>
+        <div>
+            <button id="syncButton">Send Sync Request</button>
+            <button id="asyncButton">Send Async Request</button>
+            <span id="loading" class="loading" style="display: none;">Processing...</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Response</h2>
+        <div id="responseOutput">
+            <p><em>Response will appear here...</em></p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Debug Information</h2>
+        <div id="debugOutput"></div>
+    </div>
+
+    <script type="module">
+        import init, { 
+            WasmModelConfig, 
+            WasmMessage, 
+            WasmCompletionRequest,
+            WasmMockProviderConfig,
+            wasm_complete_with_mock,
+            wasm_complete_with_mock_async,
+            wasm_mock_completion
+        } from './pkg/goose_llm.js';
+
+        let wasmModule;
+
+        async function initWasm() {
+            try {
+                wasmModule = await init();
+                document.getElementById('debugOutput').innerHTML = `<p>WebAssembly module loaded successfully.</p>`;
+            } catch (e) {
+                console.error("Failed to initialize WebAssembly module:", e);
+                document.getElementById('debugOutput').innerHTML = `<p class="error">Failed to initialize WebAssembly: ${e.message || e}</p>`;
+            }
+        }
+
+        async function sendSyncRequest() {
+            try {
+                // Show loading indicator
+                document.getElementById('loading').style.display = 'inline-block';
+                document.getElementById('syncButton').disabled = true;
+                document.getElementById('asyncButton').disabled = true;
+                
+                // Clear previous error messages
+                document.getElementById('responseOutput').innerHTML = `<p><em>Processing request...</em></p>`;
+                
+                // Get user input
+                const userInput = document.getElementById('userInput').value;
+                const systemPrompt = document.getElementById('systemPrompt').value;
+                
+                // Get mock configuration
+                const delay = parseFloat(document.getElementById('delay').value) || 0;
+                const errorType = document.getElementById('errorType').value;
+                const inputTokens = parseInt(document.getElementById('inputTokens').value);
+                const outputTokens = parseInt(document.getElementById('outputTokens').value);
+                const totalTokens = parseInt(document.getElementById('totalTokens').value);
+                
+                // Start timing
+                const startTime = performance.now();
+                
+                // Use the direct mock completion function
+                let response;
+                
+                document.getElementById('debugOutput').innerHTML = `<p>Sending sync request...</p>`;
+                
+                if (errorType) {
+                    // If error type is selected, use the request-based approach
+                    let mockConfig = new WasmMockProviderConfig()
+                        .with_delay(delay)
+                        .with_token_counts(
+                            isNaN(inputTokens) ? null : inputTokens,
+                            isNaN(outputTokens) ? null : outputTokens,
+                            isNaN(totalTokens) ? null : totalTokens
+                        )
+                        .with_error(errorType);
+                    
+                    const modelConfig = new WasmModelConfig("mock-model");
+                    
+                    const request = new WasmCompletionRequest(
+                        "mock",
+                        mockConfig.to_json(),
+                        modelConfig,
+                        systemPrompt
+                    );
+                    
+                    request.add_message(WasmMessage.user().with_text(userInput));
+                    
+                    try {
+                        response = wasm_complete_with_mock(request);
+                    } catch (err) {
+                        throw new Error(`${err}`);
+                    }
+                } else {
+                    // Use the simpler direct function
+                    response = wasm_mock_completion(
+                        systemPrompt,
+                        userInput,
+                        "mock-model",
+                        delay,
+                        isNaN(inputTokens) ? null : inputTokens,
+                        isNaN(outputTokens) ? null : outputTokens,
+                        isNaN(totalTokens) ? null : totalTokens
+                    );
+                }
+                
+                const endTime = performance.now();
+                
+                displayResponse(response, startTime, endTime, "Sync");
+            } catch (e) {
+                console.error("Error:", e);
+                document.getElementById('responseOutput').innerHTML = `
+                    <h3>Error Occurred:</h3>
+                    <p class="error">${e.message || e}</p>
+                `;
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Error Details:</h3>
+                    <pre class="error">${e.stack || 'No stack trace available'}</pre>
+                `;
+            } finally {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('syncButton').disabled = false;
+                document.getElementById('asyncButton').disabled = false;
+            }
+        }
+        
+        async function sendAsyncRequest() {
+            try {
+                // Show loading indicator
+                document.getElementById('loading').style.display = 'inline-block';
+                document.getElementById('syncButton').disabled = true;
+                document.getElementById('asyncButton').disabled = true;
+                
+                // Clear previous error messages
+                document.getElementById('responseOutput').innerHTML = `<p><em>Processing request...</em></p>`;
+                
+                // Get user input
+                const userInput = document.getElementById('userInput').value;
+                const systemPrompt = document.getElementById('systemPrompt').value;
+                
+                // Get mock configuration
+                const delay = parseFloat(document.getElementById('delay').value) || 0;
+                const errorType = document.getElementById('errorType').value;
+                const inputTokens = parseInt(document.getElementById('inputTokens').value);
+                const outputTokens = parseInt(document.getElementById('outputTokens').value);
+                const totalTokens = parseInt(document.getElementById('totalTokens').value);
+                
+                // Create mock config
+                let mockConfig = new WasmMockProviderConfig()
+                    .with_delay(delay)
+                    .with_token_counts(
+                        isNaN(inputTokens) ? null : inputTokens,
+                        isNaN(outputTokens) ? null : outputTokens,
+                        isNaN(totalTokens) ? null : totalTokens
+                    );
+                
+                // Add error type if selected
+                if (errorType) {
+                    mockConfig = mockConfig.with_error(errorType);
+                }
+                
+                // Create model config
+                const modelConfig = new WasmModelConfig("mock-model");
+                
+                // Create completion request
+                const request = new WasmCompletionRequest(
+                    "mock",
+                    mockConfig.to_json(),
+                    modelConfig,
+                    systemPrompt
+                );
+                
+                // Add user message
+                request.add_message(WasmMessage.user().with_text(userInput));
+                
+                // Start timing
+                const startTime = performance.now();
+                
+                // Send the async request
+                try {
+                    document.getElementById('debugOutput').innerHTML = `<p>Sending async request...</p>`;
+                    const response = await wasm_complete_with_mock_async(request);
+                    const endTime = performance.now();
+                    displayResponse(response, startTime, endTime, "Async");
+                } catch (e) {
+                    throw new Error(`${e}`);
+                }
+            } catch (e) {
+                console.error("Error:", e);
+                document.getElementById('responseOutput').innerHTML = `
+                    <h3>Error Occurred:</h3>
+                    <p class="error">${e.message || e}</p>
+                `;
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Error Details:</h3>
+                    <pre class="error">${e.stack || 'No stack trace available'}</pre>
+                `;
+            } finally {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('syncButton').disabled = false;
+                document.getElementById('asyncButton').disabled = false;
+            }
+        }
+        
+        function displayResponse(response, startTime, endTime, method) {
+            // Display the response
+            const responseMessage = response.message();
+            const usage = response.usage();
+            const metrics = response.runtime_metrics();
+            const actualTimeSec = (endTime - startTime) / 1000;
+            
+            document.getElementById('responseOutput').innerHTML = `
+                <h3>Assistant Response (${method}):</h3>
+                <div style="background-color: #f8f8f8; padding: 10px; border-radius: 5px; border-left: 4px solid #4CAF50;">
+                    ${responseMessage.content_text().replace(/\n/g, '<br>')}
+                </div>
+                
+                <h3>Usage Statistics:</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Input Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.input_tokens() ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Output Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.output_tokens() ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Total Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.total_tokens() ?? 'N/A'}</td>
+                    </tr>
+                </table>
+                
+                <h3>Performance Metrics:</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Total Time (reported):</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.total_time_sec().toFixed(2)}s</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Provider Time:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.total_time_sec_provider().toFixed(2)}s</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Tokens/sec:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.tokens_per_second()?.toFixed(2) ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Actual Time (JS measured):</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${actualTimeSec.toFixed(2)}s</td>
+                    </tr>
+                </table>
+            `;
+            
+            // Log the response
+            try {
+                const jsonResponse = JSON.parse(response.to_json());
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Raw Response:</h3>
+                    <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(jsonResponse, null, 2)}</pre>
+                    
+                    <h3>Message Created:</h3>
+                    <p>Timestamp: ${responseMessage.created()}</p>
+                    <p>Date: ${new Date(responseMessage.created_ms()).toLocaleString()}</p>
+                `;
+            } catch (e) {
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Error Parsing Response JSON:</h3>
+                    <pre class="error">${e.message || e}</pre>
+                `;
+            }
+        }
+
+        // Initialize when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initWasm();
+            document.getElementById('syncButton').addEventListener('click', sendSyncRequest);
+            document.getElementById('asyncButton').addEventListener('click', sendAsyncRequest);
+        });
+    </script>
+</body>
+</html>

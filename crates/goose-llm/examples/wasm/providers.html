@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Goose LLM Provider Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+            color: #666;
+        }
+        .hidden {
+            display: none;
+        }
+        .provider-config {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Goose LLM Provider Test</h1>
+    
+    <div class="section">
+        <h2>Provider Configuration</h2>
+        <div>
+            <label for="providerType">Provider Type:</label>
+            <select id="providerType">
+                <option value="mock">Mock Provider</option>
+                <option value="openai">OpenAI</option>
+                <option value="databricks">Databricks</option>
+            </select>
+        </div>
+        
+        <!-- Mock Provider Config -->
+        <div id="mockConfig" class="provider-config">
+            <div>
+                <label for="mockDelay">Delay (ms):</label>
+                <input type="number" id="mockDelay" value="500" min="0" max="5000">
+            </div>
+            <div>
+                <label for="mockErrorType">Error Type (leave blank for no error):</label>
+                <select id="mockErrorType">
+                    <option value="">No Error</option>
+                    <option value="auth">Authentication Error</option>
+                    <option value="context">Context Length Exceeded</option>
+                    <option value="rate">Rate Limit Exceeded</option>
+                    <option value="server">Server Error</option>
+                    <option value="request">Request Failed</option>
+                    <option value="execution">Execution Error</option>
+                    <option value="usage">Usage Error</option>
+                    <option value="parse">Response Parse Error</option>
+                </select>
+            </div>
+            <div>
+                <label for="mockInputTokens">Input Tokens:</label>
+                <input type="number" id="mockInputTokens" value="10" min="0">
+            </div>
+            <div>
+                <label for="mockOutputTokens">Output Tokens:</label>
+                <input type="number" id="mockOutputTokens" value="20" min="0">
+            </div>
+            <div>
+                <label for="mockTotalTokens">Total Tokens:</label>
+                <input type="number" id="mockTotalTokens" value="30" min="0">
+            </div>
+        </div>
+        
+        <!-- OpenAI Config -->
+        <div id="openaiConfig" class="provider-config hidden">
+            <div>
+                <label for="openaiApiKey">API Key:</label>
+                <input type="password" id="openaiApiKey" style="width: 300px;">
+            </div>
+            <div>
+                <label for="openaiBaseUrl">Base URL (optional):</label>
+                <input type="text" id="openaiBaseUrl" placeholder="https://api.openai.com" style="width: 300px;">
+            </div>
+            <div>
+                <label for="openaiModel">Model:</label>
+                <input type="text" id="openaiModel" value="gpt-4o" style="width: 300px;">
+            </div>
+        </div>
+        
+        <!-- Databricks Config -->
+        <div id="databricksConfig" class="provider-config hidden">
+            <div>
+                <label for="databricksApiKey">API Key:</label>
+                <input type="password" id="databricksApiKey" style="width: 300px;">
+            </div>
+            <div>
+                <label for="databricksHost">Host URL:</label>
+                <input type="text" id="databricksHost" placeholder="https://your-workspace.cloud.databricks.com" style="width: 300px;">
+            </div>
+            <div>
+                <label for="databricksEndpoint">Endpoint Name:</label>
+                <input type="text" id="databricksEndpoint" value="databricks-llama-3-70b" style="width: 300px;">
+            </div>
+            <div>
+                <label for="databricksModel">Model:</label>
+                <input type="text" id="databricksModel" value="llama-3-70b" style="width: 300px;">
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>User Input</h2>
+        <div>
+            <label for="userInput">User Message:</label>
+            <textarea id="userInput" rows="3" style="width: 100%">Hello, AI assistant! How are you today?</textarea>
+        </div>
+        <div>
+            <label for="systemPrompt">System Prompt:</label>
+            <textarea id="systemPrompt" rows="2" style="width: 100%">You are a helpful assistant.</textarea>
+        </div>
+        <div>
+            <button id="sendButton">Send Request</button>
+            <span id="loading" class="loading" style="display: none;">Processing...</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Response</h2>
+        <div id="responseOutput">
+            <p><em>Response will appear here...</em></p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Debug Information</h2>
+        <div id="debugOutput"></div>
+    </div>
+
+    <script type="module">
+        import init, { 
+            WasmModelConfig, 
+            WasmMessage, 
+            WasmCompletionRequest,
+            WasmMockProviderConfig,
+            wasm_complete_with_provider,
+            wasm_create_openai_config,
+            wasm_create_databricks_config
+        } from './pkg/goose_llm.js';
+
+        let wasmModule;
+
+        async function initWasm() {
+            try {
+                wasmModule = await init();
+                document.getElementById('debugOutput').innerHTML = `<p>WebAssembly module loaded successfully.</p>`;
+            } catch (e) {
+                console.error("Failed to initialize WebAssembly module:", e);
+                document.getElementById('debugOutput').innerHTML = `<p class="error">Failed to initialize WebAssembly: ${e.message || e}</p>`;
+            }
+        }
+
+        // Make showProviderConfig globally accessible
+        window.showProviderConfig = () => {
+            const providerType = document.getElementById('providerType').value;
+            
+            // Hide all provider configs
+            document.getElementById('mockConfig').classList.add('hidden');
+            document.getElementById('openaiConfig').classList.add('hidden');
+            document.getElementById('databricksConfig').classList.add('hidden');
+            
+            // Show selected provider config
+            document.getElementById(`${providerType}Config`).classList.remove('hidden');
+        }
+
+        async function sendRequest() {
+            try {
+                // Show loading indicator
+                document.getElementById('loading').style.display = 'inline-block';
+                document.getElementById('sendButton').disabled = true;
+                
+                // Clear previous error messages
+                document.getElementById('responseOutput').innerHTML = `<p><em>Processing request...</em></p>`;
+                
+                // Get user input
+                const userInput = document.getElementById('userInput').value;
+                const systemPrompt = document.getElementById('systemPrompt').value;
+                const providerType = document.getElementById('providerType').value;
+                
+                // Start timing
+                const startTime = performance.now();
+                
+                let request;
+                
+                // Create request based on provider type
+                if (providerType === 'mock') {
+                    // Get mock configuration
+                    const delay = parseFloat(document.getElementById('mockDelay').value) || 0;
+                    const errorType = document.getElementById('mockErrorType').value;
+                    const inputTokens = parseInt(document.getElementById('mockInputTokens').value);
+                    const outputTokens = parseInt(document.getElementById('mockOutputTokens').value);
+                    const totalTokens = parseInt(document.getElementById('mockTotalTokens').value);
+                    
+                    // Create mock config
+                    let mockConfig = new WasmMockProviderConfig()
+                        .with_delay(delay)
+                        .with_token_counts(
+                            isNaN(inputTokens) ? null : inputTokens,
+                            isNaN(outputTokens) ? null : outputTokens,
+                            isNaN(totalTokens) ? null : totalTokens
+                        );
+                    
+                    // Add error type if selected
+                    if (errorType) {
+                        mockConfig = mockConfig.with_error(errorType);
+                    }
+                    
+                    // Create model config
+                    const modelConfig = new WasmModelConfig("mock-model");
+                    
+                    // Create completion request
+                    request = new WasmCompletionRequest(
+                        "mock",
+                        mockConfig.to_json(),
+                        modelConfig,
+                        systemPrompt
+                    );
+                } else if (providerType === 'openai') {
+                    // Get OpenAI configuration
+                    const apiKey = document.getElementById('openaiApiKey').value;
+                    const baseUrl = document.getElementById('openaiBaseUrl').value || null;
+                    const modelName = document.getElementById('openaiModel').value || "gpt-4o";
+                    
+                    if (!apiKey) {
+                        throw new Error("OpenAI API Key is required");
+                    }
+                    
+                    // Create OpenAI config
+                    const configJson = wasm_create_openai_config(apiKey, baseUrl);
+                    
+                    // Create model config
+                    const modelConfig = new WasmModelConfig(modelName);
+                    
+                    // Create completion request
+                    request = new WasmCompletionRequest(
+                        "openai",
+                        configJson,
+                        modelConfig,
+                        systemPrompt
+                    );
+                } else if (providerType === 'databricks') {
+                    // Get Databricks configuration
+                    const apiKey = document.getElementById('databricksApiKey').value;
+                    const host = document.getElementById('databricksHost').value;
+                    const endpoint = document.getElementById('databricksEndpoint').value;
+                    const modelName = document.getElementById('databricksModel').value || "llama-3-70b";
+                    
+                    if (!apiKey || !host || !endpoint) {
+                        throw new Error("Databricks API Key, Host URL, and Endpoint Name are required");
+                    }
+                    
+                    // Create Databricks config
+                    const configJson = wasm_create_databricks_config(apiKey, host, endpoint);
+                    
+                    // Create model config
+                    const modelConfig = new WasmModelConfig(modelName);
+                    
+                    // Create completion request
+                    request = new WasmCompletionRequest(
+                        "databricks",
+                        configJson,
+                        modelConfig,
+                        systemPrompt
+                    );
+                } else {
+                    throw new Error(`Unsupported provider type: ${providerType}`);
+                }
+                
+                // Add user message
+                request.add_message(WasmMessage.user().with_text(userInput));
+                
+                document.getElementById('debugOutput').innerHTML = `<p>Sending request to ${providerType} provider...</p>`;
+                
+                // Send the request
+                try {
+                    const response = await wasm_complete_with_provider(request);
+                    const endTime = performance.now();
+                    displayResponse(response, startTime, endTime, providerType);
+                } catch (e) {
+                    throw new Error(`${e}`);
+                }
+            } catch (e) {
+                console.error("Error:", e);
+                document.getElementById('responseOutput').innerHTML = `
+                    <h3>Error Occurred:</h3>
+                    <p class="error">${e.message || e}</p>
+                `;
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Error Details:</h3>
+                    <pre class="error">${e.stack || 'No stack trace available'}</pre>
+                `;
+            } finally {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('sendButton').disabled = false;
+            }
+        }
+        
+        function displayResponse(response, startTime, endTime, providerType) {
+            // Display the response
+            const responseMessage = response.message();
+            const usage = response.usage();
+            const metrics = response.runtime_metrics();
+            const actualTimeSec = (endTime - startTime) / 1000;
+            
+            document.getElementById('responseOutput').innerHTML = `
+                <h3>Assistant Response (${providerType}):</h3>
+                <div style="background-color: #f8f8f8; padding: 10px; border-radius: 5px; border-left: 4px solid #4CAF50;">
+                    ${responseMessage.content_text().replace(/\n/g, '<br>')}
+                </div>
+                
+                <h3>Usage Statistics:</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Input Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.input_tokens() ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Output Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.output_tokens() ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Total Tokens:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${usage.total_tokens() ?? 'N/A'}</td>
+                    </tr>
+                </table>
+                
+                <h3>Performance Metrics:</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Total Time (reported):</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.total_time_sec().toFixed(2)}s</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Provider Time:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.total_time_sec_provider().toFixed(2)}s</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Tokens/sec:</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${metrics.tokens_per_second()?.toFixed(2) ?? 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Actual Time (JS measured):</strong></td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${actualTimeSec.toFixed(2)}s</td>
+                    </tr>
+                </table>
+            `;
+            
+            // Log the response
+            try {
+                const jsonResponse = JSON.parse(response.to_json());
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Raw Response:</h3>
+                    <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(jsonResponse, null, 2)}</pre>
+                    
+                    <h3>Message Created:</h3>
+                    <p>Timestamp: ${responseMessage.created()}</p>
+                    <p>Date: ${new Date(responseMessage.created_ms()).toLocaleString()}</p>
+                `;
+            } catch (e) {
+                document.getElementById('debugOutput').innerHTML = `
+                    <h3>Error Parsing Response JSON:</h3>
+                    <pre class="error">${e.message || e}</pre>
+                `;
+            }
+        }
+
+        // Initialize when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initWasm();
+            document.getElementById('sendButton').addEventListener('click', sendRequest);
+            document.getElementById('providerType').addEventListener('change', showProviderConfig);
+            showProviderConfig(); // Show initial provider config
+        });
+    </script>
+</body>
+</html>

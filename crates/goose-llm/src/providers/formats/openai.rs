@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsValue; // Added for WASM logging
 
 use crate::{
     message::{Message, MessageContent},
@@ -319,6 +321,9 @@ pub fn create_request(
     tools: &[Tool],
     image_format: &ImageFormat,
 ) -> anyhow::Result<Value, Error> {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::log_1(&JsValue::from_str(&format!("[openai::create_request] Called with model: {}, system: {:.30}, num_messages: {}, num_tools: {}", model_config.model_name, system, messages.len(), tools.len())));
+
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
             "o1-mini model is not currently supported since Goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."

@@ -61,8 +61,9 @@ impl ProviderExtractResponse {
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
-#[async_trait]
-pub trait Provider: Send + Sync {
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+pub trait Provider {
     /// Generate the next message using the configured model and other parameters
     ///
     /// # Arguments

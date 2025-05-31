@@ -6,6 +6,8 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use url::Url;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsValue; // Added for WASM logging
 
 use super::{
     errors::ProviderError,
@@ -83,9 +85,7 @@ impl Default for DatabricksProvider {
 
 impl DatabricksProvider {
     pub fn from_config(config: DatabricksProviderConfig, model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(config.timeout))
-            .build()?;
+        let client = Client::new(); 
 
         Ok(Self {
             config,
@@ -94,41 +94,49 @@ impl DatabricksProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.config.host)
+    pub async fn static_post(client: &Client, config: &DatabricksProviderConfig, model_name: &str, payload: Value) -> Result<Value, ProviderError> {
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&JsValue::from_str(&format!("[DatabricksProvider::static_post] Payload: {}", serde_json::to_string(&payload).unwrap_or_else(|_| "<payload serialization error>".to_string()))));
+        
+        let base_url = Url::parse(&config.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
-        let url = base_url.join(&path).map_err(|e| {
+        let path = format!("serving-endpoints/{}/invocations", model_name);
+        let url_to_request = base_url.join(&path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let auth_header = format!("Bearer {}", &self.config.token);
-        let response = self
-            .client
-            .post(url)
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&JsValue::from_str(&format!("[DatabricksProvider::static_post] Requesting URL: {}", url_to_request.as_str())));
+
+        let auth_header = format!("Bearer {}", &config.token);
+        let request_builder = client
+            .post(url_to_request.clone())
             .header("Authorization", auth_header)
-            .json(&payload)
-            .send()
-            .await?;
+            .json(&payload);
+        
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&JsValue::from_str("[DatabricksProvider::static_post] Sending request..."));
+
+        let response = request_builder.send().await?;
+        
+        #[cfg(target_arch = "wasm32")]
+        web_sys::console::log_1(&JsValue::from_str(&format!("[DatabricksProvider::static_post] Received response status: {}", response.status())));
 
         let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
+        let response_payload: Option<Value> = response.json().await.ok(); // Changed variable name to avoid conflict
 
         match status {
-            StatusCode::OK => payload.ok_or_else(|| {
+            StatusCode::OK => response_payload.ok_or_else(|| {
                 ProviderError::RequestFailed("Response body is not valid JSON".to_string())
             }),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
                 Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}",
-                    status, payload
+                    "Authentication failed. Status: {}. Response: {:?}",
+                    status, response_payload
                 )))
             }
             StatusCode::BAD_REQUEST => {
-                // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
-                // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                let payload_str = serde_json::to_string(&payload)
+                let payload_str = serde_json::to_string(&response_payload)
                     .unwrap_or_default()
                     .to_lowercase();
                 let check_phrases = [
@@ -142,15 +150,13 @@ impl DatabricksProvider {
                 if check_phrases.iter().any(|c| payload_str.contains(c)) {
                     return Err(ProviderError::ContextLengthExceeded(payload_str));
                 }
-
                 let mut error_msg = "Unknown error".to_string();
-                if let Some(payload) = &payload {
-                    // try to convert message to string, if that fails use external_model_message
-                    error_msg = payload
+                if let Some(p) = &response_payload { // Changed variable name
+                    error_msg = p
                         .get("message")
                         .and_then(|m| m.as_str())
                         .or_else(|| {
-                            payload
+                            p
                                 .get("external_model_message")
                                 .and_then(|ext| ext.get("message"))
                                 .and_then(|m| m.as_str())
@@ -158,13 +164,9 @@ impl DatabricksProvider {
                         .unwrap_or("Unknown error")
                         .to_string();
                 }
-
                 tracing::debug!(
-                    "{}",
-                    format!(
-                        "Provider request failed with status: {}. Payload: {:?}",
-                        status, payload
-                    )
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    status, response_payload
                 );
                 Err(ProviderError::RequestFailed(format!(
                     "Request failed with status: {}. Message: {}",
@@ -172,18 +174,15 @@ impl DatabricksProvider {
                 )))
             }
             StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
+                Err(ProviderError::RateLimitExceeded(format!("{:?}", response_payload)))
             }
             StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
+                Err(ProviderError::ServerError(format!("{:?}", response_payload)))
             }
             _ => {
                 tracing::debug!(
-                    "{}",
-                    format!(
-                        "Provider request failed with status: {}. Payload: {:?}",
-                        status, payload
-                    )
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    status, response_payload
                 );
                 Err(ProviderError::RequestFailed(format!(
                     "Request failed with status: {}",
@@ -192,9 +191,15 @@ impl DatabricksProvider {
             }
         }
     }
+
+    // Keep the original post method for non-WASM trait implementation if needed
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        Self::static_post(&self.client, &self.config, &self.model.model_name, payload).await
+    }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Provider for DatabricksProvider {
     #[tracing::instrument(
         skip(self, system, messages, tools),
