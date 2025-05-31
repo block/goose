@@ -165,6 +165,11 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
   export OPENAI_API_KEY={your_api_key}
   ```
 
+  Run `goose configure` again and follow the steps until key value section, the system will tell you the key is already set as an environment variable and you can then move forwards:
+  ```
+  ● OPENAI_API_KEY is set via environment variable
+  ```
+
   To make the changes persist in WSL across sessions, add the goose path and export commands to your `.bashrc` or `.bash_profile` file so you can load it later.
 
   ```bash
