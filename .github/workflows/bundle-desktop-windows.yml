@@ -24,7 +24,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [x86_64-pc-windows-msvc]  # Using MSVC instead of GNU for better Windows compatibility
+        target: [x86_64-pc-windows-msvc]  # Using MSVC for better Windows compatibility
 
     steps:
       # 1) Check out source
@@ -64,38 +64,67 @@ jobs:
             npm install
           }
 
-      # 6) Build rust with MSVC toolchain
+      # 6) Install MinGW for DLLs
+      - name: Install MinGW dependencies
+        run: |
+          choco install mingw --version=8.1.0
+          # Debug - check installation paths
+          Write-Host "Checking MinGW installation..."
+          Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\mingw" -Recurse -Filter "*.dll" | ForEach-Object {
+            Write-Host $_.FullName
+          }
+          Get-ChildItem -Path "C:\tools" -Recurse -Filter "*.dll" | ForEach-Object {
+            Write-Host $_.FullName
+          }
+
+      # 7) Build rust with MSVC toolchain
       - name: Cargo build for Windows
         run: |
           cargo build --release --target ${{ matrix.target }}
 
-      # 7) Check that the compiled goosed.exe exists and copy to ui/desktop/src/bin
-      - name: Prepare Windows binary
+      # 8) Check that the compiled goosed.exe exists and copy to ui/desktop/src/bin
+      - name: Prepare Windows binary and DLLs
         run: |
           $binaryPath = ".\target\${{ matrix.target }}\release\goosed.exe"
           if (!(Test-Path $binaryPath)) {
             Write-Error "Windows binary not found at $binaryPath"; exit 1;
           }
           
-          Write-Host "Copying Windows binary to ui/desktop/src/bin..."
+          Write-Host "Copying Windows binary and DLLs to ui/desktop/src/bin..."
           if (!(Test-Path ui\desktop\src\bin)) {
             New-Item -ItemType Directory -Path ui\desktop\src\bin | Out-Null
           }
           Copy-Item $binaryPath ui\desktop\src\bin\
           
-          # Copy any DLLs from the release directory if they exist
+          # Copy MinGW DLLs - try both possible locations
+          $mingwPaths = @(
+            "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin",
+            "C:\tools\mingw64\bin"
+          )
+          
+          foreach ($path in $mingwPaths) {
+            if (Test-Path "$path\libstdc++-6.dll") {
+              Write-Host "Found MinGW DLLs in $path"
+              Copy-Item "$path\libstdc++-6.dll" ui\desktop\src\bin\
+              Copy-Item "$path\libgcc_s_seh-1.dll" ui\desktop\src\bin\
+              Copy-Item "$path\libwinpthread-1.dll" ui\desktop\src\bin\
+              break
+            }
+          }
+          
+          # Copy any other DLLs from the release directory
           Get-ChildItem ".\target\${{ matrix.target }}\release\*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName ui\desktop\src\bin\
           }
 
-      # 8) Install & build UI desktop
+      # 9) Install & build UI desktop
       - name: Build desktop UI with npm
         run: |
           cd ui\desktop
           npm install
           npm run bundle:windows
 
-      # 9) Copy exe/dll to final out/Goose-win32-x64/resources/bin
+      # 10) Copy exe/dll to final out/Goose-win32-x64/resources/bin
       - name: Copy exe/dll to out folder
         run: |
           cd ui\desktop
@@ -107,9 +136,8 @@ jobs:
             Copy-Item $_.FullName .\out\Goose-win32-x64\resources\bin\
           }
 
-      # 10) Code signing (if enabled)
+      # 11) Code signing (if enabled)
       - name: Sign Windows executable
-        # Skip this step by default - enable when we have a certificate
         if: inputs.signing && inputs.signing == true
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -127,9 +155,9 @@ jobs:
           # Clean up the certificate
           Remove-Item -Path $certPath
 
-      # 11) Upload the final Windows build
+      # 12) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
-          name: desktop-windows-dist-${{ matrix.target }}
+          name: desktop-windows-dist
           path: ui/desktop/out/Goose-win32-x64/
