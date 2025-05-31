@@ -228,12 +228,7 @@ You'll need to provide both instructions and activities for your Recipe.
        ```yaml title="~/.config/goose/config.yaml"
        GOOSE_RECIPE_GITHUB_REPO: "owner/repo"
        ```
-
-       :::tip
-       - On macOS/Linux: `~/.config/goose/config.yaml`
-       - On Windows: `%APPDATA%\Block\goose\config\config.yaml`
-       :::
-
+       
      </TabItem>
    </Tabs>
 
@@ -355,6 +350,11 @@ You'll need to provide both instructions and activities for your Recipe.
    </TabItem>
 </Tabs>
 
+:::note Privacy & Isolation
+- Each person gets their own private session
+- No data is shared between users
+- Your session won't affect the original recipe creator's session
+:::
 
 ## What's Included
 
