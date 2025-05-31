@@ -19,8 +19,8 @@ The following settings can be configured at the root level of your config.yaml f
 
 | Setting | Purpose | Values | Default | Required |
 |---------|---------|---------|---------|-----------|
-| `GOOSE_PROVIDER` | Primary LLM provider | "anthropic", "openai", etc. | None | Yes |
-| `GOOSE_MODEL` | Default model to use | Model name (e.g., "claude-3.5-sonnet", "gpt-4") | None | Yes |
+| `GOOSE_PROVIDER` | Primary LLM provider | See [Available Provider Keys](#available-provider-keys) | None | Yes |
+| `GOOSE_MODEL` | Default model to use | Model name (see [Supported Models by Provider](/docs/getting-started/providers#supported-models-by-provider)) | None | Yes |
 | `GOOSE_TEMPERATURE` | Model response randomness | Float between 0.0 and 1.0 | Model-specific | No |
 | `GOOSE_MODE` | Tool execution behavior | "auto", "approve", "chat", "smart_approve" | "smart_approve" | No |
 | `GOOSE_PLANNER_PROVIDER` | Provider for planning mode | Same as GOOSE_PROVIDER options | Falls back to GOOSE_PROVIDER | No |
@@ -64,6 +64,34 @@ extensions:
     name: memory
     timeout: 300
     type: builtin
+```
+
+### Provider-Specific Examples
+
+You can configure Goose to use different providers by changing the `GOOSE_PROVIDER` and `GOOSE_MODEL` values. Here are some examples:
+
+#### OpenAI Configuration
+```yaml
+GOOSE_PROVIDER: "openai"
+GOOSE_MODEL: "gpt-4o"
+```
+
+#### Google Gemini Configuration
+```yaml
+GOOSE_PROVIDER: "google"
+GOOSE_MODEL: "gemini-1.5-flash"
+```
+
+#### Ollama (Local Models) Configuration
+```yaml
+GOOSE_PROVIDER: "ollama"
+GOOSE_MODEL: "qwen2.5"
+```
+
+#### AWS Bedrock Configuration
+```yaml
+GOOSE_PROVIDER: "aws_bedrock"
+GOOSE_MODEL: "anthropic.claude-3-sonnet-20240229-v1:0"
 ```
 
 ## Extensions Configuration
@@ -111,6 +139,27 @@ goose info -v
 ```
 
 This will show all active settings and their current values.
+
+## Available Provider Keys
+
+The following provider keys can be used for the `GOOSE_PROVIDER` configuration:
+
+| Provider Key | Description |
+|--------------|-------------|
+| `openai` | OpenAI models (GPT-4o, GPT-3.5, o1, etc.) |
+| `anthropic` | Anthropic Claude models |
+| `azure_openai` | Azure-hosted OpenAI models |
+| `aws_bedrock` | AWS Bedrock (various models including Claude) |
+| `databricks` | Databricks models |
+| `groq` | Groq inference platform models |
+| `ollama` | Local open-source models via Ollama |
+| `openrouter` | OpenRouter API gateway for various models |
+| `gcp_vertex_ai` | Google Cloud's Vertex AI platform |
+| `google` | Google Gemini models |
+| `venice` | Venice AI provider |
+| `github_copilot` | GitHub Copilot models |
+
+For a complete list of supported models for each provider, see the [Supported Models by Provider](/docs/getting-started/providers#supported-models-by-provider) documentation.
 
 ## See Also
 
