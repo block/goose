@@ -114,21 +114,6 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
 
-## Recipe Configuration
-
-These variables control how Goose handles recipes and their discovery.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `GOOSE_RECIPE_GITHUB_REPO` | Specifies the GitHub repository to search for recipes | Format: "org/repo" (e.g., "my_org/goose-recipes") | None |
-
-**Examples**
-
-```bash
-# Configure recipe discovery from GitHub
-export GOOSE_RECIPE_GITHUB_REPO="my_org/goose-recipes"
-```
-
 ## Notes
 
 - Environment variables take precedence over configuration files.
