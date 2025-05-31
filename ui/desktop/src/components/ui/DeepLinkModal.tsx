@@ -14,10 +14,53 @@ interface DeepLinkModalProps {
   onClose: () => void;
 }
 
+// Function to sanitize string by removing hidden/control characters
+function sanitizeString(str: string): string {
+  // Remove control characters (0x00-0x1F and 0x7F-0x9F)
+  // but keep newlines, tabs, and carriage returns
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+}
+
+// Function to sanitize recipe config before encoding
+function sanitizeRecipeConfig(config: RecipeConfig): RecipeConfig {
+  const sanitized = { ...config };
+
+  if (sanitized.instructions) {
+    sanitized.instructions = sanitizeString(sanitized.instructions);
+  }
+
+  if (sanitized.activities) {
+    sanitized.activities = sanitized.activities.map((activity) => sanitizeString(activity));
+  }
+
+  // Recursively sanitize any other string properties
+  Object.keys(sanitized).forEach((key) => {
+    if (typeof sanitized[key] === 'string') {
+      sanitized[key] = sanitizeString(sanitized[key]);
+    } else if (Array.isArray(sanitized[key])) {
+      sanitized[key] = sanitized[key].map((item) =>
+        typeof item === 'string' ? sanitizeString(item) : item
+      );
+    }
+  });
+
+  return sanitized;
+}
+
 // Function to generate a deep link from a bot config
 export function generateDeepLink(recipeConfig: RecipeConfig): string {
-  const configBase64 = Buffer.from(JSON.stringify(recipeConfig)).toString('base64');
-  return `goose://bot?config=${configBase64}`;
+  // Sanitize the config before encoding
+  const sanitizedConfig = sanitizeRecipeConfig(recipeConfig);
+
+  // Use URL-safe base64 encoding
+  const configBase64 = Buffer.from(JSON.stringify(sanitizedConfig))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  return `goose://bot?config=${encodeURIComponent(configBase64)}`;
 }
 
 export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: DeepLinkModalProps) {
