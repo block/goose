@@ -1,10 +1,12 @@
 mod builder;
 mod completion;
+mod export;
 mod input;
 mod output;
 mod prompt;
 mod thinking;
 
+pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
