@@ -131,8 +131,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          # Update version in Cargo.toml
-          sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+          # Update version in Cargo.toml safely using sed with properly quoted variables
+          sed -i.bak "s/^version = \".*\"/version = \"${VERSION//\//\\/}\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
           # Update version in package.json 
