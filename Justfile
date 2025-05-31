@@ -73,6 +73,11 @@ copy-binary-windows:
         exit 1; \
     }"
 
+# Generate OpenAPI schema only
+generate-schema:
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+
 # Run UI with latest
 run-ui:
     @just release-binary

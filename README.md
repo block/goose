@@ -30,6 +30,15 @@ Designed for maximum flexibility, goose works with any LLM, seamlessly integrate
 - [Tutorials](https://block.github.io/goose/docs/category/tutorials)
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 
+## OpenAPI Schema
+
+Goose uses OpenAPI to define the contract between the Rust backend and TypeScript frontend. The schema is automatically generated from the Rust code using the `utoipa` crate and is used to generate TypeScript types and API client code.
+
+- The OpenAPI schema is located at `ui/desktop/openapi.json`
+- It's generated during the build process via `just release-binary` or manually with `just generate-schema`
+- The frontend uses `@hey-api/openapi-ts` to generate TypeScript types and API client code from the schema
+- When running the UI with `npm run start-gui`, the API client is automatically regenerated
+
 
 # Goose Around with Us
 - [Discord](https://discord.gg/block-opensource)
