@@ -146,7 +146,39 @@ You'll need to provide both instructions and activities for your Recipe.
 ## Use Recipe
 
 <Tabs>
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+   There are three ways to use a recipe in Goose Desktop:
+
+   1. **Direct Link**
+      - Click a recipe link shared with you
+      - The recipe will automatically open in Goose Desktop
+
+   2. **Manual URL Entry**
+      - Copy a recipe URL
+      - Paste it into your browser's address bar
+      - Goose Desktop will open with the recipe
+
+   3. **Load from File**
+      - Click the menu icon **⋮** in the top right corner
+      - Select "Load Recipe"
+      - Choose a recipe file (`.yaml` or `.json`)
+
+   When a recipe loads, you'll get:
+   - A new session with the recipe's instructions
+   - Clickable activity bubbles for suggested tasks
+   - Required extensions automatically enabled
+   - Project context (if specified in the recipe)
+
+   :::note Privacy & Isolation
+   - Each person gets their own private session
+   - No data is shared between users
+   - Your session won't affect the original recipe creator's session
+   :::
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
 
    ### 1. Configure Recipe Location
 
@@ -154,57 +186,73 @@ You'll need to provide both instructions and activities for your Recipe.
    1. Local filesystem (current directory or specified path)
    2. GitHub repository (if configured)
 
-   To configure a GitHub repository for recipes, you have two options:
+   To configure a GitHub repository for recipes:
 
-   #### Option 1: Using goose configure (Recommended)
-   ```sh
-   goose configure
-   ```
+   <Tabs>
+     <TabItem value="configure" label="Using goose configure" default>
 
-   You'll see the following prompts:
+       Run the configure command:
+       ```sh
+       goose configure
+       ```
 
-   ```sh
-   ┌  goose-configure 
-   │
-   ◆  What would you like to configure?
-   │  ○ Configure Providers 
-   │  ○ Add Extension 
-   │  ○ Toggle Extensions 
-   │  ○ Remove Extension 
-   // highlight-start
-   │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
-   // highlight-end
-   │
-   ◇  What would you like to configure?
-   │  Goose Settings 
-   │
-   ◆  What setting would you like to configure?
-   │  ○ Goose Mode 
-   │  ○ Tool Permission 
-   │  ○ Tool Output 
-   │  ○ Toggle Experiment 
-   // highlight-start
-   │  ● Goose recipe github repo (Goose will pull recipes from this repo if not found locally.)
-   // highlight-end
-   │
-   ◇  What would you like to configure?
-   │  Goose Settings 
-   │
-   ◇  What setting would you like to configure?
-   │  Goose recipe github repo 
-   │
-   ◆  Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes
-   // highlight-start
-   │  squareup/goose-recipes (default)
-   // highlight-end
-   └  
-   ```
+       You'll see the following prompts:
 
-   #### Option 2: Edit config file directly
-   Add to your config file (~/.config/goose/config.yaml):
-   ```yaml
-   GOOSE_RECIPE_GITHUB_REPO: "owner/repo"
-   ```
+       ```sh
+       ┌  goose-configure 
+       │
+       ◆  What would you like to configure?
+       │  ○ Configure Providers 
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       // highlight-start
+       │  ● Goose Settings (Set the Goose Mode, Tool Output, Tool Permissions, Experiment, Goose recipe github repo and more)
+       // highlight-end
+       │
+       ◇  What would you like to configure?
+       │  Goose Settings 
+       │
+       ◆  What setting would you like to configure?
+       │  ○ Goose Mode 
+       │  ○ Tool Permission 
+       │  ○ Tool Output 
+       │  ○ Toggle Experiment 
+       // highlight-start
+       │  ● Goose recipe github repo (Goose will pull recipes from this repo if not found locally.)
+       // highlight-end
+       └  
+       ┌  goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Goose Settings 
+       │
+       ◇  What setting would you like to configure?
+       │  Goose recipe github repo 
+       │
+       ◆  Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes
+       // highlight-start
+       │  squareup/goose-recipes (default)
+       // highlight-end
+       └  
+       ```
+
+     </TabItem>
+
+     <TabItem value="config" label="Using config file">
+
+       Add to your config file:
+       ```yaml title="~/.config/goose/config.yaml"
+       GOOSE_RECIPE_GITHUB_REPO: "owner/repo"
+       ```
+
+       :::tip
+       - On macOS/Linux: `~/.config/goose/config.yaml`
+       - On Windows: `%APPDATA%\Block\goose\config\config.yaml`
+       :::
+
+     </TabItem>
+   </Tabs>
 
    ### 2. Run a Recipe
 
@@ -282,39 +330,7 @@ You'll need to provide both instructions and activities for your Recipe.
    - **Default Values**: Will be used if defined in recipe
    :::
 
-   </TabItem> 
-
-  <TabItem value="ui" label="Goose Desktop">
-
-   There are three ways to use a recipe in Goose Desktop:
-
-   1. **Direct Link**
-      - Click a recipe link shared with you
-      - The recipe will automatically open in Goose Desktop
-
-   2. **Manual URL Entry**
-      - Copy a recipe URL
-      - Paste it into your browser's address bar
-      - Goose Desktop will open with the recipe
-
-   3. **Load from File**
-      - Click the menu icon **⋮** in the top right corner
-      - Select "Load Recipe"
-      - Choose a recipe file (`.yaml` or `.json`)
-
-   When a recipe loads, you'll get:
-   - A new session with the recipe's instructions
-   - Clickable activity bubbles for suggested tasks
-   - Required extensions automatically enabled
-   - Project context (if specified in the recipe)
-
-   :::note Privacy & Isolation
-   - Each person gets their own private session
-   - No data is shared between users
-   - Your session won't affect the original recipe creator's session
-   :::
-
-  </TabItem>
+   </TabItem>
 </Tabs>
 
 
