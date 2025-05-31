@@ -68,17 +68,11 @@ You'll need to provide both instructions and activities for your Recipe.
    - $extensions
    context:
    - $context
-   activities:                 # example prompts to display in the Desktop app
+   activities:
    - $activities
    author:
-     contact: $contact
-     metadata: $metadata
-   parameters:                 # required if recipe uses {{ variables }}
-   - key: $param_key
-     input_type: $type         # string, number, etc
-     requirement: $req         # required, optional, or user_prompt
-     description: $description
-     default: $value           # required for optional parameters
+   contact: $contact
+   metadata: $metadata
    ```
 
    </details>
@@ -87,58 +81,34 @@ You'll need to provide both instructions and activities for your Recipe.
 
    - `instructions`: Add or modify the system instructions
    - `prompt`: Add the initial message or question to start a Goose session with
-   - `activities`: List the activities that can be performed, which are displayed as prompts in the Desktop app
+   - `activities`: List the activities that can be performed
 
 
    #### Recipe Parameters
    
-   You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
+   You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
 
-   To use parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax and define each of them in your yaml using `parameters`.
+   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax. 
 
    <details>
-   <summary>Example recipe with parameters</summary>
+      <summary>Example recipe with parameters</summary>
       
-   ```yaml title="code-review.yaml"
-   version: 1.0.0
-   title: "{{ project_name }} Code Review" # Wrap the value in quotes if it starts with template syntax to avoid YAML parsing errors
-   description: Automated code review for {{ project_name }} with {{ language }} focus
-   instructions: |
+      ```yaml title="code-review.yaml"
+      version: 1.0.0
+      title: {{ project_name }} Code Review
+      description: Automated code review for {{ project_name }} with {{ language }} focus
+      instructions: |
       You are a code reviewer specialized in {{ language }} development.
       Apply the following standards:
       - Complexity threshold: {{ complexity_threshold }}
       - Required test coverage: {{ test_coverage }}%
       - Style guide: {{ style_guide }}
-   activities:
-   - "Review {{ language }} code for complexity"
-   - "Check test coverage against {{ test_coverage }}% requirement"
-   - "Verify {{ style_guide }} compliance"
-   parameters:
-   - key: project_name
-     input_type: string
-     requirement: required # could be required, optional or user_prompt
-     description: name of the project
-   - key: language
-     input_type: string
-     requirement: required
-     description: language of the code
-   - key: complexity_threshold
-     input_type: number
-     requirement: optional
-     default: 20 # default is required for optional parameters
-     description: a threshold that defines the maximum allowed complexity
-   - key: test_coverage
-     input_type: number
-     requirement: optional
-     default: 80
-     description: the minimum test coverage threshold in percentage
-   - key: style_guide
-     input_type: string
-     description: style guide name
-     requirement: user_prompt
-     # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
-   ```
-
+      activities:
+      - "Review {{ language }} code for complexity"
+      - "Check test coverage against {{ test_coverage }}% requirement"
+      - "Verify {{ style_guide }} compliance"
+      ```
+  
    </details>
 
    When someone runs a recipe that contains template parameters, they will need to provide the parameters:
@@ -150,7 +120,7 @@ You'll need to provide both instructions and activities for your Recipe.
   --params complexity_threshold=15 \
   --params test_coverage=80 \
   --params style_guide=PEP8
-   ```
+  ```
 
    #### Validate the recipe
    
@@ -169,83 +139,110 @@ You'll need to provide both instructions and activities for your Recipe.
    goose recipe deeplink recipe.yaml
    ```
 
-  </TabItem>
+   </TabItem> 
 </Tabs>
 
-## Running Recipes
+
+## Use Recipe
 
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
-   To use a recipe:
-   - Click the recipe link, or paste in browser address bar
-   - This opens Goose Desktop with the recipe's configuration
 
-   Each person gets their own private session - no data is shared between users.
+   There are three ways to use a recipe in Goose Desktop:
+
+   1. **Direct Link**
+      - Click a recipe link shared with you
+      - The recipe will automatically open in Goose Desktop
+
+   2. **Manual URL Entry**
+      - Copy a recipe URL
+      - Paste it into your browser's address bar
+      - Goose Desktop will open with the recipe
+
+   3. **Load from File**
+      - Click the menu icon **⋮** in the top right corner
+      - Select "Load Recipe"
+      - Choose a recipe file (`.yaml` or `.json`)
+
+   When a recipe loads, you'll get:
+   - A new session with the recipe's instructions
+   - Clickable activity bubbles for suggested tasks
+   - Required extensions automatically enabled
+   - Project context (if specified in the recipe)
+
+   :::note Privacy & Isolation
+   - Each person gets their own private session
+   - No data is shared between users
+   - Your session won't affect the original recipe creator's session
+   :::
+
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
-   For complete documentation of recipe commands and options, see the [`recipe` command](/docs/guides/goose-cli-commands#recipe) and [`run` command](/docs/guides/goose-cli-commands#run) reference.
-
+    You can load a recipe from your local filesystem or a configured GitHub repository:
    <Tabs>
-     <TabItem value="filepath" label="File Path" default>
-       Use a full file path when you want to run a specific recipe file:
+     <TabItem value="local" label="Local Recipe" default>
 
-       ```bash
-       # Using absolute path
-       goose run --recipe ~/recipes/my_recipe.yaml
-       
-       # Using relative path
-       goose run --recipe ./my_recipe.yaml
+       **Basic Usage** - Run once and exit:
+       ```sh
+       goose run --recipe recipe.yaml
        ```
 
-       Common options work with file paths:
-       ```bash
-       # Run in interactive mode
-       goose run --recipe ./my_recipe.yaml --interactive
-
-       # Run with parameters
-       goose run --recipe ~/recipes/my_recipe.yaml --params language=Spanish
-
-       # Show recipe details
-       goose run --recipe ./my_recipe.yaml --explain
+       **Interactive Mode** - Start an interactive session:
+       ```sh
+       goose run --recipe recipe.yaml --interactive
        ```
+
+       **With Parameters** - Supply values for recipe variables:
+       ```sh
+       goose run --recipe recipe.yaml \
+         --params language=Python \
+         --params style=PEP8
+       ```
+
+       :::tip Recipe Location
+       - Use filename (e.g., `recipe.yaml`) for current directory
+       - Or full path (e.g., `./recipes/my-recipe.yaml`)
+       - Both YAML and JSON formats are supported
+       :::
+
      </TabItem>
 
-     <TabItem value="recipename" label="Recipe Name">
-       When using just the recipe name, Goose will search for the recipe in this order:
+     <TabItem value="github" label="GitHub Recipe">
 
-       1. **Local Directory**
-          - Looks for `recipe_name.yaml` or `recipe_name.json` in your current directory
-          ```bash
-          goose run --recipe my_recipe
-          ```
-
-       2. **GitHub Repository** (if configured)
-          - Searches in your configured GitHub repository (set via `GOOSE_RECIPE_GITHUB_REPO` or `goose configure`)
-          - Looks for `my_recipe/recipe.yaml` or `my_recipe/recipe.json`
-          ```bash
-          # Same command works for both local and GitHub recipes
-          goose run --recipe my_recipe
-          ```
-
-       The same options work with recipe names:
-       ```bash
-       # Run in interactive mode
-       goose run --recipe my_recipe --interactive
-
-       # Run with parameters
-       goose run --recipe my_recipe --params language=Python
-
-       # Show recipe details
-       goose run --recipe my_recipe --explain
+       ```sh
+       # Looks for recipe-name/recipe.yaml in GOOSE_RECIPE_GITHUB_REPO
+       goose run --recipe recipe-name
        ```
 
-       To configure a GitHub repository for recipes, see [Environment Variables](/docs/guides/environment-variables#recipe-configuration)
+       With parameters:
+       ```sh
+       goose run --recipe recipe-name \
+         --params language=Python \
+         --interactive
+       ```
+
+       :::info Setup Required
+       Configure your GitHub repo first:
+       ```sh
+       goose configure
+       # Then select: Goose Settings → Goose recipe github repo
+       ```
+       :::
+
      </TabItem>
    </Tabs>
 
-  </TabItem>
+   :::info Required Parameters
+   If a recipe has required parameters:
+   - **Interactive Mode**: You'll be prompted for values
+   - **Non-interactive Mode**: Command fails with list of required parameters
+   - **Default Values**: Will be used if defined in recipe
+   :::
+
+   </TabItem> 
 </Tabs>
+
 
 ## What's Included
 
@@ -288,4 +285,4 @@ If you're sharing recipes with others, here are some tips:
 
 - You can't create a Recipe from an existing Recipe session. The menu option will be disabled  
 - Make sure you're using the latest version of Goose if something isn't working  
-- Remember that credentials, memory, and certain local setups won't carry over
+- Remember that credentials, memory, and certain local setups won't carry over  
