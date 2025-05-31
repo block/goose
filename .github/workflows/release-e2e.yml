@@ -1,0 +1,108 @@
+name: Release E2E Tests
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  pull_request:
+    paths:
+      - 'ui/desktop/**'  # Only run when desktop UI files change
+
+jobs:
+  test:
+    name: Run Release E2E Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+            app_path: out/Goose-darwin-arm64
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23'
+          cache: 'npm'
+          cache-dependency-path: ui/desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ui/desktop
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ui/desktop
+        run: npx playwright install --with-deps chromium
+
+      - name: Create test results directory
+        working-directory: ui/desktop
+        run: mkdir -p test-results-release
+
+      - name: Build app
+        working-directory: ui/desktop
+        run: |
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            npm run make -- --arch=${{ matrix.arch }}
+          else
+            npm run make -- --platform=win32 --arch=${{ matrix.arch }}
+          fi
+
+      - name: List build artifacts
+        working-directory: ui/desktop
+        run: |
+          echo "Out directory contents:"
+          ls -la out || dir out
+          echo "\nApp directory contents:"
+          ls -la ${{ matrix.app_path }} || dir ${{ matrix.app_path }}
+
+      - name: Run release tests
+        id: run_tests
+        working-directory: ui/desktop
+        run: npm run test-e2e:release
+        env:
+          HEADED: false  # Ensure headless mode in CI
+          CI: true      # Enable CI mode for reporter configuration
+          DEBUG: pw:api,electron:*  # Enable Playwright and Electron debug logging
+
+      - name: List test artifacts
+        if: always()
+        working-directory: ui/desktop
+        run: |
+          echo "Test Results Release directory:"
+          ls -la test-results-release || dir test-results-release
+          echo "\nPlaywright Report directory:"
+          ls -la playwright-report || dir playwright-report
+          echo "\nTest Results directory:"
+          ls -la test-results || dir test-results
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.os }}
+          path: |
+            ui/desktop/test-results-release/*.png
+            ui/desktop/test-results-release/**/*.png
+          if-no-files-found: warn
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            ui/desktop/test-results-release/
+            ui/desktop/test-results/
+            ui/desktop/out/
+          if-no-files-found: warn
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: ui/desktop/playwright-report/
+          if-no-files-found: warn
