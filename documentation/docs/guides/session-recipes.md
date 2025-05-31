@@ -148,7 +148,7 @@ You'll need to provide both instructions and activities for your Recipe.
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
 
-   There are three ways to use a recipe in Goose Desktop:
+   There are two ways to use a recipe in Goose Desktop:
 
    1. **Direct Link**
       - Click a recipe link shared with you
@@ -157,25 +157,8 @@ You'll need to provide both instructions and activities for your Recipe.
    2. **Manual URL Entry**
       - Copy a recipe URL
       - Paste it into your browser's address bar
+      - You will see a prompt to "Open Goose"
       - Goose Desktop will open with the recipe
-
-   3. **Load from File**
-      - Click the menu icon **⋮** in the top right corner
-      - Select "Load Recipe"
-      - Choose a recipe file (`.yaml` or `.json`)
-
-   When a recipe loads, you'll get:
-   - A new session with the recipe's instructions
-   - Clickable activity bubbles for suggested tasks
-   - Required extensions automatically enabled
-   - Project context (if specified in the recipe)
-
-   :::note Privacy & Isolation
-   - Each person gets their own private session
-   - No data is shared between users
-   - Your session won't affect the original recipe creator's session
-   :::
-
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
