@@ -9,6 +9,7 @@ use goose::model::ModelConfig;
 use goose::providers::databricks::DatabricksProvider;
 use once_cell::sync::OnceCell;
 use tokio::runtime::Runtime;
+use mcp_core;
 
 // This class is in alpha and not yet ready for production use
 // and the API is not yet stable. Use at your own risk.
@@ -275,6 +276,114 @@ pub unsafe extern "C" fn goose_agent_send_message(
     });
 
     string_to_c_char(&response)
+}
+
+/// Register new tools with the agent
+///
+/// This function registers new tools with the agent.
+///
+/// # Parameters
+///
+/// - agent_ptr: Agent pointer
+/// - tools_json: JSON string containing tool definitions
+/// - extension_name: Name of the extension providing the tools
+/// - instructions: Instructions for how to use the tools
+///
+/// # Returns
+///
+/// true if the tools were successfully registered, false otherwise.
+///
+/// # Safety
+///
+/// The agent_ptr must be a valid pointer returned by goose_agent_new.
+/// The tools_json, extension_name, and instructions must be valid C strings.
+#[no_mangle]
+pub unsafe extern "C" fn goose_agent_register_tools(
+    agent_ptr: AgentPtr,
+    tools_json: *const c_char,
+    extension_name: *const c_char,
+    instructions: *const c_char,
+) -> bool {
+    // Check for null pointers
+    if agent_ptr.is_null() || tools_json.is_null() || extension_name.is_null() || instructions.is_null() {
+        eprintln!("Error: One or more null pointers provided to goose_agent_register_tools");
+        return false;
+    }
+
+    let agent = &mut *agent_ptr;
+    
+    // Convert C strings to Rust strings
+    let tools_json_str = match CStr::from_ptr(tools_json).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error converting tools_json to UTF-8: {}", e);
+            return false;
+        }
+    };
+    
+    let extension_name_str = match CStr::from_ptr(extension_name).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error converting extension_name to UTF-8: {}", e);
+            return false;
+        }
+    };
+    
+    let instructions_str = match CStr::from_ptr(instructions).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error converting instructions to UTF-8: {}", e);
+            return false;
+        }
+    };
+
+    // Parse the tools JSON
+    let tools_json_value: serde_json::Value = match serde_json::from_str(tools_json_str) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error parsing tools JSON: {}", e);
+            return false;
+        }
+    };
+
+    // Create a Frontend extension configuration
+    let tools = match tools_json_value.as_array() {
+        Some(tool_array) => {
+            let mut tools = Vec::new();
+            for tool_value in tool_array {
+                // Parse each tool from the JSON array
+                if let Ok(tool) = serde_json::from_value::<mcp_core::tool::Tool>(tool_value.clone()) {
+                    tools.push(tool);
+                } else {
+                    eprintln!("Error parsing tool from JSON: {:?}", tool_value);
+                    return false;
+                }
+            }
+            tools
+        },
+        None => {
+            eprintln!("Error: tools_json must be an array");
+            return false;
+        }
+    };
+
+    let extension_config = goose::agents::extension::ExtensionConfig::Frontend {
+        name: extension_name_str.to_string(),
+        tools,
+        instructions: Some(instructions_str.to_string()),
+        bundled: Some(false),
+    };
+
+    // Block on the async call using our global runtime
+    get_runtime().block_on(async {
+        match agent.add_extension(extension_config).await {
+            Ok(_) => true,
+            Err(e) => {
+                eprintln!("Error registering tools: {}", e);
+                false
+            }
+        }
+    })
 }
 
 // Tool schema creation will be implemented in a future commit

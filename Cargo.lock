@@ -3521,6 +3521,7 @@ dependencies = [
  "futures",
  "goose",
  "libc",
+ "mcp-core",
  "once_cell",
  "serde",
  "serde_json",
