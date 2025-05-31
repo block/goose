@@ -1,8 +1,8 @@
-use crate::generate_structured_outputs;
 use crate::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
 use crate::types::core::{Content, Role};
 use crate::types::json_value_ffi::JsonValueFfi;
+use crate::{generate_structured_outputs, ModelConfig};
 use anyhow::Result;
 use indoc::indoc;
 use serde_json::{json, Value};
@@ -56,6 +56,7 @@ fn build_system_prompt() -> String {
 pub async fn generate_tooltip(
     provider_name: &str,
     provider_config: JsonValueFfi,
+    model_config: ModelConfig,
     messages: &[Message],
 ) -> Result<String, ProviderError> {
     // Need at least two messages to generate a tooltip
@@ -145,6 +146,7 @@ pub async fn generate_tooltip(
     let resp = generate_structured_outputs(
         provider_name,
         provider_config,
+        model_config,
         &system_prompt,
         &[Message::user().with_text(&user_msg_text)],
         schema,

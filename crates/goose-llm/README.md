@@ -12,6 +12,11 @@ Run:
 cargo run -p goose-llm --example simple
 ```
 
+Tests:
+```
+cargo test -p goose-llm providers_extract -- --nocapture
+```
+
 
 ## Kotlin bindings
 

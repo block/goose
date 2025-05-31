@@ -50,6 +50,7 @@ dotenv = "0.15"
 lazy_static = "1.5"
 ctor = "0.2.7"
 tokio = { version = "1.43", features = ["full"] }
+rstest = { version = "0.18.2" }
 
 [[bin]]
 # https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html
