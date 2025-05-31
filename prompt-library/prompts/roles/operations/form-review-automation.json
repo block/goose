@@ -1,0 +1,41 @@
+{
+  "id": "operations-form-review-automation",
+  "title": "Assign Reviewers to Conference Proposals",
+  "description": "Automatically match incoming conference proposals with relevant track reviewers",
+  "category": "Business",
+  "function": "operations",
+  "extensions": ["developer", "google_drive"],
+  "prompt": "I need help building an automated monitoring system that will:\n1. Check an Airtable base every 10 minutes for new form submissions\n2. Match each submission with reviewer information stored in a Google Sheet\n3. Send me a notification with the submission details and assigned reviewer(s)\n4. Auto-dismiss the notification after 5 seconds\n\nCan you help me create this system, starting with setting up the necessary connections to Airtable and Google Sheets?",
+  "example": "Example implementation:\n- Monitoring conference proposal submissions in Airtable\n- Matching with track reviewers in Google Sheets\n- Sending desktop notifications like:\n  'New proposal: \"Machine Learning in Healthcare\"\n   Track: AI/ML\n   Assigned reviewers: Dr. Sarah Chen, Prof. James Wilson\n   Abstract length: 500 words'\n- Notification disappears after 5 seconds",
+  "tags": ["automation", "workflow", "monitoring", "notifications", "integration", "conference", "academic", "peer-review", "proposal-review", "track-management", "paper-submissions"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "airtable_api_key": {
+      "description": "Airtable API key",
+      "required": true
+    },
+    "airtable_base_id": {
+      "description": "Airtable base ID",
+      "required": true
+    },
+    "google_sheets_id": {
+      "description": "Google Sheets document ID",
+      "required": true
+    },
+    "check_interval": {
+      "description": "Interval between checks in minutes",
+      "required": false,
+      "default": 10
+    },
+    "notification_duration": {
+      "description": "Duration to show notifications in seconds",
+      "required": false,
+      "default": 5
+    }
+  }
+}

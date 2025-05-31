@@ -1,0 +1,27 @@
+{
+  "id": "sales-performance-analysis",
+  "title": "Monthly Sales Performance Analysis",
+  "description": "Analyze monthly sales data to identify top performing stores and significant trends",
+  "category": "Business",
+  "function": "sales",
+  "extensions": ["computercontroller", "developer", "google_drive"],
+  "prompt": "Please review these two documents named {month1} Orders and {month2} Orders. Can you create insights on top performing stores and any significant movements.",
+  "example": "This will analyze sales data to provide:\n- Top performing stores by revenue\n- Month-over-month changes in performance\n- Significant trends or movements\n- Store rankings and comparisons\n- Additional relevant business insights\n\nExample output will include comparative analysis between January and February sales data, highlighting:\n- Stores with highest revenue\n- Biggest movers (positive and negative)\n- Pattern analysis\n- Recommendations based on findings",
+  "tags": ["sales", "analysis", "performance", "retail", "trends", "comparison"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "month1": {
+      "description": "Name of the first month's document",
+      "required": true
+    },
+    "month2": {
+      "description": "Name of the second month's document",
+      "required": true
+    }
+  }
+}

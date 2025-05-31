@@ -1,0 +1,27 @@
+{
+  "id": "dev-roll-plan-analyzer",
+  "title": "Analyze Production Change ROLL Plans",
+  "description": "Analyze and validate infrastructure change ROLL plans for production environments",
+  "category": "Technical",
+  "function": "developer",
+  "extensions": ["developer"],
+  "prompt": "You are an expert in cloud infrastructure, security, and reliability engineering. Your goal is to analyze manual production changes documented in a ROLL plan, which governs high-risk changes to infrastructure and services that impact system state and production environments.\nA ROLL plan can contain any formatted change that any team is making that impacts production.\nI will provide a reference ROLL plan named\nROLL - SAMPLE.xml, which is a past real-world ROLL plan exported from JIRA. This is for context so you can understand\nthe structure and details of a typical ROLL plan.\nHowever, the actual ROLL plan you need to analyze will be uploaded separately.",
+  "example": "This will analyze ROLL plans to evaluate:\n- Infrastructure change impact\n- Security implications\n- Production environment risks\n- Change validation steps\n- Rollback procedures\n- Service dependencies\n- System state changes",
+  "tags": ["infrastructure", "security", "production", "change-management", "roll-plan", "reliability"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "roll_plan_path": {
+      "description": "Path to the ROLL plan XML file to analyze",
+      "required": true
+    },
+    "reference_plan_path": {
+      "description": "Path to the reference ROLL plan XML file (optional)",
+      "required": false
+    }
+  }
+}

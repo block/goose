@@ -1,0 +1,27 @@
+{
+  "id": "developer-data-model-design",
+  "title": "Design and Validate Data Model",
+  "description": "Transform requirements into a concrete data model implementation with validation",
+  "category": "Technical",
+  "function": "coding",
+  "extensions": ["developer"],
+  "prompt": "I need help designing and prototyping a data model:\n1. Here's my verbal description of the data model requirements: We're building a task management system for a software development team. We need to track:\n- Projects with multiple tasks\n- Task assignments to team members\n- Task dependencies\n- Time estimates and actual time spent\n- Task status changes and history\n- Comments and attachments on tasks\n- Sprint/milestone assignments\n\n2. Can you help me transform this into a concrete implementation?\n\n3. Let's validate this against the following use cases:\n- Team lead creates a new project and adds initial tasks\n- Developer updates task status and logs time\n- QA adds a blocking issue that depends on another task\n- Manager generates sprint velocity report\n- Team member adds comments and attachments to tasks\n- System needs to track task history for auditing\n- Tasks need to be easily searchable by various criteria\n\n4. We'll need to be able to iterate on this design based on our findings",
+  "example": "This will help create a data model by:\n- Analyzing plain English requirements\n- Converting to concrete schema/class definitions\n- Validating against real use cases\n- Iterating based on findings\n\nThe output will provide:\n1. Database Schema:\n```sql\nCREATE TABLE projects (\n  id UUID PRIMARY KEY,\n  name VARCHAR(255) NOT NULL,\n  description TEXT,\n  created_at TIMESTAMP NOT NULL,\n  updated_at TIMESTAMP NOT NULL\n);\n\nCREATE TABLE tasks (\n  id UUID PRIMARY KEY,\n  project_id UUID REFERENCES projects(id),\n  title VARCHAR(255) NOT NULL,\n  description TEXT,\n  status VARCHAR(50) NOT NULL,\n  estimate_hours DECIMAL,\n  actual_hours DECIMAL,\n  created_at TIMESTAMP NOT NULL,\n  updated_at TIMESTAMP NOT NULL\n);\n\nCREATE TABLE task_dependencies (\n  task_id UUID REFERENCES tasks(id),\n  depends_on_task_id UUID REFERENCES tasks(id),\n  PRIMARY KEY (task_id, depends_on_task_id)\n);\n\nCREATE TABLE task_assignments (\n  task_id UUID REFERENCES tasks(id),\n  user_id UUID REFERENCES users(id),\n  assigned_at TIMESTAMP NOT NULL,\n  PRIMARY KEY (task_id, user_id)\n);\n```\n\n2. Sample Queries:\n```sql\n-- Find all blocking issues\nSELECT t.* FROM tasks t\nJOIN task_dependencies td ON t.id = td.task_id\nWHERE t.status = 'blocked';\n\n-- Calculate sprint velocity\nSELECT \n  sprint_id,\n  SUM(estimate_hours) as total_estimated,\n  SUM(actual_hours) as total_actual\nFROM tasks\nGROUP BY sprint_id;\n```\n\n3. Optimization Suggestions:\n- Index on task status for quick filtering\n- Composite index on (project_id, status) for project views\n- Consider partitioning by project_id for large datasets\n- Add full-text search for task descriptions\n\n4. Validation Rules:\n- Tasks must have at least one assignee\n- Cannot create circular dependencies\n- Status changes must be logged\n- Time entries require comments",
+  "tags": ["database", "schema", "data-modeling", "design", "architecture", "task-management"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "requirements": {
+      "description": "Verbal description of data model requirements",
+      "required": true
+    },
+    "use_cases": {
+      "description": "List of use cases to validate against",
+      "required": true
+    }
+  }
+}

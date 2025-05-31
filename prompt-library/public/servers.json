@@ -1,0 +1,122 @@
+[
+  {
+    "id": "developer",
+    "name": "Developer",
+    "description": "Built-in developer tools for file editing and shell command execution",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
+    "installation_notes": "This is a built-in extension that comes with goose by default. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "computercontroller",
+    "name": "Computer Controller",
+    "description": "Built-in computer controls for webscraping, file caching, and automations",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Built-in memory system for persistent context and information storage",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "jetbrains",
+    "name": "JetBrains",
+    "description": "Built-in JetBrains IDE integration for development workflows",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "knowledge_graph_memory",
+    "name": "Knowledge Graph Memory",
+    "description": "Graph-based memory system for persistent knowledge storage",
+    "command": "npx -y @modelcontextprotocol/server-memory",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
+    "environmentVariables": []
+  },
+  {
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Web content fetching and processing capabilities",
+    "command": "uvx mcp-server-fetch",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
+    "environmentVariables": []
+  },
+  {
+    "id": "git",
+    "name": "Git",
+    "description": "Git version control system integration",
+    "command": "uvx mcp-server-git",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+    "installation_notes": "Install using npx package manager. Note: Does not support git push, merge or rebase operations.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
+    "environmentVariables": []
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily Web Search",
+    "description": "Web search capabilities powered by Tavily",
+    "command": "uvx mcp-tavily",
+    "link": "https://github.com/RamXX/mcp-tavily",
+    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 4,
+    "environmentVariables": [
+      {
+        "name": "TAVILY_API_KEY",
+        "description": "API key for Tavily web search service",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Figma design tool integration",
+    "command": "npx -y @hapins/figma-mcp",
+    "link": "https://www.npmjs.com/package/@hapins/figma-mcp",
+    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 0,
+    "environmentVariables": [
+      {
+        "name": "FIGMA_ACCESS_TOKEN",
+        "description": "Access token from Figma user settings",
+        "required": true
+      }
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "id": "developer-jetbrains-java-upgrade",
+  "title": "Upgrade Java Project",
+  "description": "Upgrade Java project to latest LTS version and refactor using newer features",
+  "category": "Technical",
+  "function": "coding",
+  "extensions": ["jetbrains"],
+  "externalExtensions": [
+    {
+      "name": "jetbrains",
+      "link": "https://block.github.io/goose/v1/extensions/jetbrains"
+    }
+  ],
+  "prompt": "Using the JetBrains IDE tools, upgrade this project to use the latest Java LTS version and refactor the codebase to use newer Java features where beneficial.",
+  "example": "This will:\n- Update Java version to latest LTS\n- Identify refactoring opportunities\n- Apply modern Java features\n- Update build configuration\n- Run tests to verify changes",
+  "tags": ["java", "upgrade", "refactoring", "jetbrains", "ide"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "project_path": {
+      "description": "Path to the Java project",
+      "required": true
+    },
+    "target_java_version": {
+      "description": "Target Java LTS version (e.g., '17', '21')",
+      "required": true
+    }
+  }
+}
