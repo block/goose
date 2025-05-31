@@ -163,7 +163,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => inner,
                 _ => e.to_string(),
             };
-            eprintln!("Failed to start extension: {}, {:?}", extension.name(), err);
+            eprintln!("Failed to start extension `{}`: {}", extension.name(), err);
             eprintln!(
                 "Please check extension configuration for {}.",
                 extension.name()
