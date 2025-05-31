@@ -272,12 +272,30 @@ You'll need to provide both instructions and activities for your Recipe.
        ```sh
        goose run --recipe recipe.yaml --interactive
        ```
-
-       **With Parameters** - Supply values for recipe variables:
+       When running interactively, you'll be prompted for any required parameters:
        ```sh
+       ◆ Enter value for required parameter 'language':
+       │ Python
+       │
+       ◆ Enter value for required parameter 'style_guide':
+       │ PEP8
+       ```
+
+       **With Parameters** - Supply values directly:
+       ```sh
+       # All parameters provided - runs without prompts
        goose run --recipe recipe.yaml \
          --params language=Python \
          --params style=PEP8
+
+       # Missing required parameters - will fail in non-interactive mode
+       goose run --recipe recipe.yaml \
+         --params language=Python
+
+       # Using default values - recipe.yaml contains: style_guide: "PEP8"
+       goose run --recipe recipe.yaml \
+         --params language=Python
+       # style_guide will use "PEP8" from recipe defaults
        ```
 
        :::tip Recipe Location
@@ -292,6 +310,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
        Once you've configured your GitHub repository, you can run recipes by name:
 
+       **Basic Usage**:
        ```sh
        # This will look for <recipe-name>/recipe.yaml (or .json) in your configured repo
        goose run --recipe recipe-name
@@ -306,29 +325,49 @@ You'll need to provide both instructions and activities for your Recipe.
            └── recipe.yaml
        ```
 
-       You can run:
+       **Simple Run** - Execute recipe and exit:
        ```sh
        goose run --recipe code-review
        # or
        goose run --recipe setup-project
        ```
 
-       With parameters:
+       **Interactive Mode** - With parameter prompts:
        ```sh
-       goose run --recipe code-review \
-         --params language=Python \
-         --interactive
+       goose run --recipe code-review --interactive
        ```
+       The interactive mode will prompt for required values:
+       ```sh
+       ◆ Enter value for required parameter 'project_name':
+       │ MyProject
+       │
+       ◆ Enter value for required parameter 'language':
+       │ Python
+       ```
+
+       **With Parameters** - Supply values directly:
+       ```sh
+       # All parameters provided
+       goose run --recipe code-review \
+         --params project_name=MyProject \
+         --params language=Python \
+         --params test_coverage=80
+
+       # Using default values - recipe defines default test_coverage: 90
+       goose run --recipe code-review \
+         --params project_name=MyProject \
+         --params language=Python
+       # test_coverage will use 90 from recipe defaults
+       ```
+
+       :::tip Repository Structure
+       - Each recipe should be in its own directory
+       - Directory name matches the recipe name you use in commands
+       - Recipe file can be either recipe.yaml or recipe.json
+       :::
 
      </TabItem>
    </Tabs>
-
-   :::info Required Parameters
-   If a recipe has required parameters:
-   - **Interactive Mode**: You'll be prompted for values
-   - **Non-interactive Mode**: Command fails with list of required parameters
-   - **Default Values**: Will be used if defined in recipe
-   :::
 
    </TabItem>
 </Tabs>
