@@ -109,6 +109,78 @@ impl Default for DeveloperRouter {
 }
 
 impl DeveloperRouter {
+    async fn call_morph_api(
+        &self,
+        original_code: &str,
+        _old_str: &str,
+        update_snippet: &str,
+    ) -> Result<String, String> {
+        println!("Calling Morph API ");
+        use reqwest::Client;
+        use serde_json::{json, Value};
+
+        // Get API key from environment
+        let api_key = match std::env::var("MORPH_API_KEY") {
+            Ok(key) => key,
+            Err(_) => return Err("MORPH_API_KEY environment variable not set".to_string()),
+        };
+
+        // Create the client
+        let client = Client::new();
+
+        // Format the prompt as specified in the Python example
+        let user_prompt = format!(
+            "<code>{}</code>\n<update>{}</update>",
+            original_code, update_snippet
+        );
+
+        // Prepare the request body
+        let body = json!({
+            "model": "morph-v0",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ]
+        });
+
+        // Send the request
+        let response = match client
+            .post("https://api.morphllm.com/v1/chat/completions")
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => return Err(format!("Request error: {}", e)),
+        };
+
+        // Process the response
+        if !response.status().is_success() {
+            return Err(format!("API error: HTTP {}", response.status()));
+        }
+
+        // Parse the JSON response
+        let response_json: Value = match response.json().await {
+            Ok(json) => json,
+            Err(e) => return Err(format!("Failed to parse response: {}", e)),
+        };
+
+        // Extract the content from the response
+        let content = response_json
+            .get("choices")
+            .and_then(|choices| choices.get(0))
+            .and_then(|choice| choice.get("message"))
+            .and_then(|message| message.get("content"))
+            .and_then(|content| content.as_str())
+            .ok_or_else(|| "Invalid response format".to_string())?;
+        println!("Morph API worked");
+        Ok(content.to_string())
+    }
+
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
@@ -768,6 +840,7 @@ impl DeveloperRouter {
         old_str: &str,
         new_str: &str,
     ) -> Result<Vec<Content>, ToolError> {
+        println!("text_editor_replace called ");
         // Check if file exists and is active
         if !path.exists() {
             return Err(ToolError::InvalidParameters(format!(
@@ -796,8 +869,19 @@ impl DeveloperRouter {
         // Save history for undo
         self.save_file_history(path)?;
 
-        // Replace and write back with platform-specific line endings
-        let new_content = content.replace(old_str, new_str);
+        // Use the Morph API to process the code update
+        let new_content = match self.call_morph_api(&content, old_str, new_str).await {
+            Ok(updated_content) => updated_content,
+            Err(e) => {
+                // Fallback to simple string replacement if API call fails
+                eprintln!(
+                    "Morph API call failed: {}, falling back to string replacement",
+                    e
+                );
+                content.replace(old_str, new_str)
+            }
+        };
+
         let normalized_content = normalize_line_endings(&new_content);
         std::fs::write(path, &normalized_content)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
@@ -818,7 +902,7 @@ impl DeveloperRouter {
 
         // Calculate start and end lines for the snippet
         let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
-        let end_line = replacement_line + SNIPPET_LINES + new_str.matches('\n').count();
+        let end_line = replacement_line + SNIPPET_LINES + new_content.matches('\n').count();
 
         // Get the relevant lines for our snippet
         let lines: Vec<&str> = new_content.lines().collect();
@@ -855,7 +939,6 @@ impl DeveloperRouter {
                 .with_priority(0.2),
         ])
     }
-
     async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
         let mut history = self.file_history.lock().unwrap();
         if let Some(contents) = history.get_mut(path) {
