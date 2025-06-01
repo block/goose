@@ -143,19 +143,19 @@ You'll need to provide both instructions and activities for your Recipe.
    goose recipe validate recipe.yaml
    ```
 
-   This validation ensures that:
+Validation ensures that:
    - All required fields are present
    - Parameters are properly formatted
    - Referenced extensions exist and are valid
    - The YAML/JSON syntax is correct
 
    ### Share Your Recipe
-      ```sh
-      # Create a deep link for Desktop users
-      goose recipe deeplink recipe.yaml
 
-      # Or share the yaml file directly with CLI users
-      ```
+   Now that your recipe is created, you can share it with CLI users by directly sending them the recipe file or converting it to a shareable deep link for Desktop users:
+
+   ```sh
+   goose recipe deeplink recipe.yaml
+   ```
 
    </TabItem> 
 </Tabs>
