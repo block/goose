@@ -40,13 +40,13 @@ You'll need to provide both instructions and activities for your Recipe.
 
    ### Create a Recipe File
 
-   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), create a recipe file using the slash command:
+   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), run this command to generate a recipe.yaml file in your current directory:
 
    ```sh
    /recipe
    ```
 
-   This command will generate a recipe.yaml file in your current directory. If you want to specify a different name, you can provide it as an argument:
+   If you want to specify a different name, you can provide it as an argument:
 
    ```sh
    /recipe my-custom-recipe.yaml
@@ -289,12 +289,6 @@ Validation ensures that:
          --params language=Python
        # style_guide will use "PEP8" from recipe defaults
        ```
-
-       :::tip Recipe Location
-       - Both YAML (.yaml) and JSON (.json) formats are supported
-       - Use relative or absolute paths
-       - Recipe files can be in any directory
-       :::
 
      </TabItem>
 
