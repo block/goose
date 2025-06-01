@@ -96,7 +96,11 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
     wsl --install
     ```
 
-    2. Restart your computer if prompted.
+    2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
+
+    ```bash
+    wsl -d Ubuntu
+    ```
 
     3. Run the Goose installation script:
     ```bash
@@ -165,7 +169,8 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
   export OPENAI_API_KEY={your_api_key}
   ```
 
-  Run `goose configure` again and follow the steps until key value section, the system will tell you the key is already set as an environment variable and you can then move forwards:
+  Run `goose configure` again and proceed through the prompts. When you reach the step for entering the API key, Goose will detect that the key is already set as an environment variable and display a message like:
+
   ```
   ● OPENAI_API_KEY is set via environment variable
   ```
