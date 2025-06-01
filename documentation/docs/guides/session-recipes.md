@@ -64,7 +64,7 @@ You'll need to provide both instructions and activities for your Recipe.
       prompt: $prompt               # Initial message to start with
       extensions:                   # Tools the recipe needs
       - $extensions
-      activities:                   # Example tasks for users
+      activities:                   # Example prompts to display in the Desktop app
       - $activities
       ```
 
