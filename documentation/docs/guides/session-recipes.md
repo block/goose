@@ -16,6 +16,9 @@ You can turn your current Goose session into a reusable recipe that includes the
 
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
+   :::warning
+   You cannot create a recipe from an existing recipe session - the "Make Agent from this session" option will be disabled.
+   :::
 
    1. While in the session you want to save as a recipe, click the menu icon **⋮** in the top right corner  
    2. Select **Make Agent from this session**  
@@ -29,6 +32,9 @@ You can turn your current Goose session into a reusable recipe that includes the
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
+   :::warning
+   You cannot create a recipe from an existing recipe session - the `/recipe` command will not work.
+   :::
 
    ### Create a Recipe File
 
