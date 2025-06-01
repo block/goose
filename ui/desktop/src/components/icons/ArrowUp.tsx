@@ -1,4 +1,3 @@
-
 export default function ArrowUp({ className = '' }) {
   return (
     <svg

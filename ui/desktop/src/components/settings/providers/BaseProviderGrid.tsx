@@ -62,7 +62,7 @@ function BaseProviderCard({
   onTakeoff,
   showTakeoff,
 }: BaseProviderCardProps) {
-  const numRequiredKeys = required_keys[name]?.length || 0;
+  const numRequiredKeys = (required_keys as Record<string, string[]>)[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
 
   return (
@@ -254,7 +254,8 @@ export function BaseProviderGrid({
   return (
     <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 [&_*]:z-20">
       {providers.map((provider) => {
-        const hasRequiredKeys = required_keys[provider.name]?.length > 0;
+        const hasRequiredKeys =
+          (required_keys as Record<string, string[]>)[provider.name]?.length > 0;
         return (
           <BaseProviderCard
             key={provider.id}

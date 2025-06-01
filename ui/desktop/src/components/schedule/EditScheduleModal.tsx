@@ -58,16 +58,40 @@ const parseCronExpression = (cron: string) => {
   if (dayOfMonth !== '*' && month !== '*' && dayOfWeek === '*') {
     return { frequency: 'once' as FrequencyValue, minutes, hours, dayOfMonth, month };
   }
-  if (minutes !== '*' && hours === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+  if (
+    minutes !== '*' &&
+    hours === '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
     return { frequency: 'hourly' as FrequencyValue, minutes };
   }
-  if (minutes !== '*' && hours !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+  if (
+    minutes !== '*' &&
+    hours !== '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
     return { frequency: 'daily' as FrequencyValue, minutes, hours };
   }
-  if (minutes !== '*' && hours !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') {
+  if (
+    minutes !== '*' &&
+    hours !== '*' &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek !== '*'
+  ) {
     return { frequency: 'weekly' as FrequencyValue, minutes, hours, dayOfWeek };
   }
-  if (minutes !== '*' && hours !== '*' && dayOfMonth !== '*' && month === '*' && dayOfWeek === '*') {
+  if (
+    minutes !== '*' &&
+    hours !== '*' &&
+    dayOfMonth !== '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
     return { frequency: 'monthly' as FrequencyValue, minutes, hours, dayOfMonth };
   }
 
@@ -98,32 +122,40 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
   useEffect(() => {
     if (schedule && isOpen) {
       const parsed = parseCronExpression(schedule.cron);
-      
+
       if (parsed) {
         setFrequency(parsed.frequency);
-        
+
         switch (parsed.frequency) {
           case 'once':
             // For 'once', we'd need to reconstruct the date from cron parts
             // This is complex, so we'll default to current date/time for now
             setSelectedDate(new Date().toISOString().split('T')[0]);
-            setSelectedTime(`${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`);
+            setSelectedTime(
+              `${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`
+            );
             break;
           case 'hourly':
             setSelectedMinute(parsed.minutes || '0');
             break;
           case 'daily':
-            setSelectedTime(`${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`);
+            setSelectedTime(
+              `${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`
+            );
             break;
           case 'weekly':
-            setSelectedTime(`${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`);
+            setSelectedTime(
+              `${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`
+            );
             if (parsed.dayOfWeek) {
-              const days = parsed.dayOfWeek.split(',').map(d => d.trim());
+              const days = parsed.dayOfWeek.split(',').map((d) => d.trim());
               setSelectedDaysOfWeek(new Set(days));
             }
             break;
           case 'monthly':
-            setSelectedTime(`${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`);
+            setSelectedTime(
+              `${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`
+            );
             setSelectedDayOfMonth(parsed.dayOfMonth || '1');
             break;
         }
@@ -132,7 +164,7 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
         setFrequency('daily');
         setSelectedTime('09:00');
       }
-      
+
       setInternalValidationError(null);
     }
   }, [schedule, isOpen]);
@@ -287,7 +319,8 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
               instanceId="frequency-select-modal"
               options={frequencies}
               value={frequencies.find((f) => f.value === frequency)}
-              onChange={(selectedOption: FrequencyOption | null) => {
+              onChange={(newValue: unknown) => {
+                const selectedOption = newValue as FrequencyOption | null;
                 if (selectedOption) setFrequency(selectedOption.value);
               }}
               placeholder="Select frequency..."

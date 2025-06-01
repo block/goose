@@ -1,4 +1,3 @@
-
 export default function ChevronUp({ className = '' }) {
   return (
     <svg

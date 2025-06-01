@@ -45,7 +45,7 @@ export default function CardContainer({
                  }`}
       onClick={!grayedOut ? onClick : undefined}
       style={{
-        cursor: !grayedOut && onClick ? 'pointer' : 'default',
+        cursor: !grayedOut ? 'pointer' : 'default',
       }}
     >
       {!grayedOut && <GlowingRing />}

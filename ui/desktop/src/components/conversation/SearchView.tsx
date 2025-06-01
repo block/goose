@@ -314,7 +314,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     <div
       ref={(el) => {
         if (el) {
-          containerRef.current = el;
+          containerRef.current = el as SearchContainerElement;
           // Expose the highlighter instance
           containerRef.current._searchHighlighter = highlighterRef.current;
         }
@@ -326,7 +326,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           onSearch={handleSearch}
           onClose={handleCloseSearch}
           onNavigate={handleNavigate}
-          searchResults={searchResults || internalSearchResults}
+          searchResults={searchResults || internalSearchResults || undefined}
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
         />

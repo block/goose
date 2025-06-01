@@ -1,4 +1,3 @@
-
 interface Props {
   className?: string;
   // eslint-disable-next-line

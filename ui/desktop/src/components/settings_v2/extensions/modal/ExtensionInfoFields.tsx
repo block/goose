@@ -44,7 +44,8 @@ export default function ExtensionInfoFields({
           <label className="text-sm font-medium mb-2 block text-textStandard">Type</label>
           <Select
             value={{ value: type, label: type.toUpperCase() }}
-            onChange={(option: { value: string; label: string } | null) => {
+            onChange={(newValue: unknown) => {
+              const option = newValue as { value: string; label: string } | null;
               if (option) {
                 onChange('type', option.value);
               }
