@@ -274,28 +274,11 @@ Validation ensures that:
        │ PEP8
        ```
 
-       **With Parameters** - Supply values directly:
+       **With Parameters** - Supply parameter values when running recipes. See the [`run` command documentation](/docs/guides/goose-cli-commands#run-options) for detailed examples and options.
 
-       All parameters provided - runs without prompts
-       
+       Basic example:
        ```sh
-       goose run --recipe recipe.yaml \
-         --params language=Python \
-         --params style=PEP8
-        ```
-
-      Missing required parameters - will fail in non-interactive mode
-       ```sh
-       goose run --recipe recipe.yaml \
-         --params language=Python
-       ```
-
-       Using default values - recipe.yaml contains: style_guide: "PEP8"
-       
-       ```
-       goose run --recipe recipe.yaml \
-         --params language=Python
-       # style_guide will use "PEP8" from recipe defaults
+       goose run --recipe recipe.yaml --params language=Python
        ```
 
      </TabItem>
@@ -342,20 +325,7 @@ Validation ensures that:
        │ Python
        ```
 
-       **With Parameters** - Supply values directly:
-       ```sh
-       # All parameters provided
-       goose run --recipe code-review \
-         --params project_name=MyProject \
-         --params language=Python \
-         --params test_coverage=80
-
-       # Using default values - recipe defines default test_coverage: 90
-       goose run --recipe code-review \
-         --params project_name=MyProject \
-         --params language=Python
-       # test_coverage will use 90 from recipe defaults
-       ```
+       **With Parameters** - Supply parameter values when running recipes. See the [`run` command documentation](/docs/guides/goose-cli-commands#run-options) for detailed examples and options.
 
      </TabItem>
    </Tabs>
