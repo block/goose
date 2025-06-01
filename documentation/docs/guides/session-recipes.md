@@ -165,11 +165,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
    ### 1. Configure Recipe Location
 
-   Goose looks for recipes in the following locations, in order:
-   1. Local filesystem (current directory or specified path)
-   2. GitHub repository (if configured)
-
-   To configure a GitHub repository for recipes:
+  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or config file:
 
    <Tabs>
      <TabItem value="configure" label="Using goose configure" default>
@@ -228,7 +224,7 @@ You'll need to provide both instructions and activities for your Recipe.
        ```yaml title="~/.config/goose/config.yaml"
        GOOSE_RECIPE_GITHUB_REPO: "owner/repo"
        ```
-       
+
      </TabItem>
    </Tabs>
 
@@ -306,8 +302,6 @@ You'll need to provide both instructions and activities for your Recipe.
        **Simple Run** - Execute recipe and exit:
        ```sh
        goose run --recipe code-review
-       # or
-       goose run --recipe setup-project
        ```
 
        **Interactive Mode** - With parameter prompts:
