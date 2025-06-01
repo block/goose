@@ -152,23 +152,6 @@ You'll need to provide both instructions and activities for your Recipe.
       # Or share the yaml file directly with CLI users
       ```
 
-   :::tip Running Recipes with Parameters
-   When running a parameterized recipe:
-   ```sh
-   # All parameters provided
-   goose run --recipe code-review.yaml \
-     --params project_name=MyApp \
-     --params language=Python \
-     --params test_coverage=80
-
-   # Using default values
-   goose run --recipe code-review.yaml \
-     --params project_name=MyProject \
-     --params language=Python
-   # test_coverage will use default from recipe
-   ```
-   :::
-
    </TabItem> 
 </Tabs>
 
