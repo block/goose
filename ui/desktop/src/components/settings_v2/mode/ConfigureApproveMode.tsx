@@ -39,7 +39,7 @@ export function ConfigureApproveMode({
 
     setIsSubmitting(true);
     try {
-      handleModeChange(approveMode);
+      handleModeChange(approveMode || '');
       onClose();
     } catch (error) {
       console.error('Error configuring goose mode:', error);
@@ -68,8 +68,10 @@ export function ConfigureApproveMode({
                   key={mode.key}
                   mode={mode}
                   showDescription={true}
-                  currentMode={approveMode}
+                  currentMode={approveMode || ''}
                   isApproveModeConfigure={true}
+                  parentView={'settings' as const}
+                  setView={() => {}} // No-op since we're in configure mode
                   handleModeChange={(newMode) => {
                     setApproveMode(newMode);
                   }}

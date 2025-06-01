@@ -148,7 +148,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
           return extensionsList;
         }
 
-        const extensionResponse: ExtensionResponse = result.data;
+        const extensionResponse: ExtensionResponse = result.data!;
         setExtensionsList(extensionResponse.extensions);
         return extensionResponse.extensions;
       }
@@ -173,8 +173,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     async (forceRefresh = false): Promise<ProviderDetails[]> => {
       if (forceRefresh || providersList.length === 0) {
         const response = await providers();
-        setProvidersList(response.data);
-        return response.data;
+        setProvidersList(response.data || []);
+        return response.data || [];
       }
       return providersList;
     },
@@ -191,7 +191,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load providers
       try {
         const providersResponse = await providers();
-        setProvidersList(providersResponse.data);
+        setProvidersList(providersResponse.data || []);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 
+use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
 use crate::message::Message;
@@ -1102,11 +1103,14 @@ async fn run_scheduled_job_internal(
                     tokio::task::yield_now().await;
 
                     match message_result {
-                        Ok(msg) => {
+                        Ok(AgentEvent::Message(msg)) => {
                             if msg.role == mcp_core::role::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
                             all_session_messages.push(msg);
+                        }
+                        Ok(AgentEvent::McpNotification(_)) => {
+                            // Handle notifications if needed
                         }
                         Err(e) => {
                             tracing::error!(

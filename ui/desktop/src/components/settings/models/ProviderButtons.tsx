@@ -8,10 +8,13 @@ import { useModel } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 
 // Create a mapping from provider name to href
-const providerLinks = model_docs_link.reduce((acc, { name, href }) => {
-  acc[name] = href;
-  return acc;
-}, {});
+const providerLinks: Record<string, string> = model_docs_link.reduce(
+  (acc, { name, href }) => {
+    acc[name] = href;
+    return acc;
+  },
+  {} as Record<string, string>
+);
 
 export function ProviderButtons() {
   const { activeKeys } = useActiveKeys();

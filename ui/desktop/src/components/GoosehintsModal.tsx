@@ -96,9 +96,9 @@ type GoosehintsModalProps = {
 
 export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: GoosehintsModalProps) => {
   const goosehintsFilePath = `${directory}/.goosehints`;
-  const [goosehintsFile, setGoosehintsFile] = useState<string>(null);
+  const [goosehintsFile, setGoosehintsFile] = useState<string>('');
   const [goosehintsFileFound, setGoosehintsFileFound] = useState<boolean>(false);
-  const [goosehintsFileReadError, setGoosehintsFileReadError] = useState<string>(null);
+  const [goosehintsFileReadError, setGoosehintsFileReadError] = useState<string>('');
 
   useEffect(() => {
     const fetchGoosehintsFile = async () => {
@@ -106,7 +106,7 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
         const { file, error, found } = await getGoosehintsFile(goosehintsFilePath);
         setGoosehintsFile(file);
         setGoosehintsFileFound(found);
-        setGoosehintsFileReadError(error);
+        setGoosehintsFileReadError(error || '');
       } catch (error) {
         console.error('Error fetching .goosehints file:', error);
       }
@@ -125,7 +125,7 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
       <ModalHelpText />
       <div className="flex flex-col flex-1">
         {goosehintsFileReadError ? (
-          <ModalError error={goosehintsFileReadError} />
+          <ModalError error={new Error(goosehintsFileReadError)} />
         ) : (
           <div className="flex flex-col flex-1 space-y-2 h-full">
             <ModalFileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />

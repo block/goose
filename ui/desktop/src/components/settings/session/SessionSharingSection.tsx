@@ -3,7 +3,7 @@ import { Input } from '../../ui/input';
 import { Check, Lock } from 'lucide-react';
 
 export default function SessionSharingSection() {
-  const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
+  const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE') as string | undefined;
   console.log('envBaseUrlShare', envBaseUrlShare);
 
   // If env is set, force sharing enabled and set the baseUrl accordingly.
@@ -146,7 +146,7 @@ export default function SessionSharingSection() {
                   placeholder="https://example.com/api"
                   value={sessionSharingConfig.baseUrl}
                   disabled={!!envBaseUrlShare}
-                  onChange={envBaseUrlShare ? undefined : handleBaseUrlChange}
+                  onChange={envBaseUrlShare ? () => {} : handleBaseUrlChange}
                 />
               </div>
               {urlError && <p className="text-red-500 text-sm">{urlError}</p>}

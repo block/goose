@@ -17,6 +17,7 @@ import {
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
+import { NotificationEvent } from '../hooks/useMessageStream';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -25,6 +26,7 @@ interface GooseMessageProps {
   message: Message;
   messages: Message[];
   metadata?: string[];
+  toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
 }
@@ -34,6 +36,7 @@ export default function GooseMessage({
   message,
   metadata,
   messages,
+  toolCallNotifications,
   append,
   appendMessage,
 }: GooseMessageProps) {
@@ -158,6 +161,7 @@ export default function GooseMessage({
                   }
                   toolRequest={toolRequest}
                   toolResponse={toolResponsesMap.get(toolRequest.id)}
+                  notifications={toolCallNotifications.get(toolRequest.id)}
                 />
               </div>
             ))}
@@ -190,7 +194,7 @@ export default function GooseMessage({
       {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
       {false && metadata && (
         <div className="flex mt-[16px]">
-          <GooseResponseForm message={textContent} metadata={metadata} append={append} />
+          <GooseResponseForm message={textContent} metadata={metadata || null} append={append} />
         </div>
       )}
     </div>

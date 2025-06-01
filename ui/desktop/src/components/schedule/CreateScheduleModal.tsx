@@ -1,9 +1,12 @@
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
+import * as yaml from 'yaml';
+import { Buffer } from 'buffer';
+import { Recipe } from '../../recipe';
 
 type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -24,6 +27,39 @@ interface CreateScheduleModalProps {
   onSubmit: (payload: NewSchedulePayload) => Promise<void>;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
+}
+
+// Interface for clean extension in YAML
+interface CleanExtension {
+  name: string;
+  type: 'stdio' | 'sse' | 'builtin' | 'frontend';
+  cmd?: string;
+  args?: string[];
+  uri?: string;
+  display_name?: string;
+  tools?: unknown[];
+  instructions?: string;
+  env_keys?: string[];
+  timeout?: number;
+  description?: string;
+  bundled?: boolean;
+}
+
+// Interface for clean recipe in YAML
+interface CleanRecipe {
+  title: string;
+  description: string;
+  instructions: string;
+  prompt?: string;
+  activities?: string[];
+  extensions?: CleanExtension[];
+  goosehints?: string;
+  context?: string[];
+  profile?: string;
+  author?: {
+    contact?: string;
+    metadata?: string;
+  };
 }
 
 const frequencies: FrequencyOption[] = [
@@ -51,6 +87,151 @@ const checkboxLabelClassName = 'flex items-center text-sm text-textStandard dark
 const checkboxInputClassName =
   'h-4 w-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 mr-2';
 
+type SourceType = 'file' | 'deeplink';
+
+// Function to parse deep link and extract recipe config
+function parseDeepLink(deepLink: string): Recipe | null {
+  try {
+    const url = new URL(deepLink);
+    if (url.protocol !== 'goose:' || (url.hostname !== 'bot' && url.hostname !== 'recipe')) {
+      return null;
+    }
+
+    const configParam = url.searchParams.get('config');
+    if (!configParam) {
+      return null;
+    }
+
+    const configJson = Buffer.from(configParam, 'base64').toString('utf-8');
+    return JSON.parse(configJson) as Recipe;
+  } catch (error) {
+    console.error('Failed to parse deep link:', error);
+    return null;
+  }
+}
+
+// Function to convert recipe to YAML
+function recipeToYaml(recipe: Recipe): string {
+  // Create a clean recipe object for YAML conversion
+  const cleanRecipe: CleanRecipe = {
+    title: recipe.title,
+    description: recipe.description,
+    instructions: recipe.instructions,
+  };
+
+  if (recipe.prompt) {
+    cleanRecipe.prompt = recipe.prompt;
+  }
+
+  if (recipe.activities && recipe.activities.length > 0) {
+    cleanRecipe.activities = recipe.activities;
+  }
+
+  if (recipe.extensions && recipe.extensions.length > 0) {
+    cleanRecipe.extensions = recipe.extensions.map((ext) => {
+      const cleanExt: CleanExtension = {
+        name: ext.name,
+        type: 'builtin', // Default type, will be overridden below
+      };
+
+      // Handle different extension types using type assertions
+      if ('type' in ext && ext.type) {
+        cleanExt.type = ext.type as CleanExtension['type'];
+
+        // Use type assertions to access properties safely
+        const extAny = ext as Record<string, unknown>;
+
+        if (ext.type === 'sse' && extAny.uri) {
+          cleanExt.uri = extAny.uri as string;
+        } else if (ext.type === 'stdio') {
+          if (extAny.cmd) {
+            cleanExt.cmd = extAny.cmd as string;
+          }
+          if (extAny.args) {
+            cleanExt.args = extAny.args as string[];
+          }
+        } else if (ext.type === 'builtin' && extAny.display_name) {
+          cleanExt.display_name = extAny.display_name as string;
+        }
+
+        // Handle frontend type separately to avoid TypeScript narrowing issues
+        if ((ext.type as string) === 'frontend') {
+          if (extAny.tools) {
+            cleanExt.tools = extAny.tools as unknown[];
+          }
+          if (extAny.instructions) {
+            cleanExt.instructions = extAny.instructions as string;
+          }
+        }
+      } else {
+        // Fallback: try to infer type from available fields
+        const extAny = ext as Record<string, unknown>;
+
+        if (extAny.cmd) {
+          cleanExt.type = 'stdio';
+          cleanExt.cmd = extAny.cmd as string;
+          if (extAny.args) {
+            cleanExt.args = extAny.args as string[];
+          }
+        } else if (extAny.command) {
+          // Handle legacy 'command' field by converting to 'cmd'
+          cleanExt.type = 'stdio';
+          cleanExt.cmd = extAny.command as string;
+        } else if (extAny.uri) {
+          cleanExt.type = 'sse';
+          cleanExt.uri = extAny.uri as string;
+        } else if (extAny.tools) {
+          cleanExt.type = 'frontend';
+          cleanExt.tools = extAny.tools as unknown[];
+          if (extAny.instructions) {
+            cleanExt.instructions = extAny.instructions as string;
+          }
+        } else {
+          // Default to builtin if we can't determine type
+          cleanExt.type = 'builtin';
+        }
+      }
+
+      // Add common optional fields
+      if (ext.env_keys && ext.env_keys.length > 0) {
+        cleanExt.env_keys = ext.env_keys;
+      }
+
+      if ('timeout' in ext && ext.timeout) {
+        cleanExt.timeout = ext.timeout as number;
+      }
+
+      if ('description' in ext && ext.description) {
+        cleanExt.description = ext.description as string;
+      }
+
+      if ('bundled' in ext && ext.bundled !== undefined) {
+        cleanExt.bundled = ext.bundled as boolean;
+      }
+
+      return cleanExt;
+    });
+  }
+
+  if (recipe.goosehints) {
+    cleanRecipe.goosehints = recipe.goosehints;
+  }
+
+  if (recipe.context && recipe.context.length > 0) {
+    cleanRecipe.context = recipe.context;
+  }
+
+  if (recipe.profile) {
+    cleanRecipe.profile = recipe.profile;
+  }
+
+  if (recipe.author) {
+    cleanRecipe.author = recipe.author;
+  }
+
+  return yaml.stringify(cleanRecipe);
+}
+
 export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   isOpen,
   onClose,
@@ -59,7 +240,10 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   apiErrorExternally,
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
+  const [sourceType, setSourceType] = useState<SourceType>('file');
   const [recipeSourcePath, setRecipeSourcePath] = useState<string>('');
+  const [deepLinkInput, setDeepLinkInput] = useState<string>('');
+  const [parsedRecipe, setParsedRecipe] = useState<Recipe | null>(null);
   const [frequency, setFrequency] = useState<FrequencyValue>('daily');
   const [selectedDate, setSelectedDate] = useState<string>(
     () => new Date().toISOString().split('T')[0]
@@ -72,9 +256,54 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [readableCronExpression, setReadableCronExpression] = useState<string>('');
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
 
+  const handleDeepLinkChange = useCallback(
+    (value: string) => {
+      setDeepLinkInput(value);
+      setInternalValidationError(null);
+
+      if (value.trim()) {
+        const recipe = parseDeepLink(value.trim());
+        if (recipe) {
+          setParsedRecipe(recipe);
+          // Auto-populate schedule ID from recipe title if available
+          if (recipe.title && !scheduleId) {
+            const cleanId = recipe.title
+              .toLowerCase()
+              .replace(/[^a-z0-9-]/g, '-')
+              .replace(/-+/g, '-');
+            setScheduleId(cleanId);
+          }
+        } else {
+          setParsedRecipe(null);
+          setInternalValidationError(
+            'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+          );
+        }
+      } else {
+        setParsedRecipe(null);
+      }
+    },
+    [scheduleId]
+  );
+
+  useEffect(() => {
+    // Check for pending deep link when modal opens
+    if (isOpen) {
+      const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
+      if (pendingDeepLink) {
+        localStorage.removeItem('pendingScheduleDeepLink');
+        setSourceType('deeplink');
+        handleDeepLinkChange(pendingDeepLink);
+      }
+    }
+  }, [isOpen, handleDeepLinkChange]);
+
   const resetForm = () => {
     setScheduleId('');
+    setSourceType('file');
     setRecipeSourcePath('');
+    setDeepLinkInput('');
+    setParsedRecipe(null);
     setFrequency('daily');
     setSelectedDate(new Date().toISOString().split('T')[0]);
     setSelectedTime('09:00');
@@ -195,10 +424,48 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       setInternalValidationError('Schedule ID is required.');
       return;
     }
-    if (!recipeSourcePath) {
-      setInternalValidationError('Recipe source file is required.');
-      return;
+
+    let finalRecipeSource = '';
+
+    if (sourceType === 'file') {
+      if (!recipeSourcePath) {
+        setInternalValidationError('Recipe source file is required.');
+        return;
+      }
+      finalRecipeSource = recipeSourcePath;
+    } else if (sourceType === 'deeplink') {
+      if (!deepLinkInput.trim()) {
+        setInternalValidationError('Deep link is required.');
+        return;
+      }
+      if (!parsedRecipe) {
+        setInternalValidationError('Invalid deep link. Please check the format.');
+        return;
+      }
+
+      try {
+        // Convert recipe to YAML and save to a temporary file
+        const yamlContent = recipeToYaml(parsedRecipe);
+        console.log('Generated YAML content:', yamlContent); // Debug log
+        const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
+        const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
+        const tempFilePath = `${tempDir}/${tempFileName}`;
+
+        // Write the YAML file
+        const writeSuccess = await window.electron.writeFile(tempFilePath, yamlContent);
+        if (!writeSuccess) {
+          setInternalValidationError('Failed to create temporary recipe file.');
+          return;
+        }
+
+        finalRecipeSource = tempFilePath;
+      } catch (error) {
+        console.error('Failed to convert recipe to YAML:', error);
+        setInternalValidationError('Failed to process the recipe from deep link.');
+        return;
+      }
     }
+
     if (
       !derivedCronExpression ||
       derivedCronExpression.includes('Invalid') ||
@@ -216,7 +483,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
     const newSchedulePayload: NewSchedulePayload = {
       id: scheduleId.trim(),
-      recipe_source: recipeSourcePath,
+      recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
     };
 
@@ -232,7 +499,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md  bg-bgApp shadow-xl rounded-lg z-50 flex flex-col max-h-[90vh] overflow-hidden">
+      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-lg z-50 flex flex-col max-h-[90vh] overflow-hidden">
         <div className="px-6 pt-6 pb-4 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Create New Schedule
@@ -268,22 +535,79 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               required
             />
           </div>
+
           <div>
-            <label className={modalLabelClassName}>Recipe Source (YAML File):</label>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleBrowseFile}
-              className="w-full justify-center"
-            >
-              Browse...
-            </Button>
-            {recipeSourcePath && (
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                Selected: {recipeSourcePath}
-              </p>
-            )}
+            <label className={modalLabelClassName}>Recipe Source:</label>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSourceType('file')}
+                  className={`px-3 py-2 text-sm rounded-md border ${
+                    sourceType === 'file'
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                  }`}
+                >
+                  YAML File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceType('deeplink')}
+                  className={`px-3 py-2 text-sm rounded-md border ${
+                    sourceType === 'deeplink'
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                  }`}
+                >
+                  Deep Link
+                </button>
+              </div>
+
+              {sourceType === 'file' && (
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBrowseFile}
+                    className="w-full justify-center"
+                  >
+                    Browse for YAML file...
+                  </Button>
+                  {recipeSourcePath && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
+                      Selected: {recipeSourcePath}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {sourceType === 'deeplink' && (
+                <div>
+                  <Input
+                    type="text"
+                    value={deepLinkInput}
+                    onChange={(e) => handleDeepLinkChange(e.target.value)}
+                    placeholder="Paste goose://bot or goose://recipe link here..."
+                  />
+                  {parsedRecipe && (
+                    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-md border border-green-500/50">
+                      <p className="text-xs text-green-700 dark:text-green-300 font-medium">
+                        ✓ Recipe parsed successfully
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Title: {parsedRecipe.title}
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Description: {parsedRecipe.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
           <div>
             <label htmlFor="frequency-modal" className={modalLabelClassName}>
               Frequency:
@@ -292,7 +616,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               instanceId="frequency-select-modal"
               options={frequencies}
               value={frequencies.find((f) => f.value === frequency)}
-              onChange={(selectedOption: FrequencyOption | null) => {
+              onChange={(newValue: unknown) => {
+                const selectedOption = newValue as FrequencyOption | null;
                 if (selectedOption) setFrequency(selectedOption.value);
               }}
               placeholder="Select frequency..."
