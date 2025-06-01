@@ -173,7 +173,13 @@ Validation ensures that:
 
    ### Configure Recipe Location
 
-  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or [config file](/docs/guides/config-file#global-settings):
+  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or [config file](/docs/guides/config-file#global-settings).
+
+  :::tip Repository Structure
+  - Each recipe should be in its own directory
+  - Directory name matches the recipe name you use in commands
+  - Recipe file can be either recipe.yaml or recipe.json
+  :::
 
    <Tabs>
      <TabItem value="configure" label="Using goose configure" default>
@@ -298,9 +304,7 @@ Validation ensures that:
 
        Once you've configured your GitHub repository, you can run recipes by name:
 
-       **Basic Usage** Run once and exit (see [run options](/docs/guides/goose-cli-commands#run-options) and [recipe commands](/docs/guides/goose-cli-commands#recipe) for more):
-       
-       This command will look for `<recipe-name>/recipe.yaml` (or `.json`) in your configured repo
+       **Basic Usage** - Run recipes from your configured repo using the recipe name that matches its directory (see [run options](/docs/guides/goose-cli-commands#run-options) and [recipe commands](/docs/guides/goose-cli-commands#recipe) for more):
 
        ```sh
        goose run --recipe recipe-name
@@ -352,12 +356,6 @@ Validation ensures that:
          --params language=Python
        # test_coverage will use 90 from recipe defaults
        ```
-
-       :::tip Repository Structure
-       - Each recipe should be in its own directory
-       - Directory name matches the recipe name you use in commands
-       - Recipe file can be either recipe.yaml or recipe.json
-       :::
 
      </TabItem>
    </Tabs>
