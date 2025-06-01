@@ -52,7 +52,9 @@ You'll need to provide both instructions and activities for your Recipe.
    /recipe my-custom-recipe.yaml
    ```
 
-   Your recipe file will be generated with this structure:
+   <details>
+   <summary>Recipe file structure</summary>
+
    ```yaml
    # Required fields
    version: 1.0.0
@@ -67,6 +69,7 @@ You'll need to provide both instructions and activities for your Recipe.
    activities:                   # Example prompts to display in the Desktop app
    - $activities
    ```
+   </details>
 
    ### Edit Recipe File
 
@@ -88,7 +91,8 @@ You'll need to provide both instructions and activities for your Recipe.
    1. Add template variables using `{{ variable_name }}` syntax in your recipe content
    2. Define each parameter in the `parameters` section of your YAML file
 
-   Here's an example recipe with parameters:
+   <details>
+   <summary>Example recipe with parameters</summary>
 
    ```yaml
    version: 1.0.0
@@ -129,6 +133,7 @@ You'll need to provide both instructions and activities for your Recipe.
      requirement: user_prompt
      # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
    ```
+   </details>
 
    ### Validate Recipe
 
