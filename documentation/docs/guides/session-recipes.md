@@ -38,108 +38,113 @@ You'll need to provide both instructions and activities for your Recipe.
 
   <TabItem value="cli" label="Goose CLI">
 
-   1. **Create a Recipe File**
-      ```sh
-      # While in a session, run:
-      /recipe
-      
-      # Or specify a custom filename:
-      /recipe my-custom-recipe.yaml
-      ```
+   ### Create a Recipe File
 
-      :::note
-      Recipe files can be either YAML (.yaml) or JSON (.json) format
-      :::
+   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), create a recipe file using the slash command:
 
-   2. **Edit the Recipe File**
-      Your recipe file will contain:
-      ```yaml
-      # Required fields
-      version: 1.0.0
-      title: $title
-      description: $description
-      instructions: $instructions    # Define the model's behavior
+   ```sh
+   /recipe
+   ```
 
-      # Optional fields
-      prompt: $prompt               # Initial message to start with
-      extensions:                   # Tools the recipe needs
-      - $extensions
-      activities:                   # Example prompts to display in the Desktop app
-      - $activities
-      ```
+   This command will generate a recipe.yaml file in your current directory. If you want to specify a different name, you can provide it as an argument:
 
-      <details>
-      <summary>Complete recipe.yaml template</summary>
-   
-      ```yaml
-      # Required fields
-      version: 1.0.0
-      title: $title
-      description: $description
-      instructions: $instructions # instructions to be added to the system prompt
+   ```sh
+   /recipe my-custom-recipe.yaml
+   ```
 
-      # Optional fields
-      prompt: $prompt             # if set, the initial prompt for the run/session
-      extensions:
-      - $extensions
-      context:
-      - $context
-      activities:
-      - $activities
-      author:
-        contact: $contact
-        metadata: $metadata
-      ```
-      </details>
+   Your recipe file will be generated with this structure:
+   ```yaml
+   # Required fields
+   version: 1.0.0
+   title: $title
+   description: $description
+   instructions: $instructions    # Define the model's behavior
 
-   3. **Add Parameters** (Optional)
-      If your recipe needs user input, add template variables using `{{ variable_name }}`:
-      ```yaml
-      title: {{ project_name }} Code Review
-      description: Code review for {{ project_name }} in {{ language }}
-      instructions: |
-        You are a {{ language }} code reviewer.
-        Check for:
-        - Test coverage: {{ test_coverage }}%
-        - Style guide: {{ style_guide }}
-      ```
+   # Optional fields
+   prompt: $prompt               # Initial message to start with
+   extensions:                   # Tools the recipe needs
+   - $extensions
+   activities:                   # Example prompts to display in the Desktop app
+   - $activities
+   ```
 
-      <details>
-      <summary>Complete parameter example</summary>
-      
-      ```yaml title="code-review.yaml"
-      version: 1.0.0
-      title: {{ project_name }} Code Review
-      description: Automated code review for {{ project_name }} with {{ language }} focus
-      instructions: |
-        You are a code reviewer specialized in {{ language }} development.
-        Apply the following standards:
-        - Complexity threshold: {{ complexity_threshold }}
-        - Required test coverage: {{ test_coverage }}%
-        - Style guide: {{ style_guide }}
-      activities:
-        - "Review {{ language }} code for complexity"
-        - "Check test coverage against {{ test_coverage }}% requirement"
-        - "Verify {{ style_guide }} compliance"
-      ```
-      </details>
+   ### Edit Recipe File
 
-   4. **Validate Your Recipe**
-      ```sh
-      goose recipe validate recipe.yaml
-      ```
+   You can then edit the recipe file to include the following key information:
 
-      :::tip Why Validate?
-      Validation checks your recipe for:
-      - Required fields are present
-      - Parameters are properly formatted
-      - Extensions exist and are valid
-      - JSON/YAML syntax is correct
-      
-      This helps catch issues before sharing your recipe with others.
-      :::
+   - `instructions`: Define how the model should behave and what it should do
+   - `prompt`: Set the initial message to start the session with
+   - `activities`: Add example tasks that will appear as clickable bubbles in Goose Desktop
 
-   5. **Share Your Recipe**
+   :::note Required Fields
+   You must include either `instructions` or `prompt` (or both) in your recipe. At least one of these fields is required for the recipe to work.
+   :::
+
+   ### Optional Parameters
+
+   You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
+
+   To use parameters:
+   1. Add template variables using `{{ variable_name }}` syntax in your recipe content
+   2. Define each parameter in the `parameters` section of your YAML file
+
+   Here's an example recipe with parameters:
+
+   ```yaml
+   version: 1.0.0
+   title: "{{ project_name }} Code Review" # Wrap the value in quotes if it starts with template syntax to avoid YAML parsing errors
+   description: Automated code review for {{ project_name }} with {{ language }} focus
+   instructions: |
+      You are a code reviewer specialized in {{ language }} development.
+      Apply the following standards:
+      - Complexity threshold: {{ complexity_threshold }}
+      - Required test coverage: {{ test_coverage }}%
+      - Style guide: {{ style_guide }}
+   activities:
+   - "Review {{ language }} code for complexity"
+   - "Check test coverage against {{ test_coverage }}% requirement"
+   - "Verify {{ style_guide }} compliance"
+   parameters:
+   - key: project_name
+     input_type: string
+     requirement: required # could be required, optional or user_prompt
+     description: name of the project
+   - key: language
+     input_type: string
+     requirement: required
+     description: language of the code
+   - key: complexity_threshold
+     input_type: number
+     requirement: optional
+     default: 20 # default is required for optional parameters
+     description: a threshold that defines the maximum allowed complexity
+   - key: test_coverage
+     input_type: number
+     requirement: optional
+     default: 80
+     description: the minimum test coverage threshold in percentage
+   - key: style_guide
+     input_type: string
+     description: style guide name
+     requirement: user_prompt
+     # If style_guide param value is not specified in the command, user will be prompted to provide a value, even in non-interactive mode
+   ```
+
+   ### Validate Recipe
+
+   [Exit the session](/docs/guides/managing-goose-sessions#exit-session) and run:
+
+   ```sh
+   goose recipe validate recipe.yaml
+   ```
+
+   This validation ensures that:
+   - All required fields are present
+   - Parameters are properly formatted
+   - Referenced extensions exist and are valid
+   - The YAML/JSON syntax is correct
+
+   ### Share Your Recipe
       ```sh
       # Create a deep link for Desktop users
       goose recipe deeplink recipe.yaml
