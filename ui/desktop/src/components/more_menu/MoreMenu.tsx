@@ -5,6 +5,15 @@ import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { ViewOptions, View } from '../../App';
 
+interface RecipeConfig {
+  id: string;
+  name: string;
+  description: string;
+  instructions?: string;
+  activities?: string[];
+  [key: string]: unknown;
+}
+
 interface MenuButtonProps {
   onClick: () => void;
   children: React.ReactNode;
@@ -187,7 +196,7 @@ export default function MoreMenu({
                   setOpen(false);
                   window.electron.createChatWindow(
                     undefined,
-                    window.appConfig.get('GOOSE_WORKING_DIR')
+                    window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
                   );
                 }}
                 subtitle="Start a new session in the current directory"
@@ -244,7 +253,7 @@ export default function MoreMenu({
                       undefined, // dir
                       undefined, // version
                       undefined, // resumeSessionId
-                      recipeConfig, // recipe config
+                      recipeConfig as RecipeConfig, // recipe config
                       'recipeEditor' // view type
                     );
                   }}

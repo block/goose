@@ -122,8 +122,8 @@ export async function addExtensionFromDeepLink(
   const remoteUrl = parsedUrl.searchParams.get('url');
 
   const config = remoteUrl
-    ? getSseConfig(remoteUrl, name, description, timeout)
-    : getStdioConfig(cmd!, parsedUrl, name, description, timeout);
+    ? getSseConfig(remoteUrl, name, description || '', timeout)
+    : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
   // Check if extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {

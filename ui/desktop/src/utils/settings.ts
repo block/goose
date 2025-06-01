@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, MenuItem } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -70,9 +70,9 @@ export function createEnvironmentMenu(
   return [
     {
       label: 'Enable Memory Mode',
-      type: 'checkbox',
+      type: 'checkbox' as const,
       checked: envToggles.GOOSE_SERVER__MEMORY,
-      click: (menuItem: { checked: boolean }) => {
+      click: (menuItem: MenuItem) => {
         const newToggles = {
           ...envToggles,
           GOOSE_SERVER__MEMORY: menuItem.checked,
@@ -82,9 +82,9 @@ export function createEnvironmentMenu(
     },
     {
       label: 'Enable Computer Controller Mode',
-      type: 'checkbox',
+      type: 'checkbox' as const,
       checked: envToggles.GOOSE_SERVER__COMPUTER_CONTROLLER,
-      click: (menuItem: { checked: boolean }) => {
+      click: (menuItem: MenuItem) => {
         const newToggles = {
           ...envToggles,
           GOOSE_SERVER__COMPUTER_CONTROLLER: menuItem.checked,

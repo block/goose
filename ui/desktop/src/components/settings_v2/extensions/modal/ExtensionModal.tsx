@@ -98,8 +98,8 @@ export default function ExtensionModal({
 
   const isConfigValid = () => {
     return (
-      (formData.type === 'stdio' && formData.cmd && formData.cmd.trim() !== '') ||
-      (formData.type === 'sse' && formData.endpoint && formData.endpoint.trim() !== '')
+      (formData.type === 'stdio' && !!formData.cmd && formData.cmd.trim() !== '') ||
+      (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '')
     );
   };
 
@@ -263,7 +263,7 @@ export default function ExtensionModal({
             />
             <div className="mb-4" />
             <ExtensionTimeoutField
-              timeout={formData.timeout}
+              timeout={formData.timeout || 300}
               onChange={(key, value) => setFormData({ ...formData, [key]: value })}
               submitAttempted={submitAttempted}
             />

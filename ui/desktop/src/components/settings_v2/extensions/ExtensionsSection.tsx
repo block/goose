@@ -250,7 +250,10 @@ export default function ExtensionsSection({
         {deepLinkConfigStateVar && showEnvVarsStateVar && (
           <ExtensionModal
             title="Add custom extension"
-            initialData={extensionToFormData({ ...deepLinkConfig, enabled: true })}
+            initialData={extensionToFormData({
+              ...deepLinkConfig,
+              enabled: true,
+            } as FixedExtensionEntry)}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
             submitLabel="Add Extension"

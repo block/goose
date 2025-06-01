@@ -1,4 +1,3 @@
-
 interface StopProps {
   size?: number;
 }
