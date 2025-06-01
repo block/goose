@@ -73,8 +73,6 @@ You can turn your current Goose session into a reusable recipe that includes the
 
    Once the recipe file is created, you can open it and modify the value of any field.
 
-   #### Key Recipe Components
-
    ### Optional Parameters
 
    You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
@@ -175,7 +173,7 @@ Validation ensures that:
 
    ### Configure Recipe Location
 
-  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or config file:
+  Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or [config file](/docs/guides/config-file#global-settings):
 
    <Tabs>
      <TabItem value="configure" label="Using goose configure" default>
@@ -243,7 +241,7 @@ Validation ensures that:
    <Tabs>
      <TabItem value="local" label="Local Recipe" default>
 
-       **Basic Usage** - Run once and exit:
+       **Basic Usage** - Run once and exit (see [run options](/docs/guides/goose-cli-commands#run-options) and [recipe commands](/docs/guides/goose-cli-commands#recipe) for more):
        ```sh
        # Using recipe file in current directory
        goose run --recipe recipe.yaml
