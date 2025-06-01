@@ -71,24 +71,9 @@ You can turn your current Goose session into a reusable recipe that includes the
 
    ### Edit Recipe File
 
-   You can edit any field to add customizations.
+   Once the recipe file is created, you can open it and modify the value of any field.
 
    #### Key Recipe Components
-   A recipe needs at least one of these core components:
-
-   - **Instructions**: Define the agent's behavior and capabilities
-      - Acts as the agent's mission statement
-      - Makes the agent ready for any relevant task
-      - Required if no prompt is provided
-
-   - **Prompt** (Optional): Starts the conversation automatically
-      - Without a prompt, the agent waits for user input
-      - Useful for specific, immediate tasks
-      - Required if no instructions are provided
-
-   - **Activities**: Example tasks that appear as clickable bubbles
-      - Help users understand what the recipe can do
-      - Make it easy to get started
 
    ### Optional Parameters
 
@@ -369,6 +354,24 @@ Validation ensures that:
 - Your session won't affect the original recipe creator's session
 :::
 
+## Core Components
+
+ A recipe needs these core components:
+
+   - **Instructions**: Define the agent's behavior and capabilities
+      - Acts as the agent's mission statement
+      - Makes the agent ready for any relevant task
+      - Required if no prompt is provided
+
+   - **Prompt** (Optional): Starts the conversation automatically
+      - Without a prompt, the agent waits for user input
+      - Useful for specific, immediate tasks
+      - Required if no instructions are provided
+
+   - **Activities**: Example tasks that appear as clickable bubbles
+      - Help users understand what the recipe can do
+      - Make it easy to get started
+
 ## What's Included
 
 A Recipe captures:
@@ -388,20 +391,3 @@ To protect your privacy and system integrity, Goose excludes:
 
 
 This means others may need to supply their own credentials or memory context if the Recipe depends on those elements.
-
-
-## Example Use Cases
-
-- 🔧 Share a debugging workflow with your team  
-- 📦 Save a repeatable project setup  
-- 📚 Onboard someone into a task without overwhelming them  
-
-
-## Tips for Great Recipes
-
-If you're sharing recipes with others, here are some tips:
-
-- Be specific and clear in the instructions, so users know what the recipe is meant to do.
-- Keep the activity list focused. Remove anything that's too specific or out of scope.
-- Test the link yourself before sharing to make sure everything loads as expected.
-- Mention any setup steps that users might need to complete (e.g., obtaining an API key).
