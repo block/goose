@@ -266,17 +266,24 @@ Validation ensures that:
        ```
 
        **With Parameters** - Supply values directly:
+
+       All parameters provided - runs without prompts
+       
        ```sh
-       # All parameters provided - runs without prompts
        goose run --recipe recipe.yaml \
          --params language=Python \
          --params style=PEP8
+        ```
 
-       # Missing required parameters - will fail in non-interactive mode
+      Missing required parameters - will fail in non-interactive mode
+       ```sh
        goose run --recipe recipe.yaml \
          --params language=Python
+       ```
 
-       # Using default values - recipe.yaml contains: style_guide: "PEP8"
+       Using default values - recipe.yaml contains: style_guide: "PEP8"
+       
+       ```
        goose run --recipe recipe.yaml \
          --params language=Python
        # style_guide will use "PEP8" from recipe defaults
