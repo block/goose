@@ -250,6 +250,11 @@ Validation ensures that:
        goose run --recipe ./recipes/my-recipe.yaml
        ```
 
+       **Preview Recipe** - Learn what the recipe does before running:
+       ```sh
+       goose run --recipe recipe.yaml --explain
+       ```
+
        **Interactive Mode** - Start an interactive session:
        ```sh
        goose run --recipe recipe.yaml --interactive
@@ -293,9 +298,11 @@ Validation ensures that:
 
        Once you've configured your GitHub repository, you can run recipes by name:
 
-       **Basic Usage**:
+       **Basic Usage** Run once and exit (see [run options](/docs/guides/goose-cli-commands#run-options) and [recipe commands](/docs/guides/goose-cli-commands#recipe) for more):
+       
+       This command will look for `<recipe-name>/recipe.yaml` (or `.json`) in your configured repo
+
        ```sh
-       # This will look for <recipe-name>/recipe.yaml (or .json) in your configured repo
        goose run --recipe recipe-name
        ```
 
@@ -307,10 +314,15 @@ Validation ensures that:
        └── setup-project/
            └── recipe.yaml
        ```
-
-       **Simple Run** - Execute recipe and exit:
+       
+       You would run the following command to run the code review recipe:
        ```sh
        goose run --recipe code-review
+       ```
+
+       **Preview Recipe** - Learn what the recipe does before running:
+       ```sh
+       goose run --recipe code-review --explain
        ```
 
        **Interactive Mode** - With parameter prompts:
