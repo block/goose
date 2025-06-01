@@ -399,9 +399,3 @@ If you're sharing recipes with others, here are some tips:
 - Keep the activity list focused. Remove anything that's too specific or out of scope.
 - Test the link yourself before sharing to make sure everything loads as expected.
 - Mention any setup steps that users might need to complete (e.g., obtaining an API key).
-
-## Troubleshooting
-
-- You can't create a Recipe from an existing Recipe session. The menu option will be disabled  
-- Make sure you're using the latest version of Goose if something isn't working  
-- Remember that credentials, memory, and certain local setups won't carry over  
