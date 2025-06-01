@@ -14,14 +14,6 @@ You can turn your current Goose session into a reusable recipe that includes the
 
 ## Create Recipe
 
-:::tip Heads Up
-You'll need to provide both instructions and activities for your Recipe.
-
-- **Instructions** provide the purpose. These get sent directly to the model and define how it behaves. Think of this as its internal mission statement. Make it clear, action-oriented, and scoped to the task at hand.
-
-- **Activities** are specific, example prompts that appear as clickable bubbles on a fresh session. They help others understand how to use the Recipe.
-:::
-
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
 
@@ -73,15 +65,24 @@ You'll need to provide both instructions and activities for your Recipe.
 
    ### Edit Recipe File
 
-   You can then edit the recipe file to include the following key information:
+   You can edit any field to add customizations.
 
-   - `instructions`: Define how the model should behave and what it should do
-   - `prompt`: Set the initial message to start the session with
-   - `activities`: Add example tasks that will appear as clickable bubbles in Goose Desktop
+   #### Key Recipe Components
+   A recipe needs at least one of these core components:
 
-   :::note Required Fields
-   You must include either `instructions` or `prompt` (or both) in your recipe. At least one of these fields is required for the recipe to work.
-   :::
+   - **Instructions**: Define the agent's behavior and capabilities
+      - Acts as the agent's mission statement
+      - Makes the agent ready for any relevant task
+      - Required if no prompt is provided
+
+   - **Prompt** (Optional): Starts the conversation automatically
+      - Without a prompt, the agent waits for user input
+      - Useful for specific, immediate tasks
+      - Required if no instructions are provided
+
+   - **Activities**: Example tasks that appear as clickable bubbles
+      - Help users understand what the recipe can do
+      - Make it easy to get started
 
    ### Optional Parameters
 
@@ -181,7 +182,7 @@ Validation ensures that:
 
   <TabItem value="cli" label="Goose CLI">
 
-   ### 1. Configure Recipe Location
+   ### Configure Recipe Location
 
   Recipes can be stored locally on your device or in a GitHub repository. Configure your recipe repository using either the `goose configure` command or config file:
 
@@ -246,7 +247,7 @@ Validation ensures that:
      </TabItem>
    </Tabs>
 
-   ### 2. Run a Recipe
+   ### Run a Recipe
 
    <Tabs>
      <TabItem value="local" label="Local Recipe" default>
