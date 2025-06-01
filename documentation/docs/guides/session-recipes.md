@@ -27,7 +27,7 @@ You can turn your current Goose session into a reusable recipe that includes the
       - Provide a description
       - Some **activities** will be automatically generated. Add or remove as needed.
       - A set of **instructions** will also be automatically generated. Review and edit as needed. 
-   4. Copy the Recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
+   4. Copy the recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
 
   </TabItem>
 
@@ -51,7 +51,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
 
    <details>
-   <summary>Recipe file structure</summary>
+   <summary>recipe file structure</summary>
 
    ```yaml
    # Required fields
@@ -223,7 +223,7 @@ Validation ensures that:
        ◇  What setting would you like to configure?
        │  Goose recipe github repo 
        │
-       ◆  Enter your Goose Recipe Github repo (owner/repo): eg: my_org/goose-recipes
+       ◆  Enter your Goose Recipe GitHub repo (owner/repo): eg: my_org/goose-recipes
        // highlight-start
        │  squareup/goose-recipes (default)
        // highlight-end
@@ -256,7 +256,7 @@ Validation ensures that:
        goose run --recipe ./recipes/my-recipe.yaml
        ```
 
-       **Preview Recipe** - Learn what the recipe does before running:
+       **Preview Recipe** - View details before running:
        ```sh
        goose run --recipe recipe.yaml --explain
        ```
@@ -324,7 +324,7 @@ Validation ensures that:
        goose run --recipe code-review
        ```
 
-       **Preview Recipe** - Learn what the recipe does before running:
+       **Preview Recipe** - View details before running:
        ```sh
        goose run --recipe code-review --explain
        ```
@@ -389,7 +389,7 @@ Validation ensures that:
 
 ## What's Included
 
-A Recipe captures:
+A recipe captures:
 
 - AI instructions (goal/purpose)  
 - Suggested activities (examples for the user to click)  
@@ -405,4 +405,4 @@ To protect your privacy and system integrity, Goose excludes:
 - System-level Goose settings  
 
 
-This means others may need to supply their own credentials or memory context if the Recipe depends on those elements.
+This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
