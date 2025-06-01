@@ -38,106 +38,131 @@ You'll need to provide both instructions and activities for your Recipe.
 
   <TabItem value="cli" label="Goose CLI">
 
-   While in a session, run the following command:
+   1. **Create a Recipe File**
+      ```sh
+      # While in a session, run:
+      /recipe
+      
+      # Or specify a custom filename:
+      /recipe my-custom-recipe.yaml
+      ```
 
-   ```sh
-   /recipe
-   ```
+      :::note
+      Recipe files can be either YAML (.yaml) or JSON (.json) format
+      :::
 
-   This will generate a `recipe.yaml` file in your current directory.
+   2. **Edit the Recipe File**
+      Your recipe file will contain:
+      ```yaml
+      # Required fields
+      version: 1.0.0
+      title: $title
+      description: $description
+      instructions: $instructions    # Define the model's behavior
 
-   Alternatively, you can provide a custom filename:
+      # Optional fields
+      prompt: $prompt               # Initial message to start with
+      extensions:                   # Tools the recipe needs
+      - $extensions
+      activities:                   # Example tasks for users
+      - $activities
+      ```
 
-   ```sh
-   /recipe my-custom-recipe.yaml
-   ```
-
-   <details>
-   <summary>recipe.yaml</summary>
+      <details>
+      <summary>Complete recipe.yaml template</summary>
    
-   ```yaml
-   # Required fields
-   version: 1.0.0
-   title: $title
-   description: $description
-   instructions: $instructions # instructions to be added to the system prompt
+      ```yaml
+      # Required fields
+      version: 1.0.0
+      title: $title
+      description: $description
+      instructions: $instructions # instructions to be added to the system prompt
 
-   # Optional fields
-   prompt: $prompt             # if set, the initial prompt for the run/session
-   extensions:
-   - $extensions
-   context:
-   - $context
-   activities:
-   - $activities
-   author:
-   contact: $contact
-   metadata: $metadata
-   ```
+      # Optional fields
+      prompt: $prompt             # if set, the initial prompt for the run/session
+      extensions:
+      - $extensions
+      context:
+      - $context
+      activities:
+      - $activities
+      author:
+        contact: $contact
+        metadata: $metadata
+      ```
+      </details>
 
-   </details>
+   3. **Add Parameters** (Optional)
+      If your recipe needs user input, add template variables using `{{ variable_name }}`:
+      ```yaml
+      title: {{ project_name }} Code Review
+      description: Code review for {{ project_name }} in {{ language }}
+      instructions: |
+        You are a {{ language }} code reviewer.
+        Check for:
+        - Test coverage: {{ test_coverage }}%
+        - Style guide: {{ style_guide }}
+      ```
 
-   You can then edit the recipe file to include the following key information:
-
-   - `instructions`: Add or modify the system instructions
-   - `prompt`: Add the initial message or question to start a Goose session with
-   - `activities`: List the activities that can be performed
-
-
-   #### Recipe Parameters
-   
-   You may add parameters to a recipe, which will require uses to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
-
-   To add parameters, edit your recipe file to include template variables using `{{ variable_name }}` syntax. 
-
-   <details>
-      <summary>Example recipe with parameters</summary>
+      <details>
+      <summary>Complete parameter example</summary>
       
       ```yaml title="code-review.yaml"
       version: 1.0.0
       title: {{ project_name }} Code Review
       description: Automated code review for {{ project_name }} with {{ language }} focus
       instructions: |
-      You are a code reviewer specialized in {{ language }} development.
-      Apply the following standards:
-      - Complexity threshold: {{ complexity_threshold }}
-      - Required test coverage: {{ test_coverage }}%
-      - Style guide: {{ style_guide }}
+        You are a code reviewer specialized in {{ language }} development.
+        Apply the following standards:
+        - Complexity threshold: {{ complexity_threshold }}
+        - Required test coverage: {{ test_coverage }}%
+        - Style guide: {{ style_guide }}
       activities:
-      - "Review {{ language }} code for complexity"
-      - "Check test coverage against {{ test_coverage }}% requirement"
-      - "Verify {{ style_guide }} compliance"
+        - "Review {{ language }} code for complexity"
+        - "Check test coverage against {{ test_coverage }}% requirement"
+        - "Verify {{ style_guide }} compliance"
       ```
-  
-   </details>
+      </details>
 
-   When someone runs a recipe that contains template parameters, they will need to provide the parameters:
+   4. **Validate Your Recipe**
+      ```sh
+      goose recipe validate recipe.yaml
+      ```
 
+      :::tip Why Validate?
+      Validation checks your recipe for:
+      - Required fields are present
+      - Parameters are properly formatted
+      - Extensions exist and are valid
+      - JSON/YAML syntax is correct
+      
+      This helps catch issues before sharing your recipe with others.
+      :::
+
+   5. **Share Your Recipe**
+      ```sh
+      # Create a deep link for Desktop users
+      goose recipe deeplink recipe.yaml
+
+      # Or share the yaml file directly with CLI users
+      ```
+
+   :::tip Running Recipes with Parameters
+   When running a parameterized recipe:
    ```sh
+   # All parameters provided
    goose run --recipe code-review.yaml \
-  --params project_name=MyApp \
-  --params language=Python \
-  --params complexity_threshold=15 \
-  --params test_coverage=80 \
-  --params style_guide=PEP8
-  ```
+     --params project_name=MyApp \
+     --params language=Python \
+     --params test_coverage=80
 
-   #### Validate the recipe
-   
-   [Exit the session](/docs/guides/managing-goose-sessions/#exit-session) and run:
-
-   ```sh
-   goose recipe validate recipe.yaml
+   # Using default values
+   goose run --recipe code-review.yaml \
+     --params project_name=MyProject \
+     --params language=Python
+   # test_coverage will use default from recipe
    ```
-
-   #### Share the recipe
-
-   - To share with **CLI users**, send them the recipe yaml file
-   - To share with **Desktop users**, run the following command to create a deep link:
-
-   ```sh
-   goose recipe deeplink recipe.yaml
-   ```
+   :::
 
    </TabItem> 
 </Tabs>
