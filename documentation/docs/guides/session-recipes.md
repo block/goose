@@ -256,16 +256,13 @@ Validation ensures that:
        goose run --recipe ./recipes/my-recipe.yaml
        ```
 
-       **Preview Recipe** - View details before running:
-       ```sh
-       goose run --recipe recipe.yaml --explain
-       ```
-
+       **Preview Recipe** - Use the [`explain`](/docs/guides/goose-cli-commands#run-options) command to view details before running:
+ 
        **Interactive Mode** - Start an interactive session:
        ```sh
        goose run --recipe recipe.yaml --interactive
        ```
-       When running interactively, you'll be prompted for any required parameters:
+       The interactive mode will prompt for required values:
        ```sh
        ◆ Enter value for required parameter 'language':
        │ Python
@@ -307,10 +304,7 @@ Validation ensures that:
        goose run --recipe code-review
        ```
 
-       **Preview Recipe** - View details before running:
-       ```sh
-       goose run --recipe code-review --explain
-       ```
+      **Preview Recipe** - Use the [`explain`](/docs/guides/goose-cli-commands#run-options) command to view details before running:
 
        **Interactive Mode** - With parameter prompts:
        ```sh
