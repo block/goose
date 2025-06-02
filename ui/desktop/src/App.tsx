@@ -14,22 +14,20 @@ import { type Recipe } from './recipe';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
-import { type SettingsViewOptions } from './components/settings/SettingsView';
-import SettingsViewV2 from './components/settings_v2/SettingsView';
-import MoreModelsView from './components/settings/models/MoreModelsView';
-import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
+import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
-import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
-import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
+import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
-import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
+import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import { type SessionDetails } from './sessions';
 
@@ -462,7 +460,7 @@ export default function App() {
     );
 
   return (
-    <>
+    <ModelAndProviderProvider>
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
@@ -496,27 +494,12 @@ export default function App() {
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
           )}
           {view === 'settings' && (
-            <SettingsViewV2
+            <SettingsView
               onClose={() => {
                 setView('chat');
               }}
               setView={setView}
               viewOptions={viewOptions as SettingsViewOptions}
-            />
-          )}
-          {view === 'moreModels' && (
-            <MoreModelsView
-              onClose={() => {
-                setView('settings');
-              }}
-              setView={setView}
-            />
-          )}
-          {view === 'configureProviders' && (
-            <ConfigureProvidersView
-              onClose={() => {
-                setView('settings');
-              }}
             />
           )}
           {view === 'ConfigureProviders' && (
@@ -579,6 +562,6 @@ export default function App() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
-    </>
+    </ModelAndProviderProvider>
   );
 }
