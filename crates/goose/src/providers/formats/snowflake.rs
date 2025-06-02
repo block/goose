@@ -153,7 +153,7 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
         };
 
         if let Some(choices) = event.get("choices").and_then(|c| c.as_array()) {
-            if let Some(choice) = choices.get(0) {
+            if let Some(choice) = choices.first() {
                 if let Some(delta) = choice.get("delta") {
                     match delta.get("type").and_then(|t| t.as_str()) {
                         Some("text") => {

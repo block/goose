@@ -118,7 +118,7 @@ impl SnowflakeProvider {
         let base_url = Url::parse(&base_url_str)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let path = "api/v2/cortex/inference:complete";
-        let url = base_url.join(&path).map_err(|e| {
+        let url = base_url.join(path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
@@ -179,7 +179,7 @@ impl SnowflakeProvider {
                     }
                 };
 
-                let choice = match choices.get(0) {
+                let choice = match choices.first() {
                     Some(choice) => choice,
                     None => {
                         continue;
