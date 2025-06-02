@@ -135,7 +135,6 @@ jobs:
           sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
-          source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
@@ -143,7 +142,6 @@ jobs:
       # Pre-build cleanup to ensure enough disk space
       - name: Pre-build cleanup
         run: |
-          source ./bin/activate-hermit
           echo "Performing pre-build cleanup..."
           # Clean npm cache
           npm cache clean --force || true
@@ -155,6 +153,16 @@ jobs:
           rm -rf ~/Library/Caches/* || true
           # Check disk space after cleanup
           df -h
+
+      - name: Install protobuf
+        run: |
+          brew install protobuf
+          echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
+        with:
+          toolchain: stable
 
       - name: Cache Cargo registry
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
@@ -182,7 +190,7 @@ jobs:
 
       # Build the project
       - name: Build goosed
-        run: source ./bin/activate-hermit && cargo build --release -p goose-server
+        run: cargo build --release -p goose-server
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -208,8 +216,13 @@ jobs:
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # pin@v2
+        with:
+          node-version: 'lts/*'
+
       - name: Install dependencies
-        run: source ../../bin/activate-hermit && npm ci
+        run: npm ci
         working-directory: ui/desktop
 
       # Check disk space before bundling
@@ -219,7 +232,6 @@ jobs:
       - name: Make Unsigned App
         if: ${{ !inputs.signing }}
         run: |
-          source ../../bin/activate-hermit
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
@@ -241,7 +253,6 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
