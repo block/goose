@@ -1,7 +1,6 @@
 import { Sliders } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
-import { useConfig } from '../../../ConfigContext';
-import { getCurrentModelAndProviderForDisplay } from '../index';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { View } from '../../../../App';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../ui/Tooltip';
@@ -11,7 +10,7 @@ interface ModelsBottomBarProps {
   setView: (view: View) => void;
 }
 export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBarProps) {
-  const { read, getProviders } = useConfig();
+  const { getCurrentModelAndProviderForDisplay } = useModelAndProvider();
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
@@ -24,10 +23,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
 
   useEffect(() => {
     (async () => {
-      const modelProvider = await getCurrentModelAndProviderForDisplay({
-        readFromConfig: read,
-        getProviders,
-      });
+      const modelProvider = await getCurrentModelAndProviderForDisplay();
       setProvider(modelProvider.provider as string | null);
       setModel(modelProvider.model as string);
     })();

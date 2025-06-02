@@ -24,6 +24,7 @@ import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
+import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
@@ -459,7 +460,7 @@ export default function App() {
     );
 
   return (
-    <>
+    <ModelAndProviderProvider>
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
@@ -561,6 +562,6 @@ export default function App() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
-    </>
+    </ModelAndProviderProvider>
   );
 }

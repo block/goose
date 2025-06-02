@@ -10,8 +10,8 @@ import { DefaultSubmitHandler } from './subcomponents/handlers/DefaultSubmitHand
 import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
 import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
-import { getCurrentModelAndProvider } from '../../models'; // Import the utility
 
 interface FormValues {
   [key: string]: string | number | boolean | null;
@@ -27,7 +27,8 @@ const customFormsMap: Record<string, unknown> = {
 
 export default function ProviderConfigurationModal() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const { upsert, remove, read } = useConfig(); // Add read to the destructured values
+  const { upsert, remove } = useConfig();
+  const { getCurrentModelAndProvider } = useModelAndProvider();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -126,10 +127,7 @@ export default function ProviderConfigurationModal() {
   const handleDelete = async () => {
     // Check if this is the currently active provider
     try {
-      const providerModel = await getCurrentModelAndProvider({
-        readFromConfig: read,
-        writeToConfig: upsert,
-      });
+      const providerModel = await getCurrentModelAndProvider();
       if (currentProvider.name === providerModel.provider) {
         // It's the active provider - set state and show warning
         setIsActiveProvider(true);

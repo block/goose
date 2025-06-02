@@ -6,7 +6,7 @@ import type { View, ViewOptions } from '../../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
-import { getCurrentModelAndProvider } from '../settings/models';
+import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
@@ -37,6 +37,7 @@ export default function BottomMenu({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
+  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
 
@@ -70,7 +71,7 @@ export default function BottomMenu({
       setIsTokenLimitLoaded(false);
 
       // Get current model and provider first to avoid unnecessary provider fetches
-      const { model, provider } = await getCurrentModelAndProvider({ readFromConfig: read });
+      const { model, provider } = await getCurrentModelAndProvider();
       if (!model || !provider) {
         console.log('No model or provider found');
         setIsTokenLimitLoaded(true);
@@ -115,7 +116,7 @@ export default function BottomMenu({
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentModel, currentProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
