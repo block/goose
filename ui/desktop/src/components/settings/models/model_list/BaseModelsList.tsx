@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
-import { changeModel, getCurrentModelAndProvider } from '../index';
-import { useConfig } from '../../../ConfigContext';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { toastInfo } from '../../../../toasts';
 
 interface ModelRadioListProps {
@@ -30,7 +29,7 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { read, upsert } = useConfig();
+  const { changeModel, getCurrentModelAndProvider } = useModelAndProvider();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -40,10 +39,7 @@ export function BaseModelsList({
 
     const initializeCurrentModel = async () => {
       try {
-        const result = await getCurrentModelAndProvider({
-          readFromConfig: read,
-          writeToConfig: upsert,
-        });
+        const result = await getCurrentModelAndProvider();
         if (isMounted) {
           // try to look up the model in the modelList
           let currentModel: Model;
@@ -72,10 +68,10 @@ export function BaseModelsList({
     return () => {
       isMounted = false;
     };
-  }, [read, modelList, upsert]);
+  }, [getCurrentModelAndProvider, modelList]);
 
   const handleModelSelection = async (model: Model) => {
-    await changeModel({ model: model, writeToConfig: upsert });
+    await changeModel(model);
   };
 
   const handleRadioChange = async (model: Model) => {
@@ -104,10 +100,7 @@ export function BaseModelsList({
       // If the operation fails, revert to the previous state by simply
       // re-calling the getCurrentModelAndProvider function
       try {
-        const result = await getCurrentModelAndProvider({
-          readFromConfig: read,
-          writeToConfig: upsert,
-        });
+        const result = await getCurrentModelAndProvider();
 
         const currentModel =
           modelList.find((m) => m.name === result.model && m.provider === result.provider) ||

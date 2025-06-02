@@ -1,7 +1,6 @@
 import { Sliders } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
-import { useConfig } from '../../../ConfigContext';
-import { getCurrentModelAndProviderForDisplay } from '../index';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { View } from '../../../../App';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../ui/Tooltip';
@@ -11,10 +10,10 @@ interface ModelsBottomBarProps {
   setView: (view: View) => void;
 }
 export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBarProps) {
-  const { read, getProviders } = useConfig();
+  const { currentModel, currentProvider, getCurrentModelAndProviderForDisplay } =
+    useModelAndProvider();
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [provider, setProvider] = useState<string | null>(null);
-  const [model, setModel] = useState<string>('');
+  const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [isModelTruncated, setIsModelTruncated] = useState(false);
@@ -22,16 +21,15 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const modelRef = useRef<HTMLSpanElement>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
+  // Update display provider when current provider changes
   useEffect(() => {
-    (async () => {
-      const modelProvider = await getCurrentModelAndProviderForDisplay({
-        readFromConfig: read,
-        getProviders,
-      });
-      setProvider(modelProvider.provider as string | null);
-      setModel(modelProvider.model as string);
-    })();
-  });
+    if (currentProvider) {
+      (async () => {
+        const modelProvider = await getCurrentModelAndProviderForDisplay();
+        setDisplayProvider(modelProvider.provider);
+      })();
+    }
+  }, [currentProvider, getCurrentModelAndProviderForDisplay]);
 
   useEffect(() => {
     const checkTruncation = () => {
@@ -42,7 +40,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     checkTruncation();
     window.addEventListener('resize', checkTruncation);
     return () => window.removeEventListener('resize', checkTruncation);
-  }, [model]);
+  }, [currentModel]);
 
   useEffect(() => {
     setIsTooltipOpen(false);
@@ -81,12 +79,12 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                   ref={modelRef}
                   className="truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block"
                 >
-                  {model || 'Select Model'}
+                  {currentModel || 'Select Model'}
                 </span>
               </TooltipTrigger>
               {isModelTruncated && (
                 <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-                  {model || 'Select Model'}
+                  {currentModel || 'Select Model'}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -99,7 +97,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
             <div className="">
               <div className="text-sm text-textProminent mt-2 ml-2">Current:</div>
               <div className="flex items-center justify-between text-sm ml-2">
-                {model} -- {provider}
+                {currentModel} -- {displayProvider}
               </div>
               <div
                 className="flex items-center justify-between text-textStandard p-2 cursor-pointer transition-colors hover:bg-bgStandard

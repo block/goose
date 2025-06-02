@@ -7,10 +7,9 @@ import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
-import { changeModel } from '../index';
+import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
-import { useModel } from '../../../settings/models/ModelContext';
 
 const ModalButtons = ({
   onSubmit,
@@ -48,8 +47,8 @@ type AddModelModalProps = {
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders, upsert } = useConfig();
-  const { switchModel } = useModel();
+  const { getProviders } = useConfig();
+  const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelOptions, setModelOptions] = useState<
     { options: { value: string; label: string; provider: string }[] }[]
@@ -97,13 +96,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
 
       const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
 
-      await changeModel({
-        model: modelObj,
-        writeToConfig: upsert,
-      });
-
-      // Update the model context
-      switchModel(modelObj);
+      await changeModel(modelObj);
 
       onClose();
     }
