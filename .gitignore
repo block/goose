@@ -24,8 +24,7 @@ target/
 ./ui/desktop/out
 
 # Hermit
-/.hermit/
-/bin/
+.hermit/
 
 debug_*.txt
 
