@@ -438,5 +438,5 @@ Block is dedicated to improving its security defenses and supporting its team by
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Democratizing Detection Engineering at Block: Taking Flight with Goose and Panther MCP" />
   <meta name="twitter:description" content="A comprehensive overview of how Block leverages Goose and Panther MCP to democratize and accelerate security detection engineering." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/header-image-placeholder.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-panther-header-25b5891acdd70e6a7bbe6b84e34f08f0.png" />
 </head>
