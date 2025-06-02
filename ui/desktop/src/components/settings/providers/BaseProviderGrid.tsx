@@ -1,4 +1,3 @@
-import React from 'react';
 import { Check, Plus, Settings, X, Rocket } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/Tooltip';
@@ -34,7 +33,7 @@ function getArticle(word: string): string {
   return 'aeiouAEIOU'.indexOf(word[0]) >= 0 ? 'an' : 'a';
 }
 
-export function getProviderDescription(provider) {
+export function getProviderDescription(provider: string) {
   const descriptions = {
     OpenAI: 'Access GPT-4 and other OpenAI models, including OpenAI compatible ones',
     Anthropic: 'Access Claude and other Anthropic models',
@@ -44,7 +43,7 @@ export function getProviderDescription(provider) {
     OpenRouter: 'Access a variety of AI models through OpenRouter',
     Ollama: 'Run and use open-source models locally',
   };
-  return descriptions[provider] || `Access ${provider} models`;
+  return descriptions[provider as keyof typeof descriptions] || `Access ${provider} models`;
 }
 
 function BaseProviderCard({
@@ -63,7 +62,7 @@ function BaseProviderCard({
   onTakeoff,
   showTakeoff,
 }: BaseProviderCardProps) {
-  const numRequiredKeys = required_keys[name]?.length || 0;
+  const numRequiredKeys = (required_keys as Record<string, string[]>)[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
 
   return (
@@ -255,7 +254,8 @@ export function BaseProviderGrid({
   return (
     <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 [&_*]:z-20">
       {providers.map((provider) => {
-        const hasRequiredKeys = required_keys[provider.name]?.length > 0;
+        const hasRequiredKeys =
+          (required_keys as Record<string, string[]>)[provider.name]?.length > 0;
         return (
           <BaseProviderCard
             key={provider.id}

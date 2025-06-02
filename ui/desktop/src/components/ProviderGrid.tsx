@@ -43,10 +43,15 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     });
   }, [activeKeys]);
 
-  const handleConfigure = async (provider) => {
+  const handleConfigure = async (provider: {
+    id: string;
+    name: string;
+    isConfigured: boolean;
+    description: string;
+  }) => {
     const providerId = provider.id.toLowerCase();
 
-    const modelName = getDefaultModel(providerId);
+    const modelName = getDefaultModel(providerId) || 'default-model';
     const model = createSelectedModel(providerId, modelName);
 
     await initializeSystem(providerId, model.name);
@@ -63,7 +68,12 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     onSubmit?.();
   };
 
-  const handleAddKeys = (provider) => {
+  const handleAddKeys = (provider: {
+    id: string;
+    name: string;
+    isConfigured: boolean;
+    description: string;
+  }) => {
     setSelectedId(provider.id);
     setShowSetupModal(true);
   };
@@ -74,7 +84,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     const provider = providers.find((p) => p.id === selectedId)?.name;
     if (!provider) return;
 
-    const requiredKeys = required_keys[provider];
+    const requiredKeys = required_keys[provider as keyof typeof required_keys];
     if (!requiredKeys || requiredKeys.length === 0) {
       console.error(`No keys found for provider ${provider}`);
       return;
@@ -145,12 +155,13 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
 
       setShowSetupModal(false);
       setSelectedId(null);
-    } catch (error) {
-      console.error('Error handling modal submit:', error);
+    } catch (err) {
+      console.error('Error handling modal submit:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       toastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedId)?.isConfigured ? 'update' : 'add'} configuration`,
-        traceback: error.message,
+        traceback: errorMessage,
       });
     }
   };
@@ -188,9 +199,9 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       {showSetupModal && selectedId && (
         <div className="relative z-[9999]">
           <ProviderSetupModal
-            provider={providers.find((p) => p.id === selectedId)?.name}
-            model="Example Model"
-            endpoint="Example Endpoint"
+            provider={providers.find((p) => p.id === selectedId)?.name || 'Unknown Provider'}
+            _model="Example Model"
+            _endpoint="Example Endpoint"
             onSubmit={handleModalSubmit}
             onCancel={() => {
               setShowSetupModal(false);

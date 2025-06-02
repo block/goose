@@ -102,7 +102,7 @@ export default memo(function ProviderGrid({
           providers={providers}
           isOnboarding={isOnboarding}
           refreshProviders={refreshProviders}
-          onProviderLaunch={onProviderLaunch}
+          onProviderLaunch={onProviderLaunch || (() => {})}
         />
         <ProviderConfigurationModal />
       </ProviderModalProvider>

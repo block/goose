@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import { useRef, useMemo } from 'react';
 import LinkPreview from './LinkPreview';
 import ImagePreview from './ImagePreview';
 import { extractUrls } from '../utils/urlUtils';

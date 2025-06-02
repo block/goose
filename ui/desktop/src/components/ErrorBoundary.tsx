@@ -14,7 +14,7 @@ window.addEventListener('error', (event) => {
   );
 });
 
-export function ErrorUI({ error }) {
+export function ErrorUI({ error }: { error: Error }) {
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center gap-6 bg-background">
       <div className="flex flex-col items-center gap-4 max-w-[600px] text-center px-6">
@@ -51,7 +51,7 @@ export function ErrorUI({ error }) {
 
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: Error; hasError: boolean }
+  { error: Error | null; hasError: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return <ErrorUI error={this.state.error} />;
+      return <ErrorUI error={this.state.error || new Error('Unknown error')} />;
     }
     return this.props.children;
   }

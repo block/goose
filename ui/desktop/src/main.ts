@@ -12,6 +12,7 @@ import {
   App,
   globalShortcut,
 } from 'electron';
+import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
@@ -90,7 +91,7 @@ async function ensureTempDirExists(): Promise<string> {
         }
       }
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
         // Directory doesn't exist, create it
         await fs.mkdir(gooseTempDir, { recursive: true });
       } else {
@@ -121,7 +122,7 @@ if (process.platform === 'win32') {
   if (!gotTheLock) {
     app.quit();
   } else {
-    app.on('second-instance', (event, commandLine) => {
+    app.on('second-instance', (_event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -142,7 +143,7 @@ if (process.platform === 'win32') {
               }
             }
 
-            createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+            createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
           });
           return; // Skip the rest of the handler
         }
@@ -173,7 +174,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -185,9 +186,13 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    // For bot/recipe URLs, skip existing window processing
-    // and let processProtocolUrl handle it entirely
-    processProtocolUrl(parsedUrl, null);
+    // For bot/recipe URLs, get existing window or create new one
+    const existingWindows = BrowserWindow.getAllWindows();
+    const targetWindow =
+      existingWindows.length > 0
+        ? existingWindows[0]
+        : await createChat(app, undefined, openDir || undefined);
+    processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -198,7 +203,7 @@ async function handleProtocolUrl(url: string) {
       }
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (firstOpenWindow) {
@@ -233,12 +238,12 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       }
     }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+    createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
 }
 
-app.on('open-url', async (event, url) => {
+app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
@@ -257,7 +262,7 @@ app.on('open-url', async (event, url) => {
       }
 
       // Create a new window directly
-      await createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+      await createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
       return; // Skip the rest of the handler
     }
 
@@ -270,7 +275,7 @@ app.on('open-url', async (event, url) => {
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (parsedUrl.hostname === 'extension') {
@@ -368,7 +373,7 @@ const createChat = async (
   app: App,
   query?: string,
   dir?: string,
-  version?: string,
+  _version?: string,
   resumeSessionId?: string,
   recipeConfig?: RecipeConfig, // Bot configuration
   viewType?: string // View type
@@ -376,7 +381,7 @@ const createChat = async (
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
-  let goosedProcess = null;
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
   if (viewType === 'recipeEditor') {
     // For recipeEditor, get the port from existing windows' config
@@ -403,7 +408,10 @@ const createChat = async (
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
-    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    port = newPort;
+    working_dir = newWorkingDir;
+    goosedProcess = newGoosedProcess;
   }
 
   const mainWindow = new BrowserWindow({
@@ -446,7 +454,7 @@ const createChat = async (
   //
   // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
-  mainWindow.webContents.on('context-menu', (event, params) => {
+  mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
 
     // Add each spelling suggestion
@@ -564,7 +572,7 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    if (goosedProcess) {
+    if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
   });
@@ -574,7 +582,17 @@ const createChat = async (
 // Track tray instance
 let tray: Tray | null = null;
 
+const destroyTray = () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+};
+
 const createTray = () => {
+  // If tray already exists, destroy it first
+  destroyTray();
+
   const isDev = process.env.NODE_ENV === 'development';
   let iconPath: string;
 
@@ -608,7 +626,7 @@ const showWindow = async () => {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir);
+    await createChat(app, undefined, openDir || undefined);
     return;
   }
 
@@ -647,16 +665,18 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (replaceWindow: boolean = false) => {
-  const result = await dialog.showOpenDialog({
+const openDirectoryDialog = async (
+  replaceWindow: boolean = false
+): Promise<OpenDialogReturnValue> => {
+  const result = (await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
-  });
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
     await createChat(app, undefined, result.filePaths[0]);
-    if (replaceWindow) {
+    if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
   }
@@ -701,11 +721,78 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
 });
 
+// Handle menu bar icon visibility
+ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showMenuBarIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      createTray();
+    } else {
+      destroyTray();
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting menu bar icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-menu-bar-icon-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showMenuBarIcon ?? true;
+  } catch (error) {
+    console.error('Error getting menu bar icon state:', error);
+    return true;
+  }
+});
+
+// Handle dock icon visibility (macOS only)
+ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
+  try {
+    if (process.platform !== 'darwin') return false;
+
+    const settings = loadSettings();
+    settings.showDockIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      await app.dock.show();
+    } else {
+      // Only hide the dock if we have a menu bar icon to maintain accessibility
+      if (settings.showMenuBarIcon) {
+        app.dock.hide();
+        setTimeout(() => {
+          focusWindow();
+        }, 50);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting dock icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-dock-icon-state', () => {
+  try {
+    if (process.platform !== 'darwin') return true;
+    const settings = loadSettings();
+    return settings.showDockIcon ?? true;
+  } catch (error) {
+    console.error('Error getting dock icon state:', error);
+    return true;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
-  const result = await dialog.showOpenDialog({
+  const result = (await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  });
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -714,7 +801,7 @@ ipcMain.handle('select-file-or-directory', async () => {
 });
 
 // IPC handler to save data URL to a temporary file
-ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId: string) => {
+ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
   try {
     // Input validation for uniqueId - only allow alphanumeric characters and hyphens
@@ -772,12 +859,12 @@ ipcMain.handle('save-data-url-to-temp', async (event, dataUrl: string, uniqueId:
     return { id: uniqueId, filePath: filePath };
   } catch (error) {
     console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
-    return { id: uniqueId, error: error.message || 'Failed to save image' };
+    return { id: uniqueId, error: error instanceof Error ? error.message : 'Failed to save image' };
   }
 });
 
 // IPC handler to serve temporary image files
-ipcMain.handle('get-temp-image', async (event, filePath: string) => {
+ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
   console.log(`[Main] Received get-temp-image for path: ${filePath}`);
 
   // Input validation
@@ -823,7 +910,7 @@ ipcMain.handle('get-temp-image', async (event, filePath: string) => {
       // If realpath fails, use the original path validation
       console.log(
         `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError.message
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
       );
     }
 
@@ -849,7 +936,7 @@ ipcMain.handle('get-temp-image', async (event, filePath: string) => {
     return null;
   }
 });
-ipcMain.on('delete-temp-file', async (event, filePath: string) => {
+ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
   // Input validation
@@ -894,14 +981,14 @@ ipcMain.on('delete-temp-file', async (event, filePath: string) => {
       // If realpath fails, use the original path validation
       console.log(
         `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError.message
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
       );
     }
 
     await fs.unlink(actualPath);
     console.log(`[Main] Deleted temp file: ${filePath}`);
   } catch (error) {
-    if (error.code !== 'ENOENT') {
+    if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT') {
       // ENOENT means file doesn't exist, which is fine
       console.error(`[Main] Failed to delete temp file: ${filePath}`, error);
     } else {
@@ -1051,15 +1138,17 @@ const registerGlobalHotkey = (accelerator: string) => {
   globalShortcut.unregisterAll();
 
   try {
-    const ret = globalShortcut.register(accelerator, () => {
+    globalShortcut.register(accelerator, () => {
       focusWindow();
     });
 
-    if (!ret) {
+    // Check if the shortcut was registered successfully
+    if (globalShortcut.isRegistered(accelerator)) {
+      return true;
+    } else {
       console.error('Failed to register global hotkey');
       return false;
     }
-    return true;
   } catch (e) {
     console.error('Error registering global hotkey:', e);
     return false;
@@ -1072,35 +1161,34 @@ app.whenReady().then(async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
+        'Content-Security-Policy':
           "default-src 'self';" +
-            // Allow inline styles since we use them in our React components
-            "style-src 'self' 'unsafe-inline';" +
-            // Scripts only from our app
-            "script-src 'self';" +
-            // Images from our app and data: URLs (for base64 images)
-            "img-src 'self' data: https:;" +
-            // Connect to our local API and specific external services
-            "connect-src 'self' http://127.0.0.1:*" +
-            // Don't allow any plugins
-            "object-src 'none';" +
-            // Don't allow any frames
-            "frame-src 'none';" +
-            // Font sources
-            "font-src 'self';" +
-            // Media sources
-            "media-src 'none';" +
-            // Form actions
-            "form-action 'none';" +
-            // Base URI restriction
-            "base-uri 'self';" +
-            // Manifest files
-            "manifest-src 'self';" +
-            // Worker sources
-            "worker-src 'self';" +
-            // Upgrade insecure requests
-            'upgrade-insecure-requests;',
-        ],
+          // Allow inline styles since we use them in our React components
+          "style-src 'self' 'unsafe-inline';" +
+          // Scripts only from our app
+          "script-src 'self';" +
+          // Images from our app and data: URLs (for base64 images)
+          "img-src 'self' data: https:;" +
+          // Connect to our local API and specific external services
+          "connect-src 'self' http://127.0.0.1:*" +
+          // Don't allow any plugins
+          "object-src 'none';" +
+          // Don't allow any frames
+          "frame-src 'none';" +
+          // Font sources
+          "font-src 'self';" +
+          // Media sources
+          "media-src 'none';" +
+          // Form actions
+          "form-action 'none';" +
+          // Base URI restriction
+          "base-uri 'self';" +
+          // Manifest files
+          "manifest-src 'self';" +
+          // Worker sources
+          "worker-src 'self';" +
+          // Upgrade insecure requests
+          'upgrade-insecure-requests;',
       },
     });
   });
@@ -1122,10 +1210,20 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
+  // Create tray if enabled in settings
+  const settings = loadSettings();
+  if (settings.showMenuBarIcon) {
+    createTray();
+  }
+
+  // Handle dock icon visibility (macOS only)
+  if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
+    app.dock.hide();
+  }
+
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
-  createTray();
   createNewWindow(app, dirPath);
 
   // Get the existing menu
@@ -1184,7 +1282,7 @@ app.whenReady().then(async () => {
       },
       {
         label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
@@ -1213,7 +1311,8 @@ app.whenReady().then(async () => {
         submenu: Menu.buildFromTemplate(
           createEnvironmentMenu(envToggles, (newToggles) => {
             envToggles = newToggles;
-            saveSettings({ envToggles: newToggles });
+            const currentSettings = loadSettings();
+            saveSettings({ ...currentSettings, envToggles: newToggles });
             updateEnvironmentVariables(newToggles);
           })
         ),
@@ -1594,7 +1693,7 @@ app.on('will-quit', async () => {
       console.error('[Main] Error while cleaning up temp directory contents:', err);
     }
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');
     } else {
       console.error(
@@ -1607,7 +1706,7 @@ app.on('will-quit', async () => {
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 // Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', (event) => {
+app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode
@@ -1617,24 +1716,26 @@ app.on('before-quit', (event) => {
   event.preventDefault();
 
   // Show confirmation dialog
-  dialog
-    .showMessageBox({
+  try {
+    const result = (await dialog.showMessageBox({
       type: 'question',
       buttons: ['Quit', 'Cancel'],
       defaultId: 1, // Default to Cancel
       title: 'Confirm Quit',
       message: 'Are you sure you want to quit Goose?',
       detail: 'Any unsaved changes may be lost.',
-    })
-    .then(({ response }) => {
-      if (response === 0) {
-        // User clicked "Quit"
-        // Set a flag to avoid showing the dialog again
-        app.removeAllListeners('before-quit');
-        // Actually quit the app
-        app.quit();
-      }
-    });
+    })) as unknown as { response: number };
+
+    if (result.response === 0) {
+      // User clicked "Quit"
+      // Set a flag to avoid showing the dialog again
+      app.removeAllListeners('before-quit');
+      // Actually quit the app
+      app.quit();
+    }
+  } catch (error) {
+    console.error('Error showing quit dialog:', error);
+  }
 });
 
 app.on('window-all-closed', () => {

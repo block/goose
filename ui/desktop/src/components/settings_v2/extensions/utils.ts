@@ -76,14 +76,14 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   }
 
   return {
-    name: extension.name,
+    name: extension.name || '',
     description:
-      extension.type === 'stdio' || extension.type === 'sse' ? extension.description : undefined,
-    type: extension.type,
+      extension.type === 'stdio' || extension.type === 'sse' ? extension.description || '' : '',
+    type: extension.type === 'frontend' ? 'stdio' : extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint: extension.type === 'sse' ? extension.uri : undefined,
     enabled: extension.enabled,
-    timeout: extension.timeout,
+    timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
   };
 }
@@ -94,7 +94,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 
   if (formData.type === 'stdio') {
     // we put the cmd + args all in the form cmd field but need to split out into cmd + args
-    const { cmd, args } = splitCmdAndArgs(formData.cmd);
+    const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
 
     return {
       type: 'stdio',
@@ -111,7 +111,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       name: formData.name,
       description: formData.description,
       timeout: formData.timeout,
-      uri: formData.endpoint,
+      uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else {

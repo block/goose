@@ -19,8 +19,8 @@ interface ProviderSetupModalProps {
 
 export function ProviderSetupModal({
   provider,
-  _model,
-  _endpoint,
+  _model: _,
+  _endpoint: __,
   title,
   onSubmit,
   onCancel,
@@ -29,7 +29,7 @@ export function ProviderSetupModal({
   const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>(
     default_key_value
   );
-  const requiredKeys = required_keys[provider] || ['API Key'];
+  const requiredKeys = (required_keys as Record<string, string[]>)[provider] || ['API Key'];
   const headerText = title || `Setup ${provider}`;
 
   const shouldShowBattle = React.useMemo(() => {
@@ -59,7 +59,7 @@ export function ProviderSetupModal({
           ) : (
             <form onSubmit={handleSubmit}>
               <div className="mt-[24px] space-y-4">
-                {requiredKeys.map((keyName) => (
+                {requiredKeys.map((keyName: string) => (
                   <div key={keyName}>
                     <Input
                       type={isSecretKey(keyName) ? 'password' : 'text'}

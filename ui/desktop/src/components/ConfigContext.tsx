@@ -74,7 +74,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
-    setConfig(response.data.config || {});
+    setConfig(response.data?.config || {});
   }, []);
 
   const upsert = useCallback(
@@ -148,7 +148,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
           return extensionsList;
         }
 
-        const extensionResponse: ExtensionResponse = result.data;
+        const extensionResponse: ExtensionResponse = result.data!;
         setExtensionsList(extensionResponse.extensions);
         return extensionResponse.extensions;
       }
@@ -173,8 +173,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     async (forceRefresh = false): Promise<ProviderDetails[]> => {
       if (forceRefresh || providersList.length === 0) {
         const response = await providers();
-        setProvidersList(response.data);
-        return response.data;
+        setProvidersList(response.data || []);
+        return response.data || [];
       }
       return providersList;
     },
@@ -186,12 +186,12 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     (async () => {
       // Load config
       const configResponse = await readAllConfig();
-      setConfig(configResponse.data.config || {});
+      setConfig(configResponse.data?.config || {});
 
       // Load providers
       try {
         const providersResponse = await providers();
-        setProvidersList(providersResponse.data);
+        setProvidersList(providersResponse.data || []);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
@@ -199,7 +199,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        setExtensionsList(extensionsResponse.data.extensions);
+        setExtensionsList(extensionsResponse.data?.extensions || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }

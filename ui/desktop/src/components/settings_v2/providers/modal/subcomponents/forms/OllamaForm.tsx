@@ -1,19 +1,26 @@
 import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 import { Input } from '../../../../../ui/input';
-import React from 'react';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import CustomRadio from '../../../../../ui/CustomRadio';
 
-export default function OllamaForm({ configValues, setConfigValues, provider }) {
+export default function OllamaForm({
+  configValues,
+  setConfigValues,
+  provider,
+}: {
+  configValues: Record<string, string>;
+  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  provider: { name: string; [key: string]: unknown };
+}) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
   const parameters = providerEntry?.details?.parameters || [];
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const [isLocalAvailable, setIsLocalAvailable] = useState(false);
 
   const handleConnectionTypeChange = useCallback(
-    (value) => {
+    (value: string) => {
       setConfigValues((prev) => ({
         ...prev,
         connection_type: value,
@@ -23,7 +30,7 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
   );
 
   // Function to handle input changes and auto-select/deselect the host radio
-  const handleInputChange = (paramName, value) => {
+  const handleInputChange = (paramName: string, value: string) => {
     // Update the parameter value
     setConfigValues((prev) => ({
       ...prev,

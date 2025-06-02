@@ -40,7 +40,7 @@ export function ConfigureExtensionModal({
     setIsSubmitting(true);
     try {
       // First store all environment variables
-      if (extension.env_keys?.length > 0) {
+      if (extension.env_keys && extension.env_keys.length > 0) {
         for (const envKey of extension.env_keys) {
           const value = envValues[envKey];
           if (!value) continue;
@@ -76,12 +76,13 @@ export function ConfigureExtensionModal({
       });
       onSubmit();
       onClose();
-    } catch (error) {
-      console.error('Error configuring extension:', error);
+    } catch (err) {
+      console.error('Error configuring extension:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       toastError({
         title: extension.name,
         msg: `Failed to configure extension`,
-        traceback: error.message,
+        traceback: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -104,13 +105,13 @@ export function ConfigureExtensionModal({
           {/* Form */}
           <form onSubmit={handleExtensionConfigSubmit}>
             <div className="mt-[24px]">
-              {extension.env_keys?.length > 0 ? (
+              {extension.env_keys && extension.env_keys.length > 0 ? (
                 <>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                     Please provide the required environment variables for this extension:
                   </p>
                   <div className="space-y-4">
-                    {extension.env_keys?.map((envVarName) => (
+                    {extension.env_keys.map((envVarName) => (
                       <div key={envVarName}>
                         <label
                           htmlFor={envVarName}

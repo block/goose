@@ -7,6 +7,7 @@ mod thinking;
 
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -26,6 +27,8 @@ use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
 
+use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::protocol::JsonRpcNotification;
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -713,12 +716,15 @@ impl Session {
             )
             .await?;
 
+        let mut progress_bars = output::McpSpinners::new();
+
         use futures::StreamExt;
         loop {
             tokio::select! {
                 result = stream.next() => {
+                    let _ = progress_bars.hide();
                     match result {
-                        Some(Ok(message)) => {
+                        Some(Ok(AgentEvent::Message(message))) => {
                             // If it's a confirmation request, get approval but otherwise do not render/persist
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
@@ -846,6 +852,51 @@ impl Session {
                                 if interactive {output::show_thinking()};
                             }
                         }
+                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                                if let JsonRpcMessage::Notification(JsonRpcNotification{
+                                    method,
+                                    params: Some(Value::Object(o)),
+                                    ..
+                                }) = message {
+                                match method.as_str() {
+                                    "notifications/message" => {
+                                        let data = o.get("data").unwrap_or(&Value::Null);
+                                        let message = match data {
+                                            Value::String(s) => s.clone(),
+                                            Value::Object(o) => {
+                                                if let Some(Value::String(output)) = o.get("output") {
+                                                    output.to_owned()
+                                                } else {
+                                                    data.to_string()
+                                                }
+                                            },
+                                            v => {
+                                                    v.to_string()
+                                            },
+                                        };
+                                        // output::render_text_no_newlines(&message, None, true);
+                                        progress_bars.log(&message);
+                                    },
+                                    "notifications/progress" => {
+                                        let progress = o.get("progress").and_then(|v| v.as_f64());
+                                        let token = o.get("progressToken").map(|v| v.to_string());
+                                        let message = o.get("message").and_then(|v| v.as_str());
+                                        let total = o
+                                            .get("total")
+                                            .and_then(|v| v.as_f64());
+                                        if let (Some(progress), Some(token)) = (progress, token) {
+                                            progress_bars.update(
+                                                token.as_str(),
+                                                progress,
+                                                total,
+                                                message,
+                                            );
+                                        }
+                                    },
+                                    _ => (),
+                                }
+                            }
+                        }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);
@@ -872,6 +923,7 @@ impl Session {
                 }
             }
         }
+
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../../../ui/button';
 import { AddModelModal } from './AddModelModal';
 import type { View } from '../../../../App';

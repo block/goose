@@ -1,7 +1,6 @@
 import { AddModelButton } from './AddModelButton';
 import { Button } from '../../../ui/button';
 import { Sliders } from 'lucide-react';
-import React from 'react';
 import type { View } from '../../../../App';
 
 interface ConfigureModelButtonsProps {

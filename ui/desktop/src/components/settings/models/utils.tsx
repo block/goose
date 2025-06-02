@@ -43,13 +43,13 @@ export function useHandleModelSelection() {
       toastError({
         title: model.name,
         msg: `Failed to switch to model`,
-        traceback: error.message,
+        traceback: error instanceof Error ? error.message : String(error),
       });
     }
   };
 }
 
-export function createSelectedModel(selectedProvider, modelName) {
+export function createSelectedModel(selectedProvider: string, modelName: string) {
   let selectedModel = gooseModels.find(
     (model) =>
       model.provider.toLowerCase() === selectedProvider &&

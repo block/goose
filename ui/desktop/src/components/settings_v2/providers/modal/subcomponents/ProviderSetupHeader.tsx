@@ -1,4 +1,3 @@
-import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { QUICKSTART_GUIDE_URL } from '../constants';
 

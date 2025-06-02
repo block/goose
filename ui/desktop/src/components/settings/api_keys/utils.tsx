@@ -40,10 +40,10 @@ export async function getActiveProviders(): Promise<string[]> {
         const configStatus = provider.config_status ?? {};
 
         // Skip if provider isn't in required_keys
-        if (!required_keys[providerName]) return false;
+        if (!required_keys[providerName as keyof typeof required_keys]) return false;
 
         // Get all required keys for this provider
-        const providerRequiredKeys = required_keys[providerName];
+        const providerRequiredKeys = required_keys[providerName as keyof typeof required_keys];
 
         // Special case: If a provider has exactly one required key and that key
         // has a default value, check if it's explicitly set
@@ -56,16 +56,16 @@ export async function getActiveProviders(): Promise<string[]> {
         // For providers with multiple keys or keys without defaults:
         // Check if all required keys without defaults are set
         const requiredNonDefaultKeys = providerRequiredKeys.filter(
-          (key) => !(key in default_key_value)
+          (key: string) => !(key in default_key_value)
         );
 
         // If there are no non-default keys, this provider needs at least one key explicitly set
         if (requiredNonDefaultKeys.length === 0) {
-          return providerRequiredKeys.some((key) => configStatus[key]?.is_set === true);
+          return providerRequiredKeys.some((key: string) => configStatus[key]?.is_set === true);
         }
 
         // Otherwise, all non-default keys must be set
-        return requiredNonDefaultKeys.every((key) => configStatus[key]?.is_set === true);
+        return requiredNonDefaultKeys.every((key: string) => configStatus[key]?.is_set === true);
       })
       .map((provider) => provider.name || 'Unknown Provider');
 
@@ -96,21 +96,24 @@ export async function getConfigSettings(): Promise<Record<string, ProviderRespon
   // Convert the response to the expected format
   const data: Record<string, ProviderResponse> = {};
   providers.forEach((provider) => {
-    const providerRequiredKeys = required_keys[provider.name] || [];
+    const providerRequiredKeys = required_keys[provider.name as keyof typeof required_keys] || [];
 
     data[provider.name] = {
       name: provider.name,
       supported: true,
       description: provider.metadata.description,
       models: provider.metadata.models,
-      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>((acc, key) => {
-        acc[key] = {
-          key,
-          is_set: provider.is_configured,
-          location: provider.is_configured ? 'config' : undefined,
-        };
-        return acc;
-      }, {}),
+      config_status: providerRequiredKeys.reduce<Record<string, ConfigDetails>>(
+        (acc: Record<string, ConfigDetails>, key: string) => {
+          acc[key] = {
+            key,
+            is_set: provider.is_configured,
+            location: provider.is_configured ? 'config' : undefined,
+          };
+          return acc;
+        },
+        {}
+      ),
     };
   });
 

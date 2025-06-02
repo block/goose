@@ -1,5 +1,4 @@
 import { Input } from '../../../ui/input';
-import React from 'react';
 
 interface ExtensionConfigFieldsProps {
   type: 'stdio' | 'sse' | 'builtin';
