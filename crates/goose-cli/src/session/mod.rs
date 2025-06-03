@@ -16,8 +16,7 @@ pub use goose::session::Identifier;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use etcetera::choose_app_strategy;
-use etcetera::AppStrategy;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
@@ -26,9 +25,9 @@ use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
-
 use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::protocol::JsonRpcNotification;
+
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -354,9 +353,10 @@ impl Session {
         // Create and use a global history file in ~/.config/goose directory
         // This allows command history to persist across different chat sessions
         // instead of being tied to each individual session's messages
-        let history_file = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("history.txt");
+        let strategy =
+            choose_app_strategy(crate::APP_STRATEGY.clone()).expect("goose requires a home dir");
+        let config_dir = strategy.config_dir();
+        let history_file = config_dir.join("history.txt");
 
         // Ensure config directory exists
         if let Some(parent) = history_file.parent() {
@@ -382,6 +382,9 @@ impl Session {
 
         output::display_greeting();
         loop {
+            // Display context usage before each prompt
+            self.display_context_usage().await?;
+
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
                     match self.run_mode {
@@ -1116,6 +1119,26 @@ impl Session {
     pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
+    }
+
+    /// Display enhanced context usage with session totals
+    pub async fn display_context_usage(&self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit.unwrap_or(32000);
+
+        match self.get_metadata() {
+            Ok(metadata) => {
+                let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+
+                output::display_context_usage(total_tokens, context_limit);
+            }
+            Err(_) => {
+                output::display_context_usage(0, context_limit);
+            }
+        }
+
+        Ok(())
     }
 
     /// Handle prompt command execution
