@@ -30,6 +30,7 @@ use mcp_core::prompt::PromptMessage;
 use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::protocol::JsonRpcNotification;
 use rand::{distributions::Alphanumeric, Rng};
+use rustyline::EditMode;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -50,6 +51,7 @@ pub struct Session {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode
     run_mode: RunMode,
+    edit_mode: EditMode,
 }
 
 // Cache structure for completion data
@@ -106,7 +108,7 @@ pub async fn classify_planner_response(
 }
 
 impl Session {
-    pub fn new(agent: Agent, session_file: PathBuf, debug: bool) -> Self {
+    pub fn new(agent: Agent, session_file: PathBuf, edit_mode: EditMode, debug: bool) -> Self {
         let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
@@ -122,6 +124,7 @@ impl Session {
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
             run_mode: RunMode::Normal,
+            edit_mode,
         }
     }
 
@@ -341,6 +344,7 @@ impl Session {
         // Create a new editor with our custom completer
         let config = rustyline::Config::builder()
             .completion_type(rustyline::CompletionType::Circular)
+            .edit_mode(self.edit_mode)
             .build();
         let mut editor =
             rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
