@@ -3,6 +3,12 @@
 #  - release.yml
 #  - canary.yml
 on:
+  push:
+    branches:
+      - lifei/fixed-build-cli
+  pull_request:
+    branches:
+      - lifei/fixed-build-cli
   workflow_call:
     inputs:
       version:
@@ -20,12 +26,8 @@ on:
         type: string
         required: false
         default: '["x86_64","aarch64"]'
-      ref:
-        type: string
-        required: false
-        default: 'refs/heads/main'
 
-name: "Reusable workflow to build CLI"
+name: "Reusable workflow to build CLI test"
 
 jobs:
   build-cli:
@@ -34,8 +36,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.operating-systems) }}
-        architecture: ${{ fromJson(inputs.architectures) }}
+        os: ["ubuntu-latest", "macos-latest"]
+        architecture: ["x86_64","aarch64"]
         include:
           - os: ubuntu-latest
             target-suffix: unknown-linux-gnu
@@ -45,14 +47,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
-        with:
-          ref: ${{ inputs.ref }}
-          fetch-depth: 0
 
       - name: Update version in Cargo.toml
-        if: ${{ inputs.version != '' }}
         run: |
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          sed -i.bak 's/^version = ".*"/version = "'1.0.24'"/' Cargo.toml
           rm -f Cargo.toml.bak
 
       - name: Install cross

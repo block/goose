@@ -6,10 +6,20 @@ pre-build = [
     "dpkg --add-architecture arm64",
     """\
     apt-get update --fix-missing && apt-get install -y \
+     curl \
+     unzip \
      pkg-config \
      libssl-dev:arm64 \
      libdbus-1-dev:arm64 \
      libxcb1-dev:arm64
+    """,
+    """\
+    curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip && \
+    unzip -o protoc-31.1-linux-x86_64.zip -d /usr/local && \
+    chmod +x /usr/local/bin/protoc && \
+    ln -sf /usr/local/bin/protoc /usr/bin/protoc && \
+    which protoc && \
+    protoc --version
     """
 ]
 
@@ -18,10 +28,20 @@ xargo = false
 pre-build = [
     """\
     apt-get update && apt-get install -y \
+     curl \
+     unzip \
      pkg-config \
      libssl-dev \
      libdbus-1-dev \
      libxcb1-dev
+    """,
+    """\
+    curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip && \
+    unzip -o protoc-31.1-linux-x86_64.zip -d /usr/local && \
+    chmod +x /usr/local/bin/protoc && \
+    ln -sf /usr/local/bin/protoc /usr/bin/protoc && \
+    which protoc && \
+    protoc --version
     """
 ]
 
@@ -30,3 +50,17 @@ image = "dockcross/windows-static-x64:latest"
 # Enable verbose output for Windows builds
 build-std = true
 env = { "RUST_LOG" = "debug", "RUST_BACKTRACE" = "1", "CROSS_VERBOSE" = "1" }
+pre-build = [
+    """\
+    apt-get update && apt-get install -y \
+     curl \
+     unzip
+    """,
+    """\
+    curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip && \
+    unzip protoc-31.1-linux-x86_64.zip -d /usr/local && \
+    chmod +x /usr/local/bin/protoc && \
+    export PROTOC=/usr/local/bin/protoc && \
+    protoc --version
+    """
+]
