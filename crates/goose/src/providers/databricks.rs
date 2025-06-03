@@ -165,7 +165,7 @@ impl DatabricksProvider {
             .build()?;
 
         // Load optional retry configuration from environment
-        let retry_config = Self::load_retry_config(&config);
+        let retry_config = Self::load_retry_config(config);
 
         // If we find a databricks token we prefer that
         if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
@@ -352,27 +352,35 @@ impl DatabricksProvider {
                             .get("message")
                             .and_then(|m| m.as_str())
                             .or_else(|| {
-                                payload.get("external_model_message")
+                                payload
+                                    .get("external_model_message")
                                     .and_then(|ext| ext.get("message"))
                                     .and_then(|m| m.as_str())
                             })
-                            .unwrap_or("Unknown error").to_string();
+                            .unwrap_or("Unknown error")
+                            .to_string();
                     }
 
                     tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status, payload
+                        )
                     );
-                    return Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)));
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}. Message: {}",
+                        status, error_msg
+                    )));
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     attempts += 1;
-                    let error_msg = format!("Rate limit exceeded (attempt {}/{}): {:?}", 
-                        attempts, 
-                        self.retry_config.max_retries,
-                        payload
+                    let error_msg = format!(
+                        "Rate limit exceeded (attempt {}/{}): {:?}",
+                        attempts, self.retry_config.max_retries, payload
                     );
                     tracing::warn!("{}. Retrying after backoff...", error_msg);
-                    
+
                     // Store the error in case we need to return it after max retries
                     last_error = Some(ProviderError::RateLimitExceeded(error_msg));
 
@@ -386,13 +394,12 @@ impl DatabricksProvider {
                 }
                 StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
                     attempts += 1;
-                    let error_msg = format!("Server error (attempt {}/{}): {:?}", 
-                        attempts, 
-                        self.retry_config.max_retries,
-                        payload
+                    let error_msg = format!(
+                        "Server error (attempt {}/{}): {:?}",
+                        attempts, self.retry_config.max_retries, payload
                     );
                     tracing::warn!("{}. Retrying after backoff...", error_msg);
-                    
+
                     // Store the error in case we need to return it after max retries
                     last_error = Some(ProviderError::ServerError(error_msg));
 
@@ -406,9 +413,16 @@ impl DatabricksProvider {
                 }
                 _ => {
                     tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status, payload
+                        )
                     );
-                    return Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)));
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}",
+                        status
+                    )));
                 }
             }
         }
