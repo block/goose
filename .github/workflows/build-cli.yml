@@ -48,8 +48,14 @@ jobs:
           sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
           rm -f Cargo.toml.bak
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
+        with:
+          toolchain: stable
+          target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
+
       - name: Install cross
-        run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build CLI
         env:
@@ -58,7 +64,12 @@ jobs:
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
         run: |
-          source ./bin/activate-hermit
+          # Install protoc if on macOS
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            brew install protobuf
+            export PROTOC=$(which protoc)
+          fi
+
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
           echo "Building for target: ${TARGET}"
