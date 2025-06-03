@@ -286,7 +286,7 @@ impl DatabricksProvider {
         // Initialize retry counter
         let mut attempts = 0;
         let mut last_error = None;
-
+      
         loop {
             // Check if we've exceeded max retries
             if attempts > 0 && attempts > self.retry_config.max_retries {
@@ -336,6 +336,7 @@ impl DatabricksProvider {
                         "reduce the length",
                         "token count",
                         "exceeds",
+                        "exceed context limit",
                         "input length",
                         "max_tokens",
                         "decrease input length",
