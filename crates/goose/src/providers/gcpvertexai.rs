@@ -434,6 +434,9 @@ impl Provider for GcpVertexAIProvider {
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
             GcpVertexAIModel::Gemini(GeminiVersion::Flash20),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro20Exp),
+            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Exp),
+            GcpVertexAIModel::Gemini(GeminiVersion::Flash25Preview),
+            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Preview),
         ]
         .iter()
         .map(|model| model.to_string())
