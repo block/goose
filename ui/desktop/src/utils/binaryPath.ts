@@ -4,6 +4,24 @@ import Electron from 'electron';
 import log from './logger';
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
+  // Security validation: Ensure binaryName doesn't contain suspicious characters
+  if (
+    !binaryName ||
+    typeof binaryName !== 'string' ||
+    binaryName.includes('..') ||
+    binaryName.includes('/') ||
+    binaryName.includes('\\') ||
+    binaryName.includes(';') ||
+    binaryName.includes('|') ||
+    binaryName.includes('&') ||
+    binaryName.includes('`') ||
+    binaryName.includes('$') ||
+    binaryName.length > 50
+  ) {
+    // Reasonable length limit
+    throw new Error(`Invalid binary name: ${binaryName}`);
+  }
+
   const isWindows = process.platform === 'win32';
 
   const possiblePaths: string[] = [];
@@ -16,8 +34,28 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
 
   for (const binPath of possiblePaths) {
     try {
-      if (fs.existsSync(binPath)) {
-        return binPath;
+      // Security: Resolve the path and validate it's within expected directories
+      const resolvedPath = path.resolve(binPath);
+
+      // Ensure the resolved path doesn't contain suspicious sequences
+      if (
+        resolvedPath.includes('..') ||
+        resolvedPath.includes(';') ||
+        resolvedPath.includes('|') ||
+        resolvedPath.includes('&')
+      ) {
+        log.error(`Suspicious path detected, skipping: ${resolvedPath}`);
+        continue;
+      }
+
+      if (fs.existsSync(resolvedPath)) {
+        // Additional security check: ensure it's a regular file
+        const stats = fs.statSync(resolvedPath);
+        if (stats.isFile()) {
+          return resolvedPath;
+        } else {
+          log.error(`Path exists but is not a regular file: ${resolvedPath}`);
+        }
       }
     } catch (error) {
       log.error(`Error checking path ${binPath}:`, error);

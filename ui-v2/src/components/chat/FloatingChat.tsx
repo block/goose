@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import { ChatIcons } from './ChatIcons';
 
 interface FloatingChatProps {
@@ -11,22 +12,25 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ children }) => {
 
   // Create a debounced version of setIsVisible
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(isHovering);
-    }, isHovering ? 0 : 200);
+    const timer = setTimeout(
+      () => {
+        setIsVisible(isHovering);
+      },
+      isHovering ? 0 : 200
+    );
 
     return () => clearTimeout(timer);
   }, [isHovering]);
 
   return (
-    <div 
+    <div
       className="fixed bottom-0 left-0 right-0 z-50"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {/* Hover trigger area with black bar indicator */}
       <div className="absolute bottom-0 left-0 right-0 h-20 bg-transparent flex justify-center">
-        <div 
+        <div
           className={`
             w-[600px] h-[15px]
             bg-black dark:bg-white
@@ -39,16 +43,13 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({ children }) => {
       </div>
 
       {/* Chat container with transition */}
-      <div 
+      <div
         className={`
           transform transition-all duration-300 ease-out
-          ${isVisible 
-            ? 'translate-y-0 opacity-100' 
-            : '-translate-y-4 opacity-0'
-          }
+          ${isVisible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}
         `}
         style={{
-          paddingBottom: "env(safe-area-inset-bottom, 16px)"
+          paddingBottom: 'env(safe-area-inset-bottom, 16px)',
         }}
       >
         <div className="flex justify-center w-full px-4 pb-4">

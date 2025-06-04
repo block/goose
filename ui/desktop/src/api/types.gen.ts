@@ -172,6 +172,16 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type InspectJobResponse = {
+    processStartTime?: string | null;
+    runningDurationSeconds?: number | null;
+    sessionId?: string | null;
+};
+
+export type KillJobResponse = {
+    message: string;
+};
+
 export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
 };
@@ -304,9 +314,12 @@ export type RunNowResponse = {
 
 export type ScheduledJob = {
     cron: string;
+    current_session_id?: string | null;
     currently_running?: boolean;
     id: string;
     last_run?: string | null;
+    paused?: boolean;
+    process_start_time?: string | null;
     source: string;
 };
 
@@ -526,6 +539,10 @@ export type ToolResultSchema = {
     };
     message?: string | null;
     success: boolean;
+};
+
+export type UpdateScheduleRequest = {
+    cron: string;
 };
 
 export type UpsertConfigQuery = {
@@ -963,6 +980,126 @@ export type ListSchedulesResponses = {
 
 export type ListSchedulesResponse2 = ListSchedulesResponses[keyof ListSchedulesResponses];
 
+export type UpdateScheduleData = {
+    body: UpdateScheduleRequest;
+    path: {
+        /**
+         * ID of the schedule to update
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}';
+};
+
+export type UpdateScheduleErrors = {
+    /**
+     * Cannot update a currently running job or invalid request
+     */
+    400: unknown;
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateScheduleResponses = {
+    /**
+     * Scheduled job updated successfully
+     */
+    200: ScheduledJob;
+};
+
+export type UpdateScheduleResponse = UpdateScheduleResponses[keyof UpdateScheduleResponses];
+
+export type InspectRunningJobData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the schedule to inspect
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/inspect';
+};
+
+export type InspectRunningJobErrors = {
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type InspectRunningJobResponses = {
+    /**
+     * Running job information
+     */
+    200: InspectJobResponse;
+};
+
+export type InspectRunningJobResponse = InspectRunningJobResponses[keyof InspectRunningJobResponses];
+
+export type KillRunningJobData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/kill';
+};
+
+export type KillRunningJobResponses = {
+    /**
+     * Running job killed successfully
+     */
+    200: unknown;
+};
+
+export type PauseScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the schedule to pause
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/pause';
+};
+
+export type PauseScheduleErrors = {
+    /**
+     * Cannot pause a currently running job
+     */
+    400: unknown;
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type PauseScheduleResponses = {
+    /**
+     * Scheduled job paused successfully
+     */
+    204: void;
+};
+
+export type PauseScheduleResponse = PauseScheduleResponses[keyof PauseScheduleResponses];
+
 export type RunNowHandlerData = {
     body?: never;
     path: {
@@ -1024,6 +1161,38 @@ export type SessionsHandlerResponses = {
 };
 
 export type SessionsHandlerResponse = SessionsHandlerResponses[keyof SessionsHandlerResponses];
+
+export type UnpauseScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the schedule to unpause
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/schedule/{id}/unpause';
+};
+
+export type UnpauseScheduleErrors = {
+    /**
+     * Scheduled job not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UnpauseScheduleResponses = {
+    /**
+     * Scheduled job unpaused successfully
+     */
+    204: void;
+};
+
+export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
 export type ListSessionsData = {
     body?: never;

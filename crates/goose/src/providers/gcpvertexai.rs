@@ -430,6 +430,7 @@ impl Provider for GcpVertexAIProvider {
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35V2),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
             GcpVertexAIModel::Claude(ClaudeVersion::Haiku35),
+            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
             GcpVertexAIModel::Gemini(GeminiVersion::Flash20),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro20Exp),

@@ -33,6 +33,9 @@ pub async fn handle_schedule_add(
         cron,
         last_run: None,
         currently_running: false,
+        paused: false,
+        current_session_id: None,
+        process_start_time: None,
     };
 
     let scheduler_storage_path =

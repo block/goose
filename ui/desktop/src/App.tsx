@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { openSharedSessionFromDeepLink } from './sessionLinks';
+import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
+import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
@@ -8,27 +9,26 @@ import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { type ExtensionConfig } from './extensions';
+import { type Recipe } from './recipe';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
-import { type SettingsViewOptions } from './components/settings/SettingsView';
-import SettingsViewV2 from './components/settings_v2/SettingsView';
-import MoreModelsView from './components/settings/models/MoreModelsView';
-import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
+import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
-import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import { RecipeParametersView } from './components/RecipeParametersView';
 import { useChat } from './hooks/useChat';
-import { Recipe } from './recipe';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
-import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
+import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
-import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
+import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import { type SessionDetails } from './sessions';
 
@@ -49,10 +49,28 @@ export type View =
   | 'permission'
   | 'recipeParameters';
 
-export type ViewOptions =
-  | SettingsViewOptions
-  | { resumedSession?: SessionDetails }
-  | Record<string, unknown>;
+export type ViewOptions = {
+  // Settings view options
+  extensionId?: string;
+  showEnvVars?: boolean;
+  deepLinkConfig?: ExtensionConfig;
+
+  // Session view options
+  resumedSession?: SessionDetails;
+  sessionDetails?: SessionDetails;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+
+  // Recipe editor options
+  config?: unknown;
+
+  // Permission view options
+  parentView?: View;
+
+  // Generic options
+  [key: string]: unknown;
+};
 
 export type ViewConfig = {
   view: View;
@@ -106,7 +124,7 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
-  function extractRemoteUrl(link: string): string {
+  function extractRemoteUrl(link: string): string | null {
     const url = new URL(link);
     return url.searchParams.get('url');
   }
@@ -131,11 +149,11 @@ export default function App() {
     }
 
     try {
-      await initializeSystem(provider, model, {
+      await initializeSystem(provider as string, model as string, {
         getExtensions,
         addExtension,
       });
-      return { provider, model };
+      return { provider: provider as string, model: model as string };
     } catch (error) {
       console.error('Error in initialization:', error);
 
@@ -214,9 +232,29 @@ export default function App() {
           return;
         }
 
-        const initResult = await initializeProviderAndModel();
-        if (initResult) {
+        const config = window.electron.getConfig();
+        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+        if (provider && model) {
           setView('chat');
+          try {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+          } catch (error) {
+            console.error('Error in initialization:', error);
+            if (error instanceof MalformedConfigError) {
+              throw error;
+            }
+            setView('welcome');
+          }
+        } else {
+          const initResult = await initializeProviderAndModel();
+          if (initResult) {
+            setView('chat');
+          }
         }
       } catch (error) {
         setFatalError(
@@ -257,12 +295,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSharedSession = async (_event: IpcRendererEvent, link: string) => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
-        await openSharedSessionFromDeepLink(link, setView);
+        await openSharedSessionFromDeepLink(
+          link,
+          (view: View, options?: SessionLinksViewOptions) => {
+            setView(view, options as ViewOptions);
+          }
+        );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
         setView('sessions');
@@ -299,7 +343,8 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up fatal error handler');
-    const handleFatalError = (_event: IpcRendererEvent, errorMessage: string) => {
+    const handleFatalError = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const errorMessage = args[0] as string;
       console.error('Encountered a fatal error: ', errorMessage);
       console.error('Current view:', view);
       console.error('Is loading session:', isLoadingSession);
@@ -313,10 +358,25 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up view change handler');
-    const handleSetView = (_event: IpcRendererEvent, newView: View) => {
+    const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const newView = args[0] as View;
       console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewFromUrl = urlParams.get('view');
+    if (viewFromUrl) {
+      const windowConfig = window.electron.getConfig();
+      if (viewFromUrl === 'recipeEditor') {
+        const initialViewOptions = {
+          recipeConfig: windowConfig?.recipeConfig,
+          view: viewFromUrl,
+        };
+        setView(viewFromUrl, initialViewOptions);
+      } else {
+        setView(viewFromUrl as View);
+      }
+    }
     window.electron.on('set-view', handleSetView);
     return () => {
       window.electron.off('set-view', handleSetView);
@@ -336,7 +396,8 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = async (_event: IpcRendererEvent, link: string) => {
+    const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const link = args[0] as string;
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -409,7 +470,7 @@ export default function App() {
   }, [STRICT_ALLOWLIST]);
 
   useEffect(() => {
-    const handleFocusInput = (_event: IpcRendererEvent) => {
+    const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
       const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
       if (inputField) {
         inputField.focus();
@@ -426,7 +487,9 @@ export default function App() {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
       setModalVisible(false);
       try {
-        await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
+        await addExtensionFromDeepLinkV2(pendingLink, addExtension, (view: string, options) => {
+          setView(view as View, options as ViewOptions);
+        });
         console.log('Extension installation successful');
       } catch (error) {
         console.error('Failed to add extension:', error);
@@ -457,7 +520,7 @@ export default function App() {
     );
 
   return (
-    <>
+    <ModelAndProviderProvider>
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
@@ -491,27 +554,12 @@ export default function App() {
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
           )}
           {view === 'settings' && (
-            <SettingsViewV2
+            <SettingsView
               onClose={() => {
                 setView('chat');
               }}
               setView={setView}
               viewOptions={viewOptions as SettingsViewOptions}
-            />
-          )}
-          {view === 'moreModels' && (
-            <MoreModelsView
-              onClose={() => {
-                setView('settings');
-              }}
-              setView={setView}
-            />
-          )}
-          {view === 'configureProviders' && (
-            <ConfigureProvidersView
-              onClose={() => {
-                setView('settings');
-              }}
             />
           )}
           {view === 'ConfigureProviders' && (
@@ -530,7 +578,9 @@ export default function App() {
           {view === 'schedules' && <SchedulesView onClose={() => setView('chat')} />}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions?.sessionDetails}
+              session={
+                (viewOptions?.sessionDetails as unknown as SharedSessionDetails | null) || null
+              }
               isLoading={isLoadingSharedSession}
               error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}
@@ -540,7 +590,9 @@ export default function App() {
                   try {
                     await openSharedSessionFromDeepLink(
                       `goose://sessions/${viewOptions.shareToken}`,
-                      setView,
+                      (view: View, options?: SessionLinksViewOptions) => {
+                        setView(view, options as ViewOptions);
+                      },
                       viewOptions.baseUrl
                     );
                   } catch (error) {
@@ -554,23 +606,7 @@ export default function App() {
           )}
           {view === 'recipeEditor' && (
             <RecipeEditor
-              key={viewOptions?.config ? 'with-config' : 'no-config'}
-              config={viewOptions?.config || window.electron.getConfig().recipeConfig}
-              onClose={() => setView('chat')}
-              setView={setView}
-              onSave={(config) => {
-                console.log('Saving recipe config:', config);
-                window.electron.createChatWindow(
-                  undefined,
-                  undefined,
-                  undefined,
-                  undefined,
-                  config,
-                  'recipeEditor',
-                  { config }
-                );
-                setView('chat');
-              }}
+              config={(viewOptions?.config as Recipe) || window.electron.getConfig().recipeConfig}
             />
           )}
           {view === 'permission' && (
@@ -592,6 +628,6 @@ export default function App() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
-    </>
+    </ModelAndProviderProvider>
   );
 }

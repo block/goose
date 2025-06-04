@@ -41,7 +41,12 @@ use utoipa::OpenApi;
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
+        super::routes::schedule::update_schedule,
         super::routes::schedule::run_now_handler,
+        super::routes::schedule::pause_schedule,
+        super::routes::schedule::unpause_schedule,
+        super::routes::schedule::kill_running_job,
+        super::routes::schedule::inspect_running_job,
         super::routes::schedule::sessions_handler
     ),
     components(schemas(
@@ -91,6 +96,9 @@ use utoipa::OpenApi;
         SessionInfo,
         SessionMetadata,
         super::routes::schedule::CreateScheduleRequest,
+        super::routes::schedule::UpdateScheduleRequest,
+        super::routes::schedule::KillJobResponse,
+        super::routes::schedule::InspectJobResponse,
         goose::scheduler::ScheduledJob,
         super::routes::schedule::RunNowResponse,
         super::routes::schedule::ListSchedulesResponse,

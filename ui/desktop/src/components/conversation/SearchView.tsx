@@ -231,23 +231,19 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       highlighterRef.current = null;
     }
 
-    // Cancel any pending highlight operations
-    debouncedHighlight.cancel?.();
-
     // Clear search when closing
     onSearch?.('', false);
-  }, [debouncedHighlight, onSearch]);
+  }, [onSearch]);
 
-  // Clean up highlighter and debounced functions on unmount
+  // Clean up highlighter on unmount
   useEffect(() => {
     return () => {
       if (highlighterRef.current) {
         highlighterRef.current.destroy();
         highlighterRef.current = null;
       }
-      debouncedHighlight.cancel?.();
     };
-  }, [debouncedHighlight]);
+  }, []);
 
   // Listen for keyboard events
   useEffect(() => {
@@ -318,7 +314,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     <div
       ref={(el) => {
         if (el) {
-          containerRef.current = el;
+          containerRef.current = el as SearchContainerElement;
           // Expose the highlighter instance
           containerRef.current._searchHighlighter = highlighterRef.current;
         }
@@ -330,7 +326,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           onSearch={handleSearch}
           onClose={handleCloseSearch}
           onNavigate={handleNavigate}
-          searchResults={searchResults || internalSearchResults}
+          searchResults={searchResults || internalSearchResults || undefined}
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
         />

@@ -3,7 +3,7 @@ use std::ptr;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use goose::agents::Agent;
+use goose::agents::{Agent, AgentEvent};
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::databricks::DatabricksProvider;
@@ -256,12 +256,15 @@ pub unsafe extern "C" fn goose_agent_send_message(
 
         while let Some(message_result) = stream.next().await {
             match message_result {
-                Ok(message) => {
+                Ok(AgentEvent::Message(message)) => {
                     // Get text or serialize to JSON
                     // Note: Message doesn't have as_text method, we'll serialize to JSON
                     if let Ok(json) = serde_json::to_string(&message) {
                         full_response.push_str(&json);
                     }
+                }
+                Ok(AgentEvent::McpNotification(_)) => {
+                    // TODO: Handle MCP notifications.
                 }
                 Err(e) => {
                     full_response.push_str(&format!("\nError in message stream: {}", e));

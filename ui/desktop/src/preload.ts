@@ -33,6 +33,12 @@ interface FileResponse {
   found: boolean;
 }
 
+interface SaveDataUrlResponse {
+  id: string;
+  filePath?: string;
+  error?: string;
+}
+
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 // Define the API types in a single place
@@ -64,6 +70,10 @@ type ElectronAPI = {
   writeFile: (directory: string, content: string) => Promise<boolean>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  setMenuBarIcon: (show: boolean) => Promise<boolean>;
+  getMenuBarIconState: () => Promise<boolean>;
+  setDockIcon: (show: boolean) => Promise<boolean>;
+  getDockIconState: () => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -73,6 +83,11 @@ type ElectronAPI = {
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
+  // Functions for image pasting
+  saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
+  deleteTempFile: (filePath: string) => void;
+  // Function to serve temp images
+  getTempImage: (filePath: string) => Promise<string | null>;
 };
 
 type AppConfigAPI = {
@@ -119,6 +134,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('write-file', filePath, content),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
+  setMenuBarIcon: (show: boolean) => ipcRenderer.invoke('set-menu-bar-icon', show),
+  getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
+  setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
+  getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -133,6 +152,15 @@ const electronAPI: ElectronAPI = {
   },
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
+  },
+  saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
+    return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
+  },
+  deleteTempFile: (filePath: string): void => {
+    ipcRenderer.send('delete-temp-file', filePath);
+  },
+  getTempImage: (filePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('get-temp-image', filePath);
   },
 };
 

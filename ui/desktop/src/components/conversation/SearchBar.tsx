@@ -69,13 +69,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }
   }, [initialSearchTerm, caseSensitive, debouncedSearchRef]);
 
-  const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(null);
+  const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(undefined);
 
   // Sync external search results with local state
   useEffect(() => {
     // Only set results if we have a search term
     if (!searchTerm) {
-      setLocalSearchResults(null);
+      setLocalSearchResults(undefined);
     } else {
       setLocalSearchResults(searchResults);
     }
@@ -168,7 +168,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <div className="flex items-center gap-1">
               <div className="w-16 text-right text-sm text-textStandardInverse flex items-center justify-end">
                 {(() => {
-                  return localSearchResults?.count > 0 && searchTerm
+                  return localSearchResults?.count && localSearchResults.count > 0 && searchTerm
                     ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
                     : null;
                 })()}
