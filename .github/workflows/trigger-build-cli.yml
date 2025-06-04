@@ -1,10 +1,4 @@
 on:
-  push:
-    branches:
-      - lifei/test-workflow
-  pull_request:
-    branches:
-      - lifei/test-workflow
   workflow_dispatch:
 
 name: Trigger Build CLI
