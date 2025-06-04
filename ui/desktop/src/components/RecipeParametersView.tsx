@@ -14,7 +14,7 @@ export function RecipeParametersView({ config, onClose }: RecipeParametersViewPr
   const [isModalOpen, setIsModalOpen] = useState(true);
   const { read } = useConfig();
 
-  // If no config or no parameters redirect to the chat view
+  // If no config or no parameters, redirect to the chat view
   useEffect(() => {
     if (!config || !config.parameters || config.parameters.length === 0) {
       onClose();

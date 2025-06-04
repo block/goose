@@ -67,7 +67,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (viewingScheduleId === null) {
       fetchSchedules();
-      
+
       // Check for pending deep link from recipe editor
       const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
       if (pendingDeepLink) {

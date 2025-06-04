@@ -617,7 +617,7 @@ export default function App() {
           {view === 'recipeParameters' && (
             <RecipeParametersView
               onClose={() => setView('chat')}
-              config={viewOptions?.config || window.electron.getConfig().recipeConfig}
+              config={viewOptions?.config || window.electron.getConfig().recipeConfig as Recipe | undefined}
             />
           )}
         </div>

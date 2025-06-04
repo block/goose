@@ -13,16 +13,23 @@ interface UpdateProviderResponse {
   processed_recipe?: Recipe;
 }
 
-export async function initializeAgent({ model, provider, recipeConfig, recipeParams }: InitializeAgentProps): Promise<Recipe | undefined> {
+export async function initializeAgent({
+  model,
+  provider,
+  recipeConfig,
+  recipeParams,
+}: InitializeAgentProps): Promise<Recipe | undefined> {
   const requestBody = {
     provider: provider.toLowerCase().replace(/ /g, '_'),
     model: model,
-    recipe_config: recipeConfig ? {
-      config: recipeConfig,
-      parameters: recipeParams || {}
-    } : undefined
+    recipe_config: recipeConfig
+      ? {
+          config: recipeConfig,
+          parameters: recipeParams || {},
+        }
+      : undefined,
   };
-  
+
   const response = await fetch(getApiUrl('/agent/update_provider'), {
     method: 'POST',
     headers: {

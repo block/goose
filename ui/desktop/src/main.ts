@@ -45,7 +45,7 @@ if (process.platform === 'win32') {
   if (!gotTheLock) {
     app.quit();
   } else {
-    app.on('second-instance', (event, commandLine) => {
+    app.on('second-instance', (_event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -97,7 +97,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -170,7 +170,7 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   pendingDeepLink = null;
 }
 
-app.on('open-url', async (event, url) => {
+app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
@@ -304,7 +304,7 @@ const createChat = async (
   app: App,
   query?: string,
   dir?: string,
-  version?: string,
+  _version?: string,
   resumeSessionId?: string,
   recipeConfig?: RecipeConfig, // Bot configuration
   viewType?: string // View type
@@ -382,7 +382,7 @@ const createChat = async (
   //
   // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
-  mainWindow.webContents.on('context-menu', (event, params) => {
+  mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
 
     // Add each spelling suggestion
@@ -601,12 +601,13 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
     properties: ['openFile', 'openDirectory'],
   });
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    addRecentDir(result.filePaths[0]);
+  const typedResult = result as { canceled: boolean; filePaths: string[] };
+  if (!typedResult.canceled && typedResult.filePaths.length > 0) {
+    addRecentDir(typedResult.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, result.filePaths[0]);
+    await createChat(app, undefined, typedResult.filePaths[0]);
     if (replaceWindow) {
-      currentWindow.close();
+      currentWindow?.close();
     }
   }
   return result;
@@ -656,8 +657,9 @@ ipcMain.handle('select-file-or-directory', async () => {
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   });
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
+  const typedResult = result as { canceled: boolean; filePaths: string[] };
+  if (!typedResult.canceled && typedResult.filePaths.length > 0) {
+    return typedResult.filePaths[0];
   }
   return null;
 });
@@ -780,7 +782,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
   }
 });
 
-const createNewWindow = async (app: App, dir?: string | null) => {
+const createNewWindow = async (app: App, dir?: string) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
   createChat(app, undefined, openDir);
@@ -803,14 +805,11 @@ const registerGlobalHotkey = (accelerator: string) => {
   globalShortcut.unregisterAll();
 
   try {
-    const ret = globalShortcut.register(accelerator, () => {
+    globalShortcut.register(accelerator, () => {
       focusWindow();
     });
 
-    if (!ret) {
-      console.error('Failed to register global hotkey');
-      return false;
-    }
+    // Registration was successful
     return true;
   } catch (e) {
     console.error('Error registering global hotkey:', e);
@@ -824,7 +823,7 @@ app.whenReady().then(async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
+        'Content-Security-Policy': 
           "default-src 'self';" +
             // Allow inline styles since we use them in our React components
             "style-src 'self' 'unsafe-inline';" +
@@ -852,7 +851,6 @@ app.whenReady().then(async () => {
             "worker-src 'self';" +
             // Upgrade insecure requests
             'upgrade-insecure-requests;',
-        ],
       },
     });
   });
@@ -965,7 +963,11 @@ app.whenReady().then(async () => {
         submenu: Menu.buildFromTemplate(
           createEnvironmentMenu(envToggles, (newToggles) => {
             envToggles = newToggles;
-            saveSettings({ envToggles: newToggles });
+            saveSettings({ 
+              envToggles: newToggles,
+              showMenuBarIcon: true,
+              showDockIcon: true
+            });
             updateEnvironmentVariables(newToggles);
           })
         ),
