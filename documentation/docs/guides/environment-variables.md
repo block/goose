@@ -64,10 +64,10 @@ Configure a lead/worker model pattern where a powerful model handles initial pla
 
 ```bash
 # Basic lead/worker setup
-export GOOSE_LEAD_MODEL="gpt-4o"
+export GOOSE_LEAD_MODEL="o4"
 
 # Advanced lead/worker configuration
-export GOOSE_LEAD_MODEL="gpt-4o"
+export GOOSE_LEAD_MODEL="claude4-opus"
 export GOOSE_LEAD_PROVIDER="anthropic"
 export GOOSE_LEAD_TURNS=5
 export GOOSE_LEAD_FAILURE_THRESHOLD=3
