@@ -25,24 +25,20 @@ Designed for maximum flexibility, goose works with any LLM, seamlessly integrate
 
 ## Multiple Model Configuration
 
-goose supports using different models for different purposes to optimize performance and cost:
+goose supports using different models for different purposes to optimize performance and cost, which can work across model providers as well as models.
 
 ### Lead/Worker Model Pattern
-Use a powerful model for initial planning and complex reasoning, then switch to a faster/cheaper model for execution:
+Use a powerful model for initial planning and complex reasoning, then switch to a faster/cheaper model for execution, this happens automatically by goose:
 
 ```bash
 # Required: Enable lead model mode
-export GOOSE_LEAD_MODEL=gpt-4o
-
-# Optional: Configure behavior (defaults shown)
-export GOOSE_LEAD_PROVIDER=anthropic  # Defaults to main provider
-export GOOSE_LEAD_TURNS=3             # Initial lead model turns
-export GOOSE_LEAD_FAILURE_THRESHOLD=2 # Failures before fallback
-export GOOSE_LEAD_FALLBACK_TURNS=2    # Fallback lead model turns
+export GOOSE_LEAD_MODEL=modelY
+# Optional: configure a provider for the lead model if not the default provider
+export GOOSE_LEAD_PROVIDER=providerX  # Defaults to main provider
 ```
 
 ### Planning Model Configuration  
-Use a specialized model for the `/plan` command in CLI mode:
+Use a specialized model for the `/plan` command in CLI mode, this is explicitly invoked when you want to plan (vs execute)
 
 ```bash
 # Optional: Use different model for planning
@@ -50,7 +46,7 @@ export GOOSE_PLANNER_PROVIDER=openai
 export GOOSE_PLANNER_MODEL=gpt-4
 ```
 
-Both patterns help you balance model capabilities with cost and speed for optimal results. 
+Both patterns help you balance model capabilities with cost and speed for optimal results, and switch between models and vendors as required.
 
 
 # Quick Links
