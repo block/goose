@@ -37,6 +37,10 @@ jobs:
           skip_reviews: true
           reaction: "eyes"
           allowed_contexts: pull_request
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        
       - name: Get PR head SHA with gh
         id: set_head_sha
         run: |
