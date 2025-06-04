@@ -82,7 +82,6 @@ export default function ChatView({
 }
 
 function ChatContent({
-  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
@@ -103,7 +102,6 @@ function ChatContent({
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const hasSentPromptRef = useRef(false);
 
   const {
     summaryContent,
