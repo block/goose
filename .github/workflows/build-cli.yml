@@ -65,6 +65,7 @@ jobs:
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
         run: |
+          echo "========== In Build CLI step=========="
           source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
