@@ -3,11 +3,13 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
+use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
+    augment_message_with_tool_calls, convert_tool_messages_to_text,
+    modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use crate::session;
 use mcp_core::tool::Tool;
@@ -19,16 +21,17 @@ impl Agent {
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get tool selection strategy
-        let tool_selection_strategy = std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .ok()
-            .and_then(|s| {
-                if s.eq_ignore_ascii_case("vector") {
-                    Some(RouterToolSelectionStrategy::Vector)
-                } else {
-                    None
-                }
-            });
+        // Get tool selection strategy from config
+        let config = Config::global();
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
+
+        let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
+            "vector" => Some(RouterToolSelectionStrategy::Vector),
+            _ => None,
+        };
+
         // Get tools from extension manager
         let mut tools = match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
@@ -108,8 +111,17 @@ impl Agent {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = provider.get_model_config();
 
+        // Convert tool messages to text if toolshim is enabled
+        let messages_for_provider = if config.toolshim {
+            convert_tool_messages_to_text(messages)
+        } else {
+            messages.to_vec()
+        };
+
         // Call the provider to get a response
-        let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
+        let (mut response, usage) = provider
+            .complete(system_prompt, &messages_for_provider, tools)
+            .await?;
 
         // Store the model information in the global store
         crate::providers::base::set_current_model(&usage.model);

@@ -1,4 +1,3 @@
-import React from 'react';
 import GooseLogo from './components/GooseLogo';
 
 export default function SuspenseLoader() {

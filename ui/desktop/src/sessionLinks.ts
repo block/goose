@@ -1,7 +1,7 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { type View } from './App';
 
-interface SessionLinksViewOptions {
+export interface SessionLinksViewOptions {
   sessionDetails?: SharedSessionDetails | null;
   error?: string;
   shareToken?: string;
@@ -27,7 +27,7 @@ export async function openSharedSessionFromDeepLink(
     }
 
     // Extract the share token from the URL
-    const shareToken = url.replace('goose://sessions/', '');
+    const shareToken: string = url.replace('goose://sessions/', '');
 
     if (!shareToken || shareToken.trim() === '') {
       throw new Error('Invalid URL: Missing share token');
@@ -58,7 +58,7 @@ export async function openSharedSessionFromDeepLink(
     }
 
     // Fetch the shared session details
-    const sessionDetails = await fetchSharedSessionDetails(baseUrl, shareToken);
+    const sessionDetails = await fetchSharedSessionDetails(baseUrl!, shareToken);
 
     // Navigate to the shared session view
     setView('sharedSession', {

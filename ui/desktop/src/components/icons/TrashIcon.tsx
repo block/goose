@@ -1,5 +1,4 @@
 // /Users/mnovich/Development/goose-1.0/ui/desktop/src/components/icons/TrashIcon.tsx
-import React from 'react';
 
 interface IconProps extends React.SVGProps<globalThis.SVGSVGElement> {}
 

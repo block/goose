@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -6,17 +6,20 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
+import { NotificationEvent } from '../hooks/useMessageStream';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
+  notifications?: NotificationEvent[];
 }
 
 export default function ToolCallWithResponse({
   isCancelledMessage,
   toolRequest,
   toolResponse,
+  notifications,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -26,7 +29,7 @@ export default function ToolCallWithResponse({
   return (
     <div className={'w-full text-textSubtle text-sm'}>
       <Card className="">
-        <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse }} />
+        <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse, notifications }} />
       </Card>
     </div>
   );
@@ -47,8 +50,9 @@ function ToolCallExpandable({
   children,
   className = '',
 }: ToolCallExpandableProps) {
-  const [isExpanded, setIsExpanded] = React.useState(isStartExpanded);
-  const toggleExpand = () => setIsExpanded((prev) => !prev);
+  const [isExpandedState, setIsExpanded] = React.useState<boolean | null>(null);
+  const isExpanded = isExpandedState === null ? isStartExpanded : isExpandedState;
+  const toggleExpand = () => setIsExpanded(!isExpanded);
   React.useEffect(() => {
     if (isForceExpand) setIsExpanded(true);
   }, [isForceExpand]);
@@ -71,9 +75,42 @@ interface ToolCallViewProps {
     arguments: Record<string, unknown>;
   };
   toolResponse?: ToolResponseMessageContent;
+  notifications?: NotificationEvent[];
 }
 
-function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallViewProps) {
+interface Progress {
+  progress: number;
+  progressToken: string;
+  total?: number;
+  message?: string;
+}
+
+const logToString = (logMessage: NotificationEvent) => {
+  const params = logMessage.message.params;
+
+  // Special case for the developer system shell logs
+  if (
+    params &&
+    params.data &&
+    typeof params.data === 'object' &&
+    'output' in params.data &&
+    'stream' in params.data
+  ) {
+    return `[${params.data.stream}] ${params.data.output}`;
+  }
+
+  return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
+};
+
+const notificationToProgress = (notification: NotificationEvent): Progress =>
+  notification.message.params as unknown as Progress;
+
+function ToolCallView({
+  isCancelledMessage,
+  toolCall,
+  toolResponse,
+  notifications,
+}: ToolCallViewProps) {
   const responseStyle = localStorage.getItem('response_style');
   const isExpandToolDetails = (() => {
     switch (responseStyle) {
@@ -92,7 +129,7 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
 
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse.toolResult.value
+      ? toolResponse!.toolResult.value
           .filter((item) => {
             const audience = item.annotations?.audience as string[] | undefined;
             return !audience || audience.includes('user');
@@ -102,6 +139,29 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
             isExpandToolResults: ((item.annotations?.priority as number | undefined) ?? -1) >= 0.5,
           }))
       : [];
+
+  const logs = notifications
+    ?.filter((notification) => notification.message.method === 'notifications/message')
+    .map(logToString);
+
+  const progress = notifications
+    ?.filter((notification) => notification.message.method === 'notifications/progress')
+    .map(notificationToProgress)
+    .reduce((map, item) => {
+      const key = item.progressToken;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(item);
+      return map;
+    }, new Map<string, Progress[]>());
+
+  const progressEntries = [...(progress?.values() || [])].map(
+    (entries) => entries.sort((a, b) => b.progress - a.progress)[0]
+  );
+
+  const isRenderingProgress =
+    loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
 
   const isShouldExpand = isExpandToolDetails || toolResults.some((v) => v.isExpandToolResults);
 
@@ -136,7 +196,7 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
 
   return (
     <ToolCallExpandable
-      isStartExpanded={isShouldExpand}
+      isStartExpanded={isShouldExpand || isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
         <>
@@ -155,6 +215,24 @@ function ToolCallView({ isCancelledMessage, toolCall, toolResponse }: ToolCallVi
           <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
         </div>
       )}
+
+      {logs && logs.length > 0 && (
+        <div className="bg-bgStandard mt-1">
+          <ToolLogsView
+            logs={logs}
+            working={toolResults.length === 0}
+            isStartExpanded={toolResults.length === 0}
+          />
+        </div>
+      )}
+
+      {toolResults.length === 0 &&
+        progressEntries.length > 0 &&
+        progressEntries.map((entry, index) => (
+          <div className="p-2" key={index}>
+            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+          </div>
+        ))}
 
       {/* Tool Output */}
       {!isCancelledMessage && (
@@ -234,3 +312,76 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
     </ToolCallExpandable>
   );
 }
+
+function ToolLogsView({
+  logs,
+  working,
+  isStartExpanded,
+}: {
+  logs: string[];
+  working: boolean;
+  isStartExpanded?: boolean;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Whenever logs update, jump to the newest entry
+  useEffect(() => {
+    if (boxRef.current) {
+      boxRef.current.scrollTop = boxRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  return (
+    <ToolCallExpandable
+      label={
+        <span className="pl-[19px] py-1">
+          <span>Logs</span>
+          {working && (
+            <div className="mx-2 inline-block">
+              <span
+                className="inline-block animate-spin rounded-full border-2 border-t-transparent border-current"
+                style={{ width: 8, height: 8 }}
+                role="status"
+                aria-label="Loading spinner"
+              />
+            </div>
+          )}
+        </span>
+      }
+      isStartExpanded={isStartExpanded}
+    >
+      <div
+        ref={boxRef}
+        className={`flex flex-col items-start space-y-2 overflow-y-auto ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'} bg-bgApp`}
+      >
+        {logs.map((log, i) => (
+          <span key={i} className="font-mono text-sm text-textSubtle">
+            {log}
+          </span>
+        ))}
+      </div>
+    </ToolCallExpandable>
+  );
+}
+
+const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken'>) => {
+  const isDeterminate = typeof total === 'number';
+  const percent = isDeterminate ? Math.min((progress / total!) * 100, 100) : 0;
+
+  return (
+    <div className="w-full space-y-2">
+      {message && <div className="text-sm text-gray-700">{message}</div>}
+
+      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden relative">
+        {isDeterminate ? (
+          <div
+            className="bg-blue-500 h-full transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        ) : (
+          <div className="absolute inset-0 animate-indeterminate bg-blue-500" />
+        )}
+      </div>
+    </div>
+  );
+};

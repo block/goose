@@ -44,7 +44,7 @@ export default function MoreMenuLayout({
                 >
                   <Document className="mr-1" />
                   <div className="max-w-[200px] truncate [direction:rtl]">
-                    {window.appConfig.get('GOOSE_WORKING_DIR')}
+                    {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
                   </div>
                 </button>
               </TooltipTrigger>
@@ -54,7 +54,10 @@ export default function MoreMenuLayout({
             </Tooltip>
           </TooltipProvider>
 
-          <MoreMenu setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+          <MoreMenu
+            setView={setView || (() => {})}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen || (() => {})}
+          />
         </div>
       )}
     </div>
