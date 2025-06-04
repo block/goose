@@ -1,0 +1,10 @@
+on:
+  workflow_dispatch:
+
+name: Trigger Build CLI
+
+jobs:
+  trigger-build-cli:
+    uses: ./.github/workflows/build-cli.yml
+    with:
+      ref: ${{ github.sha }}
