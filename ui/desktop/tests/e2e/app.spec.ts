@@ -179,7 +179,13 @@ test.describe('Goose App', () => {
     // Get the main window once for all tests
     mainWindow = await electronApp.firstWindow();
     await mainWindow.waitForLoadState('domcontentloaded');
-    await mainWindow.waitForLoadState('networkidle');
+    
+    // Try to wait for networkidle, but don't fail if it times out due to MCP activity
+    try {
+      await mainWindow.waitForLoadState('networkidle', { timeout: 10000 });
+    } catch (error) {
+      console.log('NetworkIdle timeout (likely due to MCP activity), continuing with test...');
+    }
 
     // Wait for React app to be ready by checking for the root element to have content
     await mainWindow.waitForFunction(() => {
@@ -417,7 +423,12 @@ test.describe('Goose App', () => {
           try {
             // Reload the page to ensure settings are fresh
             await mainWindow.reload();
-            await mainWindow.waitForLoadState('networkidle');
+            // Try to wait for networkidle, but don't fail if it times out due to MCP activity
+            try {
+              await mainWindow.waitForLoadState('networkidle', { timeout: 10000 });
+            } catch (error) {
+              console.log('NetworkIdle timeout (likely due to MCP activity), continuing with test...');
+            }
             await mainWindow.waitForLoadState('domcontentloaded');
             
             // Wait for React app to be ready
@@ -687,9 +698,18 @@ test.describe('Goose App', () => {
           }, initialMessages, { timeout: 30000 });
       
           // Get the latest response
-          const response = await mainWindow.locator('[data-testid="message-container"]').last();
+          const response = await mainWindow.waitForSelector('.goose-message-tool', { timeout: 5000 });
           expect(await response.isVisible()).toBe(true);
       
+          // Click the Output dropdown to reveal the actual quote
+                    await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response-debug.png` });
+          const element = await mainWindow.$('.goose-message-tool');
+          const html = await element.innerHTML();
+          console.log('HTML content:', html);
+          // Click the Runningquote dropdown to reveal the actual quote
+          const runningQuoteButton = await mainWindow.waitForSelector('div.goose-message-tool svg.rotate-90', { timeout: 5000 });
+          await runningQuoteButton.click();
+
           // Click the Output dropdown to reveal the actual quote
           const outputButton = await mainWindow.waitForSelector('button:has-text("Output")', { timeout: 5000 });
           await outputButton.click();

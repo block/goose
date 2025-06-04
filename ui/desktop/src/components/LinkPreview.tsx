@@ -54,9 +54,9 @@ async function fetchMetadata(url: string): Promise<Metadata> {
 
     return {
       title: title || url,
-      description,
+      description: description || undefined,
       favicon,
-      image,
+      image: image || undefined,
       url,
     };
   } catch (error) {

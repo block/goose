@@ -7,7 +7,11 @@ import { ScrollArea } from '../ui/scroll-area';
 import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
+import {
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  TextContent,
+} from '../../types/message';
 import { type Message } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
@@ -109,7 +113,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                 .map((message, index) => {
                   // Extract text content from the message
                   let textContent = message.content
-                    .filter((c) => c.type === 'text')
+                    .filter((c): c is TextContent => c.type === 'text')
                     .map((c) => c.text)
                     .join('\n');
 

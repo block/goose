@@ -94,11 +94,7 @@ export default function ChatInput({
 
     // Set the image to loading state
     setPastedImages((prev) =>
-      prev.map((img) =>
-        img.id === imageId
-          ? { ...img, isLoading: true, error: undefined }
-          : img
-      )
+      prev.map((img) => (img.id === imageId ? { ...img, isLoading: true, error: undefined } : img))
     );
 
     try {
@@ -149,19 +145,21 @@ export default function ChatInput({
 
   // Debounced function to update actual value
   const debouncedSetValue = useMemo(
-    () => debounce((value: string) => {
-      setValue(value);
-    }, 150),
+    () =>
+      debounce((value: string) => {
+        setValue(value);
+      }, 150),
     [setValue]
   );
 
   // Debounced autosize function
   const debouncedAutosize = useMemo(
-    () => debounce((element: HTMLTextAreaElement) => {
-      element.style.height = '0px'; // Reset height
-      const scrollHeight = element.scrollHeight;
-      element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-    }, 150),
+    () =>
+      debounce((element: HTMLTextAreaElement) => {
+        element.style.height = '0px'; // Reset height
+        const scrollHeight = element.scrollHeight;
+        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+      }, 150),
     [maxHeight]
   );
 
@@ -179,10 +177,10 @@ export default function ChatInput({
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+
     if (imageFiles.length === 0) return;
-    
+
     // Check if adding these images would exceed the limit
     if (pastedImages.length + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
       // Show error message to user
@@ -192,20 +190,20 @@ export default function ChatInput({
           id: `error-${Date.now()}`,
           dataUrl: '',
           isLoading: false,
-          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed.`
-        }
+          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed.`,
+        },
       ]);
-      
+
       // Remove the error message after 3 seconds
       setTimeout(() => {
-        setPastedImages((prev) => prev.filter(img => !img.id.startsWith('error-')));
+        setPastedImages((prev) => prev.filter((img) => !img.id.startsWith('error-')));
       }, 3000);
-      
+
       return;
     }
-    
+
     evt.preventDefault();
-    
+
     for (const file of imageFiles) {
       // Check individual file size before processing
       if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
@@ -216,18 +214,18 @@ export default function ChatInput({
             id: errorId,
             dataUrl: '',
             isLoading: false,
-            error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`
-          }
+            error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
+          },
         ]);
-        
+
         // Remove the error message after 3 seconds
         setTimeout(() => {
-          setPastedImages((prev) => prev.filter(img => img.id !== errorId));
+          setPastedImages((prev) => prev.filter((img) => img.id !== errorId));
         }, 3000);
-        
+
         continue;
       }
-      
+
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
@@ -365,7 +363,9 @@ export default function ChatInput({
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
-      handleSubmit(new CustomEvent('submit', { detail: { value: textToSend } }));
+      handleSubmit(
+        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+      );
 
       setDisplayValue('');
       setValue('');
@@ -502,7 +502,7 @@ export default function ChatInput({
                     className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                     aria-label="Remove image"
                   >
-                    <Close size={14} />
+                    <Close className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>

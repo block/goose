@@ -29,6 +29,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
 | `GOOSE_CLI_MIN_PRIORITY` | Tool output verbosity | Float between 0.0 and 1.0 | 0.0 | No |
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
+| `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
 
 ## Example Configuration
 
@@ -48,6 +49,9 @@ GOOSE_PLANNER_MODEL: "gpt-4"
 GOOSE_MODE: "smart_approve"
 GOOSE_TOOLSHIM: true
 GOOSE_CLI_MIN_PRIORITY: 0.2
+
+# Recipe Configuration
+GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
 
 # Extensions Configuration
 extensions:
