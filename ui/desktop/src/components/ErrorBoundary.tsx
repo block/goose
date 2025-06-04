@@ -51,7 +51,7 @@ export function ErrorUI({ error }: { error: Error }) {
 
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: Error; hasError: boolean }
+  { error: Error | null; hasError: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return <ErrorUI error={this.state.error} />;
+      return <ErrorUI error={this.state.error || new Error('Unknown error')} />;
     }
     return this.props.children;
   }

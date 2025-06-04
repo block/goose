@@ -1,4 +1,3 @@
-
 interface AgentHeaderProps {
   title: string;
   profileInfo?: string;

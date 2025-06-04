@@ -13,6 +13,7 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
+    snowflake::SnowflakeProvider,
     venice::VeniceProvider,
 };
 use crate::model::ModelConfig;
@@ -32,6 +33,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         OpenAiProvider::metadata(),
         OpenRouterProvider::metadata(),
         VeniceProvider::metadata(),
+        SnowflakeProvider::metadata(),
     ]
 }
 
@@ -49,6 +51,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
         "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
+        "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
         "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }

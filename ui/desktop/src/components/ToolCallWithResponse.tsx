@@ -129,7 +129,7 @@ function ToolCallView({
 
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse.toolResult.value
+      ? toolResponse!.toolResult.value
           .filter((item) => {
             const audience = item.annotations?.audience as string[] | undefined;
             return !audience || audience.includes('user');
@@ -322,7 +322,7 @@ function ToolLogsView({
   working: boolean;
   isStartExpanded?: boolean;
 }) {
-  const boxRef = useRef(null);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   // Whenever logs update, jump to the newest entry
   useEffect(() => {

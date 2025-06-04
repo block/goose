@@ -1,11 +1,4 @@
 # Configuration for cross-compiling using cross
-[build.env]
-passthrough = [
-    "PROTOC",
-    "RUST_LOG",
-    "RUST_BACKTRACE"
-]
-
 [target.aarch64-unknown-linux-gnu]
 xargo = false
 pre-build = [
@@ -51,7 +44,6 @@ pre-build = [
     protoc --version
     """
 ]
-env = { "PROTOC" = "/usr/bin/protoc", "PATH" = "/usr/local/bin:${PATH}" }
 
 [target.x86_64-pc-windows-gnu]
 image = "dockcross/windows-static-x64:latest"

@@ -151,7 +151,7 @@ export async function addExtension(
     toastError({
       title: extension.name,
       msg: 'Failed to add extension',
-      traceback: error.message,
+      traceback: error instanceof Error ? error.message : String(error),
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -193,7 +193,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     toastError({
       title: name,
       msg: 'Error removing extension',
-      traceback: error.message,
+      traceback: error instanceof Error ? error.message : String(error),
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -243,7 +243,6 @@ export async function loadAndAddStoredExtensions() {
     } else {
       console.log('Saving default builtin extensions to localStorage');
       // TODO - Revisit
-      // @ts-expect-error "we actually do always have all the properties required for builtins, but tsc cannot tell for some reason"
       BUILT_IN_EXTENSIONS.forEach(async (extension: FullExtensionConfig) => {
         storeExtensionConfig(extension);
         if (extension.enabled) {

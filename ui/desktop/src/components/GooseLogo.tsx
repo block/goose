@@ -6,7 +6,11 @@ interface GooseLogoProps {
   hover?: boolean;
 }
 
-export default function GooseLogo({ className = '', size = 'default', hover = true }: GooseLogoProps) {
+export default function GooseLogo({
+  className = '',
+  size = 'default',
+  hover = true,
+}: GooseLogoProps) {
   const sizes = {
     default: {
       frame: 'w-16 h-16',
@@ -19,9 +23,9 @@ export default function GooseLogo({ className = '', size = 'default', hover = tr
       goose: 'w-8 h-8',
     },
   } as const;
-  
+
   const currentSize = sizes[size];
-  
+
   return (
     <div
       className={`${className} ${currentSize.frame} ${hover ? 'group/with-hover' : ''} relative overflow-hidden`}

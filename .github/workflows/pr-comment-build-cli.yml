@@ -27,6 +27,7 @@ jobs:
     outputs:
       continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
+      head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
       - if: ${{ github.event_name == 'issue_comment' }}
         uses: github/command@v1.3.0
@@ -37,10 +38,26 @@ jobs:
           reaction: "eyes"
           allowed_contexts: pull_request
 
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        
+      - name: Get PR head SHA with gh
+        id: set_head_sha
+        run: |
+          echo "Get PR head SHA with gh"
+          HEAD_SHA=$(gh pr view "$ISSUE_NUMBER" --json headRefOid -q .headRefOid)
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.command.outputs.issue_number }}
+
   build-cli:
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/build-cli.yml
+    with:
+      ref: ${{ needs.trigger-on-command.outputs.head_sha }}
 
   pr-comment-cli:
     name: PR Comment with CLI builds

@@ -11,7 +11,6 @@ import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
-// import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -123,13 +122,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           if (!extension) return null;
 
           // Create a clean copy of the extension configuration
-          const cleanExtension = { ...extension };
-          delete cleanExtension.enabled;
+          const { enabled: _enabled, ...cleanExtension } = extension;
           // Remove legacy envs which could potentially include secrets
           // env_keys will work but rely on the end user having setup those keys themselves
           if ('envs' in cleanExtension) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            delete (cleanExtension as any).envs;
+            const { envs: _envs, ...finalExtension } = cleanExtension as any;
+            return finalExtension;
           }
           return cleanExtension;
         })
@@ -365,7 +364,14 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         recipe={getCurrentConfig()}
         onCreateSchedule={(deepLink) => {
           // Open the schedules view with the deep link pre-filled
-          window.electron.createChatWindow(undefined, undefined, undefined, undefined, undefined, 'schedules');
+          window.electron.createChatWindow(
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            'schedules'
+          );
           // Store the deep link in localStorage for the schedules view to pick up
           localStorage.setItem('pendingScheduleDeepLink', deepLink);
         }}
