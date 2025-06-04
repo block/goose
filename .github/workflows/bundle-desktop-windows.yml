@@ -22,19 +22,23 @@ jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
     runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x86_64-pc-windows-msvc]  # Using MSVC for better Windows compatibility
 
     steps:
       # 1) Check out source
       - name: Checkout repository
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
 
-      # 2) Set up Rust
+      # 2) Set up Rust with specific target
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b
-        # If you need a specific version, you could do:
-        # or uses: actions/setup-rust@v1
-        # with:
-        #   rust-version: 1.73.0
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: x86_64-pc-windows-msvc
 
       # 3) Set up Node.js
       - name: Set up Node.js
@@ -42,52 +46,112 @@ jobs:
         with:
           node-version: 16
 
-      # 4) Cache dependencies (optional, can add more paths if needed)
-      - name: Cache node_modules
+      # 4) Install protobuf
+      - name: Install protobuf
+        run: |
+          # Install protoc using chocolatey
+          choco install protoc --yes
+          refreshenv
+          
+          # Get the protoc path and verify it exists
+          $protocPath = "C:/ProgramData/chocolatey/bin/protoc.exe"
+          if (!(Test-Path $protocPath)) {
+            Write-Error "Protoc not found at expected path: $protocPath"
+            exit 1
+          }
+          
+          # Add to system PATH
+          $env:Path = "C:/ProgramData/chocolatey/bin;" + $env:Path
+          echo "C:/ProgramData/chocolatey/bin" >> $env:GITHUB_PATH
+          
+          # Set PROTOC environment variable
+          $env:PROTOC = $protocPath
+          echo "PROTOC=$protocPath" >> $env:GITHUB_ENV
+          
+          # Verify installation
+          Write-Host "Protoc version:"
+          & $protocPath --version
+          
+          Write-Host "Protoc location:"
+          Get-Command protoc | Format-List *
+          
+          Write-Host "Testing protoc functionality..."
+          $testProto = @"
+          syntax = "proto3";
+          package test;
+          message Test {
+            string test_field = 1;
+          }
+          "@
+          
+          $testProto | Out-File -FilePath "test.proto"
+          & $protocPath test.proto
+          
+          Write-Host "Environment variables:"
+          Write-Host "PROTOC: $env:PROTOC"
+          Write-Host "PATH: $env:Path"
+        shell: powershell
+
+      # 6) Install MinGW
+      - name: Install MinGW
+        run: |
+          choco install mingw --version=8.1.0 --yes
+          refreshenv
+
+      # 7) Cache dependencies
+      - name: Calculate source hash
+        id: source_hash
+        shell: bash
+        run: |
+          SOURCE_HASH=$(find . -type f -name "*.rs" -exec sha256sum {} \; | sort | sha256sum | cut -d ' ' -f1)
+          echo "hash=${SOURCE_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Cache Cargo
+        id: cargo-cache
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
             node_modules
             ui/desktop/node_modules
-          key: ${{ runner.os }}-build-desktop-windows-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-cargo-v2-msvc-${{ hashFiles('**/Cargo.lock') }}-${{ steps.source_hash.outputs.hash }}
           restore-keys: |
-            ${{ runner.os }}-build-desktop-windows-
+            ${{ runner.os }}-cargo-v2-msvc-${{ hashFiles('**/Cargo.lock') }}-
+            ${{ runner.os }}-cargo-v2-msvc-
 
-      # 5) Install top-level dependencies if a package.json is in root
-      - name: Install top-level deps
+      # 7) Build rust with MSVC toolchain
+      - name: Build Release Binary
         run: |
-          if (Test-Path package.json) {
-            npm install
-          }
+          # Verify protoc is still accessible
+          Write-Host "Verifying protoc before build:"
+          Write-Host "PROTOC: $env:PROTOC"
+          Write-Host "PATH: $env:Path"
+          protoc --version
+          
+          # Run the build
+          cargo build --release --target x86_64-pc-windows-msvc -j 4
+        env:
+          CARGO_BUILD_JOBS: "4"
+          RUSTFLAGS: "-C opt-level=3"
+          CARGO_INCREMENTAL: "0"
+          PROTOC: "C:/ProgramData/chocolatey/bin/protoc.exe"
+          PATH: "C:/ProgramData/chocolatey/bin;${{ env.PATH }}"
 
-      # 6) Build rust for x86_64-pc-windows-gnu
-      - name: Install MinGW dependencies
-        run: |
-          choco install mingw --version=8.1.0
-          # Debug - check installation paths
-          Write-Host "Checking MinGW installation..."
-          Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\mingw" -Recurse -Filter "*.dll" | ForEach-Object {
-            Write-Host $_.FullName
-          }
-          Get-ChildItem -Path "C:\tools" -Recurse -Filter "*.dll" | ForEach-Object {
-            Write-Host $_.FullName
-          }
-
-      - name: Cargo build for Windows
-        run: |
-          cargo build --release --target x86_64-pc-windows-gnu
-
-      # 7) Check that the compiled goosed.exe exists and copy exe/dll to ui/desktop/src/bin
+      # 8) Check that the compiled goosed.exe exists and copy to ui/desktop/src/bin
       - name: Prepare Windows binary and DLLs
         run: |
-          if (!(Test-Path .\target\x86_64-pc-windows-gnu\release\goosed.exe)) {
-            Write-Error "Windows binary not found."; exit 1;
+          $binaryPath = ".\target\${{ matrix.target }}\release\goosed.exe"
+          if (!(Test-Path $binaryPath)) {
+            Write-Error "Windows binary not found at $binaryPath"; exit 1;
           }
+          
           Write-Host "Copying Windows binary and DLLs to ui/desktop/src/bin..."
           if (!(Test-Path ui\desktop\src\bin)) {
             New-Item -ItemType Directory -Path ui\desktop\src\bin | Out-Null
           }
-          Copy-Item .\target\x86_64-pc-windows-gnu\release\goosed.exe ui\desktop\src\bin\
+          Copy-Item $binaryPath ui\desktop\src\bin\
           
           # Copy MinGW DLLs - try both possible locations
           $mingwPaths = @(
@@ -106,18 +170,18 @@ jobs:
           }
           
           # Copy any other DLLs from the release directory
-          ls .\target\x86_64-pc-windows-gnu\release\*.dll | ForEach-Object {
-            Copy-Item $_ ui\desktop\src\bin\
+          Get-ChildItem ".\target\${{ matrix.target }}\release\*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName ui\desktop\src\bin\
           }
 
-      # 8) Install & build UI desktop
+      # 9) Install & build UI desktop
       - name: Build desktop UI with npm
         run: |
           cd ui\desktop
           npm install
           npm run bundle:windows
 
-      # 9) Copy exe/dll to final out/Goose-win32-x64/resources/bin
+      # 10) Copy exe/dll to final out/Goose-win32-x64/resources/bin
       - name: Copy exe/dll to out folder
         run: |
           cd ui\desktop
@@ -125,13 +189,12 @@ jobs:
             New-Item -ItemType Directory -Path .\out\Goose-win32-x64\resources\bin | Out-Null
           }
           Copy-Item .\src\bin\goosed.exe .\out\Goose-win32-x64\resources\bin\
-          ls .\src\bin\*.dll | ForEach-Object {
-            Copy-Item $_ .\out\Goose-win32-x64\resources\bin\
+          Get-ChildItem .\src\bin\*.dll -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName .\out\Goose-win32-x64\resources\bin\
           }
 
-      # 10) Code signing (if enabled)
+      # 11) Code signing (if enabled)
       - name: Sign Windows executable
-        # Skip this step by default - enable when we have a certificate
         if: inputs.signing && inputs.signing == true
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -149,7 +212,7 @@ jobs:
           # Clean up the certificate
           Remove-Item -Path $certPath
 
-      # 11) Upload the final Windows build
+      # 12) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
