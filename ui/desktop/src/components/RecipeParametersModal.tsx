@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Recipe, RecipeParameter } from '../recipe';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from './ui/modal';
 import { Button } from './ui/button';
