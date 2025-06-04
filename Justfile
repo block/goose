@@ -25,7 +25,15 @@ release-windows:
             rust:latest \
             sh -c "rustup target add x86_64-pc-windows-gnu && \
                 apt-get update && \
-                apt-get install -y mingw-w64 && \
+                apt-get install -y mingw-w64 protobuf-compiler cmake && \
+                export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
+                export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
+                export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
+                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
+                export PKG_CONFIG_ALLOW_CROSS=1 && \
+                export PROTOC=/usr/bin/protoc && \
+                export PATH=/usr/bin:\$PATH && \
+                protoc --version && \
                 cargo build --release --target x86_64-pc-windows-gnu && \
                 GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
                 cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
