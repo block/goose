@@ -291,13 +291,10 @@ function ChatContent({
     }
   }, [messages]);
 
-  useEffect(() => {
-    const prompt = recipeConfig?.prompt;
-    if (prompt && !hasSentPromptRef.current && readyForAutoUserPrompt) {
-      append(prompt);
-      hasSentPromptRef.current = true;
-    }
-  }, [recipeConfig?.prompt, append, readyForAutoUserPrompt]);
+  // Pre-fill input with recipe prompt instead of auto-sending it
+  const initialPrompt = useMemo(() => {
+    return recipeConfig?.prompt || '';
+  }, [recipeConfig?.prompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -632,7 +629,7 @@ function ChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input}
+            initialValue={_input || initialPrompt}
             setView={setView}
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}
