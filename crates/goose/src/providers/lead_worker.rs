@@ -179,40 +179,15 @@ impl LeadWorkerProvider {
                 *count += 1;
             }
             Err(_) => {
-                // Technical failure - increment failure count and check for fallback
-                let mut failures = self.failure_count.lock().await;
-                *failures += 1;
-
-                let failure_count = *failures;
-                let turn_count = *self.turn_count.lock().await;
-
+                // Technical failure - just log and let it bubble up
+                // For technical failures (API/LLM issues), we don't want to second-guess
+                // the model choice - just let the default model handle it
                 tracing::warn!(
-                    "Technical failure detected (failure count: {})",
-                    failure_count
+                    "Technical failure detected - API/LLM issue, will use default model"
                 );
 
-                // Only trigger fallback if we're past initial lead turns and not already in fallback
-                if turn_count >= self.lead_turns
-                    && !*self.in_fallback_mode.lock().await
-                    && failure_count >= self.max_failures_before_fallback
-                {
-                    let mut in_fallback = self.in_fallback_mode.lock().await;
-                    let mut fallback_remaining = self.fallback_remaining.lock().await;
-
-                    *in_fallback = true;
-                    *fallback_remaining = self.fallback_turns;
-                    *failures = 0; // Reset failure count when entering fallback
-
-                    tracing::warn!(
-                        "🔄 SWITCHING TO LEAD MODEL: Entering fallback mode after {} consecutive technical failures - using lead model for {} turns",
-                        self.max_failures_before_fallback,
-                        self.fallback_turns
-                    );
-                }
-
-                // Still increment turn count even on technical failure
-                let mut count = self.turn_count.lock().await;
-                *count += 1;
+                // Don't increment turn count or failure tracking for technical failures
+                // as these are temporary infrastructure issues, not model capability issues
             }
         }
     }
@@ -380,10 +355,34 @@ impl Provider for LeadWorkerProvider {
         // Make the completion request
         let result = provider.complete(system, messages, tools).await;
 
-        // Handle the result and update tracking
-        self.handle_completion_result(&result).await;
+        // For technical failures, try with default model (lead provider) instead
+        let final_result = match &result {
+            Err(_) => {
+                tracing::warn!("Technical failure with {} provider, retrying with default model (lead provider)", provider_type);
 
-        result
+                // Try with lead provider as the default/fallback for technical failures
+                let default_result = self.lead_provider.complete(system, messages, tools).await;
+
+                match &default_result {
+                    Ok(_) => {
+                        tracing::info!(
+                            "✅ Default model (lead provider) succeeded after technical failure"
+                        );
+                        default_result
+                    }
+                    Err(_) => {
+                        tracing::error!("❌ Default model (lead provider) also failed - returning original error");
+                        result // Return the original error
+                    }
+                }
+            }
+            Ok(_) => result, // Success with original provider
+        };
+
+        // Handle the result and update tracking (only for successful completions)
+        self.handle_completion_result(&final_result).await;
+
+        final_result
     }
 
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
@@ -513,11 +512,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fallback_on_failures() {
+    async fn test_technical_failure_retry() {
         let lead_provider = Arc::new(MockFailureProvider {
             name: "lead".to_string(),
             model_config: ModelConfig::new("lead-model".to_string()),
-            should_fail: false,
+            should_fail: false, // Lead provider works
         });
 
         let worker_provider = Arc::new(MockFailureProvider {
@@ -536,57 +535,61 @@ mod tests {
             assert!(!provider.is_in_fallback_mode().await);
         }
 
-        // Next turn uses worker (will fail)
+        // Next turn uses worker (will fail, but should retry with lead and succeed)
         let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_err());
-        assert_eq!(provider.get_failure_count().await, 1);
-        assert!(!provider.is_in_fallback_mode().await);
+        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
+        assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
+        assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures
+        assert!(!provider.is_in_fallback_mode().await); // Not in fallback mode
 
-        // Another failure should trigger fallback mode
+        // Another turn - should still try worker first, then retry with lead
         let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_err());
-        assert!(provider.is_in_fallback_mode().await);
+        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
+        assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
+        assert_eq!(provider.get_failure_count().await, 0); // Still no failure tracking
+        assert!(!provider.is_in_fallback_mode().await); // Still not in fallback mode
+    }
 
-        // Now we should be using lead provider in fallback mode
-        // Temporarily make worker succeed to test fallback
+    #[tokio::test]
+    async fn test_fallback_on_task_failures() {
+        // Test that task failures (not technical failures) still trigger fallback mode
+        // This would need a different mock that simulates task failures in successful responses
+        // For now, we'll test the fallback mode functionality directly
+        let lead_provider = Arc::new(MockFailureProvider {
+            name: "lead".to_string(),
+            model_config: ModelConfig::new("lead-model".to_string()),
+            should_fail: false,
+        });
+
         let worker_provider = Arc::new(MockFailureProvider {
             name: "worker".to_string(),
             model_config: ModelConfig::new("worker-model".to_string()),
             should_fail: false,
         });
 
-        // Create new provider with non-failing worker for fallback test
-        let provider2 = LeadWorkerProvider::new(
-            Arc::new(MockFailureProvider {
-                name: "lead".to_string(),
-                model_config: ModelConfig::new("lead-model".to_string()),
-                should_fail: false,
-            }),
-            worker_provider,
-            Some(2),
-        );
+        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(2));
 
         // Simulate being in fallback mode
         {
-            let mut in_fallback = provider2.in_fallback_mode.lock().await;
+            let mut in_fallback = provider.in_fallback_mode.lock().await;
             *in_fallback = true;
-            let mut fallback_remaining = provider2.fallback_remaining.lock().await;
+            let mut fallback_remaining = provider.fallback_remaining.lock().await;
             *fallback_remaining = 2;
-            let mut turn_count = provider2.turn_count.lock().await;
+            let mut turn_count = provider.turn_count.lock().await;
             *turn_count = 4; // Past initial lead turns
         }
 
         // Should use lead provider in fallback mode
-        let result = provider2.complete("system", &[], &[]).await;
+        let result = provider.complete("system", &[], &[]).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().1.model, "lead");
-        assert!(provider2.is_in_fallback_mode().await);
+        assert!(provider.is_in_fallback_mode().await);
 
         // One more fallback turn
-        let result = provider2.complete("system", &[], &[]).await;
+        let result = provider.complete("system", &[], &[]).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().1.model, "lead");
-        assert!(!provider2.is_in_fallback_mode().await); // Should exit fallback mode
+        assert!(!provider.is_in_fallback_mode().await); // Should exit fallback mode
     }
 
     #[derive(Clone)]
