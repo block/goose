@@ -660,6 +660,12 @@ impl McpSpinners {
     }
 
     pub fn hide(&mut self) -> Result<(), Error> {
+        self.bars.iter_mut().for_each(|(_, bar)| {
+            bar.disable_steady_tick();
+        });
+        if let Some(spinner) = self.log_spinner.as_mut() {
+            spinner.disable_steady_tick();
+        }
         self.multi_bar.clear()
     }
 }
