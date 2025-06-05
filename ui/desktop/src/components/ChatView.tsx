@@ -26,6 +26,7 @@ import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import { toast } from 'react-toastify';
 import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
@@ -109,6 +110,7 @@ function ChatContent({
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
+  const [isBranching, setIsBranching] = useState<boolean>(false);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -549,6 +551,51 @@ function ChatContent({
     e.preventDefault();
   };
 
+  const handleBranchFromMessage = async (messageIndex: number) => {
+    try {
+      setIsBranching(true);
+
+      // Get the truncated messages array (include messages up to and including messageIndex)
+      const truncatedMessages = [...ancestorMessages, ...messages].slice(0, messageIndex + 1);
+
+      // Generate a new session ID
+      const newSessionId = generateSessionId();
+
+      // Create metadata for the new session
+      const metadata = {
+        description: `Branched from ${chat.id}`,
+        message_count: truncatedMessages.length,
+        total_tokens: null,
+        working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+      };
+
+      // Open a new chat window with the branch session ID and pass the truncated messages
+      window.electron.createChatWindow(
+        undefined, // query
+        window.appConfig.get('GOOSE_WORKING_DIR') as string, // dir
+        undefined, // version
+        newSessionId, // resumeSessionId
+        undefined, // recipeConfig
+        undefined, // viewType
+        {
+          branchData: {
+            metadata,
+            messages: truncatedMessages
+          }
+        } // additional data
+      );
+
+      toast.success(`Created new branch from message ${messageIndex + 1}`);
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      toast.error(
+        `Failed to create branch: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsBranching(false);
+    }
+  };
+
   const toolCallNotifications = notifications.reduce((map, item) => {
     const key = item.request_id;
     if (!map.has(key)) {
@@ -596,6 +643,14 @@ function ChatContent({
             />
           ) : (
             <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+              {isBranching && (
+                  <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
+                      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg flex items-center space-x-3">
+                          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-textStandard"></div>
+                          <span>Creating branch...</span>
+                      </div>
+                  </div>
+              )}
               <SearchView>
                 {filteredMessages.map((message, index) => (
                   <div
@@ -614,7 +669,11 @@ function ChatContent({
                             contextType={getContextHandlerType(message)}
                           />
                         ) : (
-                          <UserMessage message={message} />
+                          <UserMessage
+                              message={message}
+                              messageIndex={index}
+                              onBranch={handleBranchFromMessage}
+                          />
                         )}
                       </>
                     ) : (
@@ -639,6 +698,8 @@ function ChatContent({
                               setMessages(updatedMessages);
                             }}
                             toolCallNotifications={toolCallNotifications}
+                            messageIndex={index}
+                            onBranch={handleBranchFromMessage}
                           />
                         )}
                       </>
