@@ -18,6 +18,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { GitBranch } from 'lucide-react';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -29,6 +30,8 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
+  messageIndex?: number;
+  onBranch?: (messageIndex: number) => void;
 }
 
 export default function GooseMessage({
@@ -39,6 +42,8 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   appendMessage,
+  messageIndex,
+  onBranch,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -75,12 +80,9 @@ export default function GooseMessage({
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
 
-  // Extract URLs under a few conditions
-  // 1. The message is purely text
-  // 2. The link wasn't also present in the previous message
-  // 3. The message contains the explicit http:// or https:// protocol at the beginning
-  const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
-  const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+  // Find the last assistant message with the tool call
+  const messageIdx = messages?.findIndex((msg) => msg.id === message.id);
+  const previousMessage = messageIdx > 0 ? messages[messageIdx - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
 
@@ -92,8 +94,8 @@ export default function GooseMessage({
     const responseMap = new Map();
 
     // Look for tool responses in subsequent messages
-    if (messageIndex !== undefined && messageIndex >= 0) {
-      for (let i = messageIndex + 1; i < messages.length; i++) {
+    if (messageIdx !== undefined && messageIdx >= 0) {
+      for (let i = messageIdx + 1; i < messages.length; i++) {
         const responses = getToolResponses(messages[i]);
 
         for (const response of responses) {
@@ -107,13 +109,13 @@ export default function GooseMessage({
     }
 
     return responseMap;
-  }, [messages, messageIndex, toolRequests]);
+  }, [messages, messageIdx, toolRequests]);
 
   useEffect(() => {
     // If the message is the last message in the resumed session and has tool confirmation, it means the tool confirmation
     // is broken or cancelled, to contonue use the session, we need to append a tool response to avoid mismatch tool result error.
     if (
-      messageIndex === messageHistoryIndex - 1 &&
+      messageIdx === messageHistoryIndex - 1 &&
       hasToolConfirmation &&
       toolConfirmationContent
     ) {
@@ -122,7 +124,7 @@ export default function GooseMessage({
       );
     }
   }, [
-    messageIndex,
+    messageIdx,
     messageHistoryIndex,
     hasToolConfirmation,
     toolConfirmationContent,
@@ -168,7 +170,16 @@ export default function GooseMessage({
                 </div>
               )}
               {displayText && message.content.every((content) => content.type === 'text') && (
-                <div className="absolute left-0 pt-1">
+                <div className="absolute left-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {onBranch && messageIndex !== undefined && (
+                    <button
+                      onClick={() => onBranch(messageIndex)}
+                      title="Branch from this message"
+                      className="text-textSubtle hover:text-textStandard transition-colors"
+                    >
+                      <GitBranch className="w-4 h-4" />
+                    </button>
+                  )}
                   <MessageCopyLink text={displayText} contentRef={contentRef} />
                 </div>
               )}
@@ -186,7 +197,7 @@ export default function GooseMessage({
                 <ToolCallWithResponse
                   // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
                   isCancelledMessage={
-                    messageIndex < messageHistoryIndex &&
+                    messageIdx < messageHistoryIndex &&
                     toolResponsesMap.get(toolRequest.id) == undefined
                   }
                   toolRequest={toolRequest}
@@ -195,16 +206,29 @@ export default function GooseMessage({
                 />
               </div>
             ))}
-            <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-              {timestamp}
+            <div className="relative">
+              <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                {timestamp}
+              </div>
+              <div className="absolute left-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                {onBranch && messageIndex !== undefined && (
+                  <button
+                    onClick={() => onBranch(messageIndex)}
+                    title="Branch from this message"
+                    className="text-textSubtle hover:text-textStandard transition-colors"
+                  >
+                    <GitBranch className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         {hasToolConfirmation && (
           <ToolCallConfirmation
-            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
-            isClicked={messageIndex < messageHistoryIndex - 1}
+            isCancelledMessage={messageIdx == messageHistoryIndex - 1}
+            isClicked={messageIdx < messageHistoryIndex - 1}
             toolConfirmationId={toolConfirmationContent.id}
             toolName={toolConfirmationContent.toolName}
           />
