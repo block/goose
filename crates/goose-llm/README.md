@@ -62,16 +62,12 @@ Creating `libgoose_llm.so` for Linux distribution:
 
 Use `cross` to build for the specific target and then create the bindings:
 ```
-# x86-64 GNU/Linux
+# x86-64 GNU/Linux (kGoose uses this)
 rustup target add x86_64-unknown-linux-gnu
 cross build --release --target x86_64-unknown-linux-gnu -p goose-llm
 
-# aarch64 GNU/Linux
-rustup target add aarch64-unknown-linux-gnu
-cross build --release --target aarch64-unknown-linux-gnu -p goose-llm
-
 # The goose_llm.kt bindings produced should be the same whether we use 'libgoose_llm.dylib' or 'libgoose_llm.so'
-cross run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/{TARGET}/debug/libgoose_llm.so --language kotlin --out-dir bindings/kotlin
+cross run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/x86_64-unknown-linux-gnu/release/libgoose_llm.so --language kotlin --out-dir bindings/kotlin
 ```
 
 
