@@ -17,6 +17,12 @@ fn get_home_dir() -> PathBuf {
         .to_path_buf()
 }
 
+fn get_current_working_dir() -> PathBuf {
+    std::env::current_dir()
+        .or_else(|_| Ok::<PathBuf, io::Error>(get_home_dir()))
+        .expect("could not determine the current working directory")
+}
+
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMetadata {
@@ -69,7 +75,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         let working_dir = helper
             .working_dir
             .filter(|path| path.exists())
-            .unwrap_or_else(get_home_dir);
+            .unwrap_or_else(get_current_working_dir);
 
         Ok(SessionMetadata {
             description: helper.description,
@@ -112,7 +118,7 @@ impl SessionMetadata {
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new(get_home_dir())
+        Self::new(get_current_working_dir())
     }
 }
 
@@ -589,6 +595,7 @@ mod tests {
 
         // Create metadata with non-existent directory
         let invalid_dir = PathBuf::from("/path/that/does/not/exist");
+
         let metadata = SessionMetadata::new(invalid_dir.clone());
 
         // Should fall back to home directory
@@ -611,7 +618,7 @@ mod tests {
         // Read back - should fall back to home dir
         let read_metadata = read_metadata(&file_path)?;
         assert_ne!(read_metadata.working_dir, invalid_dir);
-        assert_eq!(read_metadata.working_dir, get_home_dir());
+        assert_eq!(read_metadata.working_dir, get_current_working_dir());
 
         Ok(())
     }
