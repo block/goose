@@ -51,7 +51,7 @@ To reiterate, **every single line in your `.goosehints` file gets sent with ever
 
 This is particularly important for users who are paying for their own LLM access (like ChatGPT or Gemini). Here's why:
 
-- **Input Tokens = Real Money**: Every line in your `.goosehints` file consumes input tokens. The LLM must process these tokens as part of its system instructions before it even looks at your question. While a small `.goosehints` file might not seem like a big deal, it can quickly add up if you're not careful. All-day 
+- **Input Tokens = Real Money**: Every line in your `.goosehints` file consumes input tokens. The LLM must process these tokens as part of its system instructions before it even looks at your question. While a small `.goosehints` file might not seem like a big deal, it can quickly add up if you're not careful. All-day vibe coding sessions are going to be using lots of tokens just interpreting that whole `.goosehints` file every time.
 
 - **Context Window Impact**: Large `.goosehints` files eat into your [context window](https://zapier.com/blog/context-window/#:~:text=The%20cons%20of%20a%20large%20context%20window%20in%20AI&text=The%20requirements%20to%20process%20AI,request%2C%20things%20quickly%20add%20up.), which is the amount of information the LLM can consider at one time. If your `.goosehints` file is too big, it can push out important context from your actual question or task, leading to less accurate or helpful responses.
 
@@ -130,11 +130,11 @@ Share your own `.goosehints` optimization stories in the [Goose community on Dis
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/05/whats-in-my-goosehints-file" />
   <meta property="og:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory Extension for better performance and maintainability." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goosehints-vs-memory.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/blog-banner-7f0e5ed1cf875e64e3ebb3250932baaf.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="What's in my .goosehints file (and why it probably shouldn't be)" />
   <meta name="twitter:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory Extension for better performance and maintainability." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goosehints-vs-memory.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blog-banner-7f0e5ed1cf875e64e3ebb3250932baaf.png" />
   <meta name="keywords" content="Goose; .goosehints; Memory Extension MCP; AI configuration; performance optimization; developer productivity; context management; AI assistant; token costs; LLM efficiency" />
 </head>
