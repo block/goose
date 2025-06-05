@@ -531,52 +531,62 @@ impl DeveloperRouter {
             let mut stdout_buf = Vec::new();
             let mut stderr_buf = Vec::new();
 
+            let mut stdout_done = false;
+            let mut stderr_done = false;
+
             loop {
                 tokio::select! {
-                    n = stdout_reader.read_until(b'\n', &mut stdout_buf) => {
+                    n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
                         if n? == 0 {
-                            break;
+                            stdout_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stdout_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stdout",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stdout_buf.clear();
                         }
-                        let line = String::from_utf8_lossy(&stdout_buf);
-
-                        notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                            jsonrpc: "2.0".to_string(),
-                            method: "notifications/message".to_string(),
-                            params: Some(json!({
-                                "data": {
-                                    "type": "shell",
-                                    "stream": "stdout",
-                                    "output": line.to_string(),
-                                }
-                            })),
-                        }))
-                        .ok();
-
-                        combined_output.push_str(&line);
-                        stdout_buf.clear();
                     }
-                    n = stderr_reader.read_until(b'\n', &mut stderr_buf) => {
+
+                    n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
                         if n? == 0 {
-                            break;
+                            stderr_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stderr_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stderr",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stderr_buf.clear();
                         }
-                        let line = String::from_utf8_lossy(&stderr_buf);
-
-                        notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                            jsonrpc: "2.0".to_string(),
-                            method: "notifications/message".to_string(),
-                            params: Some(json!({
-                                "data": {
-                                    "type": "shell",
-                                    "stream": "stderr",
-                                    "output": line.to_string(),
-                                }
-                            })),
-                        }))
-                        .ok();
-
-                        combined_output.push_str(&line);
-                        stderr_buf.clear();
                     }
+
+                    else => break,
+                }
+
+                if stdout_done && stderr_done {
+                    break;
                 }
             }
             Ok::<_, std::io::Error>(combined_output)
