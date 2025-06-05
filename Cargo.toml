@@ -9,3 +9,7 @@ authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
 description = "An AI agent"
+
+# Patch for Windows cross-compilation issue with crunchy
+[patch.crates-io]
+crunchy = { git = "https://github.com/nmathewson/crunchy", branch = "cross-compilation-fix" }

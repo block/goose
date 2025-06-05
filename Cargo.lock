@@ -2072,8 +2072,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 [[package]]
 name = "crunchy"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
+source = "git+https://github.com/nmathewson/crunchy?branch=cross-compilation-fix#260ec5f08969480c342bb3fe47f88870ed5c6cce"
 
 [[package]]
 name = "crypto-common"

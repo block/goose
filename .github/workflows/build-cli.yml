@@ -20,6 +20,10 @@ on:
         type: string
         required: false
         default: '["x86_64","aarch64"]'
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
 
 name: "Reusable workflow to build CLI"
 
@@ -41,6 +45,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
