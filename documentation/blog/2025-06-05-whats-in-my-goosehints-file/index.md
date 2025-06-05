@@ -9,7 +9,7 @@ authors:
 
 # What's in my .goosehints file (and why it probably shouldn't be)
 
-As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the Memory MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to Memory MCP, and how to make that choice.
+As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the Memory MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to Memory MCP, and how you can make that choice.
 
 <!-- truncate -->
 
@@ -29,13 +29,15 @@ Let's explore how to strike that balance.
 
 `.goosehints` is a configuration file that lives in your Goose directory (usually `~/.config/goose/`). It can contain any information that you want Goose to process every time you interact with Goose, providing a foundation for how it interacts with you.
 
+You can read more about `.goosehints` in the [Goose documentation](/docs/guides/using-goosehints).
+
 ### What is Memory MCP?
 
-[Memory MCP](http://localhost:3000/goose/docs/tutorials/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `.goose/memory` directory (local) or `~/.config/goose/memory` (global).
+[Memory MCP](/docs/tutorials/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `~/.goose/memory` directory (local) or `~/.config/goose/memory` (global).
 
 Unlike `.goosehints`, which is static and loaded entirely with every request, Memory MCP can be updated and accessed as needed, allowing for more flexible and user-specific configurations.
 
-## How are .goosthints and Memory MCP used in Goose?
+## How are .goosehints and Memory MCP used in Goose?
 
 At a very high level, when you have a conversation with Goose, it processes your request in two main steps:
 
@@ -51,7 +53,7 @@ This is particularly important for users who are paying for their own LLM access
 
 - **Input Tokens = Real Money**: Every line in your `.goosehints` file consumes input tokens. The LLM must process these tokens as part of its system instructions before it even looks at your question. While a small `.goosehints` file might not seem like a big deal, it can quickly add up if you're not careful. All-day 
 
-- **Context Window Impact**: Large `.goosehints` files eat into your context window, which is the amount of information the LLM can consider at once. If your `.goosehints` file is too big, it can push out important context from your actual question or task, leading to less accurate or helpful responses.
+- **Context Window Impact**: Large `.goosehints` files eat into your [context window](https://zapier.com/blog/context-window/#:~:text=The%20cons%20of%20a%20large%20context%20window%20in%20AI&text=The%20requirements%20to%20process%20AI,request%2C%20things%20quickly%20add%20up.), which is the amount of information the LLM can consider at one time. If your `.goosehints` file is too big, it can push out important context from your actual question or task, leading to less accurate or helpful responses.
 
 This means a large `.goosehints` file can:
 - Increase your AI costs
@@ -126,7 +128,7 @@ Share your own `.goosehints` optimization stories in the [Goose community on Dis
 <head>
   <meta property="og:title" content="What's in my .goosehints file (and why it probably shouldn't be)" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/04/whats-in-my-goosehints-file" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/05/whats-in-my-goosehints-file" />
   <meta property="og:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory MCP for better performance and maintainability." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goosehints-vs-memory.png" />
   <meta name="twitter:card" content="summary_large_image" />
