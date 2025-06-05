@@ -106,7 +106,8 @@ async fn main() -> Result<()> {
             provider.to_string(),
             provider_config.clone(),
             model_config.clone(),
-            system_preamble.to_string(),
+            Some(system_preamble.to_string()),
+            None,
             messages.clone(),
             extensions.clone(),
         ))
