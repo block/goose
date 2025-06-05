@@ -49,13 +49,28 @@ curl -O https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.ja
 popd
 ```
 
-To just create the Kotlin bindings:
+To just create the Kotlin bindings (for MacOS):
 
 ```bash
 # run from project root directory
 cargo build -p goose-llm 
 
 cargo run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/debug/libgoose_llm.dylib --language kotlin --out-dir bindings/kotlin
+```
+
+Creating `libgoose_llm.so` for Linux distribution:
+
+Use `cross` to build for the specific target and then create the bindings:
+```
+# x86-64 GNU/Linux
+rustup target add x86_64-unknown-linux-gnu
+cross build --release --target x86_64-unknown-linux-gnu -p goose-llm
+
+# aarch64 GNU/Linux
+rustup target add aarch64-unknown-linux-gnu
+cross build --release --target aarch64-unknown-linux-gnu -p goose-llm
+
+cross run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/{TARGET}/debug/libgoose_llm.so --language kotlin --out-dir bindings/kotlin
 ```
 
 
