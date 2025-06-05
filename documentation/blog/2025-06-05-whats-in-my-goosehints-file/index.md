@@ -1,6 +1,6 @@
 ---
 title: "What's in my .goosehints file (and why it probably shouldn't be)"
-description: A deep dive into .goosehints vs Memory MCP, and how to optimize your Goose configuration for better performance
+description: A deep dive into .goosehints vs Memory Extension, and how to optimize your Goose configuration for better performance
 authors:
     - ian
 ---
@@ -9,7 +9,7 @@ authors:
 
 # What's in my .goosehints file (and why it probably shouldn't be)
 
-As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the [Memory Extension](/docs/tutorials/memory-mcp) MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to Memory MCP, and how you can make that choice.
+As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the [Memory Extension](/docs/tutorials/memory-mcp) MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to the Memory Extension, and how you can make that choice.
 
 <!-- truncate -->
 
@@ -31,17 +31,17 @@ Let's explore how to strike that balance.
 
 You can read more about `.goosehints` in the [Goose documentation](/docs/guides/using-goosehints).
 
-### What is Memory MCP?
+### What is the Memory Extension?
 
-[Memory MCP](/docs/tutorials/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `~/.goose/memory` directory (local) or `~/.config/goose/memory` (global).
+The [Memory Extension](/docs/tutorials/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `~/.goose/memory` directory (local) or `~/.config/goose/memory` (global).
 
-Unlike `.goosehints`, which is static and loaded entirely with every request, Memory MCP can be updated and accessed as needed, allowing for more flexible and user-specific configurations.
+Unlike `.goosehints`, which is static and loaded entirely with every request, Memory Extension can be updated and accessed as needed, allowing for more flexible and user-specific configurations.
 
-## How are .goosehints and Memory MCP used in Goose?
+## How are .goosehints and Memory Extension used in Goose?
 
 At a very high level, when you have a conversation with Goose, it processes your request in two main steps:
 
-Goose interprets your request to detect tags or keywords needed for possible Memory MCP lookups. Then it loads your entire `.goosehints` file, and sends that, along with any relevant Memory MCP entries to the LLM to generate a response.
+Goose interprets your request to detect tags or keywords needed for possible Memory Extension lookups. Then it loads your entire `.goosehints` file, and sends that, along with any relevant Memory Extension entries to the LLM to generate a response.
 
 ![how a user interaction works with Goose](goosehints-vs-memory.png)
 
@@ -82,9 +82,9 @@ I also like to end many of my prompts asking if Goose has any clarifying questio
 
 Since these are things that I definitely want to add to every request I make to Goose, I've simplified my .goosehints file to include only these types of rules and standards.
 
-## Everything else got moved into Memory MCP
+## Everything else got moved into the Memory Extension
 
-Memory MCP uses a tagging system to remember context based on keywords. You can give Goose a command to "remember" something, and Goose will write a Memory entry with appropriate tags. The next time you ask Goose to do something with Python, it will parse your request, look for relevant tags, and use appropriate Memory entries to send as part of the context for just that request.
+The Memory Extension uses a tagging system to remember context based on keywords. You can give Goose a command to "remember" something, and Goose will write a Memory entry with appropriate tags. The next time you ask Goose to do something with Python, it will parse your request, look for relevant tags, and use appropriate Memory entries to send as part of the context for just that request.
 
 So all of my Python rules can be written as a command to Goose like this:
 
@@ -121,7 +121,7 @@ The first line starts with a hash `#` and a space-separated list of keywords and
 
 ## To hint, or not to hint?
 
-While `.goosehints` is powerful, it's important to use it judiciously. By moving appropriate content to Memory MCP, you can optimize your Goose experience and keep your AI context use more efficient. Remember: every line in `.goosehints` is sent with every request, so choose wisely what goes there.
+While `.goosehints` is powerful, it's important to use it judiciously. By moving appropriate content to the Memory Extension, you can optimize your Goose experience and keep your AI context use more efficient. Remember: every line in `.goosehints` is sent with every request, so choose wisely what goes there.
 
 Share your own `.goosehints` optimization stories in the [Goose community on Discord](http://discord.gg/block-opensource)!
 
@@ -129,12 +129,12 @@ Share your own `.goosehints` optimization stories in the [Goose community on Dis
   <meta property="og:title" content="What's in my .goosehints file (and why it probably shouldn't be)" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/05/whats-in-my-goosehints-file" />
-  <meta property="og:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory MCP for better performance and maintainability." />
+  <meta property="og:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory Extension for better performance and maintainability." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goosehints-vs-memory.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="What's in my .goosehints file (and why it probably shouldn't be)" />
-  <meta name="twitter:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory MCP for better performance and maintainability." />
+  <meta name="twitter:description" content="Learn how to optimize your Goose configuration by understanding when to use .goosehints vs Memory Extension for better performance and maintainability." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goosehints-vs-memory.png" />
-  <meta name="keywords" content="Goose; .goosehints; Memory MCP; AI configuration; performance optimization; developer productivity; context management; AI assistant; token costs; LLM efficiency" />
+  <meta name="keywords" content="Goose; .goosehints; Memory Extension MCP; AI configuration; performance optimization; developer productivity; context management; AI assistant; token costs; LLM efficiency" />
 </head>
