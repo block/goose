@@ -16,7 +16,8 @@ pub struct CompletionRequest {
     pub provider_name: String,
     pub provider_config: serde_json::Value,
     pub model_config: ModelConfig,
-    pub system_preamble: String,
+    pub system_preamble: Option<String>,
+    pub system_prompt_override: Option<String>,
     pub messages: Vec<Message>,
     pub extensions: Vec<ExtensionConfig>,
 }
@@ -26,7 +27,8 @@ impl CompletionRequest {
         provider_name: String,
         provider_config: serde_json::Value,
         model_config: ModelConfig,
-        system_preamble: String,
+        system_preamble: Option<String>,
+        system_prompt_override: Option<String>,
         messages: Vec<Message>,
         extensions: Vec<ExtensionConfig>,
     ) -> Self {
@@ -34,6 +36,7 @@ impl CompletionRequest {
             provider_name,
             provider_config,
             model_config,
+            system_prompt_override,
             system_preamble,
             messages,
             extensions,
@@ -41,12 +44,13 @@ impl CompletionRequest {
     }
 }
 
-#[uniffi::export]
+#[uniffi::export(default(system_preamble = None,  system_prompt_override = None))]
 pub fn create_completion_request(
     provider_name: &str,
     provider_config: JsonValueFfi,
     model_config: ModelConfig,
-    system_preamble: &str,
+    system_preamble: Option<String>,
+    system_prompt_override: Option<String>,
     messages: Vec<Message>,
     extensions: Vec<ExtensionConfig>,
 ) -> CompletionRequest {
@@ -54,7 +58,8 @@ pub fn create_completion_request(
         provider_name.to_string(),
         provider_config,
         model_config,
-        system_preamble.to_string(),
+        system_preamble,
+        system_prompt_override,
         messages,
         extensions,
     )
