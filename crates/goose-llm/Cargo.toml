@@ -59,3 +59,8 @@ path = "uniffi-bindgen.rs"
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+
+
+[[example]]
+name = "icecream"
+path = "examples/icecream.rs"
