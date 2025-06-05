@@ -1664,10 +1664,38 @@ app.whenReady().then(async () => {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
+    (_, query, dir, version, resumeSessionId, recipeConfig, viewType, additionalData) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : null;
+      }
+
+      // Handle branch data if provided
+      if (additionalData?.branchData) {
+        const { metadata, messages } = additionalData.branchData;
+        const sessionDir = path.join(app.getPath('home'), '.local', 'share', 'goose', 'sessions');
+        
+        // Create the directory if it doesn't exist
+        try {
+          if (!fsSync.existsSync(sessionDir)) {
+            fsSync.mkdirSync(sessionDir, { recursive: true });
+          }
+          
+          // Create the new session file path
+          const newSessionPath = path.join(sessionDir, `${resumeSessionId}.jsonl`);
+          
+          // Write the metadata as the first line
+          fsSync.writeFileSync(newSessionPath, JSON.stringify(metadata) + '\n');
+          
+          // Write each message as a separate line
+          messages.forEach(message => {
+            fsSync.appendFileSync(newSessionPath, JSON.stringify(message) + '\n');
+          });
+          
+          console.log(`Created branch session: ${resumeSessionId} with ${messages.length} messages`);
+        } catch (error) {
+          console.error('Error creating session branch file:', error);
+        }
       }
 
       // Log the recipeConfig for debugging
