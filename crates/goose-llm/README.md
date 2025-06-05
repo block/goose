@@ -70,6 +70,7 @@ cross build --release --target x86_64-unknown-linux-gnu -p goose-llm
 rustup target add aarch64-unknown-linux-gnu
 cross build --release --target aarch64-unknown-linux-gnu -p goose-llm
 
+# The goose_llm.kt bindings produced should be the same whether we use 'libgoose_llm.dylib' or 'libgoose_llm.so'
 cross run --features=uniffi/cli --bin uniffi-bindgen generate --library ./target/{TARGET}/debug/libgoose_llm.so --language kotlin --out-dir bindings/kotlin
 ```
 
