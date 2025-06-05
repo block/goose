@@ -213,14 +213,14 @@ async fn update_agent_provider(
     // Process recipe parameters if provided
     if let Some(recipe_with_params) = payload.recipe_config {
         let mut recipe = recipe_with_params.config;
-        
+
         if !recipe_with_params.parameters.is_empty() {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 apply_recipe_parameters(&mut recipe, &recipe_with_params.parameters);
             }))
             .map_err(|_| StatusCode::BAD_REQUEST)?;
         }
-        
+
         if let Some(instructions) = recipe.instructions.clone() {
             agent.extend_system_prompt(instructions).await;
         }

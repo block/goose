@@ -283,7 +283,8 @@ impl RecipeBuilder {
 // Applies template parameters to all fields in a Recipe.
 pub fn apply_recipe_parameters(recipe: &mut Recipe, params: &HashMap<String, String>) {
     let recipe_json = serde_json::to_string(recipe).expect("Failed to serialize recipe");
-    let rendered_json = render_inline_once(&recipe_json, params).expect("Failed to render template");
+    let rendered_json =
+        render_inline_once(&recipe_json, params).expect("Failed to render template");
     *recipe = serde_json::from_str(&rendered_json).expect("Failed to deserialize rendered recipe");
 }
 
@@ -303,9 +304,7 @@ mod tests {
                 "Learn about {{ topic }}".to_string(),
                 "Practice {{ skill }}".to_string(),
             ]),
-            context: Some(vec![
-                "Context: {{ context_info }}".to_string(),
-            ]),
+            context: Some(vec!["Context: {{ context_info }}".to_string()]),
             extensions: None,
             author: None,
             parameters: None,
@@ -321,15 +320,25 @@ mod tests {
 
         apply_recipe_parameters(&mut recipe, &params);
 
-        assert_eq!(recipe.instructions, Some("Hello Alice, welcome to Wonderland!".to_string()));
-        assert_eq!(recipe.prompt, Some("Your task is solve puzzles".to_string()));
-        assert_eq!(recipe.activities, Some(vec![
-            "Learn about logic".to_string(),
-            "Practice critical thinking".to_string(),
-        ]));
-        assert_eq!(recipe.context, Some(vec![
-            "Context: fantasy world".to_string(),
-        ]));
+        assert_eq!(
+            recipe.instructions,
+            Some("Hello Alice, welcome to Wonderland!".to_string())
+        );
+        assert_eq!(
+            recipe.prompt,
+            Some("Your task is solve puzzles".to_string())
+        );
+        assert_eq!(
+            recipe.activities,
+            Some(vec![
+                "Learn about logic".to_string(),
+                "Practice critical thinking".to_string(),
+            ])
+        );
+        assert_eq!(
+            recipe.context,
+            Some(vec!["Context: fantasy world".to_string(),])
+        );
     }
 
     #[test]
@@ -376,8 +385,14 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("version".to_string(), "2.0.0".to_string());
         params.insert("title".to_string(), "Rendered Title".to_string());
-        params.insert("description".to_string(), "Rendered Description".to_string());
-        params.insert("instructions".to_string(), "Rendered Instructions".to_string());
+        params.insert(
+            "description".to_string(),
+            "Rendered Description".to_string(),
+        );
+        params.insert(
+            "instructions".to_string(),
+            "Rendered Instructions".to_string(),
+        );
         params.insert("prompt".to_string(), "Rendered Prompt".to_string());
         params.insert("activity".to_string(), "Rendered Activity".to_string());
         params.insert("context".to_string(), "Rendered Context".to_string());
@@ -388,9 +403,15 @@ mod tests {
         assert_eq!(recipe.version, "2.0.0");
         assert_eq!(recipe.title, "Rendered Title");
         assert_eq!(recipe.description, "Rendered Description");
-        assert_eq!(recipe.instructions, Some("Rendered Instructions".to_string()));
+        assert_eq!(
+            recipe.instructions,
+            Some("Rendered Instructions".to_string())
+        );
         assert_eq!(recipe.prompt, Some("Rendered Prompt".to_string()));
-        assert_eq!(recipe.activities, Some(vec!["Rendered Activity".to_string()]));
+        assert_eq!(
+            recipe.activities,
+            Some(vec!["Rendered Activity".to_string()])
+        );
         assert_eq!(recipe.context, Some(vec!["Rendered Context".to_string()]));
     }
 }
