@@ -82,7 +82,6 @@ export default function ChatView({
 }
 
 function ChatContent({
-  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
@@ -103,7 +102,6 @@ function ChatContent({
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const hasSentPromptRef = useRef(false);
 
   const {
     summaryContent,
@@ -295,29 +293,34 @@ function ChatContent({
     }
   }, [messages]);
 
-  useEffect(() => {
-    const prompt = recipeConfig?.prompt;
+  // useEffect(() => {
+  //   const prompt = recipeConfig?.prompt;
 
-    // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
-    // This is because the recipe config and parameters are available before full app initialization
-    const hasParameterValues =
-      recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
+  //   // Allow recipe prompts with parameter values to proceed even if app isn't fully ready
+  //   // This is because the recipe config and parameters are available before full app initialization
+  //   const hasParameterValues =
+  //     recipeConfig?._paramValues && Object.keys(recipeConfig._paramValues).length > 0;
 
-    // Also allow recipes that have no parameters field at all (including when we remove parameters during cancellation)
-    const hasNoParameters = recipeConfig && !recipeConfig.parameters;
+  //   // Also allow recipes that have no parameters field at all (including when we remove parameters during cancellation)
+  //   const hasNoParameters = recipeConfig && !recipeConfig.parameters;
 
-    const shouldProceed = readyForAutoUserPrompt || hasParameterValues || hasNoParameters;
+  //   const shouldProceed = readyForAutoUserPrompt || hasParameterValues || hasNoParameters;
 
-    if (prompt && !hasSentPromptRef.current && shouldProceed) {
-      // Start the power save blocker to keep session active
-      window.electron.startPowerSaveBlocker();
-      setLastInteractionTime(Date.now());
+  //   if (prompt && !hasSentPromptRef.current && shouldProceed) {
+  //     // Start the power save blocker to keep session active
+  //     window.electron.startPowerSaveBlocker();
+  //     setLastInteractionTime(Date.now());
 
-      // Send the prompt directly - let useMessageStream handle the rest
-      append(prompt);
-      hasSentPromptRef.current = true;
-    }
-  }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
+  //     // Send the prompt directly - let useMessageStream handle the rest
+  //     append(prompt);
+  //     hasSentPromptRef.current = true;
+  //   }
+  // }, [recipeConfig, append, setLastInteractionTime, readyForAutoUserPrompt]);
+
+  // Pre-fill input with recipe prompt instead of auto-sending it
+  const initialPrompt = useMemo(() => {
+    return recipeConfig?.prompt || '';
+  }, [recipeConfig?.prompt]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -652,7 +655,7 @@ function ChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input}
+            initialValue={_input || initialPrompt}
             setView={setView}
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}
