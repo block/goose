@@ -1,6 +1,7 @@
 # Goose Web Interface
 
-The `goose web` command provides a web-based chat interface for interacting with Goose.
+The `goose web` command provides a (preview) web-based chat interface for interacting with Goose.
+Do not expose this publicly - this is in a preview state as an option.
 
 ## Usage
 
