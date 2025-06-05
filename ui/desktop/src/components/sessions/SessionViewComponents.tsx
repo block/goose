@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, AlertCircle } from 'lucide-react';
+import { MessageSquare, AlertCircle, GitBranch } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import BackButton from '../ui/BackButton';
@@ -77,6 +77,7 @@ export interface SessionMessagesProps {
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
+  onBranchFromMessage?: (messageIndex: number) => void;
 }
 
 /**
@@ -87,6 +88,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
   isLoading,
   error,
   onRetry,
+  onBranchFromMessage,
 }) => {
   return (
     <ScrollArea className="h-full w-full">
@@ -156,9 +158,20 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                         <span className="font-medium text-textStandard">
                           {message.role === 'user' ? 'You' : 'Goose'}
                         </span>
-                        <span className="text-xs text-textSubtle">
-                          {formatMessageTimestamp(message.created)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {onBranchFromMessage && (
+                            <button
+                              onClick={() => onBranchFromMessage(index)}
+                              title="Branch from this message"
+                              className="text-textSubtle hover:text-textStandard transition-colors"
+                            >
+                              <GitBranch className="w-4 h-4" />
+                            </button>
+                          )}
+                          <span className="text-xs text-textSubtle">
+                            {formatMessageTimestamp(message.created)}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex flex-col w-full">
