@@ -353,6 +353,7 @@ impl Config {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&self.config_path)?;
 
         // Acquire an exclusive lock for the entire operation
