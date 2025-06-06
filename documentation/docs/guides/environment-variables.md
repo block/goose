@@ -9,6 +9,7 @@ Goose supports various environment variables that allow you to customize its beh
 ## Model Configuration
 
 These variables control the [language models](/docs/getting-started/providers) and their behavior.
+
 ### Basic Provider Configuration
 
 These are the minimum required variables to get started with Goose.
@@ -27,6 +28,7 @@ export GOOSE_PROVIDER="anthropic"
 export GOOSE_MODEL="claude-3.5-sonnet"
 export GOOSE_TEMPERATURE=0.7
 ```
+
 ### Advanced Provider Configuration
 
 These variables are needed when using custom endpoints, enterprise deployments, or specific provider implementations.
@@ -45,7 +47,34 @@ export GOOSE_PROVIDER__TYPE="anthropic"
 export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
-## Planning Mode Configuration
+
+### Lead/Worker Model Configuration
+
+Configure a lead/worker model pattern where a powerful model handles initial planning and complex reasoning, then switches to a faster/cheaper model for execution.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Specifies the lead model name | Model name (e.g., "gpt-4o", "claude-3.5-sonnet") | None |
+| `GOOSE_LEAD_PROVIDER` | Provider for the lead model | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to GOOSE_PROVIDER |
+| `GOOSE_LEAD_TURNS` | Number of initial turns using the lead model | Integer | 3 |
+| `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before fallback to lead model | Integer | 2 |
+| `GOOSE_LEAD_FALLBACK_TURNS` | Number of turns to use lead model in fallback mode | Integer | 2 |
+
+**Examples**
+
+```bash
+# Basic lead/worker setup
+export GOOSE_LEAD_MODEL="o4"
+
+# Advanced lead/worker configuration
+export GOOSE_LEAD_MODEL="claude4-opus"
+export GOOSE_LEAD_PROVIDER="anthropic"
+export GOOSE_LEAD_TURNS=5
+export GOOSE_LEAD_FAILURE_THRESHOLD=3
+export GOOSE_LEAD_FALLBACK_TURNS=2
+```
+
+### Planning Mode Configuration
 
 These variables control Goose's [planning functionality](/docs/guides/creating-plans).
 

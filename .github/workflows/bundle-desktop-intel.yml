@@ -21,6 +21,10 @@ on:
         required: false
         default: true
         type: boolean
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'
@@ -77,6 +81,9 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       # Update versions before build
       - name: Update versions

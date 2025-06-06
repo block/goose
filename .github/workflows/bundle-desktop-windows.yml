@@ -17,6 +17,10 @@ on:
         required: false
       WINDOWS_CERTIFICATE_PASSWORD:
         required: false
+    ref:
+      type: string
+      required: false
+      default: 'refs/heads/main'
 
 jobs:
   build-desktop-windows:
@@ -27,6 +31,9 @@ jobs:
       # 1) Check out source
       - name: Checkout repository
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       # 2) Set up Node.js
       - name: Set up Node.js

@@ -5,6 +5,9 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches:
+      - main
   workflow_dispatch:
 
 name: CI
@@ -24,7 +27,7 @@ jobs:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
     steps:
-          # Add disk space cleanup before linting
+      # Add disk space cleanup before linting
       - name: Check disk space before build
         run: df -h
 
@@ -45,7 +48,7 @@ jobs:
             /usr/share/swift
 
           df -h
-          
+
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
@@ -130,6 +133,6 @@ jobs:
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     with:
       signing: false
