@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
@@ -20,6 +20,7 @@ import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
+import { RecipeParametersView } from './components/RecipeParametersView';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -45,7 +46,8 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
-  | 'permission';
+  | 'permission'
+  | 'recipeParameters';
 
 export type ViewOptions = {
   // Settings view options
@@ -132,6 +134,38 @@ export default function App() {
     setInternalView({ view, viewOptions });
   };
 
+  const initializeProviderAndModel = useCallback(async (): Promise<{
+    provider: string;
+    model: string;
+  } | null> => {
+    const config = window.electron.getConfig();
+    const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+    const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+    if (!provider || !model) {
+      console.log('Missing required configuration, showing onboarding');
+      setView('welcome');
+      return null;
+    }
+
+    try {
+      await initializeSystem(provider as string, model as string, {
+        getExtensions,
+        addExtension,
+      });
+      return { provider: provider as string, model: model as string };
+    } catch (error) {
+      console.error('Error in initialization:', error);
+
+      if (error instanceof MalformedConfigError) {
+        throw error;
+      }
+
+      setView('welcome');
+      return null;
+    }
+  }, [read, getExtensions, addExtension]);
+
   useEffect(() => {
     if (initAttemptedRef.current) {
       console.log('Initialization already attempted, skipping...');
@@ -149,10 +183,14 @@ export default function App() {
       if (viewType === 'recipeEditor' && recipeConfig) {
         console.log('Setting view to recipeEditor with config:', recipeConfig);
         setView('recipeEditor', { config: recipeConfig });
+        return;
+      } else if (viewType === 'chat' && recipeConfig) {
+        console.log('App: Chat view requested with recipe config - checking for parameters...');
+        // Don't return here - fall through to parameter detection logic
       } else {
         setView(viewType as View);
+        return;
       }
-      return;
     }
 
     const initializeApp = async () => {
@@ -176,6 +214,24 @@ export default function App() {
           return;
         }
 
+        // Check if we have a recipe with parameters that need to be filled
+        if (
+          recipeConfig &&
+          typeof recipeConfig === 'object' &&
+          'parameters' in recipeConfig &&
+          Array.isArray(recipeConfig.parameters) &&
+          recipeConfig.parameters.length > 0 &&
+          !('_paramValues' in recipeConfig)
+        ) {
+          const initResult = await initializeProviderAndModel();
+          if (!initResult) {
+            return;
+          }
+
+          setView('recipeParameters', { config: recipeConfig as Recipe });
+          return;
+        }
+
         const config = window.electron.getConfig();
         const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
@@ -195,8 +251,10 @@ export default function App() {
             setView('welcome');
           }
         } else {
-          console.log('Missing required configuration, showing onboarding');
-          setView('welcome');
+          const initResult = await initializeProviderAndModel();
+          if (initResult) {
+            setView('chat');
+          }
         }
       } catch (error) {
         setFatalError(
@@ -216,7 +274,7 @@ export default function App() {
         setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     })();
-  }, [read, getExtensions, addExtension]);
+  }, [read, getExtensions, addExtension, initializeProviderAndModel]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -225,8 +283,8 @@ export default function App() {
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
-    console.log('Sending reactReady signal to Electron');
     try {
+      console.log('Sending reactReady signal to Electron');
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
@@ -320,7 +378,9 @@ export default function App() {
       }
     }
     window.electron.on('set-view', handleSetView);
-    return () => window.electron.off('set-view', handleSetView);
+    return () => {
+      window.electron.off('set-view', handleSetView);
+    };
   }, []);
 
   useEffect(() => {
@@ -552,6 +612,15 @@ export default function App() {
           {view === 'permission' && (
             <PermissionSettingsView
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}
+            />
+          )}
+          {view === 'recipeParameters' && (
+            <RecipeParametersView
+              onClose={() => setView('chat')}
+              config={
+                (viewOptions?.config as Recipe) ||
+                (window.electron.getConfig().recipeConfig as Recipe | undefined)
+              }
             />
           )}
         </div>

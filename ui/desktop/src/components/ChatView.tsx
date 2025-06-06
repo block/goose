@@ -114,16 +114,15 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
+  // Get recipe config from app config
+  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+
   useEffect(() => {
-    // Log all messages when the component first mounts
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount;
-
-  // Get recipeConfig directly from appConfig
-  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -170,6 +169,11 @@ function ChatContent({
           body: 'Click here to expand.',
         });
       }
+    },
+    onError: (error) => {
+      console.error('Message stream error:', error);
+      window.electron.logInfo('Message stream error: ' + error.message);
+      window.electron.stopPowerSaveBlocker();
     },
   });
 
