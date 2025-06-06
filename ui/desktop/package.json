@@ -109,6 +109,7 @@
     "dotenv": "^16.4.5",
     "electron-log": "^5.2.2",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-window-state": "^5.0.3",
     "express": "^4.21.1",
     "framer-motion": "^11.11.11",
     "lodash": "^4.17.21",
