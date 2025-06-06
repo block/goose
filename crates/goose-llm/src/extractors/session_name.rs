@@ -1,6 +1,6 @@
-use crate::generate_structured_outputs;
 use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
+use crate::{generate_structured_outputs, ModelConfig};
 use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
 use anyhow::Result;
 use indoc::indoc;
@@ -51,6 +51,7 @@ fn build_system_prompt() -> String {
 pub async fn generate_session_name(
     provider_name: &str,
     provider_config: JsonValueFfi,
+    model_config: ModelConfig,
     messages: &[Message],
 ) -> Result<String, ProviderError> {
     // Collect up to the first 3 user messages (truncated to 300 chars each)
@@ -90,6 +91,7 @@ pub async fn generate_session_name(
     let resp = generate_structured_outputs(
         provider_name,
         provider_config,
+        model_config,
         &system_prompt,
         &[Message::user().with_text(&user_msg_text)],
         schema,
