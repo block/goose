@@ -1,0 +1,27 @@
+{
+  "id": "data-name-column-split",
+  "title": "Clean Excel Data",
+  "description": "Automatically organize messy data by splitting and reformatting columns",
+  "category": "Technical",
+  "function": "data",
+  "extensions": ["computercontroller", "google_drive", "developer"],
+  "prompt": "I'll help you split the names in Column C into separate First Name and Last Name columns. Let me analyze and modify your spreadsheet:\n\n1. First, I'll check the current structure of your spreadsheet\n2. Then I'll create a script to:\n   - Read the full names from Column C\n   - Split each name into first and last components\n   - Keep the first name in Column C\n   - Add the last names in Column D\n3. Finally, I'll save the changes back to your file\n\nPlease provide the path to your Excel file and I'll help you split the names.",
+  "example": "For a spreadsheet containing:\nColumn C (Name)\nJohn Smith\nJane Doe\n\nWill be split into:\nColumn C (First Name) | Column D (Last Name)\nJohn                  | Smith\nJane                  | Doe",
+  "tags": ["excel", "data", "spreadsheet", "name-splitting", "data-cleanup"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "file_path": {
+      "description": "Path to the Excel file",
+      "required": true
+    },
+    "worksheet_name": {
+      "description": "Name of the worksheet containing the data (optional - will use first worksheet if not specified)",
+      "required": false
+    }
+  }
+}
