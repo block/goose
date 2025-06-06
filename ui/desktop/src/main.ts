@@ -1059,6 +1059,39 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
+ipcMain.handle('delete-session-file', async (_event, sessionId) => {
+  try {
+    // Validate sessionId format (should be a date-based ID like YYYYMMDD_HHMMSS)
+    if (!sessionId || typeof sessionId !== 'string' || !/^\d{8}_\d{6}$/.test(sessionId)) {
+      console.error(`Invalid session ID format: ${sessionId}`);
+      return false;
+    }
+
+    // Get the sessions directory path
+    const sessionDir = path.join(app.getPath('home'), '.local', 'share', 'goose', 'sessions');
+    const sessionFilePath = path.join(sessionDir, `${sessionId}.jsonl`);
+
+    // Ensure the path is within the sessions directory (security check)
+    const resolvedPath = path.resolve(sessionFilePath);
+    const resolvedSessionDir = path.resolve(sessionDir);
+    if (!resolvedPath.startsWith(resolvedSessionDir + path.sep)) {
+      console.error(`Attempted path traversal detected: ${sessionFilePath}`);
+      return false;
+    }
+
+    // Check if the file exists
+    await fs.access(sessionFilePath);
+
+    // Delete the file
+    await fs.unlink(sessionFilePath);
+    console.log(`Session file deleted: ${sessionFilePath}`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting session file for ${sessionId}:`, error);
+    return false;
+  }
+});
+
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     const cat = spawn('cat', [filePath]);
