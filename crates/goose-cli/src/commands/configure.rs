@@ -887,7 +887,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     let mode = cliclack::select("Which Goose mode would you like to configure?")
         .item(
             "auto",
-            "Auto Mode", 
+            "Auto Mode",
             "Full file modification, extension usage, edit, create and delete files freely"
         )
         .item(
