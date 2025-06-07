@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="documentation/docs/assets/goose-logo.png" alt="Goose Logo" width="200">
 
 # codename goose
 
@@ -55,8 +56,21 @@ Both patterns help you balance model capabilities with cost and speed for optima
 - [Tutorials](https://block.github.io/goose/docs/category/tutorials)
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 
+## Key Features
 
-# Goose Around with Us
+- **Runs Locally** - Execute tasks efficiently with full control
+- **Extensible** - Connect to any LLM, MCP server, or API
+- **Autonomous** - Independently handles complex tasks from debugging to deployment
+- **Open Source** - Built with transparency and collaboration in mind
+
+## Getting Started
+
+Check out our [documentation](https://block.github.io/goose), or to try it out head to the [installation](https://block.github.io/goose/docs/getting-started/installation) instructions!
+
+## Community
+
+Join our growing community:
+- [GitHub](https://github.com/block/goose/blob/main/CONTRIBUTING.md) - Contribute to the project
 - [Discord](https://discord.gg/block-opensource)
 - [YouTube](https://www.youtube.com/@blockopensource)
 - [LinkedIn](https://www.linkedin.com/company/block-opensource)
