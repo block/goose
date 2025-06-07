@@ -12,6 +12,8 @@ use utoipa::ToSchema;
 pub enum ToolError {
     #[error("Invalid parameters: {0}")]
     InvalidParameters(String),
+    #[error("Internal error: {0}")]
+    InternalError(String),
     #[error("Execution failed: {0}")]
     ExecutionError(String),
     #[error("Schema error: {0}")]
