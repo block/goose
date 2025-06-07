@@ -81,11 +81,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install and configure sccache
+        run: |
+          cargo binstall sccache --no-confirm
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_DIR=$HOME/.cache/sccache" >> $GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=3500M" >> $GITHUB_ENV
+          
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-
+
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           source ../bin/activate-hermit && cargo test
         working-directory: crates
+        
+      - name: Show sccache stats
+        run: |
+          echo "📊 sccache stats:"
+          sccache --show-stats || echo "sccache not found or failed to report stats"
 
       # Add disk space cleanup before linting
       - name: Check disk space before cleanup
@@ -129,10 +152,3 @@ jobs:
       - name: Run Lint
         run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
-
-  # Faster Desktop App build for PRs only
-  bundle-desktop-unsigned:
-    uses: ./.github/workflows/bundle-desktop.yml
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-    with:
-      signing: false
