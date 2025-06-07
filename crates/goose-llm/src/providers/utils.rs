@@ -1,9 +1,9 @@
-use std::{env, io::Read, path::Path};
+use std::{env, io::Read, path::Path, time::Duration};
 
 use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
-use reqwest::{Response, StatusCode};
+use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, Value};
 
@@ -33,6 +33,52 @@ impl Default for Timeout {
     fn default() -> Self {
         Timeout(60)
     }
+}
+
+/// Configuration for mutual TLS
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MutualTlsConfig {
+    pub client_cert_path: Option<String>,
+    pub client_key_path: Option<String>,
+    pub ca_cert_path: Option<String>,
+}
+
+/// Build a reqwest client with optional mutual TLS configuration
+pub fn build_http_client(
+    timeout_secs: u64,
+    mtls_config: Option<&MutualTlsConfig>,
+) -> Result<Client> {
+    let mut client_builder = Client::builder().timeout(Duration::from_secs(timeout_secs));
+
+    if let Some(mtls) = mtls_config {
+        // Load client certificate and key if both are provided
+        if let (Some(cert_path), Some(key_path)) = (&mtls.client_cert_path, &mtls.client_key_path) {
+            let cert_pem = std::fs::read(cert_path)
+                .map_err(|e| anyhow::anyhow!("Failed to read client certificate: {}", e))?;
+            let key_pem = std::fs::read(key_path)
+                .map_err(|e| anyhow::anyhow!("Failed to read client key: {}", e))?;
+
+            let identity = reqwest::Identity::from_pem(&[&cert_pem[..], &key_pem[..]].concat())
+                .map_err(|e| anyhow::anyhow!("Failed to create client identity: {}", e))?;
+
+            client_builder = client_builder.identity(identity);
+        }
+
+        // Load CA certificate if provided
+        if let Some(ca_path) = &mtls.ca_cert_path {
+            let ca_cert = std::fs::read(ca_path)
+                .map_err(|e| anyhow::anyhow!("Failed to read CA certificate: {}", e))?;
+
+            let ca_cert = reqwest::Certificate::from_pem(&ca_cert)
+                .map_err(|e| anyhow::anyhow!("Failed to parse CA certificate: {}", e))?;
+
+            client_builder = client_builder.add_root_certificate(ca_cert);
+        }
+    }
+
+    client_builder
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))
 }
 
 /// Convert an image content into an image json based on format
@@ -355,5 +401,37 @@ mod tests {
         assert!(is_valid_function_name("hello_world"));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
+    }
+
+    #[test]
+    fn test_build_http_client_without_mtls() {
+        let client = build_http_client(30, None);
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_build_http_client_with_empty_mtls() {
+        let mtls_config = MutualTlsConfig::default();
+        let client = build_http_client(30, Some(&mtls_config));
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_build_http_client_with_invalid_cert_paths() {
+        let mtls_config = MutualTlsConfig {
+            client_cert_path: Some("nonexistent_cert.pem".to_string()),
+            client_key_path: Some("nonexistent_key.pem".to_string()),
+            ca_cert_path: Some("nonexistent_ca.pem".to_string()),
+        };
+        let client = build_http_client(30, Some(&mtls_config));
+        assert!(client.is_err());
+    }
+
+    #[test]
+    fn test_mutual_tls_config_default() {
+        let config = MutualTlsConfig::default();
+        assert!(config.client_cert_path.is_none());
+        assert!(config.client_key_path.is_none());
+        assert!(config.ca_cert_path.is_none());
     }
 }
