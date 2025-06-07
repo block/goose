@@ -32,7 +32,64 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`                                                                                                                                                                |
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
 
-   
+## Supported Models by Provider
+
+Rather than attempting to maintain a comprehensive list of models that changes frequently, below are links to each provider's official model documentation. These resources will always have the most up-to-date information about available models and their capabilities.
+
+:::tip Google Gemini vs. GCP Vertex AI
+Google offers two separate providers with different models and configuration requirements:
+
+- **Google Gemini** - Direct API with simple API key setup, focused on Gemini models only
+- **GCP Vertex AI** - Enterprise platform requiring GCP project setup, offering both Google models AND third-party models like Claude
+
+Choose Google Gemini for simpler setup or GCP Vertex AI for enterprise features and additional model options.
+:::
+
+:::tip Anthropic vs. AWS Bedrock
+You can access Claude models in two ways:
+
+- **Anthropic** - Direct API from Anthropic, requires an Anthropic API key
+- **AWS Bedrock** - Access through AWS, requires AWS credentials and uses different model names
+
+Choose based on your existing infrastructure and API key availability.
+:::
+
+:::tip OpenAI vs. Azure OpenAI
+You can access OpenAI models in two ways:
+
+- **OpenAI** - Direct API from OpenAI, requires an OpenAI API key
+- **Azure OpenAI** - Access through Microsoft Azure, requires Azure setup and supports Azure credential chain
+
+Use Azure OpenAI for enterprise compliance, data residency requirements, or if you already have Azure infrastructure.
+:::
+
+### Provider Model Documentation
+
+| Provider | Default Model in Goose | Official Model Documentation |
+|----------|------------------------|------------------------------|
+| OpenAI | `gpt-4o` | [OpenAI Models Reference](https://platform.openai.com/docs/models) |
+| Anthropic | `claude-3-5-sonnet-20240620` | [Anthropic Model Overview](https://docs.anthropic.com/en/docs/about-claude/models/overview) |
+| Google Gemini | `gemini-1.5-flash` | [Google Gemini API Models](https://ai.google.dev/gemini-api/docs/models) |
+| GitHub Copilot | `gpt-4o` | [GitHub Copilot AI Models](https://docs.github.com/en/copilot/using-github-copilot/ai-models) |
+| Azure OpenAI | `gpt-4o` | [Azure OpenAI Models](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models) |
+| Ollama | *user-specified* | [Ollama Models Library](https://ollama.com/library) |
+| AWS Bedrock | *user-specified* | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) |
+| Databricks | `goose` | [Databricks Foundation Models](https://docs.databricks.com/en/generative-ai/foundation-models/index.html) |
+| GCP Vertex AI | `gemini-1.5-pro` | [GCP Vertex AI Models](https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models) |
+| Groq | `llama-3.1-70b-versatile` | [Groq Models](https://console.groq.com/docs/models) |
+| OpenRouter | `openai/gpt-4o` | [OpenRouter Models](https://openrouter.ai/models) |
+
+:::note Model Naming and Versions
+Model names and versions are frequently updated by providers. Always refer to the official documentation for the most current information. When configuring Goose, use the exact model name as specified by the provider.
+
+Some providers use date stamps in model names (e.g., `claude-3-5-sonnet-20240620`), while others use version numbers (e.g., `gemini-1.5-pro`). Regional variations may also exist, especially for cloud-based services like AWS Bedrock and GCP Vertex AI.
+:::
+
+:::info Tool Calling Support
+Goose heavily relies on tool calling capabilities. When selecting a model, prioritize those with strong tool/function calling support. The [Berkeley Function-Calling Leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html) can help you identify models with good tool calling performance.
+:::
+
+
 ## Configure Provider
 
 To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Settings` page in the Goose Desktop.
