@@ -5,14 +5,16 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
+use regex::Regex;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     future::Future,
-    io::Cursor,
+    io::{Cursor, Write as _},
     path::{Path, PathBuf},
     pin::Pin,
 };
+use tempfile::NamedTempFile;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -47,6 +49,9 @@ use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
+// Avoid spamming the LLM by default
+const MAX_SHELL_INLINE_CHAR_COUNT: usize = 10_000;
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
@@ -94,12 +99,44 @@ pub fn load_prompt_files() -> HashMap<String, Prompt> {
     prompts
 }
 
+struct TmpfileOutput {
+    tmpf: NamedTempFile,
+    path: String,
+    /// Writing the output but also automatically returning lines
+    /// which match a regex.
+    highlight: Option<Regex>,
+}
+
+impl TmpfileOutput {
+    fn new(highlight: Option<Regex>) -> std::io::Result<Self> {
+        let tmpf = tempfile::NamedTempFile::with_prefix("goose-shell-output-")?;
+        let path = tmpf
+            .path()
+            .to_str()
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Failed to get path for temporary file",
+                )
+            })?
+            .to_string();
+        let r = Self {
+            tmpf,
+            path,
+            highlight,
+        };
+        Ok(r)
+    }
+}
+
 pub struct DeveloperRouter {
     tools: Vec<Tool>,
     prompts: Arc<HashMap<String, Prompt>>,
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
+    // The last (standard) output from a shell command
+    previous_stdout: Arc<Mutex<Option<tempfile::NamedTempFile>>>,
 }
 
 impl Default for DeveloperRouter {
@@ -139,11 +176,23 @@ impl DeveloperRouter {
             _ => indoc! {r#"
                 Execute a command in the shell.
 
-                This will return the output and error concatenated into a single string, as
+                By default this will return the output and error concatenated into a single string, as
                 you would see from running on the command line. There will also be an indication
                 of if the command succeeded or failed.
 
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+                **Important** you may find that some commands output significant amounts of text (such as
+                a software build command like `make`) and most of the time you will only care about the error
+                messages. For these commands it's recommended to set `output_tmpfile`. If set,
+                the output will be saved to a temporary file; you can then read it if you need to.
+                The previous saved temporary file will be automatically removed after invoking the next shell command that uses
+                `output_tmpfile`. This parameter can be the empty string and then no results will be returned in the
+                first text result. If a non-empty string is provided it should be a regular expression that can be used to
+                automatically return matching content from the output. For example if you know a command may output text like
+                `warning: ...` then you could provide the regular expression "^(warning|error):" to have
+                that content automatically returned in the primary text, even if the command succeeds.
+                There is not a trailing newline in the text to be matched.
+                Note if this filtered content itself is too large, it will be truncated (based on the start).
+
                 If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
                 this tool does not run indefinitely.
 
@@ -165,7 +214,8 @@ impl DeveloperRouter {
                 "type": "object",
                 "required": ["command"],
                 "properties": {
-                    "command": {"type": "string"}
+                    "command": {"type": "string"},
+                    "output_tmpfile": {"type": "string"}
                 }
             }),
             None,
@@ -443,6 +493,7 @@ impl DeveloperRouter {
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            previous_stdout: Arc::new(Default::default()),
         }
     }
 
@@ -482,6 +533,24 @@ impl DeveloperRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The command string is required".to_string(),
                 ))?;
+
+        let output_tmpfile = params.get("output_tmpfile").and_then(|v| v.as_str());
+        let output_tmpfile = match output_tmpfile {
+            Some(s) => {
+                let re = if s.is_empty() {
+                    None
+                } else {
+                    let re = regex::Regex::new(s).map_err(|e| {
+                        ToolError::InvalidParameters(format!("Invalid output_tmpfile regexp: {e}"))
+                    })?;
+                    Some(re)
+                };
+                Some(TmpfileOutput::new(re).map_err(|e| {
+                    ToolError::InternalError(format!("Failed to create tmpfile: {e}"))
+                })?)
+            }
+            None => None,
+        };
 
         // Check if command might access ignored files and return early if it does
         let cmd_parts: Vec<&str> = command.split_whitespace().collect();
@@ -527,6 +596,25 @@ impl DeveloperRouter {
 
         let output_task = tokio::spawn(async move {
             let mut combined_output = String::new();
+            let mut output_tmpfile = output_tmpfile;
+
+            fn append_output(
+                line: &str,
+                combined_output: &mut String,
+                redirect: Option<&mut TmpfileOutput>,
+            ) -> std::io::Result<()> {
+                let Some(redirect) = redirect else {
+                    combined_output.push_str(&line);
+                    return Ok(());
+                };
+                if let Some(re) = redirect.highlight.as_ref() {
+                    if re.is_match(line.trim_end_matches('\n')) {
+                        combined_output.push_str(&line);
+                    }
+                }
+                redirect.tmpf.write_all(line.as_bytes())?;
+                Ok(())
+            }
 
             let mut stdout_buf = Vec::new();
             let mut stderr_buf = Vec::new();
@@ -539,57 +627,62 @@ impl DeveloperRouter {
                     n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
                         if n? == 0 {
                             stdout_done = true;
-                        } else {
-                            let line = String::from_utf8_lossy(&stdout_buf);
-
-                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
-                            })).ok();
-
-                            combined_output.push_str(&line);
-                            stdout_buf.clear();
                         }
+                        let line = String::from_utf8_lossy(&stdout_buf);
+                        notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                            jsonrpc: "2.0".to_string(),
+                            method: "notifications/message".to_string(),
+                            params: Some(json!({
+                                "data": {
+                                    "type": "shell",
+                                    "stream": "stdout",
+                                    "output": line.to_string(),
+                                }
+                            })),
+                        })).ok();
+                        append_output(&line, &mut combined_output, output_tmpfile.as_mut())?;
+                        stdout_buf.clear();
                     }
 
                     n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
                         if n? == 0 {
                             stderr_done = true;
-                        } else {
-                            let line = String::from_utf8_lossy(&stderr_buf);
-
-                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
-                            })).ok();
-
-                            combined_output.push_str(&line);
-                            stderr_buf.clear();
                         }
+                        let line = String::from_utf8_lossy(&stderr_buf);
+
+                        notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                            jsonrpc: "2.0".to_string(),
+                            method: "notifications/message".to_string(),
+                            params: Some(json!({
+                                "data": {
+                                    "type": "shell",
+                                    "stream": "stderr",
+                                    "output": line.to_string(),
+                                }
+                            })),
+                        })).ok();
+
+                        append_output(&line, &mut combined_output, output_tmpfile.as_mut())?;
+
+                        stderr_buf.clear();
                     }
 
                     else => break,
+                }
+
+                // Enable automatic redirection
+                if output_tmpfile.is_none() && combined_output.len() > MAX_SHELL_INLINE_CHAR_COUNT {
+                    let mut new_tmpf = TmpfileOutput::new(None)?;
+                    new_tmpf.tmpf.write_all(combined_output.as_bytes())?;
+                    output_tmpfile = Some(new_tmpf);
+                    combined_output.clear();
                 }
 
                 if stdout_done && stderr_done {
                     break;
                 }
             }
-            Ok::<_, std::io::Error>(combined_output)
+            Ok::<_, std::io::Error>((combined_output, output_tmpfile))
         });
 
         // Wait for the command to complete and get output
@@ -598,29 +691,23 @@ impl DeveloperRouter {
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let output_str = match output_task.await {
+        let (output_str, output_tmpfile) = match output_task.await {
             Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
             Err(e) => return Err(ToolError::ExecutionError(e.to_string())),
         };
 
-        // Check the character count of the output
-        const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
-        let char_count = output_str.chars().count();
-        if char_count > MAX_CHAR_COUNT {
-            return Err(ToolError::ExecutionError(format!(
-                    "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
-                    command,
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
+        let mut r = vec![Content::text(output_str.clone()).with_audience(vec![Role::Assistant])];
+        if let Some(output_tmpfile) = output_tmpfile {
+            r.push(Content::text(output_tmpfile.path).with_audience(vec![Role::Assistant]));
+            let mut previous = self.previous_stdout.lock().unwrap();
+            *previous = Some(output_tmpfile.tmpf);
         }
-
-        Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
+        r.push(
             Content::text(output_str)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
-        ])
+        );
+        Ok(r)
     }
 
     async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1209,6 +1296,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
+            previous_stdout: Arc::clone(&self.previous_stdout),
         }
     }
 }
@@ -1218,7 +1306,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
-    use std::fs;
+    use std::{fs, os::unix::fs::MetadataExt};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -1631,6 +1719,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            previous_stdout: Default::default(),
         };
 
         // Test basic file matching
@@ -1681,6 +1770,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            previous_stdout: Default::default(),
         };
 
         // Try to write to an ignored file
@@ -1740,6 +1830,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            previous_stdout: Default::default(),
         };
 
         // Create an ignored file
@@ -1970,6 +2061,155 @@ mod tests {
             .await;
 
         assert!(result.is_ok(), "Should be able to cat non-ignored file");
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shell_output_tmpfile() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Call the shell tool with redirection enabled
+        let command = "echo 'first line' && echo 'second line'";
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": command,
+                    "output_tmpfile": ""
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Verify the output indicates redirection
+        let output = result
+            .iter()
+            .filter(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(output.len(), 2);
+        assert_eq!(output[0].as_text().unwrap().len(), 0);
+        let path = output[1].as_text().unwrap();
+        // Read the content from the temporary file
+        let file_content = tokio::fs::read_to_string(path).await.unwrap();
+
+        // The first line will be the redirected path, subsequent lines are the actual stdout
+        let mut lines = file_content.lines();
+        assert_eq!(lines.next().unwrap().trim(), "first line");
+        assert_eq!(lines.next().unwrap().trim(), "second line");
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shell_automatic_redirection() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Create a command that outputs more than MAX_SHELL_INLINE_CHAR_COUNT
+        let token = "aaaaaaaaaaaaaaaaaaaa";
+        let large = MAX_SHELL_INLINE_CHAR_COUNT.div_ceil(token.len()) + 1;
+        let large_output_command = format!("for x in $(seq {large}); do echo -n {token}; done");
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": large_output_command
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let output = result
+            .iter()
+            .filter(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(output.len(), 2);
+        assert_eq!(output[0].as_text().unwrap().len(), 0);
+        // The second content should be the path to the temporary file
+        let temp_file_path_content = output[1].as_text().unwrap();
+        assert!(!temp_file_path_content.is_empty());
+        let temp_file_path = Path::new(temp_file_path_content);
+        let meta = temp_file_path.symlink_metadata().unwrap();
+        assert!(meta.is_file());
+        let file_content = tokio::fs::read_to_string(temp_file_path).await.unwrap();
+        let size = file_content.trim().chars().fold(0usize, |acc, v| {
+            if v == 'a' {
+                acc + 1
+            } else {
+                panic!("Unexpected char in output: {v:?}")
+            }
+        });
+        assert!(size > MAX_SHELL_INLINE_CHAR_COUNT);
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shell_output_tmpfile_filtered() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        let matcher = r"^(error|warning):.*";
+
+        // Now testing something like a typical compiler output
+        let command = "for x in $(seq 100); do echo \"some output\"; done; echo error: oops; echo warning: blah; echo other text; echo error: another error; for x in $(seq 100); do echo \"more output\"; done";
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": command,
+                    "output_tmpfile": matcher
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Verify the output indicates redirection
+        let output = result
+            .iter()
+            .filter(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(output.len(), 2);
+        let output0 = output[0].as_text().unwrap();
+        assert_eq!(
+            output0.lines().filter(|v| v.starts_with("error:")).count(),
+            2
+        );
+        assert_eq!(
+            output0
+                .lines()
+                .filter(|v| v.starts_with("warning:"))
+                .count(),
+            1
+        );
+        let path = output[1].as_text().unwrap();
+        let path = Path::new(path);
+        let meta = path.symlink_metadata().unwrap();
+        assert!(meta.is_file());
+        assert_eq!(meta.size(), 2458);
 
         temp_dir.close().unwrap();
     }
