@@ -34,6 +34,7 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+import windowStateKeeper from 'electron-window-state';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -414,13 +415,21 @@ const createChat = async (
     goosedProcess = newGoosedProcess;
   }
 
+  // Load and manage window state
+  const mainWindowState = windowStateKeeper({
+    defaultWidth: 750,
+    defaultHeight: 800,
+  });
+
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
-    width: 750,
-    height: 800,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
+    width: mainWindowState.width,
+    height: mainWindowState.height,
     minWidth: 650,
     resizable: true,
     transparent: false,
@@ -443,6 +452,9 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  // Let windowStateKeeper manage the window
+  mainWindowState.manage(mainWindow);
 
   // Enable spellcheck / right and ctrl + click on mispelled word
   //
@@ -531,18 +543,8 @@ const createChat = async (
       : `?view=${encodeURIComponent(viewType)}`;
   }
 
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-
   // Increment window counter to track number of windows
   const windowId = ++windowCounter;
-  const direction = windowId % 2 === 0 ? 1 : -1; // Alternate direction
-  const initialOffset = 50;
-
-  // Set window position with alternating offset strategy
-  const baseXPosition = Math.round(width / 2 - mainWindow.getSize()[0] / 2);
-  const xOffset = direction * initialOffset * Math.floor(windowId / 2);
-  mainWindow.setPosition(baseXPosition + xOffset, 100);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
