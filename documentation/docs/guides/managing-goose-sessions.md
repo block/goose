@@ -16,7 +16,7 @@ A session is a single, continuous interaction between you and Goose, providing a
     <TabItem value="ui" label="Goose Desktop" default>
         After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
-        To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
+        To start a new session at any time, click the gear icon in the top-right corner of the application and select **New Session** from the dropdown menu.
 
         You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
@@ -229,8 +229,68 @@ You can resume a CLI session in Desktop and vice versa.
 
 You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
 
-## Search Within Sessions
+## Share Sessions
 
+Because Goose is local to your machine, by default, all your sessions are only available on your device. To make sessions shareable, you'll need to use a session sharing service.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+        ### How to Implement a Session Sharing Service
+
+       Your session sharing service should:
+        - Store sessions in a central location
+        - Make them accessible to other Goose users
+        - Handle the sharing and retrieval of session data
+
+        To implement this, you will need:
+        - A storage method for the shared sessions
+        - A hosted service to handle the sharing
+        - API endpoints that match the [Goose Session Sharing API Reference](https://goosed.stage.sqprod.co/docs)
+
+        ### Enable Session Sharing
+
+        Once your session sharing service is set up, you'll have a service URL. This URL should be used by you and anyone you plan to share sessions with. To connect Goose to the sharing service:
+
+        1. Open Goose Desktop
+        2. Click the gear icon in the top-right corner
+        3. Select **Settings**
+        4. Find the **Session Sharing** section
+        5. Enable session sharing using the toggle
+        6. Enter your service URL in the **Base URL** field
+           - Example: `https://your-sharing-service.example.com`
+           - Do not include a trailing slash
+
+        ### Share a Session
+
+        Once sharing is enabled, you can share sessions:
+
+        1. Start or open a session you want to share
+        2. Click the gear icon in the top-right corner
+        3. Click **Share Session**
+        4. Copy the generated share link
+
+        Anyone with access to the same sharing service can view your shared session using this link.
+
+        :::info
+        Sessions are only shared when you explicitly choose to share them. Enabling session sharing does not automatically share all your sessions.
+        :::
+
+        ### View Shared Sessions
+
+        To view a session someone shared with you:
+
+        1. Make sure you have configured the same service URL
+        2. Open the share link they provided
+        3. The shared session will open in Goose Desktop
+
+        For details about implementing a sharing service, see the [API Reference Documentation](https://goosed.stage.sqprod.co/docs).
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        In the CLI, sessions are stored as `.jsonl` files in `~/.local/share/goose/sessions/`. You can directly share these files with others.
+    </TabItem>
+</Tabs>
+
+## Search Within Sessions
 Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
 
 <Tabs>
@@ -290,3 +350,4 @@ Search allows you to find specific content within your current session. The sear
         ```
     </TabItem>
 </Tabs>
+
