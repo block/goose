@@ -1,5 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use console::style;
+use serde::{Serialize, Deserialize};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -9,6 +10,21 @@ use std::process::Stdio;
 use tar::Archive;
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecipeInfo {
+    pub name: String,
+    pub source: RecipeSource,
+    pub path: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RecipeSource {
+    Local,
+    GitHub,
+}
 
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(
@@ -76,7 +92,7 @@ fn clone_and_download_recipe(recipe_name: &str, recipe_repo_full_name: &str) -> 
     get_folder_from_github(&local_repo_path, recipe_name)
 }
 
-fn ensure_gh_authenticated() -> Result<()> {
+pub fn ensure_gh_authenticated() -> Result<()> {
     // Check authentication status
     let status = Command::new("gh")
         .args(["auth", "status"])
@@ -189,4 +205,126 @@ fn list_files(dir: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Lists all available recipes from a GitHub repository
+pub fn list_github_recipes(repo: &str) -> Result<Vec<RecipeInfo>> {
+    discover_github_recipes(repo)
+}
+
+fn discover_github_recipes(repo: &str) -> Result<Vec<RecipeInfo>> {
+    use std::process::Command;
+    use serde_json::Value;
+
+    // Ensure GitHub CLI is authenticated
+    ensure_gh_authenticated()?;
+
+    // Get repository contents using GitHub CLI
+    let output = Command::new("gh")
+        .args(["api", &format!("repos/{}/contents", repo)])
+        .output()
+        .map_err(|e| anyhow!("Failed to execute gh api command: {}", e))?;
+
+    if !output.status.success() {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("GitHub API request failed: {}", error_msg));
+    }
+
+    let contents: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow!("Failed to parse GitHub API response: {}", e))?;
+
+    let mut recipes = Vec::new();
+
+    if let Some(items) = contents.as_array() {
+        for item in items {
+            if let (Some(name), Some(item_type)) = (
+                item.get("name").and_then(|n| n.as_str()),
+                item.get("type").and_then(|t| t.as_str()),
+            ) {
+                if item_type == "dir" {
+                    // Check if this directory contains a recipe file
+                    if let Ok(recipe_info) = check_github_directory_for_recipe(repo, name) {
+                        recipes.push(recipe_info);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(recipes)
+}
+
+fn check_github_directory_for_recipe(repo: &str, dir_name: &str) -> Result<RecipeInfo> {
+    use std::process::Command;
+    use serde_json::Value;
+
+    // Check directory contents for recipe files
+    let output = Command::new("gh")
+        .args(["api", &format!("repos/{}/contents/{}", repo, dir_name)])
+        .output()
+        .map_err(|e| anyhow!("Failed to check directory contents: {}", e))?;
+
+    if !output.status.success() {
+        return Err(anyhow!("Failed to access directory: {}", dir_name));
+    }
+
+    let contents: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow!("Failed to parse directory contents: {}", e))?;
+
+    if let Some(items) = contents.as_array() {
+        for item in items {
+            if let Some(name) = item.get("name").and_then(|n| n.as_str()) {
+                if name == "recipe.yaml" || name == "recipe.json" {
+                    // Found a recipe file, get its content
+                    return get_github_recipe_info(repo, dir_name, name);
+                }
+            }
+        }
+    }
+
+    Err(anyhow!("No recipe file found in directory: {}", dir_name))
+}
+
+fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> Result<RecipeInfo> {
+    use std::process::Command;
+    use serde_json::Value;
+
+    // Get the recipe file content
+    let output = Command::new("gh")
+        .args([
+            "api",
+            &format!("repos/{}/contents/{}/{}", repo, dir_name, recipe_filename),
+        ])
+        .output()
+        .map_err(|e| anyhow!("Failed to get recipe file content: {}", e))?;
+
+    if !output.status.success() {
+        return Err(anyhow!("Failed to access recipe file: {}/{}", dir_name, recipe_filename));
+    }
+
+    let file_info: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow!("Failed to parse file info: {}", e))?;
+
+    if let Some(content_b64) = file_info.get("content").and_then(|c| c.as_str()) {
+        // Decode base64 content
+        use base64::{Engine as _, engine::general_purpose};
+        let content_bytes = general_purpose::STANDARD.decode(content_b64.replace('\n', ""))
+            .map_err(|e| anyhow!("Failed to decode base64 content: {}", e))?;
+
+        let content = String::from_utf8(content_bytes)
+            .map_err(|e| anyhow!("Failed to convert content to string: {}", e))?;
+
+        // Parse the recipe content
+        let recipe = crate::recipes::recipe::parse_recipe_content(&content)?;
+
+        return Ok(RecipeInfo {
+            name: dir_name.to_string(),
+            source: RecipeSource::GitHub,
+            path: format!("{}/{}", repo, dir_name),
+            title: Some(recipe.title),
+            description: Some(recipe.description),
+        });
+    }
+
+    Err(anyhow!("Failed to get recipe content from GitHub"))
 }
