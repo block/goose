@@ -176,8 +176,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
-        .map(determine_edit_mode)
-        .unwrap_or(EditMode::Emacs);
+        .ok()
+        .and_then(|edit_mode| match edit_mode.to_lowercase().as_str() {
+            "emacs" => Some(EditMode::Emacs),
+            "vi" => Some(EditMode::Vi),
+            _ => {
+                eprintln!("Invalid EDIT_MODE specified, defaulting to Emacs");
+                None 
+            }
+        });
 
     // Create new session
     let mut session = Session::new(agent, session_file.clone(), edit_mode, session_config.debug);
@@ -226,15 +233,4 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     output::display_session_info(session_config.resume, &provider_name, &model, &session_file);
     session
-}
-
-fn determine_edit_mode(edit_mode_str: String) -> EditMode {
-    match edit_mode_str.to_lowercase().as_str() {
-        "emacs" => EditMode::Emacs,
-        "vi" => EditMode::Vi,
-        _ => {
-            eprintln!("Invalid EDIT_MODE specified, defaulting to Emacs");
-            EditMode::Emacs
-        }
-    }
 }
