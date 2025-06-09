@@ -16,11 +16,12 @@ import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye } from 'lucide-react';
+import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, MoreHorizontal } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import { EditScheduleModal } from './EditScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import cronstrue from 'cronstrue';
 
 interface SchedulesViewProps {
@@ -67,7 +68,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (viewingScheduleId === null) {
       fetchSchedules();
-      
+
       // Check for pending deep link from recipe editor
       const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
       if (pendingDeepLink) {
@@ -382,7 +383,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
               onClick={handleRefresh}
               disabled={isRefreshing || isLoading}
               variant="outline"
-              className="w-full md:w-auto flex items-center gap-2 justify-center"
+              className="w-full md:w-auto flex items-center gap-2 justify-center rounded-full [&>svg]:!size-4"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Refreshing...' : 'Refresh'}
@@ -453,111 +454,118 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           </p>
                         )}
                       </div>
-                      <div className="flex-shrink-0 flex items-center gap-1">
-                        {!job.currently_running && (
-                          <>
+                      <div className="flex-shrink-0">
+                        <Popover>
+                          <PopoverTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenEditModal(job);
                               }}
-                              className="text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
-                              title={`Edit schedule ${job.id}`}
-                              disabled={
-                                pausingScheduleIds.has(job.id) ||
-                                deletingScheduleIds.has(job.id) ||
-                                isSubmitting
-                              }
+                              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50"
                             >
-                              <Edit className="w-4 h-4" />
+                              <MoreHorizontal className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (job.paused) {
-                                  handleUnpauseSchedule(job.id);
-                                } else {
-                                  handlePauseSchedule(job.id);
-                                }
-                              }}
-                              className={`${
-                                job.paused
-                                  ? 'text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-100/50 dark:hover:bg-green-900/30'
-                                  : 'text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-100/50 dark:hover:bg-orange-900/30'
-                              }`}
-                              title={
-                                job.paused
-                                  ? `Unpause schedule ${job.id}`
-                                  : `Pause schedule ${job.id}`
-                              }
-                              disabled={
-                                pausingScheduleIds.has(job.id) || deletingScheduleIds.has(job.id)
-                              }
-                            >
-                              {job.paused ? (
-                                <Play className="w-4 h-4" />
-                              ) : (
-                                <Pause className="w-4 h-4" />
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-48 p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-lg"
+                            align="end"
+                          >
+                            <div className="space-y-1">
+                              {!job.currently_running && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenEditModal(job);
+                                    }}
+                                    disabled={
+                                      pausingScheduleIds.has(job.id) ||
+                                      deletingScheduleIds.has(job.id) ||
+                                      isSubmitting
+                                    }
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span>Edit</span>
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (job.paused) {
+                                        handleUnpauseSchedule(job.id);
+                                      } else {
+                                        handlePauseSchedule(job.id);
+                                      }
+                                    }}
+                                    disabled={
+                                      pausingScheduleIds.has(job.id) ||
+                                      deletingScheduleIds.has(job.id)
+                                    }
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span>{job.paused ? 'Resume schedule' : 'Stop schedule'}</span>
+                                    {job.paused ? (
+                                      <Play className="w-4 h-4" />
+                                    ) : (
+                                      <Pause className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </>
                               )}
-                            </Button>
-                          </>
-                        )}
-                        {job.currently_running && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleInspectRunningJob(job.id);
-                              }}
-                              className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
-                              title={`Inspect running job ${job.id}`}
-                              disabled={
-                                inspectingScheduleIds.has(job.id) || killingScheduleIds.has(job.id)
-                              }
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleKillRunningJob(job.id);
-                              }}
-                              className="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-100/50 dark:hover:bg-red-900/30"
-                              title={`Kill running job ${job.id}`}
-                              disabled={
-                                killingScheduleIds.has(job.id) || inspectingScheduleIds.has(job.id)
-                              }
-                            >
-                              <Square className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSchedule(job.id);
-                          }}
-                          className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/30"
-                          title={`Delete schedule ${job.id}`}
-                          disabled={
-                            pausingScheduleIds.has(job.id) ||
-                            deletingScheduleIds.has(job.id) ||
-                            killingScheduleIds.has(job.id) ||
-                            inspectingScheduleIds.has(job.id)
-                          }
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </Button>
+                              {job.currently_running && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleInspectRunningJob(job.id);
+                                    }}
+                                    disabled={
+                                      inspectingScheduleIds.has(job.id) ||
+                                      killingScheduleIds.has(job.id)
+                                    }
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span>Inspect</span>
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleKillRunningJob(job.id);
+                                    }}
+                                    disabled={
+                                      killingScheduleIds.has(job.id) ||
+                                      inspectingScheduleIds.has(job.id)
+                                    }
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span>Kill job</span>
+                                    <Square className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                              <hr className="border-gray-200 dark:border-gray-600 my-1" />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSchedule(job.id);
+                                }}
+                                disabled={
+                                  pausingScheduleIds.has(job.id) ||
+                                  deletingScheduleIds.has(job.id) ||
+                                  killingScheduleIds.has(job.id) ||
+                                  inspectingScheduleIds.has(job.id)
+                                }
+                                className="w-full flex items-center justify-between px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <span>Delete</span>
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
                   </Card>
