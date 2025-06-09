@@ -138,9 +138,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-intel-cargo-build-
 
-      # Build specifically for Intel architecture
-      - name: Build goosed for Intel
-        run: source ./bin/activate-hermit && cargo build --release -p goose-server --target x86_64-apple-darwin
+      - name: Build goose-server for Intel macOS (x86_64)
+        run: |
+          source ./bin/activate-hermit
+          rustup target add x86_64-apple-darwin
+          cargo build --release -p goose-server --target x86_64-apple-darwin
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
