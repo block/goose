@@ -58,6 +58,12 @@ jobs:
       - name: Install cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
+      # Install Go for building temporal-service
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
+
       - name: Build CLI
         env:
           CROSS_NO_WARNINGS: 0
@@ -77,9 +83,59 @@ jobs:
           echo "Building with explicit PROTOC path..."
           cross build --release --target ${TARGET} -p goose-cli -vv
 
-          # tar the goose binary as goose-<TARGET>.tar.bz2
-          cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose
+      - name: Build temporal-service for target platform
+        run: |
+          source ./bin/activate-hermit
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          
+          # Set Go cross-compilation variables based on target
+          case "${TARGET}" in
+            "x86_64-unknown-linux-gnu")
+              export GOOS=linux
+              export GOARCH=amd64
+              BINARY_NAME="temporal-service"
+              ;;
+            "aarch64-unknown-linux-gnu")
+              export GOOS=linux
+              export GOARCH=arm64
+              BINARY_NAME="temporal-service"
+              ;;
+            "x86_64-apple-darwin")
+              export GOOS=darwin
+              export GOARCH=amd64
+              BINARY_NAME="temporal-service"
+              ;;
+            "aarch64-apple-darwin")
+              export GOOS=darwin
+              export GOARCH=arm64
+              BINARY_NAME="temporal-service"
+              ;;
+            *)
+              echo "Unsupported target: ${TARGET}"
+              exit 1
+              ;;
+          esac
+          
+          echo "Building temporal-service for ${GOOS}/${GOARCH}..."
+          cd temporal-service
+          go build -o "../target/${TARGET}/release/${BINARY_NAME}" main.go
+          echo "temporal-service built successfully for ${TARGET}"
+
+      - name: Package CLI with temporal-service
+        run: |
+          source ./bin/activate-hermit
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          
+          # Create a directory for the package contents
+          mkdir -p "target/${TARGET}/release/goose-package"
+          
+          # Copy binaries
+          cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/temporal-service" "target/${TARGET}/release/goose-package/"
+          
+          # Create the tar archive with both binaries
+          cd "target/${TARGET}/release"
+          tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
