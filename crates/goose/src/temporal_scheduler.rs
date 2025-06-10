@@ -305,7 +305,7 @@ impl TemporalScheduler {
         self.port_config.temporal_port
     }
 
-    /// Get the HTTP API port  
+    /// Get the HTTP API port
     pub fn get_http_port(&self) -> u16 {
         self.port_config.http_port
     }
@@ -409,6 +409,12 @@ impl TemporalScheduler {
                 }
             }
         }
+
+        // Detach the child process by not waiting for it
+        // This allows it to continue running independently
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
 
         Ok(())
     }
@@ -726,11 +732,24 @@ impl TemporalScheduler {
         ))
     }
 
-    pub async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
-        warn!("kill_running_job() method not implemented for TemporalScheduler");
-        Err(SchedulerError::SchedulerInternalError(
-            "kill_running_job not supported by TemporalScheduler".to_string(),
-        ))
+    pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        tracing::info!("TemporalScheduler: kill_running_job() called for job '{}'", sched_id);
+
+        let request = JobRequest {
+            action: "kill_job".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: None,
+            recipe_path: None,
+        };
+
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            info!("Successfully killed running job: {}", sched_id);
+            Ok(())
+        } else {
+            Err(SchedulerError::SchedulerInternalError(response.message))
+        }
     }
 
     pub async fn get_running_job_info(
