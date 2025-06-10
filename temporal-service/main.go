@@ -55,12 +55,12 @@ func findAvailablePorts() (*PortConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find available port for Temporal server: %w", err)
 	}
-	
+
 	uiPort, err := findAvailablePort(8233)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find available port for Temporal UI: %w", err)
 	}
-	
+
 	// For HTTP port, check environment variable first
 	httpPort := 8080
 	if portEnv := os.Getenv("PORT"); portEnv != "" {
@@ -68,13 +68,13 @@ func findAvailablePorts() (*PortConfig, error) {
 			httpPort = parsed
 		}
 	}
-	
+
 	// Verify HTTP port is available, find alternative if not
 	finalHTTPPort, err := findAvailablePort(httpPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find available port for HTTP server: %w", err)
 	}
-	
+
 	return &PortConfig{
 		TemporalPort: temporalPort,
 		UIPort:       uiPort,
@@ -87,7 +87,7 @@ var globalService *TemporalService
 
 // Request/Response types for HTTP API
 type JobRequest struct {
-	Action     string `json:"action"`      // create, delete, pause, unpause, list, run_now
+	Action     string `json:"action"`      // create, delete, pause, unpause, list, run_now, kill_job
 	JobID      string `json:"job_id"`
 	CronExpr   string `json:"cron"`
 	RecipePath string `json:"recipe_path"`
@@ -130,39 +130,52 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 	// Find the temporal CLI binary
 	temporalCmd, err := findTemporalCLI()
 	if err != nil {
+		log.Printf("ERROR: Could not find temporal CLI: %v", err)
 		return fmt.Errorf("could not find temporal CLI: %w", err)
 	}
 	
 	log.Printf("Using Temporal CLI at: %s", temporalCmd)
 	
 	// Start Temporal server in background
-	cmd := exec.Command(temporalCmd, "server", "start-dev", 
+	args := []string{"server", "start-dev",
 		"--db-filename", "temporal.db", 
-		"--port", strconv.Itoa(ports.TemporalPort), 
-		"--ui-port", strconv.Itoa(ports.UIPort), 
-		"--log-level", "warn")
+		"--port", strconv.Itoa(ports.TemporalPort),
+		"--ui-port", strconv.Itoa(ports.UIPort),
+		"--log-level", "warn"}
+
+	log.Printf("Starting Temporal server with command: %s %v", temporalCmd, args)
+
+	cmd := exec.Command(temporalCmd, args...)
 	
 	// Start the process in background
 	if err := cmd.Start(); err != nil {
+		log.Printf("ERROR: Failed to start Temporal server: %v", err)
 		return fmt.Errorf("failed to start Temporal server: %w", err)
 	}
 	
-	log.Printf("Temporal server started with PID: %d (port: %d, UI port: %d)", 
+	log.Printf("Temporal server started with PID: %d (port: %d, UI port: %d)",
 		cmd.Process.Pid, ports.TemporalPort, ports.UIPort)
 	
 	// Wait for server to be ready (with timeout)
+	log.Println("Waiting for Temporal server to be ready...")
 	timeout := time.After(30 * time.Second)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	
+	attemptCount := 0
 	for {
 		select {
 		case <-timeout:
+			log.Printf("ERROR: Timeout waiting for Temporal server to start after %d attempts", attemptCount)
 			return fmt.Errorf("timeout waiting for Temporal server to start")
 		case <-ticker.C:
+			attemptCount++
+			log.Printf("Checking if Temporal server is ready (attempt %d)...", attemptCount)
 			if isTemporalServerRunning(ports.TemporalPort) {
 				log.Printf("Temporal server is now ready on port %d", ports.TemporalPort)
 				return nil
+			} else {
+				log.Printf("Temporal server not ready yet (attempt %d)", attemptCount)
 			}
 		}
 	}
@@ -190,15 +203,25 @@ func isTemporalServerRunning(port int) bool {
 
 // findTemporalCLI attempts to find the temporal CLI binary
 func findTemporalCLI() (string, error) {
+	log.Println("Looking for temporal CLI binary...")
+
 	// First, try to find temporal in PATH using exec.LookPath
+	log.Println("Checking PATH for temporal CLI...")
 	if path, err := exec.LookPath("temporal"); err == nil {
+		log.Printf("Found temporal in PATH at: %s", path)
 		// Verify it's the correct temporal CLI by checking version
+		log.Println("Verifying temporal CLI version...")
 		cmd := exec.Command(path, "--version")
 		if err := cmd.Run(); err == nil {
+			log.Printf("Successfully verified temporal CLI at: %s", path)
 			return path, nil
+		} else {
+			log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
 		}
+	} else {
+		log.Printf("temporal not found in PATH: %v", err)
 	}
-	
+
 	// Try using 'which' command to find temporal
 	cmd := exec.Command("which", "temporal")
 	if output, err := cmd.Output(); err == nil {
@@ -211,8 +234,9 @@ func findTemporalCLI() (string, error) {
 			}
 		}
 	}
-	
+
 	// If not found in PATH, try different possible locations for the temporal CLI
+	log.Println("Checking bundled/local locations for temporal CLI...")
 	possiblePaths := []string{
 		"./temporal",         // Current directory
 	}
@@ -220,23 +244,37 @@ func findTemporalCLI() (string, error) {
 	// Also try relative to the current executable (most important for bundled apps)
 	if exePath, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exePath)
-		possiblePaths = append(possiblePaths, 
+		log.Printf("Executable directory: %s", exeDir)
+		additionalPaths := []string{
 			filepath.Join(exeDir, "temporal"),
 			filepath.Join(exeDir, "temporal.exe"), // Windows
 			// Also try one level up (for development)
 			filepath.Join(exeDir, "..", "temporal"),
 			filepath.Join(exeDir, "..", "temporal.exe"),
-		)
+		}
+		possiblePaths = append(possiblePaths, additionalPaths...)
+		log.Printf("Will check these additional paths: %v", additionalPaths)
+	} else {
+		log.Printf("Failed to get executable path: %v", err)
 	}
-	
+
+	log.Printf("Checking %d possible paths for temporal CLI", len(possiblePaths))
+
 	// Test each possible path
-	for _, path := range possiblePaths {
+	for i, path := range possiblePaths {
+		log.Printf("Checking path %d/%d: %s", i+1, len(possiblePaths), path)
 		if _, err := os.Stat(path); err == nil {
+			log.Printf("File exists at: %s", path)
 			// File exists, test if it's executable and the right binary
 			cmd := exec.Command(path, "--version")
 			if err := cmd.Run(); err == nil {
+				log.Printf("Successfully verified temporal CLI at: %s", path)
 				return path, nil
+			} else {
+				log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
 			}
+		} else {
+			log.Printf("File does not exist at %s: %v", path, err)
 		}
 	}
 	
@@ -249,6 +287,7 @@ type TemporalService struct {
 	worker       worker.Worker
 	scheduleJobs map[string]*JobStatus // In-memory job tracking
 	runningJobs  map[string]bool       // Track which jobs are currently running
+	runningWorkflows map[string][]string // Track workflow IDs for each job
 	ports        *PortConfig           // Port configuration
 }
 
@@ -259,8 +298,8 @@ func NewTemporalService() (*TemporalService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find available ports: %w", err)
 	}
-	
-	log.Printf("Using ports - Temporal: %d, UI: %d, HTTP: %d", 
+
+	log.Printf("Using ports - Temporal: %d, UI: %d, HTTP: %d",
 		ports.TemporalPort, ports.UIPort, ports.HTTPPort)
 
 	// Ensure Temporal server is running
@@ -294,6 +333,7 @@ func NewTemporalService() (*TemporalService, error) {
 		worker:       w,
 		scheduleJobs: make(map[string]*JobStatus),
 		runningJobs:  make(map[string]bool),
+		runningWorkflows: make(map[string][]string),
 		ports:        ports,
 	}
 	
@@ -428,6 +468,8 @@ func (ts *TemporalService) handleJobs(w http.ResponseWriter, r *http.Request) {
 		resp = ts.listSchedules()
 	case "run_now":
 		resp = ts.runNow(req)
+	case "kill_job":
+		resp = ts.killJob(req)
 	default:
 		resp = JobResponse{Success: false, Message: fmt.Sprintf("Unknown action: %s", req.Action)}
 	}
@@ -648,16 +690,42 @@ func (ts *TemporalService) isJobCurrentlyRunning(ctx context.Context, jobID stri
 	return false
 }
 
-// markJobAsRunning sets a job as currently running
+// markJobAsRunning sets a job as currently running and tracks the workflow ID
 func (ts *TemporalService) markJobAsRunning(jobID string) {
 	ts.runningJobs[jobID] = true
 	log.Printf("Marked job %s as running", jobID)
 }
 
-// markJobAsNotRunning sets a job as not currently running
+// markJobAsNotRunning sets a job as not currently running and clears workflow tracking
 func (ts *TemporalService) markJobAsNotRunning(jobID string) {
 	delete(ts.runningJobs, jobID)
+	delete(ts.runningWorkflows, jobID)
 	log.Printf("Marked job %s as not running", jobID)
+}
+
+// addRunningWorkflow tracks a workflow ID for a job
+func (ts *TemporalService) addRunningWorkflow(jobID, workflowID string) {
+	if ts.runningWorkflows[jobID] == nil {
+		ts.runningWorkflows[jobID] = make([]string, 0)
+	}
+	ts.runningWorkflows[jobID] = append(ts.runningWorkflows[jobID], workflowID)
+	log.Printf("Added workflow %s for job %s", workflowID, jobID)
+}
+
+// removeRunningWorkflow removes a workflow ID from job tracking
+func (ts *TemporalService) removeRunningWorkflow(jobID, workflowID string) {
+	if workflows, exists := ts.runningWorkflows[jobID]; exists {
+		for i, id := range workflows {
+			if id == workflowID {
+				ts.runningWorkflows[jobID] = append(workflows[:i], workflows[i+1:]...)
+				break
+			}
+		}
+		if len(ts.runningWorkflows[jobID]) == 0 {
+			delete(ts.runningWorkflows, jobID)
+			ts.runningJobs[jobID] = false
+		}
+	}
 }
 
 func (ts *TemporalService) runNow(req JobRequest) JobResponse {
@@ -685,12 +753,66 @@ func (ts *TemporalService) runNow(req JobRequest) JobResponse {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to start workflow: %v", err)}
 	}
 
+	// Track the workflow for this job
+	ts.addRunningWorkflow(req.JobID, we.GetID())
+
 	// Don't wait for completion in run_now, just return the workflow ID
 	log.Printf("Manual execution started for job: %s, workflow: %s", req.JobID, we.GetID())
 	return JobResponse{
 		Success: true,
 		Message: "Job execution started",
 		Data:    RunNowResponse{SessionID: we.GetID()}, // Return workflow ID as session ID for now
+	}
+}
+
+func (ts *TemporalService) killJob(req JobRequest) JobResponse {
+	if req.JobID == "" {
+		return JobResponse{Success: false, Message: "Missing job_id"}
+	}
+
+	// Check if job exists
+	_, exists := ts.scheduleJobs[req.JobID]
+	if !exists {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' not found", req.JobID)}
+	}
+
+	// Check if job is currently running
+	if !ts.isJobCurrentlyRunning(context.Background(), req.JobID) {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' is not currently running", req.JobID)}
+	}
+
+	// Get tracked workflow IDs for this job
+	workflowIDs, exists := ts.runningWorkflows[req.JobID]
+	if !exists || len(workflowIDs) == 0 {
+		return JobResponse{Success: false, Message: fmt.Sprintf("No tracked workflows found for job '%s'", req.JobID)}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	killedCount := 0
+	for _, workflowID := range workflowIDs {
+		// Terminate the workflow
+		err := ts.client.TerminateWorkflow(ctx, workflowID, "", "Killed by user request")
+		if err != nil {
+			log.Printf("Error terminating workflow %s for job %s: %v", workflowID, req.JobID, err)
+			continue
+		}
+		log.Printf("Terminated workflow %s for job %s", workflowID, req.JobID)
+		killedCount++
+	}
+
+	// Mark job as not running in our tracking
+	ts.markJobAsNotRunning(req.JobID)
+
+	if killedCount == 0 {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to kill any workflows for job '%s'", req.JobID)}
+	}
+
+	log.Printf("Killed %d running workflow(s) for job: %s", killedCount, req.JobID)
+	return JobResponse{
+		Success: true,
+		Message: fmt.Sprintf("Successfully killed %d running workflow(s) for job '%s'", killedCount, req.JobID),
 	}
 }
 
@@ -709,13 +831,13 @@ func (ts *TemporalService) handleHealth(w http.ResponseWriter, r *http.Request) 
 func (ts *TemporalService) handlePorts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	portInfo := map[string]int{
 		"http_port":     ts.ports.HTTPPort,
 		"temporal_port": ts.ports.TemporalPort,
 		"ui_port":       ts.ports.UIPort,
 	}
-	
+
 	json.NewEncoder(w).Encode(portInfo)
 }
 
