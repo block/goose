@@ -382,6 +382,83 @@ function updateTrayIcon(hasUpdate: boolean) {
     icon.setTemplateImage(true);
   }
   trayRef.setImage(icon);
+  
+  // Update tray menu when icon changes
+  updateTrayMenu(hasUpdate);
+}
+
+// Function to open settings and scroll to update section
+function openUpdateSettings() {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    const mainWindow = windows[0];
+    mainWindow.show();
+    mainWindow.focus();
+    // Send message to open settings and scroll to update section
+    mainWindow.webContents.send('set-view', 'settings', 'update');
+  }
+}
+
+// Export function to update tray menu
+export function updateTrayMenu(hasUpdate: boolean) {
+  if (!trayRef) return;
+
+  const { Menu, BrowserWindow, app } = require('electron');
+  const menuItems: any[] = [];
+  
+  // Add update menu item if update is available
+  if (hasUpdate) {
+    menuItems.push({
+      label: 'Update Available...',
+      click: openUpdateSettings
+    });
+  }
+  
+  menuItems.push(
+    { label: 'Show Window', click: async () => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length === 0) {
+        log.info('No windows are open, creating a new one...');
+        // Get recent directories for the new window
+        const { loadRecentDirs } = require('./recentDirs');
+        const { ipcMain } = require('electron');
+        const recentDirs = loadRecentDirs();
+        const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+        
+        // Emit event to create new window (handled in main.ts)
+        ipcMain.emit('create-chat-window', {}, undefined, openDir);
+        return;
+      }
+
+      // Show all windows with offset
+      const initialOffsetX = 30;
+      const initialOffsetY = 30;
+
+      windows.forEach((win, index) => {
+        const currentBounds = win.getBounds();
+        const newX = currentBounds.x + initialOffsetX * index;
+        const newY = currentBounds.y + initialOffsetY * index;
+
+        win.setBounds({
+          x: newX,
+          y: newY,
+          width: currentBounds.width,
+          height: currentBounds.height,
+        });
+
+        if (!win.isVisible()) {
+          win.show();
+        }
+
+        win.focus();
+      });
+    }},
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() }
+  );
+
+  const contextMenu = Menu.buildFromTemplate(menuItems);
+  trayRef.setContextMenu(contextMenu);
 }
 
 // Export functions to manage tray reference
