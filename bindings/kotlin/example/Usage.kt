@@ -29,7 +29,7 @@ fun main() = runBlocking {
                               "value": {
                                 "name": "calculator_extension__toolname",
                                 "arguments": {
-                                  "operation": "multiplication",
+                                  "operation": "doesnotexist",
                                   "numbers": [7, 6]
                                 }, 
                                 "needsApproval": false
@@ -52,7 +52,7 @@ fun main() = runBlocking {
                         toolResult = """
                             {
                               "status": "error",
-                              "error": "Invalid value for operation: 'multiplication'. Valid values are: ['add', 'subtract', 'multiply', 'divide']"
+                              "error": "Invalid value for operation: 'doesnotexist'. Valid values are: ['add', 'subtract', 'multiply', 'divide']"
                             }
                         """.trimIndent()
                     )
@@ -74,7 +74,7 @@ fun main() = runBlocking {
                               "value": {
                                 "name": "calculator_extension__toolname",
                                 "arguments": {
-                                  "operation": "multiplication",
+                                  "operation": "multiply",
                                   "numbers": [7, 6]
                                 }, 
                                 "needsApproval": false
