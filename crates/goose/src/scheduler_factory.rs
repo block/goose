@@ -59,15 +59,19 @@ impl SchedulerFactory {
                     Err(e) => {
                         tracing::warn!("Failed to create Temporal scheduler: {}", e);
                         tracing::info!("Falling back to legacy scheduler");
-                        
+
                         // Print helpful message for users
-                        eprintln!("⚠️  Temporal scheduler unavailable, using legacy scheduler instead.");
+                        eprintln!(
+                            "⚠️  Temporal scheduler unavailable, using legacy scheduler instead."
+                        );
                         eprintln!("   To use Temporal scheduling features:");
                         eprintln!("   • Install Temporal CLI: brew install temporal (macOS)");
-                        eprintln!("   • Or download from: https://github.com/temporalio/cli/releases");
+                        eprintln!(
+                            "   • Or download from: https://github.com/temporalio/cli/releases"
+                        );
                         eprintln!("   • Then restart Goose");
                         eprintln!();
-                        
+
                         let scheduler = Scheduler::new(storage_path).await?;
                         Ok(scheduler as Arc<dyn SchedulerTrait>)
                     }

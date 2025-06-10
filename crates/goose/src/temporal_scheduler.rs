@@ -531,6 +531,102 @@ impl TemporalScheduler {
             }
         )
     }
+
+    /// Stop the Temporal services
+    pub async fn stop_services(&self) -> Result<String, SchedulerError> {
+        info!("Attempting to stop Temporal services...");
+
+        // First check if services are running
+        let go_running = self.health_check().await.unwrap_or(false);
+
+        if !go_running {
+            return Ok("Services are not currently running.".to_string());
+        }
+
+        // Try to stop the Go service gracefully by finding and killing the process
+        // Look for temporal-service processes
+        let output = Command::new("pgrep")
+            .arg("-f")
+            .arg("temporal-service")
+            .output();
+
+        match output {
+            Ok(output) if output.status.success() => {
+                let pids_str = String::from_utf8_lossy(&output.stdout);
+                let pids: Vec<&str> = pids_str
+                    .trim()
+                    .split('\n')
+                    .filter(|s| !s.is_empty())
+                    .collect();
+
+                if pids.is_empty() {
+                    return Ok("No temporal-service processes found.".to_string());
+                }
+
+                info!("Found temporal-service PIDs: {:?}", pids);
+
+                // Kill each process
+                for pid in &pids {
+                    let kill_output = Command::new("kill")
+                        .arg("-TERM") // Graceful termination
+                        .arg(pid)
+                        .output();
+
+                    match kill_output {
+                        Ok(kill_result) if kill_result.status.success() => {
+                            info!("Successfully sent TERM signal to PID {}", pid);
+                        }
+                        Ok(kill_result) => {
+                            warn!(
+                                "Failed to kill PID {}: {}",
+                                pid,
+                                String::from_utf8_lossy(&kill_result.stderr)
+                            );
+                        }
+                        Err(e) => {
+                            warn!("Error killing PID {}: {}", pid, e);
+                        }
+                    }
+                }
+
+                // Wait a moment for graceful shutdown
+                sleep(Duration::from_secs(2)).await;
+
+                // Check if services are still running
+                let still_running = self.health_check().await.unwrap_or(false);
+
+                if still_running {
+                    // If still running, try SIGKILL
+                    warn!("Services still running after TERM signal, trying KILL signal");
+                    for pid in &pids {
+                        let _ = Command::new("kill").arg("-KILL").arg(pid).output();
+                    }
+
+                    sleep(Duration::from_secs(1)).await;
+                    let final_check = self.health_check().await.unwrap_or(false);
+
+                    if final_check {
+                        return Err(SchedulerError::SchedulerInternalError(
+                            "Failed to stop services even with KILL signal".to_string(),
+                        ));
+                    }
+                }
+
+                Ok(format!(
+                    "Successfully stopped {} temporal-service process(es)",
+                    pids.len()
+                ))
+            }
+            Ok(_) => {
+                // pgrep found no processes
+                Ok("No temporal-service processes found to stop.".to_string())
+            }
+            Err(e) => Err(SchedulerError::SchedulerInternalError(format!(
+                "Failed to search for temporal-service processes: {}",
+                e
+            ))),
+        }
+    }
 }
 
 #[async_trait]

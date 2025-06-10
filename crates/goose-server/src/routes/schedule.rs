@@ -108,6 +108,11 @@ async fn create_schedule(
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!(
+        "Server: Calling scheduler.add_scheduled_job() for job '{}'",
+        req.id
+    );
     let job = ScheduledJob {
         id: req.id,
         source: req.recipe_source,
@@ -147,7 +152,12 @@ async fn list_schedules(
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let jobs = scheduler.list_scheduled_jobs().await;
+
+    tracing::info!("Server: Calling scheduler.list_scheduled_jobs()");
+    let jobs = scheduler.list_scheduled_jobs().await.map_err(|e| {
+        eprintln!("Error listing schedules: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(Json(ListSchedulesResponse { jobs }))
 }
 
@@ -209,6 +219,8 @@ async fn run_now_handler(
         .scheduler()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!("Server: Calling scheduler.run_now() for job '{}'", id);
 
     match scheduler.run_now(&id).await {
         Ok(session_id) => Ok(Json(RunNowResponse { session_id })),
@@ -408,7 +420,10 @@ async fn update_schedule(
         })?;
 
     // Return the updated schedule
-    let jobs = scheduler.list_scheduled_jobs().await;
+    let jobs = scheduler.list_scheduled_jobs().await.map_err(|e| {
+        eprintln!("Error listing schedules after update: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let updated_job = jobs
         .into_iter()
         .find(|job| job.id == id)
