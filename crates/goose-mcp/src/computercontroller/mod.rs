@@ -6,12 +6,15 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
-use tokio::process::Command;
+use tokio::{process::Command, sync::mpsc};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations},
     Content,
@@ -743,6 +746,23 @@ impl ComputerControllerRouter {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
 
+                // Set execute permissions on Unix systems
+                #[cfg(unix)]
+                {
+                    let mut perms = fs::metadata(&script_path)
+                        .map_err(|e| {
+                            ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
+                        })?
+                        .permissions();
+                    perms.set_mode(0o755); // rwxr-xr-x
+                    fs::set_permissions(&script_path, perms).map_err(|e| {
+                        ToolError::ExecutionError(format!(
+                            "Failed to set execute permissions: {}",
+                            e
+                        ))
+                    })?;
+                }
+
                 script_path.display().to_string()
             }
             "ruby" => {
@@ -1135,6 +1155,7 @@ impl Router for ComputerControllerRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

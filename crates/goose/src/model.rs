@@ -22,6 +22,7 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
 
     // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
     map.insert("claude-3", 200_000);
+    map.insert("claude-4", 200_000);
 
     // Google models, https://ai.google/get-started/our-models/
     map.insert("gemini-2.5", 1_000_000);

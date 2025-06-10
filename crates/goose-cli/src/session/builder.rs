@@ -7,6 +7,7 @@ use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
 use std::process;
+use std::sync::Arc;
 
 use super::output;
 use super::Session;
@@ -74,7 +75,29 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Create the agent
     let agent: Agent = Agent::new();
     let new_provider = create(&provider_name, model_config).unwrap();
-    let _ = agent.update_provider(new_provider).await;
+
+    // Keep a reference to the provider for display_session_info
+    let provider_for_display = Arc::clone(&new_provider);
+
+    // Log model information at startup
+    if let Some(lead_worker) = new_provider.as_lead_worker() {
+        let (lead_model, worker_model) = lead_worker.get_model_info();
+        tracing::info!(
+            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
+            lead_model,
+            worker_model
+        );
+    } else {
+        tracing::info!("🤖 Using model: {}", model);
+    }
+
+    agent
+        .update_provider(new_provider)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
 
     // Configure tool monitoring if max_tool_repetitions is set
     if let Some(max_repetitions) = session_config.max_tool_repetitions {
@@ -235,6 +258,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         &provider_name,
         &model_name,
         &session_file,
+        Some(&provider_for_display),
     );
     session
 }

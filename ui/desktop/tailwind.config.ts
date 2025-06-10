@@ -2,7 +2,7 @@
 export default {
   darkMode: ['class'],
   content: ['./src/**/*.{js,jsx,ts,tsx}', './index.html'],
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography'), require('@tailwindcss/line-clamp') ],
   theme: {
     extend: {
       fontFamily: {
@@ -44,10 +44,16 @@ export default {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
+        indeterminate: {
+          '0%': { left: '-40%', width: '40%' },
+          '50%': { left: '20%', width: '60%' },
+          '100%': { left: '100%', width: '80%' },
+        },
       },
       animation: {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
         'gradient-loader': 'loader 750ms ease-in-out infinite',
+        indeterminate: 'indeterminate 1.5s infinite linear',
       },
       colors: {
         bgApp: 'var(--background-app)',

@@ -5,7 +5,7 @@ use mcp_core::{
     content::Content,
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     role::Role,
     tool::Tool,
@@ -16,7 +16,7 @@ use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::error;
 
@@ -158,6 +158,7 @@ impl Router for JetBrainsRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();

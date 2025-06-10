@@ -92,7 +92,7 @@ To configure your chosen provider or see available options, run `goose configure
    │  ○ OpenRouter 
    └  
    ```
-   4. Enter your API key (and any other configuration details) when prompted
+   4. Enter your API key (and any other configuration details) when prompted.
 
    ```
    ┌   goose-configure 
@@ -106,6 +106,23 @@ To configure your chosen provider or see available options, run `goose configure
    ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
    │   
    └  
+    ```
+    5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key. 
+
+    ```
+    ◇  Enter new value for ANTHROPIC_HOST
+    │  https://api.anthropic.com (default)
+    ```
+    6. Enter the model you want to use or you can use the default one by hitting the `Enter` key. 
+    ```
+    │
+    ◇  Model fetch complete
+    │
+    ◇  Enter a model from that provider:
+    │  claude-3-5-sonnet-latest (default)
+    │
+    ◓  Checking your configuration...                                                                                       
+    └  Configuration saved successfully
 ```
   </TabItem>
 </Tabs>

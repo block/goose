@@ -4,3 +4,4 @@ pub mod databricks;
 pub mod gcpvertexai;
 pub mod google;
 pub mod openai;
+pub mod snowflake;

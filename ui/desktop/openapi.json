@@ -539,6 +539,149 @@
         }
       }
     },
+    "/schedule/{id}": {
+      "put": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "update_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to update",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scheduled job updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot update a currently running job or invalid request"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/inspect": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "inspect_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to inspect",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/kill": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "kill_running_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Running job killed successfully"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/pause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "pause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to pause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job paused successfully"
+          },
+          "400": {
+            "description": "Cannot pause a currently running job"
+          },
+          "404": {
+            "description": "Scheduled job not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/schedule/{id}/run_now": {
       "post": {
         "tags": [
@@ -616,6 +759,36 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/schedule/{id}/unpause": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "operationId": "unpause_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of the schedule to unpause",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scheduled job unpaused successfully"
+          },
+          "404": {
+            "description": "Scheduled job not found"
           },
           "500": {
             "description": "Internal server error"
@@ -1219,6 +1392,35 @@
           }
         }
       },
+      "InspectJobResponse": {
+        "type": "object",
+        "properties": {
+          "processStartTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "runningDurationSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "KillJobResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "ListSchedulesResponse": {
         "type": "object",
         "required": [
@@ -1692,10 +1894,25 @@
           "cron": {
             "type": "string"
           },
+          "current_session_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "currently_running": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
           "last_run": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "process_start_time": {
             "type": "string",
             "format": "date-time",
             "nullable": true
@@ -2127,6 +2344,17 @@
         "example": {
           "data": {},
           "success": true
+        }
+      },
+      "UpdateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string"
+          }
         }
       },
       "UpsertConfigQuery": {

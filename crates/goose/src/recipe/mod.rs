@@ -28,7 +28,7 @@ fn default_version() -> String {
 ///
 /// # Example
 ///
-/// ```
+///
 /// use goose::recipe::Recipe;
 ///
 /// // Using the builder pattern
@@ -53,8 +53,7 @@ fn default_version() -> String {
 ///     settings: None,
 ///     parameters: None,
 /// };
-/// ```
-
+///
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Recipe {
     // Required fields
@@ -184,7 +183,7 @@ impl Recipe {
     ///
     /// # Example
     ///
-    /// ```
+    ///
     /// use goose::recipe::Recipe;
     ///
     /// let recipe = Recipe::builder()
@@ -193,7 +192,7 @@ impl Recipe {
     ///     .instructions("Act as a helpful assistant")
     ///     .build()
     ///     .expect("Failed to build Recipe: missing required fields");
-    /// ```
+    ///
     pub fn builder() -> RecipeBuilder {
         RecipeBuilder {
             version: default_version(),

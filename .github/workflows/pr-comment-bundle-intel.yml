@@ -30,6 +30,7 @@ jobs:
       continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
       # Cannot use github.event.pull_request.number since the trigger is 'issue_comment'
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
+      head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
       - if: ${{ github.event_name == 'issue_comment' }}
         uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
@@ -40,6 +41,20 @@ jobs:
           reaction: "eyes"
           allowed_contexts: pull_request
 
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        
+      - name: Get PR head SHA with gh
+        id: set_head_sha
+        run: |
+          echo "Get PR head SHA with gh"
+          HEAD_SHA=$(gh pr view "$ISSUE_NUMBER" --json headRefOid -q .headRefOid)
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.command.outputs.issue_number }}
+
   bundle-desktop-intel:
     # Only run this if ".bundle-intel" command is detected.
     needs: [trigger-on-command]
@@ -47,6 +62,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-intel.yml
     with:
       signing: true
+      ref: ${{ needs.trigger-on-command.outputs.head_sha }}
     secrets:
       CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
       CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
