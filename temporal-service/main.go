@@ -134,9 +134,17 @@ func isTemporalServerRunning() bool {
 
 // findTemporalCLI attempts to find the temporal CLI binary
 func findTemporalCLI() (string, error) {
-	// Try different possible locations for the temporal CLI
+	// First, try to find temporal in PATH using exec.LookPath
+	if path, err := exec.LookPath("temporal"); err == nil {
+		// Verify it's the correct temporal CLI by checking version
+		cmd := exec.Command(path, "--version")
+		if err := cmd.Run(); err == nil {
+			return path, nil
+		}
+	}
+	
+	// If not found in PATH, try different possible locations for the temporal CLI
 	possiblePaths := []string{
-		"temporal",           // In PATH or same directory
 		"./temporal",         // Current directory
 	}
 	
@@ -163,7 +171,7 @@ func findTemporalCLI() (string, error) {
 		}
 	}
 	
-	return "", fmt.Errorf("temporal CLI not found in any of the expected locations: %v", possiblePaths)
+	return "", fmt.Errorf("temporal CLI not found in PATH or any of the expected locations: %v", possiblePaths)
 }
 
 // TemporalService manages the Temporal client and provides HTTP API
