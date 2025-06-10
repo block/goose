@@ -88,6 +88,7 @@ type ElectronAPI = {
   installUpdate: () => void;
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
+  getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
 };
 
 type AppConfigAPI = {
@@ -178,6 +179,9 @@ const electronAPI: ElectronAPI = {
   },
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void): void => {
     ipcRenderer.on('updater-event', (_event, data) => callback(data));
+  },
+  getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
+    return ipcRenderer.invoke('get-update-state');
   },
 };
 

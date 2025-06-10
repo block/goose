@@ -607,7 +607,7 @@ const createTray = () => {
   }
 
   tray = new Tray(iconPath);
-  
+
   // Set tray reference for auto-updater
   setTrayRef(tray);
 
@@ -1165,7 +1165,7 @@ const registerGlobalHotkey = (accelerator: string) => {
 app.whenReady().then(async () => {
   // Setup auto-updater
   setupAutoUpdater();
-  
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({

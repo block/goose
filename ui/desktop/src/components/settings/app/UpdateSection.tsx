@@ -2,13 +2,25 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
-type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installing' | 'success' | 'error' | 'ready';
+type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'installing'
+  | 'success'
+  | 'error'
+  | 'ready';
 
 interface UpdateInfo {
   currentVersion: string;
   latestVersion?: string;
   isUpdateAvailable?: boolean;
   error?: string;
+}
+
+interface UpdateEventData {
+  version?: string;
+  percent?: number;
 }
 
 export default function UpdateSection() {
@@ -23,48 +35,59 @@ export default function UpdateSection() {
     const currentVersion = window.electron.getVersion();
     setUpdateInfo((prev) => ({ ...prev, currentVersion }));
 
+    // Check if there's already an update state from the auto-check
+    window.electron.getUpdateState().then((state) => {
+      if (state) {
+        console.log('Found existing update state:', state);
+        setUpdateInfo((prev) => ({
+          ...prev,
+          isUpdateAvailable: state.updateAvailable,
+          latestVersion: state.latestVersion,
+        }));
+      }
+    });
+
     // Listen for updater events
     window.electron.onUpdaterEvent((event) => {
       console.log('Updater event:', event);
-      
+
       switch (event.event) {
         case 'checking-for-update':
           setUpdateStatus('checking');
           break;
-          
+
         case 'update-available':
           setUpdateStatus('idle');
           setUpdateInfo((prev) => ({
             ...prev,
-            latestVersion: event.data?.version,
+            latestVersion: (event.data as UpdateEventData)?.version,
             isUpdateAvailable: true,
           }));
           break;
-          
+
         case 'update-not-available':
-          setUpdateStatus('success');
+          setUpdateStatus('idle');
           setUpdateInfo((prev) => ({
             ...prev,
             isUpdateAvailable: false,
           }));
-          setTimeout(() => setUpdateStatus('idle'), 3000);
           break;
-          
+
         case 'download-progress':
           setUpdateStatus('downloading');
-          setProgress(event.data?.percent || 0);
+          setProgress((event.data as UpdateEventData)?.percent || 0);
           break;
-          
+
         case 'update-downloaded':
           setUpdateStatus('ready');
           setProgress(100);
           break;
-          
+
         case 'error':
           setUpdateStatus('error');
           setUpdateInfo((prev) => ({
             ...prev,
-            error: event.data || 'An error occurred',
+            error: String(event.data || 'An error occurred'),
           }));
           setTimeout(() => setUpdateStatus('idle'), 5000);
           break;
@@ -78,11 +101,16 @@ export default function UpdateSection() {
 
     try {
       const result = await window.electron.checkForUpdates();
-      
+
       if (result.error) {
         throw new Error(result.error);
       }
 
+      // If we successfully checked and no update is available, show success
+      if (!result.error && updateInfo.isUpdateAvailable === false) {
+        setUpdateStatus('success');
+        setTimeout(() => setUpdateStatus('idle'), 3000);
+      }
       // The actual status will be handled by the updater events
     } catch (error) {
       console.error('Error checking for updates:', error);
@@ -101,7 +129,7 @@ export default function UpdateSection() {
 
     try {
       const result = await window.electron.downloadUpdate();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to download update');
       }
@@ -137,7 +165,7 @@ export default function UpdateSection() {
       case 'success':
         return updateInfo.isUpdateAvailable === false
           ? 'You are running the latest version!'
-          : 'Update installed successfully!';
+          : 'Update available!';
       case 'error':
         return updateInfo.error || 'An error occurred';
       default:
@@ -173,6 +201,9 @@ export default function UpdateSection() {
       <div className="pb-8">
         <p className="text-sm text-textStandard mb-6">
           Current version: {updateInfo.currentVersion || 'Loading...'}
+          {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
+            <span className="text-textSubtle"> → {updateInfo.latestVersion} available</span>
+          )}
           {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && ' (up to date)'}
         </p>
 
@@ -201,12 +232,7 @@ export default function UpdateSection() {
             )}
 
             {updateStatus === 'ready' && (
-              <Button
-                onClick={installUpdate}
-                variant="default"
-                size="sm"
-                className="text-xs"
-              >
+              <Button onClick={installUpdate} variant="default" size="sm" className="text-xs">
                 Install & Restart
               </Button>
             )}
@@ -227,12 +253,15 @@ export default function UpdateSection() {
               />
             </div>
           )}
-          
+
           {/* Update information */}
           {updateInfo.isUpdateAvailable && (
-            <p className="text-xs text-textSubtle mt-4">
-              Updates will replace the app in /Applications. Your settings and data will be preserved.
-            </p>
+            <div className="text-xs text-textSubtle mt-4 space-y-1">
+              <p>Update will be downloaded and automatically extracted to your Downloads folder.</p>
+              <p className="text-xs text-amber-600">
+                After download, move the Goose app to /Applications to complete the update.
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -104,6 +104,7 @@
     "ai": "^3.4.33",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "compare-versions": "^6.1.1",
     "cors": "^2.8.5",
     "cronstrue": "^2.48.0",
     "dotenv": "^16.4.5",
