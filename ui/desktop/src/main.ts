@@ -35,7 +35,7 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
-import { setupAutoUpdater } from './utils/autoUpdater';
+import { setupAutoUpdater, setTrayRef } from './utils/autoUpdater';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -607,6 +607,9 @@ const createTray = () => {
   }
 
   tray = new Tray(iconPath);
+  
+  // Set tray reference for auto-updater
+  setTrayRef(tray);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },

@@ -1,9 +1,17 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, nativeImage, Tray } from 'electron';
+import * as path from 'path';
 import log from './logger';
 
+let updateAvailable = false;
+let trayRef: Tray | null = null;
+
 // Configure auto-updater
-export function setupAutoUpdater() {
+export function setupAutoUpdater(tray?: Tray) {
+  if (tray) {
+    trayRef = tray;
+  }
+  
   // Set the feed URL for GitHub releases
   autoUpdater.setFeedURL({
     provider: 'github',
@@ -18,6 +26,14 @@ export function setupAutoUpdater() {
   
   // Set logger
   autoUpdater.logger = log;
+  
+  // Check for updates on startup
+  setTimeout(() => {
+    log.info('Checking for updates on startup...');
+    autoUpdater.checkForUpdates().catch(err => {
+      log.error('Error checking for updates on startup:', err);
+    });
+  }, 5000); // Wait 5 seconds after app starts
 
   // Handle update events
   autoUpdater.on('checking-for-update', () => {
@@ -27,11 +43,15 @@ export function setupAutoUpdater() {
 
   autoUpdater.on('update-available', (info: UpdateInfo) => {
     log.info('Update available:', info);
+    updateAvailable = true;
+    updateTrayIcon(true);
     sendStatusToWindow('update-available', info);
   });
 
   autoUpdater.on('update-not-available', (info: UpdateInfo) => {
     log.info('Update not available:', info);
+    updateAvailable = false;
+    updateTrayIcon(false);
     sendStatusToWindow('update-not-available', info);
   });
 
@@ -133,4 +153,47 @@ function sendStatusToWindow(event: string, data?: unknown) {
   windows.forEach((win) => {
     win.webContents.send('updater-event', { event, data } as UpdaterEvent);
   });
+}
+
+function updateTrayIcon(hasUpdate: boolean) {
+  if (!trayRef) return;
+  
+  const isDev = process.env.NODE_ENV === 'development';
+  let iconPath: string;
+  
+  if (hasUpdate) {
+    // Use icon with update indicator
+    if (isDev) {
+      iconPath = path.join(process.cwd(), 'src', 'images', 'iconTemplateUpdate.png');
+    } else {
+      iconPath = path.join(process.resourcesPath, 'images', 'iconTemplateUpdate.png');
+    }
+    trayRef.setToolTip('Goose - Update Available');
+  } else {
+    // Use normal icon
+    if (isDev) {
+      iconPath = path.join(process.cwd(), 'src', 'images', 'iconTemplate.png');
+    } else {
+      iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
+    }
+    trayRef.setToolTip('Goose');
+  }
+  
+  const icon = nativeImage.createFromPath(iconPath);
+  if (process.platform === 'darwin') {
+    // Mark as template for macOS to handle dark/light mode
+    icon.setTemplateImage(true);
+  }
+  trayRef.setImage(icon);
+}
+
+// Export functions to manage tray reference
+export function setTrayRef(tray: Tray) {
+  trayRef = tray;
+  // Update icon based on current update status
+  updateTrayIcon(updateAvailable);
+}
+
+export function getUpdateAvailable(): boolean {
+  return updateAvailable;
 }
