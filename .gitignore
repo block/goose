@@ -49,3 +49,6 @@ benchconf.json
 scripts/fake.sh
 do_not_version/
 /ui/desktop/src/bin/temporal
+/temporal-service/temporal.db
+/ui/desktop/src/bin/temporal.db
+/temporal.db

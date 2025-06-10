@@ -155,6 +155,14 @@ if (process.platform === 'win32') {
             if (configParam) {
               try {
                 recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+
+                // Check if this is a scheduled job
+                const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+                if (scheduledJobId) {
+                  console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+                  recipeConfig.scheduledJobId = scheduledJobId;
+                  recipeConfig.isScheduledExecution = true;
+                }
               } catch (e) {
                 console.error('Failed to parse bot config:', e);
               }
@@ -250,6 +258,14 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     if (configParam) {
       try {
         recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+
+        // Check if this is a scheduled job
+        const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+        if (scheduledJobId) {
+          console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+          recipeConfig.scheduledJobId = scheduledJobId;
+          recipeConfig.isScheduledExecution = true;
+        }
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -274,6 +290,14 @@ app.on('open-url', async (_event, url) => {
       if (configParam) {
         try {
           recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+
+          // Check if this is a scheduled job
+          const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+          if (scheduledJobId) {
+            console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+            recipeConfig.scheduledJobId = scheduledJobId;
+            recipeConfig.isScheduledExecution = true;
+          }
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }

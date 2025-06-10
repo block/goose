@@ -134,6 +134,12 @@ run-ui-alpha temporal="true":
     @echo "Running UI with {{ if temporal == "true" { "Temporal" } else { "Legacy" } }} scheduler..."
     cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE={{ if temporal == "true" { "temporal" } else { "legacy" } }} npm run start-alpha-gui
 
+# Run UI with alpha changes using legacy scheduler (no Temporal dependency)
+run-ui-alpha-legacy:
+    @just release-binary
+    @echo "Running UI with Legacy scheduler (no Temporal required)..."
+    cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE=legacy npm run start-alpha-gui
+
 # Run UI with latest (Windows version)
 run-ui-windows:
     @just release-windows
@@ -202,10 +208,50 @@ make-ui-intel:
     @just release-intel
     cd ui/desktop && npm run bundle:intel
 
-# Setup langfuse server
-langfuse-server:
-    #!/usr/bin/env bash
-    ./scripts/setup_langfuse.sh
+# Start Temporal services (server and temporal-service)
+start-temporal:
+    @echo "Starting Temporal server..."
+    @if ! pgrep -f "temporal server start-dev" > /dev/null; then \
+        echo "Starting Temporal server in background..."; \
+        nohup temporal server start-dev --db-filename temporal.db --port 7233 --ui-port 8233 --log-level warn > temporal-server.log 2>&1 & \
+        echo "Waiting for Temporal server to start..."; \
+        sleep 5; \
+    else \
+        echo "Temporal server is already running"; \
+    fi
+    @echo "Starting temporal-service..."
+    @if ! pgrep -f "temporal-service" > /dev/null; then \
+        echo "Starting temporal-service in background..."; \
+        cd temporal-service && nohup ./temporal-service > temporal-service.log 2>&1 & \
+        echo "Waiting for temporal-service to start..."; \
+        sleep 3; \
+    else \
+        echo "temporal-service is already running"; \
+    fi
+    @echo "Temporal services started. Check logs: temporal-server.log, temporal-service/temporal-service.log"
+
+# Stop Temporal services
+stop-temporal:
+    @echo "Stopping Temporal services..."
+    @pkill -f "temporal server start-dev" || echo "Temporal server was not running"
+    @pkill -f "temporal-service" || echo "temporal-service was not running"
+    @echo "Temporal services stopped"
+
+# Check status of Temporal services
+status-temporal:
+    @echo "Checking Temporal services status..."
+    @if pgrep -f "temporal server start-dev" > /dev/null; then \
+        echo "✓ Temporal server is running"; \
+    else \
+        echo "✗ Temporal server is not running"; \
+    fi
+    @if pgrep -f "temporal-service" > /dev/null; then \
+        echo "✓ temporal-service is running"; \
+    else \
+        echo "✗ temporal-service is not running"; \
+    fi
+    @echo "Testing temporal-service health..."
+    @curl -s http://localhost:8080/health > /dev/null && echo "✓ temporal-service is responding" || echo "✗ temporal-service is not responding"
 
 # Run UI with debug build
 run-dev:

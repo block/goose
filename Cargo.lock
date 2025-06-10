@@ -3644,10 +3644,12 @@ name = "goose-scheduler-executor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "clap 4.5.31",
  "futures",
  "goose",
  "mcp-core",
+ "serde",
  "serde_json",
  "serde_yaml",
  "tokio",
