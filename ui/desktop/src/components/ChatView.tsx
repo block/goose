@@ -82,6 +82,7 @@ export default function ChatView({
 }
 
 function ChatContent({
+  readyForAutoUserPrompt,
   chat,
   setChat,
   setView,
@@ -294,6 +295,40 @@ function ChatContent({
   const initialPrompt = useMemo(() => {
     return recipeConfig?.prompt || '';
   }, [recipeConfig?.prompt]);
+
+  // Auto-send the prompt for scheduled executions
+  useEffect(() => {
+    if (
+      recipeConfig?.isScheduledExecution &&
+      recipeConfig?.prompt &&
+      messages.length === 0 &&
+      !isLoading &&
+      readyForAutoUserPrompt
+    ) {
+      console.log('Auto-sending prompt for scheduled execution:', recipeConfig.prompt);
+
+      // Create and send the user message
+      const userMessage = createUserMessage(recipeConfig.prompt);
+      setLastInteractionTime(Date.now());
+      window.electron.startPowerSaveBlocker();
+      append(userMessage);
+
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
+    }
+  }, [
+    recipeConfig?.isScheduledExecution,
+    recipeConfig?.prompt,
+    messages.length,
+    isLoading,
+    readyForAutoUserPrompt,
+    append,
+    setLastInteractionTime,
+  ]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -628,7 +663,7 @@ function ChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || initialPrompt}
+            initialValue={_input || (recipeConfig?.isScheduledExecution ? '' : initialPrompt)}
             setView={setView}
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}

@@ -17,6 +17,9 @@ export interface Recipe {
   context?: string[];
   profile?: string;
   mcps?: number;
+  // Properties added for scheduled execution
+  scheduledJobId?: string;
+  isScheduledExecution?: boolean;
 }
 
 export interface CreateRecipeRequest {
