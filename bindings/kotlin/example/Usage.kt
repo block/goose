@@ -29,7 +29,7 @@ fun main() = runBlocking {
                               "value": {
                                 "name": "calculator_extension__toolname",
                                 "arguments": {
-                                  "operation": "multiply",
+                                  "operation": "multiplication",
                                   "numbers": [7, 6]
                                 }, 
                                 "needsApproval": false
@@ -45,6 +45,51 @@ fun main() = runBlocking {
         Message(
             role    = Role.USER,
             created = now + 3,
+            content = listOf(
+                MessageContent.ToolResp(
+                    ToolResponse(
+                        id = "calc1",
+                        toolResult = """
+                            {
+                              "status": "error",
+                              "error": "Invalid value for operation: 'multiplication'. Valid values are: ['add', 'subtract', 'multiply', 'divide']"
+                            }
+                        """.trimIndent()
+                    )
+                )
+            )
+        ), 
+
+        // 4) Assistant makes a tool request (ToolReq) to calculate 7×6
+        Message(
+            role    = Role.ASSISTANT,
+            created = now + 4,
+            content = listOf(
+                MessageContent.ToolReq(
+                    ToolRequest(
+                        id = "calc1",
+                        toolCall = """
+                            {
+                              "status": "success",
+                              "value": {
+                                "name": "calculator_extension__toolname",
+                                "arguments": {
+                                  "operation": "multiplication",
+                                  "numbers": [7, 6]
+                                }, 
+                                "needsApproval": false
+                              }                              
+                            }
+                        """.trimIndent()
+                    )
+                )
+            )
+        ),
+
+        // 5) User (on behalf of the tool) responds with the tool result (ToolResp)
+        Message(
+            role    = Role.USER,
+            created = now + 5,
             content = listOf(
                 MessageContent.ToolResp(
                     ToolResponse(
