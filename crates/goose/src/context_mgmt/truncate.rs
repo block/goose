@@ -1,6 +1,6 @@
 use crate::message::{Message, MessageContent};
 use anyhow::{anyhow, Result};
-use mcp_core::{Role, Content, ResourceContents};
+use mcp_core::{Content, ResourceContents, Role};
 use std::collections::HashSet;
 use tracing::{debug, warn};
 
@@ -28,19 +28,23 @@ fn handle_oversized_messages(
 
     for (i, (message, &original_tokens)) in messages.iter().zip(token_counts.iter()).enumerate() {
         if original_tokens > context_limit {
-            warn!("Message {} has {} tokens, exceeding context limit of {}", i, original_tokens, context_limit);
-            
+            warn!(
+                "Message {} has {} tokens, exceeding context limit of {}",
+                i, original_tokens, context_limit
+            );
+
             // Try to truncate the message content
             let truncated_message = truncate_message_content(message, MAX_TRUNCATED_CONTENT_SIZE)?;
-            let estimated_new_tokens = estimate_message_tokens(&truncated_message, &estimate_tokens);
-            
+            let estimated_new_tokens =
+                estimate_message_tokens(&truncated_message, &estimate_tokens);
+
             if estimated_new_tokens > context_limit {
                 // Even truncated message is too large, skip it entirely
                 warn!("Skipping message {} as even truncated version ({} tokens) exceeds context limit", i, estimated_new_tokens);
                 any_truncated = true;
                 continue;
             }
-            
+
             truncated_messages.push(truncated_message);
             truncated_token_counts.push(estimated_new_tokens);
             any_truncated = true;
@@ -53,7 +57,12 @@ fn handle_oversized_messages(
     if any_truncated {
         debug!("Truncated large message content, now attempting normal truncation");
         // After content truncation, try normal truncation if still needed
-        return truncate_messages(&truncated_messages, &truncated_token_counts, context_limit, strategy);
+        return truncate_messages(
+            &truncated_messages,
+            &truncated_token_counts,
+            context_limit,
+            strategy,
+        );
     }
 
     Ok((truncated_messages, truncated_token_counts))
@@ -62,7 +71,7 @@ fn handle_oversized_messages(
 /// Truncates the content within a message while preserving its structure
 fn truncate_message_content(message: &Message, max_content_size: usize) -> Result<Message> {
     let mut new_message = message.clone();
-    
+
     for content in &mut new_message.content {
         match content {
             MessageContent::Text(text_content) => {
@@ -92,19 +101,16 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                         }
                         // Handle Resource content which might contain large text
                         else if let Content::Resource(ref mut resource_content) = content_item {
-                            match &mut resource_content.resource {
-                                ResourceContents::TextResourceContents { text, .. } => {
-                                    if text.len() > max_content_size {
-                                        let truncated = format!(
-                                            "{}\n\n[... resource content truncated from {} to {} characters ...]",
-                                            &text[..max_content_size.min(text.len())],
-                                            text.len(),
-                                            max_content_size
-                                        );
-                                        *text = truncated;
-                                    }
+                            if let ResourceContents::TextResourceContents { text, .. } = &mut resource_content.resource {
+                                if text.len() > max_content_size {
+                                    let truncated = format!(
+                                        "{}\n\n[... resource content truncated from {} to {} characters ...]",
+                                        &text[..max_content_size.min(text.len())],
+                                        text.len(),
+                                        max_content_size
+                                    );
+                                    *text = truncated;
                                 }
-                                _ => {} // Other resource types don't need truncation
                             }
                         }
                     }
@@ -114,14 +120,14 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
             _ => {}
         }
     }
-    
+
     Ok(new_message)
 }
 
 /// Estimates token count for a message using a simple heuristic
 fn estimate_message_tokens(message: &Message, estimate_fn: &dyn Fn(&str) -> usize) -> usize {
     let mut total_tokens = 10; // Base overhead for message structure
-    
+
     for content in &message.content {
         match content {
             MessageContent::Text(text_content) => {
@@ -150,7 +156,7 @@ fn estimate_message_tokens(message: &Message, estimate_fn: &dyn Fn(&str) -> usiz
             _ => total_tokens += 5, // Small overhead for other content types
         }
     }
-    
+
     total_tokens
 }
 
@@ -185,7 +191,10 @@ pub fn truncate_messages(
     let max_message_tokens = token_counts.iter().max().copied().unwrap_or(0);
     if max_message_tokens > context_limit {
         // Try to handle large messages by truncating their content
-        debug!("Found oversized message with {} tokens, attempting content truncation", max_message_tokens);
+        debug!(
+            "Found oversized message with {} tokens, attempting content truncation",
+            max_message_tokens
+        );
         return handle_oversized_messages(&messages, &token_counts, context_limit, strategy);
     }
 
@@ -212,13 +221,17 @@ pub fn truncate_messages(
         strategy.determine_indices_to_remove(&messages, &token_counts, context_limit)?;
 
     // Circuit breaker: if we can't remove enough messages, fail gracefully
-    let tokens_to_remove: usize = indices_to_remove.iter()
+    let tokens_to_remove: usize = indices_to_remove
+        .iter()
         .map(|&i| token_counts.get(i).copied().unwrap_or(0))
         .sum();
-    
+
     if total_tokens - tokens_to_remove > context_limit && !indices_to_remove.is_empty() {
-        debug!("Standard truncation insufficient: {} tokens remain after removing {} tokens", 
-               total_tokens - tokens_to_remove, tokens_to_remove);
+        debug!(
+            "Standard truncation insufficient: {} tokens remain after removing {} tokens",
+            total_tokens - tokens_to_remove,
+            tokens_to_remove
+        );
         // Try more aggressive truncation or content truncation
         return handle_oversized_messages(&messages, &token_counts, context_limit, strategy);
     }
@@ -390,7 +403,10 @@ mod tests {
 
     // Helper function to create a large tool response with massive content
     fn large_tool_response(id: &str, large_text: String, tokens: usize) -> (Message, usize) {
-        (Message::user().with_tool_response(id, Ok(vec![Content::text(large_text)])), tokens)
+        (
+            Message::user().with_tool_response(id, Ok(vec![Content::text(large_text)])),
+            tokens,
+        )
     }
 
     // Helper function to create messages with alternating user and assistant
@@ -424,7 +440,12 @@ mod tests {
         let large_content = "A".repeat(50000); // Very large content
         let messages = vec![
             user_text(1, 10).0,
-            assistant_tool_request("tool1", ToolCall::new("read_file", json!({"path": "large_file.txt"})), 20).0,
+            assistant_tool_request(
+                "tool1",
+                ToolCall::new("read_file", json!({"path": "large_file.txt"})),
+                20,
+            )
+            .0,
             large_tool_response("tool1", large_content, 100000).0, // Massive tool response
             user_text(2, 10).0,
         ];
@@ -439,16 +460,27 @@ mod tests {
         );
 
         // Should succeed by truncating the large content
-        assert!(result.is_ok(), "Should handle oversized message by content truncation");
+        assert!(
+            result.is_ok(),
+            "Should handle oversized message by content truncation"
+        );
         let (truncated_messages, truncated_counts) = result.unwrap();
-        
+
         // Should have some messages remaining
-        assert!(!truncated_messages.is_empty(), "Should have some messages left");
-        
+        assert!(
+            !truncated_messages.is_empty(),
+            "Should have some messages left"
+        );
+
         // Total should be within limit
         let total_tokens: usize = truncated_counts.iter().sum();
-        assert!(total_tokens <= context_limit, "Total tokens {} should be <= context limit {}", total_tokens, context_limit);
-        
+        assert!(
+            total_tokens <= context_limit,
+            "Total tokens {} should be <= context limit {}",
+            total_tokens,
+            context_limit
+        );
+
         Ok(())
     }
 
@@ -672,12 +704,7 @@ mod tests {
         // Test unmatched token counts
         let messages = vec![user_text(1, 10).0];
         let token_counts = vec![10, 10]; // Mismatched length
-        let result = truncate_messages(
-            &messages,
-            &token_counts,
-            100,
-            &OldestFirstTruncation,
-        );
+        let result = truncate_messages(&messages, &token_counts, 100, &OldestFirstTruncation);
         assert!(result.is_err());
 
         Ok(())

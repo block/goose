@@ -221,7 +221,10 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 /// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
 /// The first line of the file is expected to be metadata, and the rest are messages.
 /// If max_content_size is Some, large message content will be truncated during loading.
-pub fn read_messages_with_truncation(session_file: &Path, max_content_size: Option<usize>) -> Result<Vec<Message>> {
+pub fn read_messages_with_truncation(
+    session_file: &Path,
+    max_content_size: Option<usize>,
+) -> Result<Vec<Message>> {
     let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -257,7 +260,10 @@ pub fn read_messages_with_truncation(session_file: &Path, max_content_size: Opti
 }
 
 /// Parse a message from JSON string with optional content truncation
-fn parse_message_with_truncation(json_str: &str, max_content_size: Option<usize>) -> Result<Message> {
+fn parse_message_with_truncation(
+    json_str: &str,
+    max_content_size: Option<usize>,
+) -> Result<Message> {
     // First try to parse normally
     match serde_json::from_str::<Message>(json_str) {
         Ok(mut message) => {
@@ -270,15 +276,18 @@ fn parse_message_with_truncation(json_str: &str, max_content_size: Option<usize>
         Err(e) => {
             // If parsing fails and the string is very long, it might be due to size
             if json_str.len() > 100000 {
-                tracing::warn!("Failed to parse very large message ({}KB), attempting truncation", json_str.len() / 1024);
-                
+                tracing::warn!(
+                    "Failed to parse very large message ({}KB), attempting truncation",
+                    json_str.len() / 1024
+                );
+
                 // Try to truncate the JSON string itself before parsing
                 let truncated_json = if let Some(max_size) = max_content_size {
                     truncate_json_string(json_str, max_size)
                 } else {
                     json_str.to_string()
                 };
-                
+
                 match serde_json::from_str::<Message>(&truncated_json) {
                     Ok(message) => {
                         tracing::info!("Successfully parsed message after JSON truncation");
@@ -287,7 +296,8 @@ fn parse_message_with_truncation(json_str: &str, max_content_size: Option<usize>
                     Err(_) => {
                         tracing::error!("Failed to parse message even after truncation, skipping");
                         // Return a placeholder message indicating the issue
-                        Ok(Message::user().with_text("[Message too large to load - content truncated]"))
+                        Ok(Message::user()
+                            .with_text("[Message too large to load - content truncated]"))
                     }
                 }
             } else {
@@ -301,7 +311,7 @@ fn parse_message_with_truncation(json_str: &str, max_content_size: Option<usize>
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
     use crate::message::MessageContent;
     use mcp_core::{Content, ResourceContents};
-    
+
     for content in &mut message.content {
         match content {
             MessageContent::Text(text_content) => {
@@ -331,19 +341,16 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                 }
                             }
                             Content::Resource(ref mut resource_content) => {
-                                match &mut resource_content.resource {
-                                    ResourceContents::TextResourceContents { text, .. } => {
-                                        if text.len() > max_content_size {
-                                            let truncated = format!(
-                                                "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
-                                                &text[..max_content_size.min(text.len())],
-                                                text.len(),
-                                                max_content_size
-                                            );
-                                            *text = truncated;
-                                        }
+                                if let ResourceContents::TextResourceContents { text, .. } = &mut resource_content.resource {
+                                    if text.len() > max_content_size {
+                                        let truncated = format!(
+                                            "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
+                                            &text[..max_content_size.min(text.len())],
+                                            text.len(),
+                                            max_content_size
+                                        );
+                                        *text = truncated;
                                     }
-                                    _ => {} // Other resource types don't need truncation
                                 }
                             }
                             _ => {} // Other content types are typically smaller
@@ -361,22 +368,22 @@ fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
     // This is a heuristic approach - look for large text values in the JSON
     // and truncate them. This is not perfect but should handle the common case
     // of large tool responses.
-    
+
     if json_str.len() <= max_content_size * 2 {
         return json_str.to_string();
     }
-    
+
     // Try to find patterns that look like large text content
     // Look for "text":"..." patterns and truncate the content
     let mut result = json_str.to_string();
-    
+
     // Simple regex-like approach to find and truncate large text values
     if let Some(start) = result.find("\"text\":\"") {
         let text_start = start + 8; // Length of "text":"
         if let Some(end) = result[text_start..].find("\",") {
             let text_end = text_start + end;
             let text_content = &result[text_start..text_end];
-            
+
             if text_content.len() > max_content_size {
                 let truncated_text = format!(
                     "{}\n\n[... content truncated during JSON parsing from {} to {} characters ...]",
@@ -388,7 +395,7 @@ fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
             }
         }
     }
-    
+
     result
 }
 
