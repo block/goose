@@ -51,6 +51,7 @@ pub struct Session {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode
     run_mode: RunMode,
+    scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
 }
 
 // Cache structure for completion data
@@ -107,7 +108,7 @@ pub async fn classify_planner_response(
 }
 
 impl Session {
-    pub fn new(agent: Agent, session_file: PathBuf, debug: bool) -> Self {
+    pub fn new(agent: Agent, session_file: PathBuf, debug: bool, scheduled_job_id: Option<String>) -> Self {
         let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
@@ -123,6 +124,7 @@ impl Session {
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
             run_mode: RunMode::Normal,
+            scheduled_job_id,
         }
     }
 
@@ -727,7 +729,7 @@ impl Session {
                     id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
-                    schedule_id: None,
+                    schedule_id: self.scheduled_job_id.clone(),
                 }),
             )
             .await?;
@@ -862,7 +864,7 @@ impl Session {
                                             id: session_id.clone(),
                                             working_dir: std::env::current_dir()
                                                 .expect("failed to get current session working directory"),
-                                            schedule_id: None,
+                                            schedule_id: self.scheduled_job_id.clone(),
                                         }),
                                     )
                                     .await?;

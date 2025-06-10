@@ -40,6 +40,8 @@ pub struct SessionBuilderConfig {
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
     pub max_tool_repetitions: Option<u32>,
+    /// ID of the scheduled job that triggered this session (if any)
+    pub scheduled_job_id: Option<String>,
     /// Whether this session will be used interactively (affects debugging prompts)
     pub interactive: bool,
 }
@@ -339,7 +341,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Create new session
-    let mut session = Session::new(agent, session_file.clone(), session_config.debug);
+    let mut session = Session::new(agent, session_file.clone(), session_config.debug, session_config.scheduled_job_id.clone());
 
     // Add extensions if provided
     for extension_str in session_config.extensions {
