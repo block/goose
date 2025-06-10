@@ -153,7 +153,11 @@ function ChatContent({
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
-    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
+    body: {
+      session_id: chat.id,
+      session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+      ...(recipeConfig?.scheduledJobId && { scheduled_job_id: recipeConfig.scheduledJobId }),
+    },
     onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
