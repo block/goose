@@ -60,8 +60,14 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+  # ------------------------------------------------------------
+  # 5) Bundle Desktop App (Linux)
+  # ------------------------------------------------------------
+  bundle-desktop-linux:
+    uses: ./.github/workflows/bundle-desktop-linux.yml
+
 #  # ------------------------------------------------------------
-#  # 5) Bundle Desktop App (Windows)
+#  # 6) Bundle Desktop App (Windows)
 #  # ------------------------------------------------------------
 #  bundle-desktop-windows:
 #    uses: ./.github/workflows/bundle-desktop-windows.yml
@@ -74,12 +80,12 @@ jobs:
 #    #   WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
   # ------------------------------------
-  # 6) Create/Update GitHub Release
+  # 7) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel]
+    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux]
     permissions:
       contents: write
     steps:
@@ -96,6 +102,8 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             Goose*.zip
+            *.deb
+            *.rpm
             download_cli.sh
           allowUpdates: true
           omitBody: true
@@ -111,6 +119,8 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             Goose*.zip
+            *.deb
+            *.rpm
             download_cli.sh
           allowUpdates: true
           omitBody: true

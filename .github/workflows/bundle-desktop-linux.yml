@@ -1,19 +1,22 @@
-name: "Bundle Desktop (Linux)"
-
+# This is a **reuseable** workflow that bundles the Desktop App for Linux.
+# It doesn't get triggered on its own. It gets used in multiple workflows:
+#  - release.yml
+#  - canary.yml (when added)
+#  - pr-comment-bundle-desktop.yml (when added)
 on:
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - 'ui/desktop/**'
-      - 'crates/goose-server/**'
-      - '.github/workflows/bundle-desktop-linux.yml'
-  push:
-    branches: [ "micn/linux-desktop-app" ]  # Only run on this specific branch for now
-    paths:
-      - 'ui/desktop/**'
-      - 'crates/goose-server/**'
-      - '.github/workflows/bundle-desktop-linux.yml'
-  workflow_dispatch:  # Allow manual triggering
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to set for the build'
+        required: false
+        default: ""
+        type: string
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
+
+name: "Bundle Desktop (Linux)"
 
 jobs:
   build-desktop-linux:
@@ -25,9 +28,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      # 2) Debug information
+      # 2) Update versions before build
+      - name: Update versions
+        if: ${{ inputs.version != '' }}
+        run: |
+          # Update version in Cargo.toml
+          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          rm -f Cargo.toml.bak
+
+          # Update version in package.json
+          cd ui/desktop
+          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+
+      # 3) Debug information
       - name: Debug workflow info
         env:
           WORKFLOW_NAME: ${{ github.workflow }}
@@ -46,7 +62,7 @@ jobs:
           lsb_release -a || true
           df -h
 
-      # 3) Install system dependencies for Linux packaging
+      # 4) Install system dependencies for Linux packaging
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -66,13 +82,13 @@ jobs:
             dpkg-dev \
             protobuf-compiler
 
-      # 4) Set up Rust
+      # 5) Set up Rust
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
-      # 5) Set up Node.js
+      # 6) Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -80,7 +96,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ui/desktop/package-lock.json
 
-      # 6) Cache Rust dependencies
+      # 7) Cache Rust dependencies
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -105,7 +121,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
-      # 7) Build the Rust goosed binary
+      # 8) Build the Rust goosed binary
       - name: Build goosed binary
         run: |
           echo "Building goosed binary for Linux..."
@@ -113,7 +129,7 @@ jobs:
           ls -la target/release/
           file target/release/goosed
 
-      # 8) Copy binary to Electron folder
+      # 9) Copy binary to Electron folder
       - name: Copy binary into Electron folder
         run: |
           echo "Copying goosed binary to ui/desktop/src/bin/"
@@ -122,13 +138,13 @@ jobs:
           chmod +x ui/desktop/src/bin/goosed
           ls -la ui/desktop/src/bin/
 
-      # 9) Install npm dependencies
+      # 10) Install npm dependencies
       - name: Install npm dependencies
         run: |
           cd ui/desktop
           npm ci
 
-      # 10) Build Electron app with Linux makers (.deb and .rpm)
+      # 11) Build Electron app with Linux makers (.deb and .rpm)
       - name: Build Linux packages
         run: |
           cd ui/desktop
@@ -141,7 +157,7 @@ jobs:
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" | head -10
 
-      # 11) List all generated files for debugging
+      # 12) List all generated files for debugging
       - name: List generated files
         run: |
           echo "=== All files in out/ directory ==="
@@ -153,27 +169,27 @@ jobs:
           echo "=== File sizes ==="
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
 
-      # 12) Upload .deb package
+      # 13) Upload .deb package
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
-          name: goose-linux-deb
+          name: Goose-linux-x64-deb
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
-      # 13) Upload .rpm package  
+      # 14) Upload .rpm package  
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
-          name: goose-linux-rpm
+          name: Goose-linux-x64-rpm
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
-      # 14) Create combined artifact with both packages
+      # 15) Create combined artifact with both packages
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: goose-linux-packages
+          name: Goose-linux-x64
           path: |
             ui/desktop/out/make/deb/x64/*.deb
             ui/desktop/out/make/rpm/x64/*.rpm

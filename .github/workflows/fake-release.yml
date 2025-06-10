@@ -1,0 +1,77 @@
+name: "Fake Release Test (Linux Integration)"
+
+# This workflow tests the Linux desktop integration with release process
+# Triggers only on the specific branch to test the reusable workflow
+on:
+  push:
+    branches: [ "micn/linux-desktop-app" ]
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  # Test the Linux desktop build (reusable workflow)
+  test-bundle-desktop-linux:
+    uses: ./.github/workflows/bundle-desktop-linux.yml
+    with:
+      version: "1.0.0-fake-test"
+
+  # Simulate what the real release job does
+  fake-release:
+    name: Fake Release (Test Artifacts)
+    runs-on: ubuntu-latest
+    needs: [test-bundle-desktop-linux]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: List all downloaded artifacts
+        run: |
+          echo "=== All downloaded files ==="
+          ls -la
+          echo ""
+          echo "=== .deb files ==="
+          find . -name "*.deb" -exec ls -lh {} \; || echo "No .deb files found"
+          echo ""
+          echo "=== .rpm files ==="
+          find . -name "*.rpm" -exec ls -lh {} \; || echo "No .rpm files found"
+          echo ""
+          echo "=== All files that would be released ==="
+          find . -name "*.deb" -o -name "*.rpm" -o -name "*.zip" -o -name "*.tar.bz2" | sort
+
+      - name: Test artifact patterns (simulate release)
+        run: |
+          echo "Testing release artifact patterns..."
+          
+          # Test the patterns that would be used in real release
+          echo "Files matching *.deb:"
+          ls *.deb 2>/dev/null || echo "No .deb files in root"
+          
+          echo "Files matching *.rpm:"
+          ls *.rpm 2>/dev/null || echo "No .rpm files in root"
+          
+          echo "Files matching Goose*.zip:"
+          ls Goose*.zip 2>/dev/null || echo "No Goose*.zip files"
+          
+          # Show what the release action would actually pick up
+          echo ""
+          echo "=== Simulating ncipollo/release-action artifact patterns ==="
+          echo "goose-*.tar.bz2 pattern would match:"
+          ls goose-*.tar.bz2 2>/dev/null || echo "  (none - this is expected, no CLI build)"
+          echo "Goose*.zip pattern would match:"
+          ls Goose*.zip 2>/dev/null || echo "  (none - this is expected, no macOS build)"
+          echo "*.deb pattern would match:"
+          ls *.deb 2>/dev/null || echo "  (none found)"
+          echo "*.rpm pattern would match:"
+          ls *.rpm 2>/dev/null || echo "  (none found)"
+
+      - name: Upload fake release artifacts (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: fake-release-test-artifacts
+          path: |
+            *.deb
+            *.rpm
+          if-no-files-found: warn

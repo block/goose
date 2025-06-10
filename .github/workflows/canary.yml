@@ -75,13 +75,22 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+  # ------------------------------------------------------------
+  # 5) Bundle Desktop App (Linux) - builds goosed and Electron app
+  # ------------------------------------------------------------
+  bundle-desktop-linux:
+    needs: [prepare-version]
+    uses: ./.github/workflows/bundle-desktop-linux.yml
+    with:
+      version: ${{ needs.prepare-version.outputs.version }}
+
   # ------------------------------------
-  # 5) Create/Update GitHub Release
+  # 6) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop]
+    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-linux]
     permissions:
       contents: write
 
@@ -101,6 +110,8 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             Goose*.zip
+            *.deb
+            *.rpm
             download_cli.sh
           allowUpdates: true
           omitBody: true
