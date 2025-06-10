@@ -1,14 +1,31 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
-import { BrowserWindow, ipcMain, nativeImage, Tray, shell, app, dialog } from 'electron';
+import {
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  Tray,
+  shell,
+  app,
+  dialog,
+  Menu,
+  MenuItemConstructorOptions,
+} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import log from './logger';
 import { githubUpdater } from './githubUpdater';
+import { loadRecentDirs } from './recentDirs';
 
 let updateAvailable = false;
 let trayRef: Tray | null = null;
 let isUsingGitHubFallback = false;
-let githubUpdateInfo: { latestVersion?: string; downloadUrl?: string; releaseUrl?: string; downloadPath?: string; extractedPath?: string } = {};
+let githubUpdateInfo: {
+  latestVersion?: string;
+  downloadUrl?: string;
+  releaseUrl?: string;
+  downloadPath?: string;
+  extractedPath?: string;
+} = {};
 
 // Store update state
 let lastUpdateState: { updateAvailable: boolean; latestVersion?: string } | null = null;
@@ -47,33 +64,36 @@ export function setupAutoUpdater(tray?: Tray) {
       ) {
         log.info('Using GitHub API fallback for startup update check...');
         isUsingGitHubFallback = true;
-        
-        githubUpdater.checkForUpdates().then((result) => {
-          if (result.error) {
-            sendStatusToWindow('error', result.error);
-          } else if (result.updateAvailable) {
-            // Store GitHub update info
-            githubUpdateInfo = {
-              latestVersion: result.latestVersion,
-              downloadUrl: result.downloadUrl,
-              releaseUrl: result.releaseUrl,
-            };
 
-            updateAvailable = true;
-            lastUpdateState = { updateAvailable: true, latestVersion: result.latestVersion };
-            updateTrayIcon(true);
-            sendStatusToWindow('update-available', { version: result.latestVersion });
-          } else {
-            updateAvailable = false;
-            lastUpdateState = { updateAvailable: false };
-            updateTrayIcon(false);
-            sendStatusToWindow('update-not-available', {
-              version: autoUpdater.currentVersion.version,
-            });
-          }
-        }).catch((fallbackError) => {
-          log.error('GitHub fallback also failed on startup:', fallbackError);
-        });
+        githubUpdater
+          .checkForUpdates()
+          .then((result) => {
+            if (result.error) {
+              sendStatusToWindow('error', result.error);
+            } else if (result.updateAvailable) {
+              // Store GitHub update info
+              githubUpdateInfo = {
+                latestVersion: result.latestVersion,
+                downloadUrl: result.downloadUrl,
+                releaseUrl: result.releaseUrl,
+              };
+
+              updateAvailable = true;
+              lastUpdateState = { updateAvailable: true, latestVersion: result.latestVersion };
+              updateTrayIcon(true);
+              sendStatusToWindow('update-available', { version: result.latestVersion });
+            } else {
+              updateAvailable = false;
+              lastUpdateState = { updateAvailable: false };
+              updateTrayIcon(false);
+              sendStatusToWindow('update-not-available', {
+                version: autoUpdater.currentVersion.version,
+              });
+            }
+          })
+          .catch((fallbackError) => {
+            log.error('GitHub fallback also failed on startup:', fallbackError);
+          });
       }
     });
   }, 5000); // Wait 5 seconds after app starts
@@ -284,7 +304,7 @@ export function setupAutoUpdater(tray?: Tray) {
       try {
         // Use the stored extracted path if available, otherwise download path
         const updatePath = githubUpdateInfo.extractedPath || githubUpdateInfo.downloadPath;
-        
+
         if (!updatePath) {
           throw new Error('Update file path not found. Please download the update first.');
         }
@@ -301,7 +321,7 @@ export function setupAutoUpdater(tray?: Tray) {
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
           title: 'Update Ready',
-          message: isExtracted 
+          message: isExtracted
             ? 'The update has been downloaded and extracted to your Downloads folder.'
             : 'The update has been downloaded to your Downloads folder.',
           detail: isExtracted
@@ -382,7 +402,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     icon.setTemplateImage(true);
   }
   trayRef.setImage(icon);
-  
+
   // Update tray menu when icon changes
   updateTrayMenu(hasUpdate);
 }
@@ -403,56 +423,56 @@ function openUpdateSettings() {
 export function updateTrayMenu(hasUpdate: boolean) {
   if (!trayRef) return;
 
-  const { Menu, BrowserWindow, app } = require('electron');
-  const menuItems: any[] = [];
-  
+  const menuItems: MenuItemConstructorOptions[] = [];
+
   // Add update menu item if update is available
   if (hasUpdate) {
     menuItems.push({
       label: 'Update Available...',
-      click: openUpdateSettings
+      click: openUpdateSettings,
     });
   }
-  
+
   menuItems.push(
-    { label: 'Show Window', click: async () => {
-      const windows = BrowserWindow.getAllWindows();
-      if (windows.length === 0) {
-        log.info('No windows are open, creating a new one...');
-        // Get recent directories for the new window
-        const { loadRecentDirs } = require('./recentDirs');
-        const { ipcMain } = require('electron');
-        const recentDirs = loadRecentDirs();
-        const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-        
-        // Emit event to create new window (handled in main.ts)
-        ipcMain.emit('create-chat-window', {}, undefined, openDir);
-        return;
-      }
+    {
+      label: 'Show Window',
+      click: async () => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length === 0) {
+          log.info('No windows are open, creating a new one...');
+          // Get recent directories for the new window
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-      // Show all windows with offset
-      const initialOffsetX = 30;
-      const initialOffsetY = 30;
-
-      windows.forEach((win, index) => {
-        const currentBounds = win.getBounds();
-        const newX = currentBounds.x + initialOffsetX * index;
-        const newY = currentBounds.y + initialOffsetY * index;
-
-        win.setBounds({
-          x: newX,
-          y: newY,
-          width: currentBounds.width,
-          height: currentBounds.height,
-        });
-
-        if (!win.isVisible()) {
-          win.show();
+          // Emit event to create new window (handled in main.ts)
+          ipcMain.emit('create-chat-window', {}, undefined, openDir);
+          return;
         }
 
-        win.focus();
-      });
-    }},
+        // Show all windows with offset
+        const initialOffsetX = 30;
+        const initialOffsetY = 30;
+
+        windows.forEach((win: BrowserWindow, index: number) => {
+          const currentBounds = win.getBounds();
+          const newX = currentBounds.x + initialOffsetX * index;
+          const newY = currentBounds.y + initialOffsetY * index;
+
+          win.setBounds({
+            x: newX,
+            y: newY,
+            width: currentBounds.width,
+            height: currentBounds.height,
+          });
+
+          if (!win.isVisible()) {
+            win.show();
+          }
+
+          win.focus();
+        });
+      },
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   );

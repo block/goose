@@ -35,7 +35,12 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
-import { setupAutoUpdater, setTrayRef, updateTrayMenu, getUpdateAvailable } from './utils/autoUpdater';
+import {
+  setupAutoUpdater,
+  setTrayRef,
+  updateTrayMenu,
+  getUpdateAvailable,
+} from './utils/autoUpdater';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');

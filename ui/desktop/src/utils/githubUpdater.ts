@@ -165,13 +165,13 @@ export class GitHubUpdater {
       // Auto-unzip the downloaded file
       try {
         const tempExtractDir = path.join(downloadsDir, `temp-extract-${Date.now()}`);
-        
+
         // Create temp extraction directory
         await fs.mkdir(tempExtractDir, { recursive: true });
 
         // Use unzip command to extract
         log.info(`GitHubUpdater: Extracting ${fileName} to temp directory`);
-        
+
         const { stderr } = await execAsync(
           `unzip -o "${downloadPath}" -d "${tempExtractDir}"`,
           { maxBuffer: 1024 * 1024 * 10 } // 10MB buffer
@@ -193,7 +193,7 @@ export class GitHubUpdater {
 
         // Move Goose.app to Downloads folder
         const finalAppPath = path.join(downloadsDir, 'Goose.app');
-        
+
         // Remove existing Goose.app if it exists
         try {
           await fs.rm(finalAppPath, { recursive: true, force: true });
@@ -204,7 +204,7 @@ export class GitHubUpdater {
         // Move the app to Downloads
         log.info(`GitHubUpdater: Moving Goose.app to Downloads folder`);
         await execAsync(`mv "${appPath}" "${finalAppPath}"`);
-        
+
         // Verify the move was successful
         try {
           await fs.access(finalAppPath);
@@ -227,10 +227,10 @@ export class GitHubUpdater {
       } catch (unzipError) {
         log.error('GitHubUpdater: Error extracting update:', unzipError);
         // Still return success for download, but note the extraction error
-        return { 
-          success: true, 
+        return {
+          success: true,
           downloadPath,
-          error: `Downloaded successfully but extraction failed: ${unzipError instanceof Error ? unzipError.message : 'Unknown error'}`
+          error: `Downloaded successfully but extraction failed: ${unzipError instanceof Error ? unzipError.message : 'Unknown error'}`,
         };
       }
     } catch (error) {

@@ -303,8 +303,10 @@ export default function App() {
     const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const newView = args[0] as View;
       const section = args[1] as string | undefined;
-      console.log(`Received view change request to: ${newView}${section ? `, section: ${section}` : ''}`);
-      
+      console.log(
+        `Received view change request to: ${newView}${section ? `, section: ${section}` : ''}`
+      );
+
       if (section && newView === 'settings') {
         setView(newView, { section });
       } else {
