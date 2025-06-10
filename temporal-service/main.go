@@ -147,7 +147,18 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 
 	cmd := exec.Command(temporalCmd, args...)
 	
-	// Start the process in background
+	// Properly detach the process so it survives when the parent exits
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,  // Create new process group
+		Pgid:    0,     // Use process ID as group ID
+	}
+
+	// Redirect stdin/stdout/stderr to avoid hanging
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	// Start the process
 	if err := cmd.Start(); err != nil {
 		log.Printf("ERROR: Failed to start Temporal server: %v", err)
 		return fmt.Errorf("failed to start Temporal server: %w", err)
