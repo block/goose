@@ -86,12 +86,8 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
               Recipe Details:
             </h3>
             <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">
-                {recipe.title}
-              </p>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                {recipe.description}
-              </p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{recipe.title}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{recipe.description}</p>
             </div>
           </div>
 
@@ -100,22 +96,13 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
               Recipe Deep Link:
             </label>
             <div className="flex items-center">
-              <Input
-                type="text"
-                value={deepLink}
-                readOnly
-                className="flex-1 text-xs font-mono"
-              />
+              <Input type="text" value={deepLink} readOnly className="flex-1 text-xs font-mono" />
               <Button
                 type="button"
                 onClick={handleCopy}
                 className="ml-2 px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center"
               >
-                {copied ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </Button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -129,14 +116,14 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
             type="button"
             variant="outline"
             onClick={handleClose}
-            className="flex-1"
+            className="flex-1 rounded-xl hover:bg-bgSubtle text-textSubtle"
           >
             Cancel
           </Button>
           <Button
             type="button"
             onClick={handleCreateSchedule}
-            className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+            className="flex-1 bg-bgAppInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
           >
             Create Schedule
           </Button>
