@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
-type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installing' | 'success' | 'error';
+type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'installing' | 'success' | 'error' | 'ready';
 
 interface UpdateInfo {
   currentVersion: string;
@@ -22,6 +22,54 @@ export default function UpdateSection() {
     // Get current version on mount
     const currentVersion = window.electron.getVersion();
     setUpdateInfo((prev) => ({ ...prev, currentVersion }));
+
+    // Listen for updater events
+    window.electron.onUpdaterEvent((event) => {
+      console.log('Updater event:', event);
+      
+      switch (event.event) {
+        case 'checking-for-update':
+          setUpdateStatus('checking');
+          break;
+          
+        case 'update-available':
+          setUpdateStatus('idle');
+          setUpdateInfo((prev) => ({
+            ...prev,
+            latestVersion: event.data?.version,
+            isUpdateAvailable: true,
+          }));
+          break;
+          
+        case 'update-not-available':
+          setUpdateStatus('success');
+          setUpdateInfo((prev) => ({
+            ...prev,
+            isUpdateAvailable: false,
+          }));
+          setTimeout(() => setUpdateStatus('idle'), 3000);
+          break;
+          
+        case 'download-progress':
+          setUpdateStatus('downloading');
+          setProgress(event.data?.percent || 0);
+          break;
+          
+        case 'update-downloaded':
+          setUpdateStatus('ready');
+          setProgress(100);
+          break;
+          
+        case 'error':
+          setUpdateStatus('error');
+          setUpdateInfo((prev) => ({
+            ...prev,
+            error: event.data || 'An error occurred',
+          }));
+          setTimeout(() => setUpdateStatus('idle'), 5000);
+          break;
+      }
+    });
   }, []);
 
   const checkForUpdates = async () => {
@@ -29,31 +77,13 @@ export default function UpdateSection() {
     setProgress(0);
 
     try {
-      // Check for updates by fetching release information
-      const response = await fetch('https://api.github.com/repos/block/goose/releases/latest');
-
-      if (!response.ok) {
-        throw new Error('Failed to check for updates');
+      const result = await window.electron.checkForUpdates();
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      const data = await response.json();
-      const latestVersion = data.tag_name?.replace('v', '') || data.name;
-
-      // Compare versions
-      const isUpdateAvailable = latestVersion !== updateInfo.currentVersion;
-
-      setUpdateInfo((prev) => ({
-        ...prev,
-        latestVersion,
-        isUpdateAvailable,
-      }));
-
-      if (!isUpdateAvailable) {
-        setUpdateStatus('success');
-        setTimeout(() => setUpdateStatus('idle'), 3000);
-      } else {
-        setUpdateStatus('idle');
-      }
+      // The actual status will be handled by the updater events
     } catch (error) {
       console.error('Error checking for updates:', error);
       setUpdateInfo((prev) => ({
@@ -70,64 +100,28 @@ export default function UpdateSection() {
     setProgress(0);
 
     try {
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + Math.random() * 10;
-        });
-      }, 300);
-
-      // Download the update script and execute it
-      const scriptResponse = await fetch(
-        'https://github.com/block/goose/releases/download/stable/download_cli.sh'
-      );
-
-      if (!scriptResponse.ok) {
-        throw new Error('Failed to download update script');
+      const result = await window.electron.downloadUpdate();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to download update');
       }
 
-      const scriptContent = await scriptResponse.text();
-
-      // Clear progress interval
-      clearInterval(progressInterval);
-      setProgress(100);
-      setUpdateStatus('installing');
-
-      // Execute the update through electron IPC
-      const result = await window.electron.executeUpdate(scriptContent);
-
-      if (result.success) {
-        setUpdateStatus('success');
-        setUpdateInfo((prev) => ({
-          ...prev,
-          currentVersion: prev.latestVersion || prev.currentVersion,
-          isUpdateAvailable: false,
-        }));
-
-        // Prompt to restart the app
-        setTimeout(() => {
-          if (
-            window.confirm('Update installed successfully! Would you like to restart Goose now?')
-          ) {
-            window.electron.restartApp();
-          }
-        }, 1000);
-      } else {
-        throw new Error(result.error || 'Failed to install update');
-      }
+      // The download progress and completion will be handled by updater events
     } catch (error) {
-      console.error('Error downloading/installing update:', error);
+      console.error('Error downloading update:', error);
       setUpdateInfo((prev) => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to install update',
+        error: error instanceof Error ? error.message : 'Failed to download update',
       }));
       setUpdateStatus('error');
       setTimeout(() => setUpdateStatus('idle'), 5000);
     }
+  };
+
+  const installUpdate = () => {
+    setUpdateStatus('installing');
+    // This will quit the app and install the update
+    window.electron.installUpdate();
   };
 
   const getStatusMessage = () => {
@@ -138,6 +132,8 @@ export default function UpdateSection() {
         return `Downloading update... ${Math.round(progress)}%`;
       case 'installing':
         return 'Installing update...';
+      case 'ready':
+        return 'Update downloaded and ready to install!';
       case 'success':
         return updateInfo.isUpdateAvailable === false
           ? 'You are running the latest version!'
@@ -162,60 +158,83 @@ export default function UpdateSection() {
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'error':
         return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case 'ready':
+        return <CheckCircle className="w-4 h-4 text-blue-500" />;
       default:
         return updateInfo.isUpdateAvailable ? <Download className="w-4 h-4" /> : null;
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-textStandard font-medium mb-2">Updates</h3>
-        <p className="text-xs text-textSubtle">
-          Current version: {updateInfo.currentVersion || 'Loading...'}
-        </p>
+    <div>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-medium text-textStandard">Updates</h2>
       </div>
+      <div className="pb-8">
+        <p className="text-sm text-textStandard mb-6">
+          Current version: {updateInfo.currentVersion || 'Loading...'}
+          {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && ' (up to date)'}
+        </p>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={checkForUpdates}
-            disabled={updateStatus !== 'idle'}
-            variant="outline"
-            size="sm"
-            className="text-xs"
-          >
-            Check for Updates
-          </Button>
-
-          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
             <Button
-              onClick={downloadAndInstallUpdate}
-              variant="default"
+              onClick={checkForUpdates}
+              disabled={updateStatus !== 'idle' && updateStatus !== 'error'}
+              variant="outline"
               size="sm"
               className="text-xs"
             >
-              <Download className="w-3 h-3 mr-1" />
-              Download & Install
+              Check for Updates
             </Button>
+
+            {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
+              <Button
+                onClick={downloadAndInstallUpdate}
+                variant="default"
+                size="sm"
+                className="text-xs"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                Download Update
+              </Button>
+            )}
+
+            {updateStatus === 'ready' && (
+              <Button
+                onClick={installUpdate}
+                variant="default"
+                size="sm"
+                className="text-xs"
+              >
+                Install & Restart
+              </Button>
+            )}
+          </div>
+
+          {getStatusMessage() && (
+            <div className="flex items-center gap-2 text-xs text-textSubtle">
+              {getStatusIcon()}
+              <span>{getStatusMessage()}</span>
+            </div>
+          )}
+
+          {updateStatus === 'downloading' && (
+            <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div
+                className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+          
+          {/* Update information */}
+          {updateInfo.isUpdateAvailable && (
+            <p className="text-xs text-textSubtle mt-4">
+              Updates will replace the app in /Applications. Your settings and data will be preserved.
+            </p>
           )}
         </div>
-
-        {getStatusMessage() && (
-          <div className="flex items-center gap-2 text-xs text-textSubtle">
-            {getStatusIcon()}
-            <span>{getStatusMessage()}</span>
-          </div>
-        )}
-
-        {updateStatus === 'downloading' && (
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

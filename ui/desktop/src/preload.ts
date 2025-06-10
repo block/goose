@@ -27,12 +27,12 @@ interface SaveDataUrlResponse {
   error?: string;
 }
 
-interface UpdateResult {
-  success: boolean;
-  error?: string;
-}
-
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
+
+interface UpdaterEvent {
+  event: string;
+  data?: unknown;
+}
 
 // Define the API types in a single place
 type ElectronAPI = {
@@ -83,8 +83,11 @@ type ElectronAPI = {
   getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
   getVersion: () => string;
-  executeUpdate: (scriptContent: string) => Promise<UpdateResult>;
+  checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
+  downloadUpdate: () => Promise<{ success: boolean; error: string | null }>;
+  installUpdate: () => void;
   restartApp: () => void;
+  onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
 };
 
 type AppConfigAPI = {
@@ -159,13 +162,22 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('get-temp-image', filePath);
   },
   getVersion: (): string => {
-    return config.GOOSE_VERSION || '';
+    return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';
   },
-  executeUpdate: (scriptContent: string): Promise<UpdateResult> => {
-    return ipcRenderer.invoke('execute-update', scriptContent);
+  checkForUpdates: (): Promise<{ updateInfo: unknown; error: string | null }> => {
+    return ipcRenderer.invoke('check-for-updates');
+  },
+  downloadUpdate: (): Promise<{ success: boolean; error: string | null }> => {
+    return ipcRenderer.invoke('download-update');
+  },
+  installUpdate: (): void => {
+    ipcRenderer.invoke('install-update');
   },
   restartApp: (): void => {
     ipcRenderer.send('restart-app');
+  },
+  onUpdaterEvent: (callback: (event: UpdaterEvent) => void): void => {
+    ipcRenderer.on('updater-event', (_event, data) => callback(data));
   },
 };
 

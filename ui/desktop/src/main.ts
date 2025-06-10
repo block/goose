@@ -35,6 +35,7 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
+import { setupAutoUpdater } from './utils/autoUpdater';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -1159,6 +1160,9 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Setup auto-updater
+  setupAutoUpdater();
+  
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1173,7 +1177,7 @@ app.whenReady().then(async () => {
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
           // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:*" +
+          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
           // Don't allow any frames
@@ -1599,58 +1603,15 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Handle update execution
-  ipcMain.handle('execute-update', async (_event, scriptContent) => {
-    try {
-      return new Promise((resolve) => {
-        const updateProcess = spawn('bash', ['-c', scriptContent], {
-          env: {
-            ...process.env,
-            CONFIGURE: 'false', // Skip configuration during update
-          },
-        });
-
-        let _stdout = '';
-        let stderr = '';
-
-        updateProcess.stdout.on('data', (data) => {
-          _stdout += data.toString();
-        });
-
-        updateProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        updateProcess.on('close', (code) => {
-          if (code === 0) {
-            resolve({ success: true });
-          } else {
-            resolve({
-              success: false,
-              error: stderr || 'Update process exited with code ' + code,
-            });
-          }
-        });
-
-        updateProcess.on('error', (error) => {
-          resolve({
-            success: false,
-            error: error.message,
-          });
-        });
-      });
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  });
-
   // Handle app restart
   ipcMain.on('restart-app', () => {
     app.relaunch();
     app.exit(0);
+  });
+
+  // Handler for getting app version
+  ipcMain.on('get-app-version', (event) => {
+    event.returnValue = app.getVersion();
   });
 });
 
