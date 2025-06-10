@@ -859,8 +859,11 @@ func executeForegroundJob(jobID, recipePath string) (string, error) {
 
 // executeForegroundJobGUI handles foreground execution via desktop app
 func executeForegroundJobGUI(jobID string, recipe *Recipe) (string, error) {
-	// Generate deep link
-	deepLink, err := generateDeepLink(recipe, jobID)
+	// Generate session name for this scheduled job
+	sessionName := fmt.Sprintf("scheduled-%s", jobID)
+
+	// Generate deep link with session name
+	deepLink, err := generateDeepLink(recipe, jobID, sessionName)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate deep link: %w", err)
 	}
@@ -869,12 +872,10 @@ func executeForegroundJobGUI(jobID string, recipe *Recipe) (string, error) {
 	if err := openDeepLink(deepLink); err != nil {
 		return "", fmt.Errorf("failed to open deep link: %w", err)
 	}
+	
+	log.Printf("Foreground GUI job %s initiated with session %s", jobID, sessionName)
 
-	// Generate session ID for tracking
-	sessionID := fmt.Sprintf("scheduled-fg-gui-%s-%d", jobID, time.Now().Unix())
-	log.Printf("Foreground GUI job %s initiated with session %s", jobID, sessionID)
-
-	return sessionID, nil
+	return sessionName, nil
 }
 
 // executeForegroundJobCLI handles foreground execution via CLI
@@ -890,37 +891,64 @@ func executeForegroundJobCLI(jobID string, recipe *Recipe, recipePath string) (s
 	// Generate session name for this scheduled job
 	sessionName := fmt.Sprintf("scheduled-%s", jobID)
 
-	// Use goose CLI to run the recipe file directly
-	cmd := exec.Command(goosePath, "run",
-		"--recipe", recipePath,
-		"--name", sessionName,
-		"--no-session", // Don't persist session for scheduled jobs
-	)
+	// Create the goose command with proper escaping
+	gooseCmd := fmt.Sprintf(`%s run --recipe "%s" --name "%s" --scheduled-job-id "%s"`, goosePath, recipePath, sessionName, jobID)
 
+	// Open a new terminal window with the goose command
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS - use Terminal.app
+		script := fmt.Sprintf(`tell application "Terminal" to do script "%s"`, gooseCmd)
+		cmd = exec.Command("osascript", "-e", script)
+	case "windows":
+		// Windows - use cmd
+		cmd = exec.Command("cmd", "/c", "start", "cmd", "/k", gooseCmd)
+	case "linux":
+		// Linux - try different terminal emulators
+		terminals := []string{"gnome-terminal", "xterm", "konsole", "xfce4-terminal"}
+		var terminalCmd string
+		for _, terminal := range terminals {
+			if _, err := exec.LookPath(terminal); err == nil {
+				switch terminal {
+				case "gnome-terminal":
+					terminalCmd = fmt.Sprintf("%s -- %s", terminal, gooseCmd)
+				case "xterm", "konsole", "xfce4-terminal":
+					terminalCmd = fmt.Sprintf("%s -e %s", terminal, gooseCmd)
+				}
+				break
+			}
+		}
+		if terminalCmd == "" {
+			return "", fmt.Errorf("no suitable terminal emulator found on Linux")
+		}
+		cmd = exec.Command("sh", "-c", terminalCmd)
+	default:
+		return "", fmt.Errorf("unsupported OS for terminal execution: %s", runtime.GOOS)
+	}
 	// Set up environment
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
 	)
 
-	// Start the command in the background (don't wait for completion)
+	// Start the terminal command
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start CLI execution: %w", err)
+		return "", fmt.Errorf("failed to start terminal with CLI execution: %w", err)
 	}
 
-	// Generate session ID for tracking
-	sessionID := fmt.Sprintf("scheduled-fg-cli-%s-%d", jobID, time.Now().Unix())
-	log.Printf("Foreground CLI job %s started with session %s (PID: %d)", jobID, sessionID, cmd.Process.Pid)
+	// Return the session name as the session ID for tracking
+	log.Printf("Foreground CLI job %s started in new terminal with session %s (PID: %d)", jobID, sessionName, cmd.Process.Pid)
 
-	// Don't wait for completion - let it run in background
+	// Don't wait for completion - let it run in the new terminal
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			log.Printf("CLI job %s completed with error: %v", jobID, err)
+			log.Printf("Terminal launch for CLI job %s completed with error: %v", jobID, err)
 		} else {
-			log.Printf("CLI job %s completed successfully", jobID)
+			log.Printf("Terminal launch for CLI job %s completed successfully", jobID)
 		}
 	}()
 
-	return sessionID, nil
+	return sessionName, nil
 }
 
 // executeBackgroundJob handles background job execution via CLI
@@ -934,13 +962,12 @@ func executeBackgroundJob(jobID, recipePath string) (string, error) {
 	}
 
 	// Generate session name for this scheduled job
-	sessionName := fmt.Sprintf("scheduled-bg-%s", jobID)
-
+	sessionName := fmt.Sprintf("scheduled-%s", jobID)
 	// Use goose CLI to run the recipe file in background mode
 	cmd := exec.Command(goosePath, "run",
 		"--recipe", recipePath,
 		"--name", sessionName,
-		"--no-session", // Don't persist session for scheduled jobs
+		"--scheduled-job-id", jobID,
 	)
 
 	// Set up environment
@@ -948,19 +975,13 @@ func executeBackgroundJob(jobID, recipePath string) (string, error) {
 		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
 	)
 
-	// For background jobs, we can either:
-	// 1. Wait for completion (synchronous)
-	// 2. Start in background (asynchronous)
-	// Let's start in background like foreground jobs
-
+	// Start the command in background
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start background CLI execution: %w", err)
 	}
 
-	// Generate session ID for tracking
-	sessionID := fmt.Sprintf("scheduled-bg-cli-%s-%d", jobID, time.Now().Unix())
-	log.Printf("Background CLI job %s started with session %s (PID: %d)", jobID, sessionID, cmd.Process.Pid)
-
+	// Return the session name as the session ID for tracking
+	log.Printf("Background CLI job %s started with session %s (PID: %d)", jobID, sessionName, cmd.Process.Pid)
 	// Don't wait for completion - let it run in background
 	go func() {
 		if err := cmd.Wait(); err != nil {
@@ -970,7 +991,7 @@ func executeBackgroundJob(jobID, recipePath string) (string, error) {
 		}
 	}()
 
-	return sessionID, nil
+	return sessionName, nil
 }
 
 // findGooseBinary locates the goose CLI binary
@@ -1058,8 +1079,8 @@ func parseRecipeFile(recipePath string) (*Recipe, error) {
 	return &recipe, nil
 }
 
-// generateDeepLink creates a deep link for the recipe
-func generateDeepLink(recipe *Recipe, jobID string) (string, error) {
+// generateDeepLink creates a deep link for the recipe with session name
+func generateDeepLink(recipe *Recipe, jobID, sessionName string) (string, error) {
 	// Create the recipe config for the deep link
 	recipeConfig := map[string]interface{}{
 		"id":           jobID,
@@ -1068,6 +1089,7 @@ func generateDeepLink(recipe *Recipe, jobID string) (string, error) {
 		"instructions": recipe.Instructions,
 		"activities":   []string{}, // Empty activities array
 		"prompt":       recipe.Prompt,
+		"sessionName":  sessionName, // Include session name for proper tracking
 	}
 
 	// Encode the config as JSON then base64
@@ -1078,10 +1100,10 @@ func generateDeepLink(recipe *Recipe, jobID string) (string, error) {
 
 	configBase64 := base64.StdEncoding.EncodeToString(configJSON)
 
-	// Create the deep link URL
+	// Create the deep link URL with scheduled job ID parameter
 	deepLink := fmt.Sprintf("goose://recipe?config=%s&scheduledJob=%s", configBase64, jobID)
 
-	log.Printf("Generated deep link for job %s (length: %d)", jobID, len(deepLink))
+	log.Printf("Generated deep link for job %s with session %s (length: %d)", jobID, sessionName, len(deepLink))
 	return deepLink, nil
 }
 
