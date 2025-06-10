@@ -117,6 +117,14 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
+pub fn set_thinking_message(s: &String) {
+    THINKING.with(|t| {
+        if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
+            spinner.set_message(s);
+        }
+    });
+}
+
 pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
 
