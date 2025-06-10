@@ -59,6 +59,13 @@ copy-binary BUILD_MODE="release":
         echo "Binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
+    @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
+        echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
+        cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
+    else \
+        echo "Goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        exit 1; \
+    fi
     @if [ -f ./temporal-service/temporal-service ]; then \
         echo "Copying temporal-service binary..."; \
         cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
@@ -81,6 +88,13 @@ copy-binary-intel:
         cp -p ./target/x86_64-apple-darwin/release/goosed ./ui/desktop/src/bin/; \
     else \
         echo "Intel release binary not found."; \
+        exit 1; \
+    fi
+    @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
+        echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
+        cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
+    else \
+        echo "Intel goose CLI binary not found."; \
         exit 1; \
     fi
     @if [ -f ./temporal-service/temporal-service ]; then \
@@ -107,6 +121,12 @@ copy-binary-windows:
     } else { \
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
+    }"
+    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe) { \
+        Write-Host 'Copying Windows goose-scheduler-executor binary...'; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows goose-scheduler-executor binary not found.' -ForegroundColor Yellow; \
     }"
     @if [ -f ./temporal-service/temporal-service.exe ]; then \
         echo "Copying Windows temporal-service binary..."; \
@@ -162,6 +182,11 @@ make-ui:
     @just release-binary
     cd ui/desktop && npm run bundle:default
 
+# make GUI with latest binary and alpha features enabled
+make-ui-alpha:
+    @just release-binary
+    cd ui/desktop && npm run bundle:alpha
+
 # make GUI with latest Windows binary
 make-ui-windows:
     @just release-windows
@@ -174,25 +199,8 @@ make-ui-windows:
         echo "Copying Windows binary and DLLs..." && \
         cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
-        if [ -d "./ui/desktop/src/platform/windows/bin" ]; then \
-            echo "Copying Windows platform files..." && \
-            for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do \
-                if [ -f "$file" ] && [ "$(basename "$file")" != "goosed.exe" ]; then \
-                    cp -f "$file" ./ui/desktop/src/bin/; \
-                fi; \
-            done && \
-            if [ -d "./ui/desktop/src/platform/windows/bin/goose-npm" ]; then \
-                echo "Setting up npm environment..." && \
-                rsync -a --delete ./ui/desktop/src/platform/windows/bin/goose-npm/ ./ui/desktop/src/bin/goose-npm/; \
-            fi && \
-            echo "Windows-specific files copied successfully"; \
-        fi && \
         echo "Starting Windows package build..." && \
-        (cd ui/desktop && echo "In desktop directory, running npm bundle:windows..." && npm run bundle:windows) && \
-        echo "Creating resources directory..." && \
-        (cd ui/desktop && mkdir -p out/Goose-win32-x64/resources/bin) && \
-        echo "Copying final binaries..." && \
-        (cd ui/desktop && rsync -av src/bin/ out/Goose-win32-x64/resources/bin/) && \
+        (cd ui/desktop && npm run bundle:windows) && \
         echo "Windows package build complete!"; \
     else \
         echo "Windows binary not found."; \

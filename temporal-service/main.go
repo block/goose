@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,6 +24,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -430,22 +433,15 @@ func ExecuteGooseRecipe(ctx context.Context, jobID, recipePath string) (string, 
 		)
 	}
 
-	// Execute the Goose recipe via the executor binary
-	cmd := exec.CommandContext(ctx, "goose-scheduler-executor", jobID, recipePath)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("GOOSE_JOB_ID=%s", jobID))
-
-	output, err := cmd.Output()
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			logger.Error("Recipe execution failed", "jobID", jobID, "stderr", string(exitError.Stderr))
-			return "", fmt.Errorf("recipe execution failed: %s", string(exitError.Stderr))
-		}
-		return "", fmt.Errorf("failed to execute recipe: %w", err)
+	// Check if this is a foreground job
+	if isForegroundJob(recipePath) {
+		logger.Info("Executing foreground job directly", "jobID", jobID)
+		return executeForegroundJob(jobID, recipePath)
 	}
 
-	sessionID := strings.TrimSpace(string(output))
-	logger.Info("Recipe executed successfully", "jobID", jobID, "sessionID", sessionID)
-	return sessionID, nil
+	// For background jobs, execute directly via CLI
+	logger.Info("Executing background job directly via CLI", "jobID", jobID)
+	return executeBackgroundJob(jobID, recipePath)
 }
 
 // HTTP API handlers
@@ -830,6 +826,314 @@ func (ts *TemporalService) killJob(req JobRequest) JobResponse {
 func (ts *TemporalService) writeErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(JobResponse{Success: false, Message: message})
+}
+
+// Recipe represents the structure we need from recipe files
+type Recipe struct {
+	Title        string  `json:"title" yaml:"title"`
+	Description  string  `json:"description" yaml:"description"`
+	Instructions *string `json:"instructions" yaml:"instructions"`
+	Prompt       *string `json:"prompt" yaml:"prompt"`
+}
+
+// executeForegroundJob handles foreground job execution directly
+func executeForegroundJob(jobID, recipePath string) (string, error) {
+	log.Printf("Executing foreground job %s with recipe %s", jobID, recipePath)
+
+	// Parse the recipe file first
+	recipe, err := parseRecipeFile(recipePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse recipe file: %w", err)
+	}
+
+	// Check if desktop app is running
+	if isDesktopAppRunning() {
+		log.Printf("Desktop app is running, using GUI mode for job %s", jobID)
+		return executeForegroundJobGUI(jobID, recipe)
+	}
+
+	// Desktop app not running, fall back to CLI
+	log.Printf("Desktop app not running, falling back to CLI mode for job %s", jobID)
+	return executeForegroundJobCLI(jobID, recipe, recipePath)
+}
+
+// executeForegroundJobGUI handles foreground execution via desktop app
+func executeForegroundJobGUI(jobID string, recipe *Recipe) (string, error) {
+	// Generate deep link
+	deepLink, err := generateDeepLink(recipe, jobID)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate deep link: %w", err)
+	}
+
+	// Open the deep link
+	if err := openDeepLink(deepLink); err != nil {
+		return "", fmt.Errorf("failed to open deep link: %w", err)
+	}
+
+	// Generate session ID for tracking
+	sessionID := fmt.Sprintf("scheduled-fg-gui-%s-%d", jobID, time.Now().Unix())
+	log.Printf("Foreground GUI job %s initiated with session %s", jobID, sessionID)
+
+	return sessionID, nil
+}
+
+// executeForegroundJobCLI handles foreground execution via CLI
+func executeForegroundJobCLI(jobID string, recipe *Recipe, recipePath string) (string, error) {
+	log.Printf("Executing job %s via CLI fallback using recipe file: %s", jobID, recipePath)
+
+	// Find the goose CLI binary
+	goosePath, err := findGooseBinary()
+	if err != nil {
+		return "", fmt.Errorf("failed to find goose CLI binary: %w", err)
+	}
+
+	// Generate session name for this scheduled job
+	sessionName := fmt.Sprintf("scheduled-%s", jobID)
+
+	// Use goose CLI to run the recipe file directly
+	cmd := exec.Command(goosePath, "run",
+		"--recipe", recipePath,
+		"--name", sessionName,
+		"--no-session", // Don't persist session for scheduled jobs
+	)
+
+	// Set up environment
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
+	)
+
+	// Start the command in the background (don't wait for completion)
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start CLI execution: %w", err)
+	}
+
+	// Generate session ID for tracking
+	sessionID := fmt.Sprintf("scheduled-fg-cli-%s-%d", jobID, time.Now().Unix())
+	log.Printf("Foreground CLI job %s started with session %s (PID: %d)", jobID, sessionID, cmd.Process.Pid)
+
+	// Don't wait for completion - let it run in background
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("CLI job %s completed with error: %v", jobID, err)
+		} else {
+			log.Printf("CLI job %s completed successfully", jobID)
+		}
+	}()
+
+	return sessionID, nil
+}
+
+// executeBackgroundJob handles background job execution via CLI
+func executeBackgroundJob(jobID, recipePath string) (string, error) {
+	log.Printf("Executing background job %s using recipe file: %s", jobID, recipePath)
+
+	// Find the goose CLI binary
+	goosePath, err := findGooseBinary()
+	if err != nil {
+		return "", fmt.Errorf("failed to find goose CLI binary: %w", err)
+	}
+
+	// Generate session name for this scheduled job
+	sessionName := fmt.Sprintf("scheduled-bg-%s", jobID)
+
+	// Use goose CLI to run the recipe file in background mode
+	cmd := exec.Command(goosePath, "run",
+		"--recipe", recipePath,
+		"--name", sessionName,
+		"--no-session", // Don't persist session for scheduled jobs
+	)
+
+	// Set up environment
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
+	)
+
+	// For background jobs, we can either:
+	// 1. Wait for completion (synchronous)
+	// 2. Start in background (asynchronous)
+	// Let's start in background like foreground jobs
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start background CLI execution: %w", err)
+	}
+
+	// Generate session ID for tracking
+	sessionID := fmt.Sprintf("scheduled-bg-cli-%s-%d", jobID, time.Now().Unix())
+	log.Printf("Background CLI job %s started with session %s (PID: %d)", jobID, sessionID, cmd.Process.Pid)
+
+	// Don't wait for completion - let it run in background
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("Background CLI job %s completed with error: %v", jobID, err)
+		} else {
+			log.Printf("Background CLI job %s completed successfully", jobID)
+		}
+	}()
+
+	return sessionID, nil
+}
+
+// findGooseBinary locates the goose CLI binary
+func findGooseBinary() (string, error) {
+	// Try different possible locations
+	possiblePaths := []string{
+		"goose",           // In PATH
+		"./goose",         // Current directory
+		"../goose",        // Parent directory
+	}
+
+	// Also try relative to the current executable
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		possiblePaths = append(possiblePaths,
+			filepath.Join(exeDir, "goose"),
+			filepath.Join(exeDir, "..", "goose"),
+		)
+	}
+
+	for _, path := range possiblePaths {
+		if _, err := exec.LookPath(path); err == nil {
+			return path, nil
+		}
+		// Also check if file exists directly
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("goose CLI binary not found in any of: %v", possiblePaths)
+}
+
+// isDesktopAppRunning checks if the Goose desktop app is currently running
+func isDesktopAppRunning() bool {
+	log.Println("Checking if desktop app is running...")
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pgrep", "-f", "Goose.app")
+	case "windows":
+		cmd = exec.Command("tasklist", "/FI", "IMAGENAME eq Goose.exe")
+	case "linux":
+		cmd = exec.Command("pgrep", "-f", "goose")
+	default:
+		log.Printf("Unsupported OS: %s", runtime.GOOS)
+		return false
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("Failed to check if desktop app is running: %v", err)
+		return false
+	}
+
+	var isRunning bool
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		isRunning = len(output) > 0
+	case "windows":
+		isRunning = strings.Contains(string(output), "Goose.exe")
+	}
+
+	log.Printf("Desktop app running: %v", isRunning)
+	return isRunning
+}
+
+// parseRecipeFile parses a recipe file (YAML or JSON)
+func parseRecipeFile(recipePath string) (*Recipe, error) {
+	content, err := os.ReadFile(recipePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var recipe Recipe
+
+	// Try YAML first, then JSON
+	if err := yaml.Unmarshal(content, &recipe); err != nil {
+		if err := json.Unmarshal(content, &recipe); err != nil {
+			return nil, fmt.Errorf("failed to parse as YAML or JSON: %w", err)
+		}
+	}
+
+	return &recipe, nil
+}
+
+// generateDeepLink creates a deep link for the recipe
+func generateDeepLink(recipe *Recipe, jobID string) (string, error) {
+	// Create the recipe config for the deep link
+	recipeConfig := map[string]interface{}{
+		"id":           jobID,
+		"title":        recipe.Title,
+		"description":  recipe.Description,
+		"instructions": recipe.Instructions,
+		"activities":   []string{}, // Empty activities array
+		"prompt":       recipe.Prompt,
+	}
+
+	// Encode the config as JSON then base64
+	configJSON, err := json.Marshal(recipeConfig)
+	if err != nil {
+		return "", err
+	}
+
+	configBase64 := base64.StdEncoding.EncodeToString(configJSON)
+
+	// Create the deep link URL
+	deepLink := fmt.Sprintf("goose://recipe?config=%s&scheduledJob=%s", configBase64, jobID)
+
+	log.Printf("Generated deep link for job %s (length: %d)", jobID, len(deepLink))
+	return deepLink, nil
+}
+
+// openDeepLink opens a deep link using the system's default protocol handler
+func openDeepLink(deepLink string) error {
+	log.Printf("Opening deep link: %s", deepLink)
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", deepLink)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", deepLink)
+	case "linux":
+		cmd = exec.Command("xdg-open", deepLink)
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to open deep link: %w", err)
+	}
+
+	log.Println("Deep link opened successfully")
+	return nil
+}
+
+// isForegroundJob checks if a recipe is configured for foreground execution
+func isForegroundJob(recipePath string) bool {
+	// Simple struct to just check the schedule.foreground field
+	type ScheduleConfig struct {
+		Foreground bool `json:"foreground" yaml:"foreground"`
+	}
+	type MinimalRecipe struct {
+		Schedule *ScheduleConfig `json:"schedule" yaml:"schedule"`
+	}
+
+	content, err := os.ReadFile(recipePath)
+	if err != nil {
+		return false // Default to background if we can't read
+	}
+
+	var recipe MinimalRecipe
+
+	// Try YAML first, then JSON
+	if err := yaml.Unmarshal(content, &recipe); err != nil {
+		if err := json.Unmarshal(content, &recipe); err != nil {
+			return false // Default to background if we can't parse
+		}
+	}
+
+	return recipe.Schedule != nil && recipe.Schedule.Foreground
 }
 
 func (ts *TemporalService) handleHealth(w http.ResponseWriter, r *http.Request) {
