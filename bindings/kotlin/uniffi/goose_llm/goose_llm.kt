@@ -830,6 +830,7 @@ internal interface UniffiLib : Library {
         `providerConfig`: RustBuffer.ByValue,
         `modelConfig`: RustBuffer.ByValue,
         `systemPreamble`: RustBuffer.ByValue,
+        `systemPromptOverride`: RustBuffer.ByValue,
         `messages`: RustBuffer.ByValue,
         `extensions`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
@@ -1100,7 +1101,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_goose_llm_checksum_func_completion() != 47457.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_create_completion_request() != 39068.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_create_completion_request() != 50798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_create_tool_config() != 49910.toShort()) {
@@ -2955,7 +2956,8 @@ fun `createCompletionRequest`(
     `providerName`: kotlin.String,
     `providerConfig`: Value,
     `modelConfig`: ModelConfig,
-    `systemPreamble`: kotlin.String,
+    `systemPreamble`: kotlin.String? = null,
+    `systemPromptOverride`: kotlin.String? = null,
     `messages`: List<Message>,
     `extensions`: List<ExtensionConfig>,
 ): CompletionRequest =
@@ -2965,7 +2967,8 @@ fun `createCompletionRequest`(
                 FfiConverterString.lower(`providerName`),
                 FfiConverterTypeValue.lower(`providerConfig`),
                 FfiConverterTypeModelConfig.lower(`modelConfig`),
-                FfiConverterString.lower(`systemPreamble`),
+                FfiConverterOptionalString.lower(`systemPreamble`),
+                FfiConverterOptionalString.lower(`systemPromptOverride`),
                 FfiConverterSequenceTypeMessage.lower(`messages`),
                 FfiConverterSequenceTypeExtensionConfig.lower(`extensions`),
                 _status,

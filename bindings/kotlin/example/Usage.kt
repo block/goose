@@ -130,8 +130,8 @@ fun main() = runBlocking {
         providerConfig,
         modelConfig,
         systemPreamble,
-        msgs,
-        extensions
+        messages = msgs,
+        extensions = extensions
     )
 
     val response = completion(req)
@@ -140,6 +140,32 @@ fun main() = runBlocking {
 
     // ---- UI Extraction (custom schema) ----
     runUiExtraction(providerName, providerConfig)
+
+
+    // --- Prompt Override ---
+    val prompt_req = createCompletionRequest(
+        providerName,
+        providerConfig,
+        modelConfig,
+        systemPreamble = null, 
+        systemPromptOverride = "You are a bot named Tile Creator. Your task is to create a tile based on the user's input.",
+        messages=listOf(
+            Message(
+                role    = Role.USER,
+                created = now,
+                content = listOf(
+                    MessageContent.Text(
+                        TextContent("What's your name?")
+                    )
+                )
+            )
+        ),
+        extensions=emptyList()
+    )
+
+    val prompt_resp = completion(prompt_req)
+
+    println("\nPrompt Override Response:\n${prompt_resp.message}")
 }
 
 

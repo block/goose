@@ -891,7 +891,11 @@ impl Session {
                                                     v.to_string()
                                             },
                                         };
-                                        progress_bars.log(&message);
+                                        if interactive {
+                                            output::set_thinking_message(&message);
+                                        } else {
+                                            progress_bars.log(&message);
+                                        }
                                     },
                                     "notifications/progress" => {
                                         let progress = o.get("progress").and_then(|v| v.as_f64());
