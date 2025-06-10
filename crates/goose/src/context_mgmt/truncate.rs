@@ -101,7 +101,9 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                         }
                         // Handle Resource content which might contain large text
                         else if let Content::Resource(ref mut resource_content) = content_item {
-                            if let ResourceContents::TextResourceContents { text, .. } = &mut resource_content.resource {
+                            if let ResourceContents::TextResourceContents { text, .. } =
+                                &mut resource_content.resource
+                            {
                                 if text.len() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... resource content truncated from {} to {} characters ...]",

@@ -341,7 +341,9 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                 }
                             }
                             Content::Resource(ref mut resource_content) => {
-                                if let ResourceContents::TextResourceContents { text, .. } = &mut resource_content.resource {
+                                if let ResourceContents::TextResourceContents { text, .. } =
+                                    &mut resource_content.resource
+                                {
                                     if text.len() > max_content_size {
                                         let truncated = format!(
                                             "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
