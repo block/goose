@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
+import UpdateSection from './UpdateSection';
 
 export default function AppSettingsSection() {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
@@ -105,6 +106,11 @@ export default function AppSettingsSection() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Update Section */}
+        <div className="mt-8 pt-8 border-t border-gray-200">
+          <UpdateSection />
         </div>
       </div>
     </section>

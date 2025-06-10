@@ -1598,6 +1598,60 @@ app.whenReady().then(async () => {
       console.error('Error opening URL in Chrome:', error);
     }
   });
+
+  // Handle update execution
+  ipcMain.handle('execute-update', async (_event, scriptContent) => {
+    try {
+      return new Promise((resolve) => {
+        const updateProcess = spawn('bash', ['-c', scriptContent], {
+          env: {
+            ...process.env,
+            CONFIGURE: 'false', // Skip configuration during update
+          },
+        });
+
+        let _stdout = '';
+        let stderr = '';
+
+        updateProcess.stdout.on('data', (data) => {
+          _stdout += data.toString();
+        });
+
+        updateProcess.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        updateProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve({ success: true });
+          } else {
+            resolve({
+              success: false,
+              error: stderr || 'Update process exited with code ' + code,
+            });
+          }
+        });
+
+        updateProcess.on('error', (error) => {
+          resolve({
+            success: false,
+            error: error.message,
+          });
+        });
+      });
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
+  // Handle app restart
+  ipcMain.on('restart-app', () => {
+    app.relaunch();
+    app.exit(0);
+  });
 });
 
 /**

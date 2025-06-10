@@ -27,6 +27,11 @@ interface SaveDataUrlResponse {
   error?: string;
 }
 
+interface UpdateResult {
+  success: boolean;
+  error?: string;
+}
+
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 // Define the API types in a single place
@@ -76,6 +81,10 @@ type ElectronAPI = {
   deleteTempFile: (filePath: string) => void;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
+  // Update-related functions
+  getVersion: () => string;
+  executeUpdate: (scriptContent: string) => Promise<UpdateResult>;
+  restartApp: () => void;
 };
 
 type AppConfigAPI = {
@@ -148,6 +157,15 @@ const electronAPI: ElectronAPI = {
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);
+  },
+  getVersion: (): string => {
+    return config.GOOSE_VERSION || '';
+  },
+  executeUpdate: (scriptContent: string): Promise<UpdateResult> => {
+    return ipcRenderer.invoke('execute-update', scriptContent);
+  },
+  restartApp: (): void => {
+    ipcRenderer.send('restart-app');
   },
 };
 
