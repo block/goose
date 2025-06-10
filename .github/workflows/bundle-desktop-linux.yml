@@ -129,7 +129,20 @@ jobs:
           ls -la target/release/
           file target/release/goosed
 
-      # 9) Copy binary to Electron folder
+      # 9) Clean up build artifacts to save space
+      - name: Clean up build artifacts
+        run: |
+          echo "Cleaning up to save disk space..."
+          # Remove debug artifacts
+          rm -rf target/debug || true
+          # Remove incremental build files
+          rm -rf target/release/incremental || true
+          rm -rf target/release/deps || true
+          rm -rf target/release/build || true
+          # Check disk space
+          df -h
+
+      # 10) Copy binary to Electron folder
       - name: Copy binary into Electron folder
         run: |
           echo "Copying goosed binary to ui/desktop/src/bin/"
@@ -138,13 +151,13 @@ jobs:
           chmod +x ui/desktop/src/bin/goosed
           ls -la ui/desktop/src/bin/
 
-      # 10) Install npm dependencies
+      # 11) Install npm dependencies
       - name: Install npm dependencies
         run: |
           cd ui/desktop
           npm ci
 
-      # 11) Build Electron app with Linux makers (.deb and .rpm)
+      # 12) Build Electron app with Linux makers (.deb and .rpm)
       - name: Build Linux packages
         run: |
           cd ui/desktop
@@ -157,7 +170,7 @@ jobs:
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" | head -10
 
-      # 12) List all generated files for debugging
+      # 13) List all generated files for debugging
       - name: List generated files
         run: |
           echo "=== All files in out/ directory ==="
@@ -169,7 +182,7 @@ jobs:
           echo "=== File sizes ==="
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
 
-      # 13) Upload .deb package
+      # 14) Upload .deb package
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
@@ -177,7 +190,7 @@ jobs:
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
-      # 14) Upload .rpm package  
+      # 15) Upload .rpm package  
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
@@ -185,7 +198,7 @@ jobs:
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
-      # 15) Create combined artifact with both packages
+      # 16) Create combined artifact with both packages
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:
