@@ -47,7 +47,8 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<()> {
                     style("✓").green().bold(),
                     recipe.title
                 );
-                println!("goose://recipe?config={}", deeplink);
+                let url_safe = urlencoding::encode(&deeplink);
+                println!("goose://recipe?config={}", url_safe);
             }
             Ok(())
         }

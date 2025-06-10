@@ -3514,6 +3514,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
