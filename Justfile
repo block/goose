@@ -66,7 +66,13 @@ copy-binary BUILD_MODE="release":
         echo "temporal-service binary not found. Building it..."; \
         cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
     fi
-    @./copy-temporal-binary.sh
+    @echo "Checking temporal CLI binary..."
+    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
+        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
+        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
+    else \
+        echo "temporal CLI binary found"; \
+    fi
 
 # Copy binary command for Intel build
 copy-binary-intel:
@@ -84,7 +90,13 @@ copy-binary-intel:
         echo "temporal-service binary not found. Building it..."; \
         cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
     fi
-    @./copy-temporal-binary.sh
+    @echo "Checking temporal CLI binary..."
+    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
+        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
+        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
+    else \
+        echo "temporal CLI binary found"; \
+    fi
 
 # Copy Windows binary command
 copy-binary-windows:
