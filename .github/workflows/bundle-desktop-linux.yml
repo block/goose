@@ -82,6 +82,27 @@ jobs:
             dpkg-dev \
             protobuf-compiler
 
+      # 4a) Pre-build cleanup to ensure enough disk space
+      - name: Pre-build cleanup
+        run: |
+          echo "Performing aggressive pre-build cleanup..."
+          # Clean npm cache
+          npm cache clean --force || true
+          # Clean any previous build artifacts
+          rm -rf target || true
+          # Clean Homebrew cache (if exists)
+          brew cleanup || true
+          # Remove unnecessary large directories
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          # Clean apt cache
+          sudo apt-get clean || true
+          sudo apt-get autoremove -y || true
+          # Check disk space after cleanup
+          df -h
+
       # 5) Set up Rust
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # pin@v1
@@ -139,6 +160,10 @@ jobs:
           rm -rf target/release/incremental || true
           rm -rf target/release/deps || true
           rm -rf target/release/build || true
+          # Remove other target directories that aren't needed
+          find target -name "*.rlib" -delete || true
+          find target -name "*.rmeta" -delete || true
+          # Don't run cargo clean as it will remove our binary
           # Check disk space
           df -h
 
@@ -151,7 +176,19 @@ jobs:
           chmod +x ui/desktop/src/bin/goosed
           ls -la ui/desktop/src/bin/
 
-      # 11) Install npm dependencies
+      # 10a) Final cleanup before npm build
+      - name: Final cleanup before npm build
+        run: |
+          echo "Final cleanup before npm build..."
+          # Now we can remove the entire target directory since we copied the binary
+          rm -rf target || true
+          # Clean any remaining caches
+          rm -rf ~/.cargo/registry/cache || true
+          rm -rf ~/.cargo/git/db || true
+          # Check final disk space
+          df -h
+
+      # 12) Install npm dependencies
       - name: Install npm dependencies
         run: |
           cd ui/desktop
@@ -162,7 +199,7 @@ jobs:
           # Verify installation
           ls -la node_modules/.bin/ | head -5
 
-      # 12) Build Electron app with Linux makers (.deb and .rpm)
+      # 13) Build Electron app with Linux makers (.deb and .rpm)
       - name: Build Linux packages
         run: |
           cd ui/desktop
@@ -175,7 +212,7 @@ jobs:
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" | head -10
 
-      # 13) List all generated files for debugging
+      # 14) List all generated files for debugging
       - name: List generated files
         run: |
           echo "=== All files in out/ directory ==="
@@ -187,7 +224,7 @@ jobs:
           echo "=== File sizes ==="
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
 
-      # 14) Upload .deb package
+      # 15) Upload .deb package
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
@@ -195,7 +232,7 @@ jobs:
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
-      # 15) Upload .rpm package  
+      # 16) Upload .rpm package  
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
@@ -203,7 +240,7 @@ jobs:
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
-      # 16) Create combined artifact with both packages
+      # 17) Create combined artifact with both packages
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:
