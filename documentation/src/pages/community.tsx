@@ -14,7 +14,7 @@ function UpcomingEventsSection() {
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
-            <Heading as="h2">Upcoming Events</Heading>
+            <Heading as="h1">Upcoming Events</Heading>
             <p>Join us for community events, workshops, and discussions about Goose.</p>
           </div>
         </div>
@@ -75,7 +75,7 @@ function CommunityAllStarsSection() {
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
-            <Heading as="h2">Community All Stars</Heading>
+            <Heading as="h1">Community All Stars</Heading>
             <p>Celebrating our most active contributors and community champions.</p>
           </div>
         </div>
@@ -152,6 +152,97 @@ function CommunityAllStarsSection() {
                 </strong>
                 <br />
                 <small>Open Source Developer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--4 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--xl"
+                  src="https://github.com/michaelneale.png"
+                  alt="Michael Neale"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/michaelneale">
+                    Michael Neale (@michaelneale)
+                  </Link>
+                </strong>
+                <br />
+                <small>Principal Engineer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col col--4 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--xl"
+                  src="https://github.com/patrickReiis.png"
+                  alt="Patrick Reis"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/patrickReiis">
+                    Patrick Reis (@patrickReiis)
+                  </Link>
+                </strong>
+                <br />
+                <small>Community Contributor</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--lg">
+            <Heading as="h2">Want to be featured?</Heading>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--4 col--offset-4 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <div style={{ 
+                  width: '96px', 
+                  height: '96px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#f0f0f0', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  color: '#666'
+                }}>
+                  ?
+                </div>
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>Your Name Here</strong>
+                <br />
+                <small>Future Community Star</small>
               </div>
             </div>
           </div>
