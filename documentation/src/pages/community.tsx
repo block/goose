@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import React from "react";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import Layout from "@theme/Layout";
@@ -70,6 +71,97 @@ function UpcomingEventsSection() {
 }
 
 function CommunityAllStarsSection() {
+  const [activeMonth, setActiveMonth] = React.useState('May 2025');
+  
+  // May 2025 data (current)
+  const may2025Data = {
+    featuredContributors: [
+      { name: 'Rizel Scarlett', handle: 'blackgirlbytes', role: 'Developer Advocate', avatar: 'https://github.com/blackgirlbytes.png' },
+      { name: 'Zane Squires', handle: 'zanesq', role: 'Senior Software Engineer', avatar: 'https://github.com/zanesq.png' },
+      { name: 'The-Best-Codes', handle: 'The-Best-Codes', role: 'Open Source Developer', avatar: 'https://github.com/The-Best-Codes.png' },
+      { name: 'Michael Neale', handle: 'michaelneale', role: 'Principal Engineer', avatar: 'https://github.com/michaelneale.png' },
+      { name: 'Patrick Reis', handle: 'patrickReiis', role: 'Community Contributor', avatar: 'https://github.com/patrickReiis.png' }
+    ],
+    risingStars: [
+      { name: 'Angie Jones', handle: 'angiejones', role: 'Senior Developer', avatar: 'https://github.com/angiejones.png' },
+      { name: 'Sven-Hendrik Haase', handle: 'svenstaro', role: 'Open Source Maintainer', avatar: 'https://github.com/svenstaro.png' },
+      { name: 'faces-of-eth', handle: 'faces-of-eth', role: 'Community Developer', avatar: 'https://github.com/faces-of-eth.png' },
+      { name: 'Wes Billman', handle: 'wesbillman', role: 'Software Engineer', avatar: 'https://github.com/wesbillman.png' },
+      { name: 'Antonio Cheong', handle: 'acheong08', role: 'AI Developer', avatar: 'https://github.com/acheong08.png' }
+    ],
+    leaderboard: [
+      { name: 'blackgirlbytes', rank: 1, medal: '🥇', bgColor: '#FFD700' },
+      { name: 'zanesq', rank: 2, medal: '🥈', bgColor: '#C0C0C0' },
+      { name: 'michaelneale', rank: 3, medal: '🥉', bgColor: '#CD7F32' },
+      { name: 'angiejones', rank: 4 },
+      { name: 'Kvadratni', rank: 5 },
+      { name: 'lifeizhou-ap', rank: 6 },
+      { name: 'dianed-square', rank: 7 },
+      { name: 'yingjiehe-xyz', rank: 8 },
+      { name: 'salman1993', rank: 9 },
+      { name: 'ahau-square', rank: 10 },
+      { name: 'iandouglas', rank: 11 },
+      { name: 'emma-squared', rank: 12 },
+      { name: 'dbraduan', rank: 13 },
+      { name: 'lily-de', rank: 14 },
+      { name: 'alexhancock', rank: 15 },
+      { name: 'EbonyLouis', rank: 16 },
+      { name: 'wendytang', rank: 17 },
+      { name: 'The-Best-Codes', rank: 18 },
+      { name: 'opdich', rank: 19 },
+      { name: 'agiuliano-square', rank: 20 },
+      { name: 'patrickReiis', rank: 21 },
+      { name: 'kalvinnchau', rank: 22 },
+      { name: 'acekyd', rank: 23 },
+      { name: 'nahiyankhan', rank: 24 },
+      { name: 'taniashiba', rank: 25 },
+      { name: 'JohnMAustin78', rank: 26 },
+      { name: 'sheagcraig', rank: 27 },
+      { name: 'alicehau', rank: 28 },
+      { name: 'bwalding', rank: 29 },
+      { name: 'jamadeo', rank: 30 },
+      { name: 'rockwotj', rank: 31 },
+      { name: 'danielzayas', rank: 32 },
+      { name: 'svenstaro', rank: 33 },
+      { name: 'adaug', rank: 34 },
+      { name: 'loganmoseley', rank: 35 },
+      { name: 'tiborvass', rank: 36 },
+      { name: 'xuv', rank: 37 },
+      { name: 'anilmuppalla', rank: 38 },
+      { name: 'spencrmartin', rank: 39 },
+      { name: 'gknoblauch', rank: 40 },
+      { name: 'acheong08', rank: 41 },
+      { name: 'faces-of-eth', rank: 42 },
+      { name: 'wesbillman', rank: 43 }
+    ]
+  };
+  
+  // April 2025 data (placeholder)
+  const april2025Data = {
+    featuredContributors: [
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null }
+    ],
+    risingStars: [
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null },
+      { name: 'Coming Soon', handle: 'TBD', role: 'To Be Announced', avatar: null }
+    ],
+    leaderboard: Array.from({ length: 43 }, (_, i) => ({
+      name: 'TBD',
+      rank: i + 1,
+      medal: i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null,
+      bgColor: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : null
+    }))
+  };
+  
+  const currentData = activeMonth === 'May 2025' ? may2025Data : april2025Data;
+
   return (
     <section className="container margin-vert--lg">
       <div className="row">
@@ -77,6 +169,34 @@ function CommunityAllStarsSection() {
           <div className="text--center margin-bottom--lg">
             <Heading as="h1">Community All Stars</Heading>
             <p>Celebrating our most active contributors and community champions.</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Month Tabs */}
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--lg">
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '8px', 
+              flexWrap: 'wrap',
+              marginBottom: '20px'
+            }}>
+              <button 
+                className={`button ${activeMonth === 'April 2025' ? 'button--primary' : 'button--outline button--primary'}`}
+                onClick={() => setActiveMonth('April 2025')}
+              >
+                April 2025
+              </button>
+              <button 
+                className={`button ${activeMonth === 'May 2025' ? 'button--primary' : 'button--outline button--primary'}`}
+                onClick={() => setActiveMonth('May 2025')}
+              >
+                May 2025
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -91,140 +211,54 @@ function CommunityAllStarsSection() {
       </div>
       
       <div className="row">
-        <div className="col col--2 col--offset-1 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/blackgirlbytes.png"
-                  alt="Rizel Scarlett"
-                />
+        {currentData.featuredContributors.map((contributor, index) => (
+          <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
+            <div className="card">
+              <div className="card__header text--center">
+                <div className="avatar avatar--vertical">
+                  {contributor.avatar ? (
+                    <img
+                      className="avatar__photo avatar__photo--lg"
+                      src={contributor.avatar}
+                      alt={contributor.name}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: '64px', 
+                      height: '64px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#f0f0f0', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      color: '#666'
+                    }}>
+                      ?
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/blackgirlbytes">
-                    Rizel Scarlett
-                  </Link>
-                </strong>
-                <br />
-                <small>@blackgirlbytes</small>
-                <br />
-                <small>Developer Advocate</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/zanesq.png"
-                  alt="Zane Squires"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/zanesq">
-                    Zane Squires
-                  </Link>
-                </strong>
-                <br />
-                <small>@zanesq</small>
-                <br />
-                <small>Senior Software Engineer</small>
+              <div className="card__body text--center">
+                <div className="margin-bottom--sm">
+                  <strong>
+                    {contributor.avatar ? (
+                      <Link href={`https://github.com/${contributor.handle}`}>
+                        {contributor.name}
+                      </Link>
+                    ) : (
+                      contributor.name
+                    )}
+                  </strong>
+                  <br />
+                  <small>@{contributor.handle}</small>
+                  <br />
+                  <small>{contributor.role}</small>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/The-Best-Codes.png"
-                  alt="The-Best-Codes"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/The-Best-Codes">
-                    The-Best-Codes
-                  </Link>
-                </strong>
-                <br />
-                <small>@The-Best-Codes</small>
-                <br />
-                <small>Open Source Developer</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/michaelneale.png"
-                  alt="Michael Neale"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/michaelneale">
-                    Michael Neale
-                  </Link>
-                </strong>
-                <br />
-                <small>@michaelneale</small>
-                <br />
-                <small>Principal Engineer</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/patrickReiis.png"
-                  alt="Patrick Reis"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/patrickReiis">
-                    Patrick Reis
-                  </Link>
-                </strong>
-                <br />
-                <small>@patrickReiis</small>
-                <br />
-                <small>Community Contributor</small>
-              </div>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
       
       {/* Second Group of 5 */}
@@ -237,140 +271,54 @@ function CommunityAllStarsSection() {
       </div>
       
       <div className="row">
-        <div className="col col--2 col--offset-1 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/angiejones.png"
-                  alt="Angie Jones"
-                />
+        {currentData.risingStars.map((contributor, index) => (
+          <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
+            <div className="card">
+              <div className="card__header text--center">
+                <div className="avatar avatar--vertical">
+                  {contributor.avatar ? (
+                    <img
+                      className="avatar__photo avatar__photo--lg"
+                      src={contributor.avatar}
+                      alt={contributor.name}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: '64px', 
+                      height: '64px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#f0f0f0', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      color: '#666'
+                    }}>
+                      ?
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/angiejones">
-                    Angie Jones
-                  </Link>
-                </strong>
-                <br />
-                <small>@angiejones</small>
-                <br />
-                <small>Senior Developer</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/svenstaro.png"
-                  alt="Sven-Hendrik Haase"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/svenstaro">
-                    Sven-Hendrik Haase
-                  </Link>
-                </strong>
-                <br />
-                <small>@svenstaro</small>
-                <br />
-                <small>Open Source Maintainer</small>
+              <div className="card__body text--center">
+                <div className="margin-bottom--sm">
+                  <strong>
+                    {contributor.avatar ? (
+                      <Link href={`https://github.com/${contributor.handle}`}>
+                        {contributor.name}
+                      </Link>
+                    ) : (
+                      contributor.name
+                    )}
+                  </strong>
+                  <br />
+                  <small>@{contributor.handle}</small>
+                  <br />
+                  <small>{contributor.role}</small>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/faces-of-eth.png"
-                  alt="faces-of-eth"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/faces-of-eth">
-                    faces-of-eth
-                  </Link>
-                </strong>
-                <br />
-                <small>@faces-of-eth</small>
-                <br />
-                <small>Community Developer</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/wesbillman.png"
-                  alt="Wes Billman"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/wesbillman">
-                    Wes Billman
-                  </Link>
-                </strong>
-                <br />
-                <small>@wesbillman</small>
-                <br />
-                <small>Software Engineer</small>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--2 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header text--center">
-              <div className="avatar avatar--vertical">
-                <img
-                  className="avatar__photo avatar__photo--lg"
-                  src="https://github.com/acheong08.png"
-                  alt="Antonio Cheong"
-                />
-              </div>
-            </div>
-            <div className="card__body text--center">
-              <div className="margin-bottom--sm">
-                <strong>
-                  <Link href="https://github.com/acheong08">
-                    Antonio Cheong
-                  </Link>
-                </strong>
-                <br />
-                <small>@acheong08</small>
-                <br />
-                <small>AI Developer</small>
-              </div>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
       
       {/* Third Group - All Contributors Leaderboard */}
@@ -394,181 +342,49 @@ function CommunityAllStarsSection() {
               gap: '8px',
               fontSize: '14px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#FFD700', borderRadius: '6px', fontWeight: 'bold' }}>
-                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥇</span>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>1.</span>
-                <Link href="https://github.com/blackgirlbytes" style={{ color: '#000' }}>@blackgirlbytes</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#C0C0C0', borderRadius: '6px', fontWeight: 'bold' }}>
-                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥈</span>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>2.</span>
-                <Link href="https://github.com/zanesq" style={{ color: '#000' }}>@zanesq</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#CD7F32', borderRadius: '6px', fontWeight: 'bold' }}>
-                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥉</span>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>3.</span>
-                <Link href="https://github.com/michaelneale" style={{ color: '#000' }}>@michaelneale</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>4.</span>
-                <Link href="https://github.com/angiejones">@angiejones</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>5.</span>
-                <Link href="https://github.com/Kvadratni">@Kvadratni</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>6.</span>
-                <Link href="https://github.com/lifeizhou-ap">@lifeizhou-ap</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>7.</span>
-                <Link href="https://github.com/dianed-square">@dianed-square</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>8.</span>
-                <Link href="https://github.com/yingjiehe-xyz">@yingjiehe-xyz</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>9.</span>
-                <Link href="https://github.com/salman1993">@salman1993</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>10.</span>
-                <Link href="https://github.com/ahau-square">@ahau-square</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>11.</span>
-                <Link href="https://github.com/iandouglas">@iandouglas</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>12.</span>
-                <Link href="https://github.com/emma-squared">@emma-squared</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>13.</span>
-                <Link href="https://github.com/dbraduan">@dbraduan</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>14.</span>
-                <Link href="https://github.com/lily-de">@lily-de</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>15.</span>
-                <Link href="https://github.com/alexhancock">@alexhancock</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>16.</span>
-                <Link href="https://github.com/EbonyLouis">@EbonyLouis</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>17.</span>
-                <Link href="https://github.com/wendytang">@wendytang</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>18.</span>
-                <Link href="https://github.com/The-Best-Codes">@The-Best-Codes</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>19.</span>
-                <Link href="https://github.com/opdich">@opdich</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>20.</span>
-                <Link href="https://github.com/agiuliano-square">@agiuliano-square</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>21.</span>
-                <Link href="https://github.com/patrickReiis">@patrickReiis</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>22.</span>
-                <Link href="https://github.com/kalvinnchau">@kalvinnchau</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>23.</span>
-                <Link href="https://github.com/acekyd">@acekyd</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>24.</span>
-                <Link href="https://github.com/nahiyankhan">@nahiyankhan</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>25.</span>
-                <Link href="https://github.com/taniashiba">@taniashiba</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>26.</span>
-                <Link href="https://github.com/JohnMAustin78">@JohnMAustin78</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>27.</span>
-                <Link href="https://github.com/sheagcraig">@sheagcraig</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>28.</span>
-                <Link href="https://github.com/alicehau">@alicehau</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>29.</span>
-                <Link href="https://github.com/bwalding">@bwalding</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>30.</span>
-                <Link href="https://github.com/jamadeo">@jamadeo</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>31.</span>
-                <Link href="https://github.com/rockwotj">@rockwotj</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>32.</span>
-                <Link href="https://github.com/danielzayas">@danielzayas</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>33.</span>
-                <Link href="https://github.com/svenstaro">@svenstaro</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>34.</span>
-                <Link href="https://github.com/adaug">@adaug</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>35.</span>
-                <Link href="https://github.com/loganmoseley">@loganmoseley</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>36.</span>
-                <Link href="https://github.com/tiborvass">@tiborvass</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>37.</span>
-                <Link href="https://github.com/xuv">@xuv</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>38.</span>
-                <Link href="https://github.com/anilmuppalla">@anilmuppalla</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>39.</span>
-                <Link href="https://github.com/spencrmartin">@spencrmartin</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>40.</span>
-                <Link href="https://github.com/gknoblauch">@gknoblauch</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>41.</span>
-                <Link href="https://github.com/acheong08">@acheong08</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>42.</span>
-                <Link href="https://github.com/faces-of-eth">@faces-of-eth</Link>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <span style={{ marginRight: '8px', minWidth: '20px' }}>43.</span>
-                <Link href="https://github.com/wesbillman">@wesbillman</Link>
-              </div>
+              {currentData.leaderboard.map((contributor, index) => (
+                <div 
+                  key={index}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    padding: contributor.bgColor ? '12px' : '10px', 
+                    backgroundColor: contributor.bgColor || '#f8f9fa', 
+                    borderRadius: contributor.bgColor ? '8px' : '6px', 
+                    fontWeight: contributor.bgColor ? 'bold' : '500',
+                    boxShadow: contributor.bgColor ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                    borderLeft: !contributor.bgColor ? '4px solid #e9ecef' : 'none'
+                  }}
+                >
+                  {contributor.medal && (
+                    <span style={{ marginRight: '12px', fontSize: '18px' }}>
+                      {contributor.medal}
+                    </span>
+                  )}
+                  <span style={{ 
+                    marginRight: '12px', 
+                    minWidth: '30px', 
+                    fontSize: contributor.bgColor ? '16px' : '14px' 
+                  }}>
+                    {contributor.rank}.
+                  </span>
+                  {contributor.name !== 'TBD' ? (
+                    <Link 
+                      href={`https://github.com/${contributor.name}`} 
+                      style={{ 
+                        color: contributor.bgColor ? '#000' : 'inherit',
+                        fontSize: contributor.bgColor ? '16px' : '14px'
+                      }}
+                    >
+                      @{contributor.name}
+                    </Link>
+                  ) : (
+                    <span style={{ color: '#999', fontStyle: 'italic' }}>
+                      @TBD
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
