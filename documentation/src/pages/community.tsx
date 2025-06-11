@@ -52,7 +52,7 @@ function UpcomingEventsSection() {
           <div className="text--center">
             <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)' }}>
               Want to join us on a livestream or have ideas for future events? 
-              Reach out to us on <Link href="https://discord.gg/block-opensource">Discord</Link>.
+              Reach out to the team on <Link href="https://discord.gg/block-opensource">Discord</Link>.
             </p>
           </div>
         </div>
@@ -80,7 +80,7 @@ function CommunityAllStarsSection() {
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
             <Heading as="h1">Community All Stars</Heading>
-            <p>Every month we take a moment and celebrate all contributions from the open source community. Here are our top contributors and community champions!</p>
+            <p>Every month, we take a moment and celebrate the open source community. Here are the top contributors and community champions!</p>
           </div>
         </div>
       </div>
@@ -213,7 +213,7 @@ function CommunityAllStarsSection() {
           <div className="text--center margin-bottom--md">
             <Heading as="h3">⭐ Team Stars</Heading>
             <p style={{ fontSize: '14px', color: 'var(--ifm-color-emphasis-600)' }}>
-              Top 5 Contributors across Block Open Source teams!
+              Top 5 Contributors from all Block teams!
             </p>
           </div>
         </div>
