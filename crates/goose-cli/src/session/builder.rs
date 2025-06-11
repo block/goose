@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_session_builder_config_default() {
         let config = SessionBuilderConfig::default();
-        
+
         assert!(config.identifier.is_none());
         assert!(!config.resume);
         assert!(!config.no_session);
