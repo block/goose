@@ -90,10 +90,11 @@ var globalService *TemporalService
 
 // Request/Response types for HTTP API
 type JobRequest struct {
-	Action     string `json:"action"`      // create, delete, pause, unpause, list, run_now, kill_job
-	JobID      string `json:"job_id"`
-	CronExpr   string `json:"cron"`
-	RecipePath string `json:"recipe_path"`
+	Action       string `json:"action"`      // create, delete, pause, unpause, list, run_now, kill_job, update
+	JobID        string `json:"job_id"`
+	CronExpr     string `json:"cron"`
+	RecipePath   string `json:"recipe_path"`
+	ExecutionMode string `json:"execution_mode,omitempty"` // "foreground" or "background"
 }
 
 type JobResponse struct {
@@ -112,6 +113,8 @@ type JobStatus struct {
 	CurrentlyRunning bool      `json:"currently_running"`
 	Paused           bool      `json:"paused"`
 	CreatedAt        time.Time `json:"created_at"`
+	ExecutionMode    *string   `json:"execution_mode,omitempty"` // "foreground" or "background"
+	LastManualRun    *string   `json:"last_manual_run,omitempty"` // Track manual runs separately
 }
 
 type RunNowResponse struct {
@@ -471,6 +474,8 @@ func (ts *TemporalService) handleJobs(w http.ResponseWriter, r *http.Request) {
 		resp = ts.pauseSchedule(req)
 	case "unpause":
 		resp = ts.unpauseSchedule(req)
+	case "update":
+		resp = ts.updateSchedule(req)
 	case "list":
 		resp = ts.listSchedules()
 	case "run_now":
@@ -524,7 +529,12 @@ func (ts *TemporalService) createSchedule(req JobRequest) JobResponse {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to create schedule: %v", err)}
 	}
 
-	// Track job in memory
+	// Track job in memory - ensure execution mode has a default value
+	executionMode := req.ExecutionMode
+	if executionMode == "" {
+		executionMode = "background" // Default to background if not specified
+	}
+	
 	jobStatus := &JobStatus{
 		ID:               req.JobID,
 		CronExpr:         req.CronExpr,
@@ -532,6 +542,7 @@ func (ts *TemporalService) createSchedule(req JobRequest) JobResponse {
 		CurrentlyRunning: false,
 		Paused:           false,
 		CreatedAt:        time.Now(),
+		ExecutionMode:    &executionMode,
 	}
 	ts.scheduleJobs[req.JobID] = jobStatus
 
@@ -616,6 +627,52 @@ func (ts *TemporalService) unpauseSchedule(req JobRequest) JobResponse {
 	return JobResponse{Success: true, Message: "Schedule unpaused successfully"}
 }
 
+func (ts *TemporalService) updateSchedule(req JobRequest) JobResponse {
+	if req.JobID == "" || req.CronExpr == "" {
+		return JobResponse{Success: false, Message: "Missing required fields: job_id, cron"}
+	}
+
+	// Check if job exists
+	job, exists := ts.scheduleJobs[req.JobID]
+	if !exists {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job with ID '%s' not found", req.JobID)}
+	}
+
+	// Check if job is currently running
+	if job.CurrentlyRunning {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Cannot update schedule '%s' while it's currently running", req.JobID)}
+	}
+
+	scheduleID := fmt.Sprintf("goose-job-%s", req.JobID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get the existing schedule handle
+	handle := ts.client.ScheduleClient().GetHandle(ctx, scheduleID)
+	
+	// Update the schedule with new cron expression
+	err := handle.Update(ctx, client.ScheduleUpdateOptions{
+		DoUpdate: func(input client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+			// Update the cron expression
+			input.Description.Schedule.Spec.CronExpressions = []string{req.CronExpr}
+			return &client.ScheduleUpdate{
+				Schedule: &input.Description.Schedule,
+			}, nil
+		},
+	})
+	
+	if err != nil {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to update schedule: %v", err)}
+	}
+
+	// Update in memory
+	job.CronExpr = req.CronExpr
+
+	log.Printf("Updated schedule for job: %s with new cron: %s", req.JobID, req.CronExpr)
+	return JobResponse{Success: true, Message: "Schedule updated successfully"}
+}
+
 func (ts *TemporalService) listSchedules() JobResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -663,13 +720,47 @@ func (ts *TemporalService) listSchedules() JobResponse {
 				// Check if there are any running workflows for this job
 				jobStatus.CurrentlyRunning = ts.isJobCurrentlyRunning(ctx, jobID)
 				
-				// Update last run time if available
+				// Update last run time - use the most recent between scheduled and manual runs
+				var mostRecentRun *string
+				
+				// Check scheduled runs from Temporal
 				if len(desc.Info.RecentActions) > 0 {
 					lastAction := desc.Info.RecentActions[len(desc.Info.RecentActions)-1]
 					if !lastAction.ActualTime.IsZero() {
-						lastRunStr := lastAction.ActualTime.Format(time.RFC3339)
-						jobStatus.LastRun = &lastRunStr
+						scheduledRunStr := lastAction.ActualTime.Format(time.RFC3339)
+						mostRecentRun = &scheduledRunStr
+						log.Printf("Job %s scheduled run: %s", jobID, scheduledRunStr)
 					}
+				}
+				
+				// Check manual runs from our tracking
+				if tracked, exists := ts.scheduleJobs[jobID]; exists && tracked.LastManualRun != nil {
+					log.Printf("Job %s manual run: %s", jobID, *tracked.LastManualRun)
+					
+					// Compare times if we have both
+					if mostRecentRun != nil {
+						scheduledTime, err1 := time.Parse(time.RFC3339, *mostRecentRun)
+						manualTime, err2 := time.Parse(time.RFC3339, *tracked.LastManualRun)
+						
+						if err1 == nil && err2 == nil {
+							if manualTime.After(scheduledTime) {
+								mostRecentRun = tracked.LastManualRun
+								log.Printf("Job %s: manual run is more recent", jobID)
+							} else {
+								log.Printf("Job %s: scheduled run is more recent", jobID)
+							}
+						}
+					} else {
+						// Only manual run available
+						mostRecentRun = tracked.LastManualRun
+						log.Printf("Job %s: only manual run available", jobID)
+					}
+				}
+				
+				if mostRecentRun != nil {
+					jobStatus.LastRun = mostRecentRun
+				} else {
+					log.Printf("Job %s has no runs (scheduled or manual)", jobID)
 				}
 				
 				// Update next run time if available - this field may not exist in older SDK versions
@@ -746,9 +837,15 @@ func (ts *TemporalService) runNow(req JobRequest) JobResponse {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' not found", req.JobID)}
 	}
 
+	// Record the manual run time
+	now := time.Now()
+	manualRunStr := now.Format(time.RFC3339)
+	job.LastManualRun = &manualRunStr
+	log.Printf("Recording manual run for job %s at %s", req.JobID, manualRunStr)
+
 	// Execute workflow immediately
 	workflowOptions := client.StartWorkflowOptions{
-		ID:        fmt.Sprintf("manual-%s-%d", req.JobID, time.Now().Unix()),
+		ID:        fmt.Sprintf("manual-%s-%d", req.JobID, now.Unix()),
 		TaskQueue: TaskQueueName,
 	}
 

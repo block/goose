@@ -25,6 +25,7 @@ struct JobRequest {
     job_id: Option<String>,
     cron: Option<String>,
     recipe_path: Option<String>,
+    execution_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -45,6 +46,7 @@ struct TemporalJobStatus {
     currently_running: bool,
     paused: bool,
     created_at: String,
+    execution_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -541,6 +543,7 @@ impl TemporalScheduler {
             job_id: Some(job.id.clone()),
             cron: Some(job.cron.clone()),
             recipe_path: Some(job.source.clone()),
+            execution_mode: job.execution_mode.clone(),
         };
 
         let response = self.make_request(request).await?;
@@ -560,6 +563,7 @@ impl TemporalScheduler {
             job_id: None,
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -578,6 +582,7 @@ impl TemporalScheduler {
                         paused: tj.paused,
                         current_session_id: None, // Not provided by Temporal service
                         process_start_time: None, // Not provided by Temporal service
+                        execution_mode: tj.execution_mode,
                     }
                 })
                 .collect();
@@ -593,6 +598,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -611,6 +617,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -629,6 +636,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -648,6 +656,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -723,13 +732,27 @@ impl TemporalScheduler {
 
     pub async fn update_schedule(
         &self,
-        _sched_id: &str,
-        _new_cron: String,
+        sched_id: &str,
+        new_cron: String,
     ) -> Result<(), SchedulerError> {
-        warn!("update_schedule() method not implemented for TemporalScheduler - delete and recreate job instead");
-        Err(SchedulerError::SchedulerInternalError(
-            "update_schedule not supported - delete and recreate job instead".to_string(),
-        ))
+        tracing::info!("TemporalScheduler: update_schedule() called for job '{}' with cron '{}'", sched_id, new_cron);
+        
+        let request = JobRequest {
+            action: "update".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: Some(new_cron),
+            recipe_path: None,
+            execution_mode: None,
+        };
+
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            info!("Successfully updated scheduled job: {}", sched_id);
+            Ok(())
+        } else {
+            Err(SchedulerError::SchedulerInternalError(response.message))
+        }
     }
 
     pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
@@ -740,6 +763,7 @@ impl TemporalScheduler {
             job_id: Some(sched_id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;

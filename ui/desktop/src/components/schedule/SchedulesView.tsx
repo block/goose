@@ -23,6 +23,7 @@ import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import cronstrue from 'cronstrue';
+import { formatToLocalDateWithTimezone } from '../../utils/date';
 
 interface SchedulesViewProps {
   onClose: () => void;
@@ -83,12 +84,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (viewingScheduleId !== null) return;
 
-    // Set up periodic refresh every 10 seconds
+    // Set up periodic refresh every 5 seconds (more frequent to catch status changes)
     const intervalId = setInterval(() => {
       if (viewingScheduleId === null && !isRefreshing && !isLoading) {
         fetchSchedules();
       }
-    }, 10000);
+    }, 5000);
 
     // Clean up on unmount
     return () => {
@@ -438,9 +439,24 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           Schedule: {getReadableCron(job.cron)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Last Run:{' '}
-                          {job.last_run ? new Date(job.last_run).toLocaleString() : 'Never'}
+                          Last Run: {formatToLocalDateWithTimezone(job.last_run)}
                         </p>
+                        {job.execution_mode && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Mode:{' '}
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                job.execution_mode === 'foreground'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {job.execution_mode === 'foreground'
+                                ? '🖥️ Foreground'
+                                : '⚡ Background'}
+                            </span>
+                          </p>
+                        )}
                         {job.currently_running && (
                           <p className="text-xs text-green-500 dark:text-green-400 mt-1 font-semibold flex items-center">
                             <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
