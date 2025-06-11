@@ -88,20 +88,31 @@ function CommunityAllStarsSection() {
               <div className="avatar avatar--vertical">
                 <img
                   className="avatar__photo avatar__photo--xl"
-                  src="https://github.com/placeholder.png"
-                  alt="Community Champion"
+                  src="https://github.com/blackgirlbytes.png"
+                  alt="Rizel Scarlett"
                 />
                 <div className="avatar__intro">
                   <div className="avatar__name">🌟 Featured Contributors</div>
-                  <small className="avatar__subtitle">Coming Soon</small>
+                  <small className="avatar__subtitle">Community Champions</small>
                 </div>
               </div>
             </div>
             <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>Rizel Scarlett (@blackgirlbytes)</strong>
+                <br />
+                <small>Developer Advocate</small>
+              </div>
               <p>
-                We're working on highlighting our amazing community contributors! 
-                Check back soon to see featured members who are making Goose better for everyone.
+                Leading community engagement and helping developers build amazing projects with Goose, 
+                including Google Docs extensions and creative automation solutions.
               </p>
+              <Link 
+                className="button button--outline button--primary button--sm" 
+                href="https://github.com/blackgirlbytes"
+              >
+                View Profile
+              </Link>
             </div>
           </div>
         </div>
@@ -112,8 +123,8 @@ function CommunityAllStarsSection() {
               <div className="avatar avatar--vertical">
                 <img
                   className="avatar__photo avatar__photo--xl"
-                  src="https://github.com/placeholder.png"
-                  alt="Top Contributor"
+                  src="https://github.com/zanesq.png"
+                  alt="Zane Squires"
                 />
                 <div className="avatar__intro">
                   <div className="avatar__name">🏆 Top Contributors</div>
@@ -122,9 +133,19 @@ function CommunityAllStarsSection() {
               </div>
             </div>
             <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>Top Internal Contributors:</strong>
+                <br />
+                <small>zanesq • michaelneale • angiejones • Kvadratni</small>
+              </div>
+              <div className="margin-bottom--sm">
+                <strong>Top External Contributors:</strong>
+                <br />
+                <small>Murf • bwalding • acheong08 • patrickReiis</small>
+              </div>
               <p>
-                Monthly recognition for our most active code contributors, 
-                bug reporters, and community helpers.
+                Our most active contributors this month, driving code improvements, 
+                bug fixes, and feature development.
               </p>
             </div>
           </div>
@@ -136,7 +157,7 @@ function CommunityAllStarsSection() {
               <div className="avatar avatar--vertical">
                 <img
                   className="avatar__photo avatar__photo--xl"
-                  src="https://github.com/placeholder.png"
+                  src="https://github.com/The-Best-Codes.png"
                   alt="Rising Star"
                 />
                 <div className="avatar__intro">
@@ -146,10 +167,21 @@ function CommunityAllStarsSection() {
               </div>
             </div>
             <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>Recent Rising Stars:</strong>
+                <br />
+                <small>The-Best-Codes • svenstaro • faces-of-eth • wesbillman</small>
+              </div>
               <p>
                 Welcoming new community members who are making their first 
-                meaningful contributions to the Goose ecosystem.
+                meaningful contributions to the Goose ecosystem and showing great potential.
               </p>
+              <Link 
+                className="button button--outline button--primary button--sm" 
+                href="https://github.com/block/goose/graphs/contributors"
+              >
+                View All Contributors
+              </Link>
             </div>
           </div>
         </div>
