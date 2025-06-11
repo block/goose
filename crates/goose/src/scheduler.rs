@@ -122,6 +122,8 @@ pub struct ScheduledJob {
     pub current_session_id: Option<String>,
     #[serde(default)]
     pub process_start_time: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub execution_mode: Option<String>, // "foreground" or "background"
 }
 
 async fn persist_jobs_from_arc(
@@ -1320,6 +1322,7 @@ mod tests {
             paused: false,
             current_session_id: None,
             process_start_time: None,
+            execution_mode: Some("background".to_string()), // Default for test
         };
 
         // Create the mock provider instance for the test

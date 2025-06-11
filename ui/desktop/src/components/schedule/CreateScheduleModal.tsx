@@ -9,7 +9,9 @@ import { Buffer } from 'buffer';
 import { Recipe } from '../../recipe';
 import ClockIcon from '../../assets/clock-icon.svg';
 
-type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
+
+type CustomIntervalUnit = 'minute' | 'hour' | 'day';
 
 interface FrequencyOption {
   value: FrequencyValue;
@@ -20,6 +22,7 @@ export interface NewSchedulePayload {
   id: string;
   recipe_source: string;
   cron: string;
+  execution_mode?: string;
 }
 
 interface CreateScheduleModalProps {
@@ -71,10 +74,16 @@ interface CleanRecipe {
 
 const frequencies: FrequencyOption[] = [
   { value: 'once', label: 'Once' },
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
+  { value: 'every', label: 'Every...' },
+  { value: 'daily', label: 'Daily (at specific time)' },
+  { value: 'weekly', label: 'Weekly (at specific time/days)' },
+  { value: 'monthly', label: 'Monthly (at specific time/day)' },
+];
+
+const customIntervalUnits: { value: CustomIntervalUnit; label: string }[] = [
+  { value: 'minute', label: 'minute(s)' },
+  { value: 'hour', label: 'hour(s)' },
+  { value: 'day', label: 'day(s)' },
 ];
 
 const daysOfWeekOptions: { value: string; label: string }[] = [
@@ -261,6 +270,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [deepLinkInput, setDeepLinkInput] = useState<string>('');
   const [parsedRecipe, setParsedRecipe] = useState<Recipe | null>(null);
   const [frequency, setFrequency] = useState<FrequencyValue>('daily');
+  const [customIntervalValue, setCustomIntervalValue] = useState<number>(1);
+  const [customIntervalUnit, setCustomIntervalUnit] = useState<CustomIntervalUnit>('minute');
   const [selectedDate, setSelectedDate] = useState<string>(
     () => new Date().toISOString().split('T')[0]
   );
@@ -322,6 +333,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     setDeepLinkInput('');
     setParsedRecipe(null);
     setFrequency('daily');
+    setCustomIntervalValue(1);
+    setCustomIntervalUnit('minute');
     setSelectedDate(new Date().toISOString().split('T')[0]);
     setSelectedTime('09:00');
     setSelectedMinute('0');
@@ -368,12 +381,20 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             }
           }
           return 'Date and Time are required for "Once" frequency.';
-        case 'hourly': {
-          const sMinute = parseInt(selectedMinute, 10);
-          if (isNaN(sMinute) || sMinute < 0 || sMinute > 59) {
-            return 'Invalid minute (0-59) for hourly frequency.';
+        case 'every': {
+          if (customIntervalValue <= 0) {
+            return 'Custom interval value must be greater than 0.';
           }
-          return `${sMinute} * * * *`;
+          switch (customIntervalUnit) {
+            case 'minute':
+              return `*/${customIntervalValue} * * * *`;
+            case 'hour':
+              return `0 */${customIntervalValue} * * *`;
+            case 'day':
+              return `0 0 */${customIntervalValue} * *`;
+            default:
+              return 'Invalid custom interval unit.';
+          }
         }
         case 'daily':
           return `${minutePart} ${hourPart} * * *`;
@@ -415,6 +436,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   }, [
     frequency,
+    customIntervalValue,
+    customIntervalUnit,
     selectedDate,
     selectedTime,
     selectedMinute,
@@ -503,6 +526,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       id: scheduleId.trim(),
       recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
+      execution_mode: executionMode,
     };
 
     await onSubmit(newSchedulePayload);
@@ -707,6 +731,43 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             />
           </div>
 
+          {frequency === 'every' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="customIntervalValue-modal" className={modalLabelClassName}>
+                  Every:
+                </label>
+                <Input
+                  type="number"
+                  id="customIntervalValue-modal"
+                  min="1"
+                  max="999"
+                  value={customIntervalValue}
+                  onChange={(e) => setCustomIntervalValue(parseInt(e.target.value) || 1)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="customIntervalUnit-modal" className={modalLabelClassName}>
+                  Unit:
+                </label>
+                <Select
+                  instanceId="custom-interval-unit-select-modal"
+                  options={customIntervalUnits}
+                  value={customIntervalUnits.find((u) => u.value === customIntervalUnit)}
+                  onChange={(newValue: unknown) => {
+                    const selectedUnit = newValue as {
+                      value: CustomIntervalUnit;
+                      label: string;
+                    } | null;
+                    if (selectedUnit) setCustomIntervalUnit(selectedUnit.value);
+                  }}
+                  placeholder="Select unit..."
+                />
+              </div>
+            </div>
+          )}
+
           {frequency === 'once' && (
             <>
               <div>
@@ -734,22 +795,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                 />
               </div>
             </>
-          )}
-          {frequency === 'hourly' && (
-            <div>
-              <label htmlFor="hourlyMinute-modal" className={modalLabelClassName}>
-                Minute of the hour (0-59):
-              </label>
-              <Input
-                type="number"
-                id="hourlyMinute-modal"
-                min="0"
-                max="59"
-                value={selectedMinute}
-                onChange={(e) => setSelectedMinute(e.target.value)}
-                required
-              />
-            </div>
           )}
           {(frequency === 'daily' || frequency === 'weekly' || frequency === 'monthly') && (
             <div>

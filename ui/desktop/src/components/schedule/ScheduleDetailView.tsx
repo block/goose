@@ -21,6 +21,7 @@ import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
+import { formatToLocalDateWithTimezone } from '../../utils/date';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -455,10 +456,24 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     <span className="font-semibold">Last Run:</span>{' '}
-                    {scheduleDetails.last_run
-                      ? new Date(scheduleDetails.last_run).toLocaleString()
-                      : 'Never'}
+                    {formatToLocalDateWithTimezone(scheduleDetails.last_run)}
                   </p>
+                  {scheduleDetails.execution_mode && (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Execution Mode:</span>{' '}
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          scheduleDetails.execution_mode === 'foreground'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                        }`}
+                      >
+                        {scheduleDetails.execution_mode === 'foreground'
+                          ? '🖥️ Foreground'
+                          : '⚡ Background'}
+                      </span>
+                    </p>
+                  )}
                   {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
                     <p className="text-sm text-gray-600 dark:text-gray-300">
                       <span className="font-semibold">Current Session:</span>{' '}
@@ -468,7 +483,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                   {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
                     <p className="text-sm text-gray-600 dark:text-gray-300">
                       <span className="font-semibold">Process Started:</span>{' '}
-                      {new Date(scheduleDetails.process_start_time).toLocaleString()}
+                      {formatToLocalDateWithTimezone(scheduleDetails.process_start_time)}
                     </p>
                   )}
                 </div>
