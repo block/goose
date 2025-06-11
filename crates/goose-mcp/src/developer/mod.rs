@@ -753,21 +753,27 @@ impl DeveloperRouter {
         file_text: &str,
     ) -> Result<Vec<Content>, ToolError> {
         // Normalize line endings based on platform
-        let normalized_text = normalize_line_endings(file_text);
+        let mut normalized_text = normalize_line_endings(file_text); // Make mutable
+
+        // Ensure the text ends with a newline
+        if !normalized_text.ends_with('\n') {
+            normalized_text.push('\n');
+        }
 
         // Write to the file
-        std::fs::write(path, normalized_text)
+        std::fs::write(path, &normalized_text) // Write the potentially modified text
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
 
         // The assistant output does not show the file again because the content is already in the tool request
-        // but we do show it to the user here
+        // but we do show it to the user here, using the final written content
         Ok(vec![
             Content::text(format!("Successfully wrote to {}", path.display()))
                 .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {r#"
+            Content::text(formatdoc! {
+                r#"
                 ### {path}
                 ```{language}
                 {content}
@@ -775,7 +781,7 @@ impl DeveloperRouter {
                 "#,
                 path=path.display(),
                 language=language,
-                content=file_text,
+                content=&normalized_text // Use the final normalized_text for user feedback
             })
             .with_audience(vec![Role::User])
             .with_priority(0.2),
