@@ -77,16 +77,17 @@ Project/
 
 ### 3. `.gitignore` Fallback
 - Used when no local `.gooseignore` exists
-- Goose automatically uses your Git ignore rules
+- Goose automatically uses your `.gitignore` rules
+- If a global `.gooseignore` file exists, those rules will be applied in addition to the `.gitignore` patterns.
 
 ```
 Project/
-├── .gitignore        ← Used by Goose
+├── .gitignore        ← Used by Goose (when no local .gooseignore)
 └── src/
 ```
 
 ### 4. Default Patterns
-By default, if you haven't created any `.gooseignore` files and no `.gitignore` file exists, Goose will not modify files matching these patterns:
+By default, if you haven't created any .gooseignore files and no .gitignore file exists, Goose will not modify files matching these patterns:
 ```plaintext
 **/.env
 **/.env.*
