@@ -410,6 +410,35 @@ After selecting a project, you'll be asked to either:
 - **Start new session**: Start a new session in the selected project
 
 ---
+### web
+
+Start a web-based chat interface for interacting with Goose. This feature provides a lightweight GUI option for CLI users.
+
+**Usage:**
+```bash
+goose web
+```
+
+**Options:**
+- **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`.
+- **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`.
+- **`--open`**: Automatically open the browser when the server starts.
+
+**Example:**
+```bash
+# Start web interface at `http://127.0.0.1:3000` and open the browser
+goose web --open
+
+# Start web interface at `http://127.0.0.1:8080` 
+goose web --port 8080
+```
+
+:::info
+Use `Ctrl-C` to stop the server.
+:::
+
+---
+
 ## Prompt Completion
 
 The CLI provides a set of slash commands that can be accessed during a session. These commands support tab completion for easier use.
