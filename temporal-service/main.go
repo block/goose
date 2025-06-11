@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -87,6 +88,138 @@ func findAvailablePorts() (*PortConfig, error) {
 
 // Global service instance for activities to access
 var globalService *TemporalService
+
+// ProcessManager tracks and manages spawned processes
+type ProcessManager struct {
+	processes map[string]*ManagedProcess
+	mutex     sync.RWMutex
+}
+
+type ManagedProcess struct {
+	JobID     string
+	Process   *os.Process
+	Cancel    context.CancelFunc
+	StartTime time.Time
+}
+
+var globalProcessManager = &ProcessManager{
+	processes: make(map[string]*ManagedProcess),
+}
+
+func (pm *ProcessManager) AddProcess(jobID string, process *os.Process, cancel context.CancelFunc) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	pm.processes[jobID] = &ManagedProcess{
+		JobID:     jobID,
+		Process:   process,
+		Cancel:    cancel,
+		StartTime: time.Now(),
+	}
+	log.Printf("Added process %d for job %s to process manager", process.Pid, jobID)
+}
+
+func (pm *ProcessManager) RemoveProcess(jobID string) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	if mp, exists := pm.processes[jobID]; exists {
+		log.Printf("Removed process %d for job %s from process manager", mp.Process.Pid, jobID)
+		delete(pm.processes, jobID)
+	}
+}
+
+func (pm *ProcessManager) KillProcess(jobID string) error {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	mp, exists := pm.processes[jobID]
+	if !exists {
+		return fmt.Errorf("no process found for job %s", jobID)
+	}
+
+	log.Printf("Killing process %d for job %s", mp.Process.Pid, jobID)
+
+	// Cancel the context first
+	if mp.Cancel != nil {
+		mp.Cancel()
+	}
+
+	// Kill the process and its children
+	if err := killProcessGroup(mp.Process); err != nil {
+		log.Printf("Error killing process group for job %s: %v", jobID, err)
+		return err
+	}
+
+	delete(pm.processes, jobID)
+	return nil
+}
+
+func (pm *ProcessManager) KillAllProcesses() {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+
+	log.Printf("Killing all %d managed processes", len(pm.processes))
+
+	for jobID, mp := range pm.processes {
+		log.Printf("Killing process %d for job %s", mp.Process.Pid, jobID)
+
+		if mp.Cancel != nil {
+			mp.Cancel()
+		}
+
+		if err := killProcessGroup(mp.Process); err != nil {
+			log.Printf("Error killing process group for job %s: %v", jobID, err)
+		}
+	}
+
+	pm.processes = make(map[string]*ManagedProcess)
+}
+
+func (pm *ProcessManager) ListProcesses() map[string]*ManagedProcess {
+	pm.mutex.RLock()
+	defer pm.mutex.RUnlock()
+
+	result := make(map[string]*ManagedProcess)
+	for k, v := range pm.processes {
+		result[k] = v
+	}
+	return result
+}
+
+// killProcessGroup kills a process and all its children
+func killProcessGroup(process *os.Process) error {
+	if process == nil {
+		return nil
+	}
+
+	pid := process.Pid
+
+	switch runtime.GOOS {
+	case "windows":
+		// On Windows, kill the process tree
+		cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
+		return cmd.Run()
+	default:
+		// On Unix-like systems, kill the process group
+		// First try to kill the process group
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+			// If that fails, try killing just the process
+			if err := process.Kill(); err != nil {
+				return err
+			}
+		}
+
+		// Give it a moment to terminate gracefully
+		time.Sleep(2 * time.Second)
+
+		// Force kill if still running
+		syscall.Kill(-pid, syscall.SIGKILL)
+		syscall.Kill(pid, syscall.SIGKILL)
+
+		return nil
+	}
+}
 
 // Request/Response types for HTTP API
 type JobRequest struct {
@@ -415,7 +548,7 @@ func GooseJobWorkflow(ctx workflow.Context, jobID, recipePath string) (string, e
 	return sessionID, nil
 }
 
-// Activity definition for executing Goose recipes
+// Activity definition for executing Goose recipes with proper cancellation handling
 func ExecuteGooseRecipe(ctx context.Context, jobID, recipePath string) (string, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing Goose recipe", "jobID", jobID, "recipePath", recipePath)
@@ -436,15 +569,30 @@ func ExecuteGooseRecipe(ctx context.Context, jobID, recipePath string) (string, 
 		)
 	}
 
+	// Create a cancellable context for the subprocess
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Monitor for activity cancellation
+	go func() {
+		select {
+		case <-ctx.Done():
+			logger.Info("Activity cancelled, killing process for job", "jobID", jobID)
+			globalProcessManager.KillProcess(jobID)
+		case <-subCtx.Done():
+			// Normal completion
+		}
+	}()
+
 	// Check if this is a foreground job
 	if isForegroundJob(recipePath) {
-		logger.Info("Executing foreground job directly", "jobID", jobID)
-		return executeForegroundJob(jobID, recipePath)
+		logger.Info("Executing foreground job with cancellation support", "jobID", jobID)
+		return executeForegroundJobWithCancellation(subCtx, jobID, recipePath)
 	}
 
-	// For background jobs, execute directly via CLI
-	logger.Info("Executing background job directly via CLI", "jobID", jobID)
-	return executeBackgroundJob(jobID, recipePath)
+	// For background jobs, execute with cancellation support
+	logger.Info("Executing background job with cancellation support", "jobID", jobID)
+	return executeBackgroundJobWithCancellation(subCtx, jobID, recipePath)
 }
 
 // HTTP API handlers
@@ -885,38 +1033,40 @@ func (ts *TemporalService) killJob(req JobRequest) JobResponse {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' is not currently running", req.JobID)}
 	}
 
-	// Get tracked workflow IDs for this job
-	workflowIDs, exists := ts.runningWorkflows[req.JobID]
-	if !exists || len(workflowIDs) == 0 {
-		return JobResponse{Success: false, Message: fmt.Sprintf("No tracked workflows found for job '%s'", req.JobID)}
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	killedCount := 0
-	for _, workflowID := range workflowIDs {
-		// Terminate the workflow
-		err := ts.client.TerminateWorkflow(ctx, workflowID, "", "Killed by user request")
-		if err != nil {
-			log.Printf("Error terminating workflow %s for job %s: %v", workflowID, req.JobID, err)
-			continue
+	// First, try to kill the managed process
+	if err := globalProcessManager.KillProcess(req.JobID); err != nil {
+		log.Printf("Failed to kill managed process for job %s: %v", req.JobID, err)
+	} else {
+		log.Printf("Successfully killed managed process for job %s", req.JobID)
+	}
+
+	// Also terminate any Temporal workflows for this job
+	workflowIDs, exists := ts.runningWorkflows[req.JobID]
+	if exists && len(workflowIDs) > 0 {
+		killedCount := 0
+		for _, workflowID := range workflowIDs {
+			// Terminate the workflow
+			err := ts.client.TerminateWorkflow(ctx, workflowID, "", "Killed by user request")
+			if err != nil {
+				log.Printf("Error terminating workflow %s for job %s: %v", workflowID, req.JobID, err)
+				continue
+			}
+			log.Printf("Terminated workflow %s for job %s", workflowID, req.JobID)
+			killedCount++
 		}
-		log.Printf("Terminated workflow %s for job %s", workflowID, req.JobID)
-		killedCount++
+		log.Printf("Terminated %d workflow(s) for job %s", killedCount, req.JobID)
 	}
 
 	// Mark job as not running in our tracking
 	ts.markJobAsNotRunning(req.JobID)
 
-	if killedCount == 0 {
-		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to kill any workflows for job '%s'", req.JobID)}
-	}
-
-	log.Printf("Killed %d running workflow(s) for job: %s", killedCount, req.JobID)
+	log.Printf("Killed job: %s (processes and workflows)", req.JobID)
 	return JobResponse{
 		Success: true,
-		Message: fmt.Sprintf("Successfully killed %d running workflow(s) for job '%s'", killedCount, req.JobID),
+		Message: fmt.Sprintf("Successfully killed job '%s' and all associated processes", req.JobID),
 	}
 }
 
@@ -933,8 +1083,77 @@ type Recipe struct {
 	Prompt       *string `json:"prompt" yaml:"prompt"`
 }
 
-// executeForegroundJob handles foreground job execution directly
-func executeForegroundJob(jobID, recipePath string) (string, error) {
+// executeBackgroundJobWithCancellation handles background job execution with proper process management
+func executeBackgroundJobWithCancellation(ctx context.Context, jobID, recipePath string) (string, error) {
+	log.Printf("Executing background job %s using recipe file: %s", jobID, recipePath)
+
+	// Find the goose CLI binary
+	goosePath, err := findGooseBinary()
+	if err != nil {
+		return "", fmt.Errorf("failed to find goose CLI binary: %w", err)
+	}
+
+	// Generate session name for this scheduled job
+	sessionName := fmt.Sprintf("scheduled-%s", jobID)
+
+	// Create command with context for cancellation
+	cmd := exec.CommandContext(ctx, goosePath, "run",
+		"--recipe", recipePath,
+		"--name", sessionName,
+		"--scheduled-job-id", jobID,
+	)
+
+	// Set up process group for proper cleanup
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true, // Create new process group
+	}
+
+	// Set up environment
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
+	)
+
+	log.Printf("Starting background CLI job %s with session %s", jobID, sessionName)
+
+	// Start the process
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start background CLI execution: %w", err)
+	}
+
+	// Register the process with the process manager
+	_, cancel := context.WithCancel(ctx)
+	globalProcessManager.AddProcess(jobID, cmd.Process, cancel)
+
+	// Ensure cleanup
+	defer func() {
+		globalProcessManager.RemoveProcess(jobID)
+		cancel()
+	}()
+
+	// Wait for completion or cancellation
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Context cancelled - kill the process
+		log.Printf("Background job %s cancelled, killing process", jobID)
+		globalProcessManager.KillProcess(jobID)
+		return "", ctx.Err()
+	case err := <-done:
+		if err != nil {
+			log.Printf("Background CLI job %s failed: %v", jobID, err)
+			return "", fmt.Errorf("background CLI execution failed: %w", err)
+		}
+		log.Printf("Background CLI job %s completed successfully with session %s", jobID, sessionName)
+		return sessionName, nil
+	}
+}
+
+// executeForegroundJobWithCancellation handles foreground job execution with proper process management
+func executeForegroundJobWithCancellation(ctx context.Context, jobID, recipePath string) (string, error) {
 	log.Printf("Executing foreground job %s with recipe %s", jobID, recipePath)
 
 	// Parse the recipe file first
@@ -946,16 +1165,16 @@ func executeForegroundJob(jobID, recipePath string) (string, error) {
 	// Check if desktop app is running
 	if isDesktopAppRunning() {
 		log.Printf("Desktop app is running, using GUI mode for job %s", jobID)
-		return executeForegroundJobGUI(jobID, recipe)
+		return executeForegroundJobGUIWithCancellation(ctx, jobID, recipe)
 	}
 
 	// Desktop app not running, fall back to CLI
 	log.Printf("Desktop app not running, falling back to CLI mode for job %s", jobID)
-	return executeForegroundJobCLI(jobID, recipe, recipePath)
+	return executeForegroundJobCLIWithCancellation(ctx, jobID, recipe, recipePath)
 }
 
-// executeForegroundJobGUI handles foreground execution via desktop app
-func executeForegroundJobGUI(jobID string, recipe *Recipe) (string, error) {
+// executeForegroundJobGUIWithCancellation handles GUI execution with cancellation
+func executeForegroundJobGUIWithCancellation(ctx context.Context, jobID string, recipe *Recipe) (string, error) {
 	// Generate session name for this scheduled job
 	sessionName := fmt.Sprintf("scheduled-%s", jobID)
 
@@ -970,15 +1189,25 @@ func executeForegroundJobGUI(jobID string, recipe *Recipe) (string, error) {
 		return "", fmt.Errorf("failed to open deep link: %w", err)
 	}
 	
-	log.Printf("Foreground GUI job %s initiated with session %s", jobID, sessionName)
+	log.Printf("Foreground GUI job %s initiated with session %s, waiting for completion...", jobID, sessionName)
 
+	// Wait for session completion with cancellation support
+	err = waitForSessionCompletionWithCancellation(ctx, sessionName, 2*time.Hour)
+	if err != nil {
+		if ctx.Err() != nil {
+			log.Printf("GUI session %s cancelled", sessionName)
+			return "", ctx.Err()
+		}
+		return "", fmt.Errorf("GUI session failed or timed out: %w", err)
+	}
+	
+	log.Printf("Foreground GUI job %s completed successfully with session %s", jobID, sessionName)
 	return sessionName, nil
 }
 
-// executeForegroundJobCLI handles foreground execution via CLI
-func executeForegroundJobCLI(jobID string, recipe *Recipe, recipePath string) (string, error) {
+// executeForegroundJobCLIWithCancellation handles CLI execution with cancellation
+func executeForegroundJobCLIWithCancellation(ctx context.Context, jobID string, recipe *Recipe, recipePath string) (string, error) {
 	log.Printf("Executing job %s via CLI fallback using recipe file: %s", jobID, recipePath)
-
 	// Find the goose CLI binary
 	goosePath, err := findGooseBinary()
 	if err != nil {
@@ -987,108 +1216,60 @@ func executeForegroundJobCLI(jobID string, recipe *Recipe, recipePath string) (s
 
 	// Generate session name for this scheduled job
 	sessionName := fmt.Sprintf("scheduled-%s", jobID)
-
-	// Create the goose command with proper escaping
-	gooseCmd := fmt.Sprintf(`%s run --recipe "%s" --name "%s" --scheduled-job-id "%s"`, goosePath, recipePath, sessionName, jobID)
-
-	// Open a new terminal window with the goose command
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		// macOS - use Terminal.app
-		script := fmt.Sprintf(`tell application "Terminal" to do script "%s"`, gooseCmd)
-		cmd = exec.Command("osascript", "-e", script)
-	case "windows":
-		// Windows - use cmd
-		cmd = exec.Command("cmd", "/c", "start", "cmd", "/k", gooseCmd)
-	case "linux":
-		// Linux - try different terminal emulators
-		terminals := []string{"gnome-terminal", "xterm", "konsole", "xfce4-terminal"}
-		var terminalCmd string
-		for _, terminal := range terminals {
-			if _, err := exec.LookPath(terminal); err == nil {
-				switch terminal {
-				case "gnome-terminal":
-					terminalCmd = fmt.Sprintf("%s -- %s", terminal, gooseCmd)
-				case "xterm", "konsole", "xfce4-terminal":
-					terminalCmd = fmt.Sprintf("%s -e %s", terminal, gooseCmd)
-				}
-				break
-			}
-		}
-		if terminalCmd == "" {
-			return "", fmt.Errorf("no suitable terminal emulator found on Linux")
-		}
-		cmd = exec.Command("sh", "-c", terminalCmd)
-	default:
-		return "", fmt.Errorf("unsupported OS for terminal execution: %s", runtime.GOOS)
-	}
-	// Set up environment
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
-	)
-
-	// Start the terminal command
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start terminal with CLI execution: %w", err)
-	}
-
-	// Return the session name as the session ID for tracking
-	log.Printf("Foreground CLI job %s started in new terminal with session %s (PID: %d)", jobID, sessionName, cmd.Process.Pid)
-
-	// Don't wait for completion - let it run in the new terminal
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			log.Printf("Terminal launch for CLI job %s completed with error: %v", jobID, err)
-		} else {
-			log.Printf("Terminal launch for CLI job %s completed successfully", jobID)
-		}
-	}()
-
-	return sessionName, nil
-}
-
-// executeBackgroundJob handles background job execution via CLI
-func executeBackgroundJob(jobID, recipePath string) (string, error) {
-	log.Printf("Executing background job %s using recipe file: %s", jobID, recipePath)
-
-	// Find the goose CLI binary
-	goosePath, err := findGooseBinary()
-	if err != nil {
-		return "", fmt.Errorf("failed to find goose CLI binary: %w", err)
-	}
-
-	// Generate session name for this scheduled job
-	sessionName := fmt.Sprintf("scheduled-%s", jobID)
-	// Use goose CLI to run the recipe file in background mode
-	cmd := exec.Command(goosePath, "run",
+	// Create command with context for cancellation
+	cmd := exec.CommandContext(ctx, goosePath, "run",
 		"--recipe", recipePath,
 		"--name", sessionName,
 		"--scheduled-job-id", jobID,
 	)
 
+	// Set up process group for proper cleanup
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true, // Create new process group
+	}
+
 	// Set up environment
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("GOOSE_JOB_ID=%s", jobID),
 	)
+	
+	log.Printf("Starting foreground CLI job %s with session %s", jobID, sessionName)
 
-	// Start the command in background
+	// Start the process
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start background CLI execution: %w", err)
+		return "", fmt.Errorf("failed to start foreground CLI execution: %w", err)
 	}
 
-	// Return the session name as the session ID for tracking
-	log.Printf("Background CLI job %s started with session %s (PID: %d)", jobID, sessionName, cmd.Process.Pid)
-	// Don't wait for completion - let it run in background
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			log.Printf("Background CLI job %s completed with error: %v", jobID, err)
-		} else {
-			log.Printf("Background CLI job %s completed successfully", jobID)
-		}
+	// Register the process with the process manager
+	_, cancel := context.WithCancel(ctx)
+	globalProcessManager.AddProcess(jobID, cmd.Process, cancel)
+
+	// Ensure cleanup
+	defer func() {
+		globalProcessManager.RemoveProcess(jobID)
+		cancel()
 	}()
 
-	return sessionName, nil
+	// Wait for completion or cancellation
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	
+	select {
+	case <-ctx.Done():
+		// Context cancelled - kill the process
+		log.Printf("Foreground CLI job %s cancelled, killing process", jobID)
+		globalProcessManager.KillProcess(jobID)
+		return "", ctx.Err()
+	case err := <-done:
+		if err != nil {
+			log.Printf("Foreground CLI job %s failed: %v", jobID, err)
+			return "", fmt.Errorf("foreground CLI execution failed: %w", err)
+		}
+		log.Printf("Foreground CLI job %s completed successfully with session %s", jobID, sessionName)
+		return sessionName, nil
+	}
 }
 
 // findGooseBinary locates the goose CLI binary
@@ -1228,6 +1409,93 @@ func openDeepLink(deepLink string) error {
 	return nil
 }
 
+// waitForSessionCompletionWithCancellation polls for session completion with cancellation support
+func waitForSessionCompletionWithCancellation(ctx context.Context, sessionName string, timeout time.Duration) error {
+	log.Printf("Waiting for session %s to complete (timeout: %v)", sessionName, timeout)
+
+	start := time.Now()
+	ticker := time.NewTicker(10 * time.Second) // Check every 10 seconds
+	defer ticker.Stop()
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			if timeoutCtx.Err() == context.DeadlineExceeded {
+				return fmt.Errorf("session %s timed out after %v", sessionName, timeout)
+			}
+			return timeoutCtx.Err() // Cancelled
+		case <-ticker.C:
+			elapsed := time.Since(start)
+			log.Printf("Checking session %s status (elapsed: %v)", sessionName, elapsed)
+
+			// Check if session exists and is complete
+			complete, err := isSessionComplete(sessionName)
+			if err != nil {
+				log.Printf("Error checking session %s status: %v", sessionName, err)
+				// Continue polling - session might not be created yet
+				continue
+			}
+
+			if complete {
+				log.Printf("Session %s completed after %v", sessionName, elapsed)
+				return nil
+			}
+
+			log.Printf("Session %s still running (elapsed: %v)", sessionName, elapsed)
+		}
+	}
+}
+
+// isSessionComplete checks if a session is complete by querying the Goose sessions API
+func isSessionComplete(sessionName string) (bool, error) {
+	// Try to find the goose CLI binary to query session status
+	goosePath, err := findGooseBinary()
+	if err != nil {
+		return false, fmt.Errorf("failed to find goose CLI binary: %w", err)
+	}
+
+	// Use goose CLI to list sessions and check if our session exists and is complete
+	cmd := exec.Command(goosePath, "sessions", "list", "--format", "json")
+
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to list sessions: %w", err)
+	}
+
+	// Parse the JSON output to find our session
+	var sessions []map[string]interface{}
+	if err := json.Unmarshal(output, &sessions); err != nil {
+		return false, fmt.Errorf("failed to parse sessions JSON: %w", err)
+	}
+
+	// Look for our session by name
+	for _, session := range sessions {
+		if name, ok := session["name"].(string); ok && name == sessionName {
+			// Session exists, check if it's complete
+			// A session is considered complete if it's not currently active
+			// We can check this by looking for an "active" field or similar
+			if active, ok := session["active"].(bool); ok {
+				return !active, nil // Complete if not active
+			}
+
+			// If no active field, check for completion indicators
+			// This might vary based on the actual Goose CLI output format
+			if status, ok := session["status"].(string); ok {
+				return status == "completed" || status == "finished" || status == "done", nil
+			}
+
+			// If we found the session but can't determine status, assume it's still running
+			return false, nil
+		}
+	}
+
+	// Session not found - it might not be created yet, so not complete
+	return false, nil
+}
+
 // isForegroundJob checks if a recipe is configured for foreground execution
 func isForegroundJob(recipePath string) bool {
 	// Simple struct to just check the schedule.foreground field
@@ -1310,6 +1578,9 @@ func main() {
 	go func() {
 		<-sigChan
 		log.Println("Received shutdown signal")
+
+		// Kill all managed processes first
+		globalProcessManager.KillAllProcesses()
 
 		// Shutdown HTTP server
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
