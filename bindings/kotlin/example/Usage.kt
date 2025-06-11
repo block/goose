@@ -169,8 +169,30 @@ fun main() = runBlocking {
     val extensions = listOf(calculator_extension)
     val systemPreamble = "You are a helpful assistant."
 
+    // Testing with tool calls with an error in tool name
+    val reqToolErr = createCompletionRequest(
+        providerName,
+        providerConfig,
+        modelConfig,
+        systemPreamble,
+        messages = listOf(
+            Message(
+                role    = Role.USER,
+                created = now,
+                content = listOf(
+                    MessageContent.Text(
+                        TextContent("What is 7 x 6?")
+                    )
+                )
+            )),
+        extensions = extensions
+    )
 
-    val req = createCompletionRequest(
+    val respToolErr = completion(reqToolErr)
+    println("\nCompletion Response (one msg):\n${respToolErr.message}")
+    println()
+
+    val reqAll = createCompletionRequest(
         providerName,
         providerConfig,
         modelConfig,
@@ -179,13 +201,12 @@ fun main() = runBlocking {
         extensions = extensions
     )
 
-    val response = completion(req)
-    println("\nCompletion Response:\n${response.message}")
+    val respAll = completion(reqAll)
+    println("\nCompletion Response (all msgs):\n${respAll.message}")
     println()
 
     // ---- UI Extraction (custom schema) ----
     runUiExtraction(providerName, providerConfig)
-
 
     // --- Prompt Override ---
     val prompt_req = createCompletionRequest(
