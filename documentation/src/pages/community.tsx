@@ -300,12 +300,17 @@ function CommunityAllStarsSection() {
       <div className="row">
         <div className="col col--6 col--offset-3">
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              gap: '8px',
-              fontSize: '14px'
-            }}>
+            <div 
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '8px',
+                fontSize: '14px',
+                maxHeight: '550px',
+                overflowY: 'auto',
+                paddingRight: '8px'
+              }}
+            >
               {currentData.leaderboard.map((contributor, index) => {
                 const bgColor = contributor.medal === '🥇' ? '#FFD700' : 
                                contributor.medal === '🥈' ? '#C0C0C0' : 
