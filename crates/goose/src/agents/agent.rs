@@ -246,13 +246,29 @@ impl Agent {
             )))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
             let selector = self.router_tool_selector.lock().await.clone();
-            ToolCallResult::from(if let Some(selector) = selector {
-                selector.select_tools(tool_call.arguments.clone()).await
-            } else {
-                Err(ToolError::ExecutionError(
-                    "Encountered vector search error.".to_string(),
-                ))
-            })
+            let selected_tools = match selector.as_ref() {
+                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
+                    Ok(tools) => tools,
+                    Err(e) => {
+                        return (
+                            request_id,
+                            Err(ToolError::ExecutionError(format!(
+                                "Failed to select tools: {}",
+                                e
+                            ))),
+                        )
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ToolError::ExecutionError(
+                            "No tool selector available".to_string(),
+                        )),
+                    )
+                }
+            };
+            ToolCallResult::from(Ok(selected_tools))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
