@@ -203,84 +203,7 @@ function CommunityAllStarsSection() {
   );
 }
 
-function ContributeSection() {
-  return (
-    <section className="container margin-vert--lg">
-      <div className="row">
-        <div className="col col--12">
-          <div className="text--center margin-bottom--lg">
-            <Heading as="h2">Ways to Contribute</Heading>
-            <p>Help make Goose better for everyone</p>
-          </div>
-        </div>
-      </div>
-      
-      <div className="row">
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">🔧 Code Contributions</Heading>
-            <p>
-              Submit pull requests, fix bugs, add features, or improve documentation. 
-              Check out our contributing guidelines to get started.
-            </p>
-          </div>
-        </div>
-        
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">🐛 Bug Reports</Heading>
-            <p>
-              Found a bug? Report it on GitHub with detailed steps to reproduce. 
-              Your reports help us improve Goose for everyone.
-            </p>
-          </div>
-        </div>
-        
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">💡 Feature Ideas</Heading>
-            <p>
-              Have an idea for a new feature? Share it on GitHub discussions 
-              or Discord to get feedback from the community.
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      <div className="row">
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">📚 Documentation</Heading>
-            <p>
-              Help improve our docs by fixing typos, adding examples, 
-              or writing new guides based on your experience.
-            </p>
-          </div>
-        </div>
-        
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">🤝 Help Others</Heading>
-            <p>
-              Answer questions on Discord, share your knowledge, 
-              and help newcomers get started with Goose.
-            </p>
-          </div>
-        </div>
-        
-        <div className="col col--4 margin-bottom--lg">
-          <div className="text--center">
-            <Heading as="h3">📢 Spread the Word</Heading>
-            <p>
-              Share your Goose projects, write blog posts, or give talks 
-              about how Goose has helped you be more productive.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+
 
 
 
@@ -294,7 +217,6 @@ export default function Community(): ReactNode {
       <main>
         <UpcomingEventsSection />
         <CommunityAllStarsSection />
-        <ContributeSection />
       </main>
     </Layout>
   );
