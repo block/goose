@@ -25,45 +25,28 @@ function UpcomingEventsSection() {
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
             <Heading as="h1">Upcoming Events</Heading>
-            <p>Join us for community events, workshops, and discussions about Goose.</p>
+            <p>Join us for livestreams, workshops, and discussions about goose and open source projects.</p>
           </div>
         </div>
       </div>
       
+      {/* Embedded Calendar */}
       <div className="row">
         <div className="col col--12 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Heading as="h3">🗓️ No Events Scheduled</Heading>
-                <span className="badge badge--secondary">Coming Soon</span>
-              </div>
-            </div>
-            <div className="card__body">
-              <p>
-                We're currently planning exciting community events! Check back soon for upcoming 
-                workshops, AMAs, and community showcases. In the meantime, join our Discord 
-                to stay updated and suggest event ideas.
-              </p>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <Link 
-                  className="button button--primary" 
-                  href="https://discord.gg/block-opensource"
-                >
-                  Join Discord for Updates
-                </Link>
-                <Link 
-                  className="button button--outline button--primary" 
-                  to="/blog"
-                >
-                  Read Latest News
-                </Link>
-              </div>
-            </div>
-          </div>
+          <iframe
+            src="https://calget.com/c/t7jszrie"
+            style={{
+              width: '100%',
+              height: '600px',
+              border: 'none',
+              borderRadius: '8px'
+            }}
+            title="Goose Community Calendar"
+          />
         </div>
       </div>
       
+      {/* Call to Action */}
       <div className="row">
         <div className="col col--12">
           <div className="text--center">
