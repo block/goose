@@ -158,7 +158,7 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
         
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-    The CLI displays a Context label above each command prompt, showing:
+    The CLI displays a context label above each command prompt, showing:
       - A visual indicator using dots (●○) and colors to represent your token usage:
         - **Green**: Below 50% usage
         - **Yellow**: Between 50-85% usage
