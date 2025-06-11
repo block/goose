@@ -372,6 +372,7 @@ mod tests {
 
         let json_ok: String =
             <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String OK");
+        println!("ToolReq - Lowered JSON (status: success): {:?}", json_ok);
         assert!(json_ok.contains(r#""status":"success""#));
 
         // Second lower → round-trip wrapper
@@ -380,6 +381,10 @@ mod tests {
 
         let lifted_ok = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
             .expect("lift wrapper OK");
+        println!(
+            "ToolReq - Lifted wrapper (status: success): {:?}",
+            lifted_ok
+        );
         assert_eq!(lifted_ok, ok_wrapper);
 
         // ---------- status: error ----------
@@ -390,12 +395,14 @@ mod tests {
             <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
         let json_err: String =
             <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String ERR");
+        println!("ToolReq - Lowered JSON (status: error): {:?}", json_err);
         assert!(json_err.contains(r#""status":"error""#));
 
         let buf2: RustBuffer =
             <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
         let lifted_err = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
             .expect("lift wrapper ERR");
+        println!("ToolReq - Lifted wrapper (status: error): {:?}", lifted_err);
 
         match &*lifted_err {
             Err(ToolError::ExecutionError(msg)) => {
@@ -416,12 +423,17 @@ mod tests {
         let buf1: RustBuffer =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
         let json_ok: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        println!("ToolResp - Lowered JSON (status: success): {:?}", json_ok);
         assert!(json_ok.contains(r#""status":"success""#));
 
         let buf2: RustBuffer =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
         let lifted_ok =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+        println!(
+            "ToolResp - Lifted wrapper (status: success): {:?}",
+            lifted_ok
+        );
         assert_eq!(lifted_ok, ok_wrapper);
 
         // ---------- status: error ----------
@@ -431,12 +443,17 @@ mod tests {
         let buf1: RustBuffer =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
         let json_err: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        println!("ToolResp - Lowered JSON (status: error): {:?}", json_err);
         assert!(json_err.contains(r#""status":"error""#));
 
         let buf2: RustBuffer =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
         let lifted_err =
             <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+        println!(
+            "ToolResp - Lifted wrapper (status: error): {:?}",
+            lifted_err
+        );
 
         match &*lifted_err {
             Err(ToolError::ExecutionError(msg)) => {
