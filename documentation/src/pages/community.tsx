@@ -373,6 +373,217 @@ function CommunityAllStarsSection() {
         </div>
       </div>
       
+      {/* Third Group - All Contributors Leaderboard */}
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--md">
+            <Heading as="h3">🏆 Contributors Leaderboard</Heading>
+            <p style={{ fontSize: '14px', color: 'var(--ifm-color-emphasis-600)' }}>
+              All 43 amazing contributors who make Goose possible!
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--6 col--offset-3">
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              gap: '8px',
+              fontSize: '14px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#FFD700', borderRadius: '6px', fontWeight: 'bold' }}>
+                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥇</span>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>1.</span>
+                <Link href="https://github.com/blackgirlbytes" style={{ color: '#000' }}>@blackgirlbytes</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#C0C0C0', borderRadius: '6px', fontWeight: 'bold' }}>
+                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥈</span>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>2.</span>
+                <Link href="https://github.com/zanesq" style={{ color: '#000' }}>@zanesq</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '8px', backgroundColor: '#CD7F32', borderRadius: '6px', fontWeight: 'bold' }}>
+                <span style={{ marginRight: '8px', fontSize: '16px' }}>🥉</span>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>3.</span>
+                <Link href="https://github.com/michaelneale" style={{ color: '#000' }}>@michaelneale</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>4.</span>
+                <Link href="https://github.com/angiejones">@angiejones</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>5.</span>
+                <Link href="https://github.com/Kvadratni">@Kvadratni</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>6.</span>
+                <Link href="https://github.com/lifeizhou-ap">@lifeizhou-ap</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>7.</span>
+                <Link href="https://github.com/dianed-square">@dianed-square</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>8.</span>
+                <Link href="https://github.com/yingjiehe-xyz">@yingjiehe-xyz</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>9.</span>
+                <Link href="https://github.com/salman1993">@salman1993</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>10.</span>
+                <Link href="https://github.com/ahau-square">@ahau-square</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>11.</span>
+                <Link href="https://github.com/iandouglas">@iandouglas</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>12.</span>
+                <Link href="https://github.com/emma-squared">@emma-squared</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>13.</span>
+                <Link href="https://github.com/dbraduan">@dbraduan</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>14.</span>
+                <Link href="https://github.com/lily-de">@lily-de</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>15.</span>
+                <Link href="https://github.com/alexhancock">@alexhancock</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>16.</span>
+                <Link href="https://github.com/EbonyLouis">@EbonyLouis</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>17.</span>
+                <Link href="https://github.com/wendytang">@wendytang</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>18.</span>
+                <Link href="https://github.com/The-Best-Codes">@The-Best-Codes</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>19.</span>
+                <Link href="https://github.com/opdich">@opdich</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>20.</span>
+                <Link href="https://github.com/agiuliano-square">@agiuliano-square</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>21.</span>
+                <Link href="https://github.com/patrickReiis">@patrickReiis</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>22.</span>
+                <Link href="https://github.com/kalvinnchau">@kalvinnchau</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>23.</span>
+                <Link href="https://github.com/acekyd">@acekyd</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>24.</span>
+                <Link href="https://github.com/nahiyankhan">@nahiyankhan</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>25.</span>
+                <Link href="https://github.com/taniashiba">@taniashiba</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>26.</span>
+                <Link href="https://github.com/JohnMAustin78">@JohnMAustin78</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>27.</span>
+                <Link href="https://github.com/sheagcraig">@sheagcraig</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>28.</span>
+                <Link href="https://github.com/alicehau">@alicehau</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>29.</span>
+                <Link href="https://github.com/bwalding">@bwalding</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>30.</span>
+                <Link href="https://github.com/jamadeo">@jamadeo</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>31.</span>
+                <Link href="https://github.com/rockwotj">@rockwotj</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>32.</span>
+                <Link href="https://github.com/danielzayas">@danielzayas</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>33.</span>
+                <Link href="https://github.com/svenstaro">@svenstaro</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>34.</span>
+                <Link href="https://github.com/adaug">@adaug</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>35.</span>
+                <Link href="https://github.com/loganmoseley">@loganmoseley</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>36.</span>
+                <Link href="https://github.com/tiborvass">@tiborvass</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>37.</span>
+                <Link href="https://github.com/xuv">@xuv</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>38.</span>
+                <Link href="https://github.com/anilmuppalla">@anilmuppalla</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>39.</span>
+                <Link href="https://github.com/spencrmartin">@spencrmartin</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>40.</span>
+                <Link href="https://github.com/gknoblauch">@gknoblauch</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>41.</span>
+                <Link href="https://github.com/acheong08">@acheong08</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>42.</span>
+                <Link href="https://github.com/faces-of-eth">@faces-of-eth</Link>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <span style={{ marginRight: '8px', minWidth: '20px' }}>43.</span>
+                <Link href="https://github.com/wesbillman">@wesbillman</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-top--lg">
+            <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)', fontSize: '14px' }}>
+              Thank you to all our amazing contributors! 🙏
+            </p>
+          </div>
+        </div>
+      </div>
+      
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
