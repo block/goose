@@ -3386,7 +3386,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3447,7 +3447,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3471,7 +3471,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3514,13 +3514,14 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "cbindgen",
  "futures",
@@ -3534,7 +3535,7 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3563,7 +3564,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3612,8 +3613,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-scheduler-executor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.31",
+ "futures",
+ "goose",
+ "mcp-core",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "goose-server"
-version = "1.0.24"
+version = "1.0.27"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -15,7 +15,7 @@ This tutorial covers how to add the [Nostrbook MCP Server](https://gitlab.com/so
 
 **Command**
 ```sh
-npx -y xjsr @nostrbook/mcp
+npx -y @nostrbook/mcp@latest
 ```
 
 :::
@@ -88,7 +88,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y xjsr @nostrbook/mcp
+    │  npx -y @nostrbook/mcp@latest
     // highlight-end
     └ 
   ```  
@@ -107,7 +107,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Nostrbook
     │
     ◇  What command should be run?
-    │  npx -y xjsr @nostrbook/mcp
+    │  npx -y @nostrbook/mcp@latest
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -131,7 +131,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Nostrbook
     │
     ◇  What command should be run?
-    │  npx -y xjsr @nostrbook/mcp
+    │  npx -y @nostrbook/mcp@latest
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
@@ -159,7 +159,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Nostrbook
     │
     ◇  What command should be run?
-    │  npx -y xjsr @nostrbook/mcp
+    │  npx -y @nostrbook/mcp@latest
     │     
     ◇  Please set the timeout for this tool (in secs):
     │  300

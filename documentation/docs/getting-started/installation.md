@@ -49,6 +49,9 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
+        Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
+
+        <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download script</h3>
         Run the following command to install the latest version of Goose on macOS:
 
         ```sh
@@ -68,6 +71,12 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
         goose update
         ```
         :::
+
+        <h3>Option 2: Install via Homebrew</h3>
+        Homebrew downloads the [a precompiled CLI tool](https://github.com/Homebrew/homebrew-core/blob/master/Formula/b/block-goose-cli.rb) and can take care of updates.
+        ```bash
+        brew install block-goose-cli
+        ```
       </TabItem>
     </Tabs>
   </TabItem>

@@ -9,13 +9,3 @@ if git diff --cached --name-only | grep -q "^ui/desktop/"; then
     echo "Warning: ui/desktop directory does not exist, skipping lint-staged"
   fi
 fi
-
-# Only auto-format ui-v2 TS code if relevant files are modified
-if git diff --cached --name-only | grep -q "^ui-v2/"; then
-  if [ -d "ui-v2" ]; then
-    . "$(dirname -- "$0")/_/husky.sh"
-    cd ui-v2 && npx lint-staged
-  else
-    echo "Warning: ui-v2 directory does not exist, skipping lint-staged"
-  fi
-fi

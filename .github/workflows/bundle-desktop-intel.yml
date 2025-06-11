@@ -138,9 +138,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-intel-cargo-build-
 
-      # Build specifically for Intel architecture
-      - name: Build goosed for Intel
-        run: source ./bin/activate-hermit && cargo build --release -p goose-server --target x86_64-apple-darwin
+      # Install Go for building temporal-service
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build goose-server for Intel macOS (x86_64)
+        run: |
+          source ./bin/activate-hermit
+          rustup target add x86_64-apple-darwin
+          cargo build --release -p goose-server --target x86_64-apple-darwin
+
+      # Build temporal-service
+      - name: Build temporal-service
+        run: |
+          echo "Building temporal-service..."
+          cd temporal-service
+          go build -o temporal-service main.go
+          chmod +x temporal-service
+          echo "temporal-service built successfully"
+
+      # Install and prepare temporal CLI
+      - name: Install temporal CLI via hermit
+        run: |
+          echo "Installing temporal CLI via hermit..."
+          ./bin/hermit install temporal-cli
+          echo "temporal CLI installed successfully"
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -156,8 +180,11 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Copy binary into Electron folder
-        run: cp target/x86_64-apple-darwin/release/goosed ui/desktop/src/bin/goosed
+      - name: Copy binaries into Electron folder
+        run: |
+          cp target/x86_64-apple-darwin/release/goosed ui/desktop/src/bin/goosed
+          cp temporal-service/temporal-service ui/desktop/src/bin/temporal-service
+          cp bin/temporal ui/desktop/src/bin/temporal
 
       - name: Add MacOS certs for signing and notarization
         if: ${{ inputs.signing }}

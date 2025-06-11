@@ -32,6 +32,7 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+import windowStateKeeper from 'electron-window-state';
 
 if (started) app.quit();
 
@@ -180,13 +181,10 @@ app.on('open-url', async (_event, url) => {
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
+      const base64 = decodeURIComponent(configParam || '');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-
-          // Check if recipe has parameters that need values
-          // We don't show a separate parameters window anymore, this is handled in the React app
-          // Just create a chat window with the recipe config
+          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
@@ -342,13 +340,21 @@ const createChat = async (
     [port, working_dir, goosedProcess] = await startGoosed(app, dir);
   }
 
+  // Load and manage window state
+  const mainWindowState = windowStateKeeper({
+    defaultWidth: 750,
+    defaultHeight: 800,
+  });
+
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
-    width: 750,
-    height: 800,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
+    width: mainWindowState.width,
+    height: mainWindowState.height,
     minWidth: 650,
     resizable: true,
     transparent: false,
@@ -371,6 +377,9 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  // Let windowStateKeeper manage the window
+  mainWindowState.manage(mainWindow);
 
   // Enable spellcheck / right and ctrl + click on mispelled word
   //
@@ -472,18 +481,8 @@ const createChat = async (
     queryParams = queryParams ? `${queryParams}&view=recipeParameters` : `?view=recipeParameters`;
   }
 
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-
   // Increment window counter to track number of windows
   const windowId = ++windowCounter;
-  const direction = windowId % 2 === 0 ? 1 : -1; // Alternate direction
-  const initialOffset = 50;
-
-  // Set window position with alternating offset strategy
-  const baseXPosition = Math.round(width / 2 - mainWindow.getSize()[0] / 2);
-  const xOffset = direction * initialOffset * Math.floor(windowId / 2);
-  mainWindow.setPosition(baseXPosition + xOffset, 100);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
