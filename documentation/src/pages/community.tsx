@@ -111,8 +111,12 @@ function CommunityAllStarsSection() {
                   key={month.id}
                   className={`button ${activeMonth === month.id ? 'button--primary' : 'button--outline button--primary'}`}
                   onClick={() => setActiveMonth(month.id)}
+                  style={activeMonth === month.id ? {
+                    border: '3px solid var(--ifm-color-primary-dark)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                  } : {}}
                 >
-                  {month.display}
+                  {activeMonth === month.id ? '📅 ' : ''}{month.display}
                 </button>
               ))}
             </div>
