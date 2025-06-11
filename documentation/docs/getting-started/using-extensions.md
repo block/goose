@@ -103,10 +103,10 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
+
 ### MCP Servers
 
 You can install any MCP server as a Goose extension. 
-
 :::tip MCP Server Directory
 See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/servers)**.
 :::
@@ -149,9 +149,9 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 
   #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
 
-<Tabs groupId="extensions">
+  <Tabs groupId="extensions">
    <TabItem value="node" label="Node">
-  ```
+```
  ┌   goose-configure 
  │
  ◇  What would you like to configure?
@@ -173,9 +173,9 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
  │  No 
  │
  └  Added Knowledge Graph Memory extension
- ```
+```
 
-   </TabItem>
+  </TabItem>
    <TabItem value="python" label="Python">
 
   ```
@@ -241,7 +241,7 @@ Note: Java and Kotlin extensions are only support on Linux and macOS
  ```
 
    </TabItem>
-  </Tabs>
+</Tabs>
 
   </TabItem>
 </Tabs>
@@ -313,7 +313,29 @@ extensions:
     type: stdio
     timeout: 300
 ```
-    
+
+### Deep Links
+Extensions can also be added via special deep links, which support command-line and SSE-based extensions. Deep links allow one-click installation of extensions directly from websites or documentation.
+
+:::info
+Special characters in URL parameters need to be URL encoded. For example, the space character converts to %20 and the @ character converts to %40.
+Most extension providers will give you a properly encoded deep link to use. For more information see, the w3 Schools page: [HTML URL Encoding Reference](https://www.w3schools.com/tags/ref_urlencode.ASP)
+:::
+
+<Tabs groupId="deep-links">
+  <TabItem value="cli" label="Command-line Extensions" default>
+  This example provids the CLI command as the `cmd={command}` parameter:
+```
+goose://extension?cmd={command}&arg={arg1}&arg={arg2}&id={extension-id}&name={extension-name}&description={extension-description}
+```
+  </TabItem>
+  <TabItem value="remote" label="Remote Extensions">
+  This example provides the deep link URL as the `url={sse-endpoint-url}` parameter:
+```
+goose://extension?url={sse-endpoint-url}&id={extension-id}&name={extension-name}&description={extension-description}
+```
+  </TabItem>
+</Tabs>
 
 ## Enabling/Disabling Extensions
 
