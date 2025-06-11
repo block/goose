@@ -424,7 +424,7 @@ goose web
 - **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`.
 - **`--open`**: Automatically open the browser when the server starts.
 
-**Example:**
+**Examples:**
 ```bash
 # Start web interface at `http://127.0.0.1:3000` and open the browser
 goose web --open
