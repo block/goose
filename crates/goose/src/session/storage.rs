@@ -621,7 +621,7 @@ mod tests {
         let file_path = dir.path().join("special.jsonl");
 
         // Insert some problematic JSON-like content between moderately long text
-        // (keeping under 50KB truncation limit to test serialization/deserialization)
+        // (keeping under truncation limit to test serialization/deserialization)
         let long_text = format!(
             "Start_of_message\n{}{}SOME_MIDDLE_TEXT{}End_of_message",
             "A".repeat(10_000), // Reduced from 100_000 to stay under 50KB limit
