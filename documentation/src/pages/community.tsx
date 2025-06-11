@@ -6,113 +6,164 @@ import Heading from "@theme/Heading";
 
 import styles from "./index.module.css";
 
-function CommunityHeader() {
-  return (
-    <header className={styles.header}>
-      <div className={styles.wrapper}>
-        <div className={styles.textColumn}>
-          <Heading as="h1">Join the Goose Community</Heading>
-          <p className={styles.subtitle}>
-            Connect with developers, share your experiences, and help shape the future of Goose
-          </p>
-        </div>
-      </div>
-    </header>
-  );
-}
 
-function CommunitySection() {
+
+function UpcomingEventsSection() {
   return (
     <section className="container margin-vert--lg">
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
-            <Heading as="h2">Get Involved</Heading>
-            <p>There are many ways to connect with the Goose community and contribute to the project.</p>
+            <Heading as="h2">Upcoming Events</Heading>
+            <p>Join us for community events, workshops, and discussions about Goose.</p>
           </div>
         </div>
       </div>
       
       <div className="row">
-        <div className="col col--6 margin-bottom--lg">
+        <div className="col col--12 margin-bottom--lg">
           <div className="card">
             <div className="card__header">
-              <Heading as="h3">💬 Discord</Heading>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Heading as="h3">🗓️ No Events Scheduled</Heading>
+                <span className="badge badge--secondary">Coming Soon</span>
+              </div>
             </div>
             <div className="card__body">
               <p>
-                Join our Discord server to chat with other users, get help, share your projects, 
-                and stay up to date with the latest developments.
+                We're currently planning exciting community events! Check back soon for upcoming 
+                workshops, AMAs, and community showcases. In the meantime, join our Discord 
+                to stay updated and suggest event ideas.
               </p>
-              <Link 
-                className="button button--primary" 
-                href="https://discord.gg/block-opensource"
-              >
-                Join Discord
-              </Link>
-            </div>
-          </div>
-        </div>
-        
-        <div className="col col--6 margin-bottom--lg">
-          <div className="card">
-            <div className="card__header">
-              <Heading as="h3">🐙 GitHub</Heading>
-            </div>
-            <div className="card__body">
-              <p>
-                Contribute to Goose development, report bugs, request features, 
-                and explore the source code on GitHub.
-              </p>
-              <Link 
-                className="button button--primary" 
-                href="https://github.com/block/goose"
-              >
-                View on GitHub
-              </Link>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <Link 
+                  className="button button--primary" 
+                  href="https://discord.gg/block-opensource"
+                >
+                  Join Discord for Updates
+                </Link>
+                <Link 
+                  className="button button--outline button--primary" 
+                  to="/blog"
+                >
+                  Read Latest News
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </div>
       
       <div className="row">
-        <div className="col col--6 margin-bottom--lg">
+        <div className="col col--12">
+          <div className="text--center">
+            <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)' }}>
+              Want to organize a community event or have ideas for workshops? 
+              Reach out to us on <Link href="https://discord.gg/block-opensource">Discord</Link> or 
+              create a discussion on <Link href="https://github.com/block/goose/discussions">GitHub</Link>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CommunityAllStarsSection() {
+  return (
+    <section className="container margin-vert--lg">
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--lg">
+            <Heading as="h2">Community All Stars</Heading>
+            <p>Celebrating our most active contributors and community champions.</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--4 margin-bottom--lg">
           <div className="card">
-            <div className="card__header">
-              <Heading as="h3">📺 YouTube</Heading>
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--xl"
+                  src="https://github.com/placeholder.png"
+                  alt="Community Champion"
+                />
+                <div className="avatar__intro">
+                  <div className="avatar__name">🌟 Featured Contributors</div>
+                  <small className="avatar__subtitle">Coming Soon</small>
+                </div>
+              </div>
             </div>
-            <div className="card__body">
+            <div className="card__body text--center">
               <p>
-                Watch tutorials, demos, and community showcases on our YouTube channel 
-                to learn more about Goose capabilities.
+                We're working on highlighting our amazing community contributors! 
+                Check back soon to see featured members who are making Goose better for everyone.
               </p>
-              <Link 
-                className="button button--primary" 
-                href="https://www.youtube.com/@blockopensource"
-              >
-                Watch Videos
-              </Link>
             </div>
           </div>
         </div>
         
-        <div className="col col--6 margin-bottom--lg">
+        <div className="col col--4 margin-bottom--lg">
           <div className="card">
-            <div className="card__header">
-              <Heading as="h3">📝 Blog</Heading>
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--xl"
+                  src="https://github.com/placeholder.png"
+                  alt="Top Contributor"
+                />
+                <div className="avatar__intro">
+                  <div className="avatar__name">🏆 Top Contributors</div>
+                  <small className="avatar__subtitle">This Month</small>
+                </div>
+              </div>
             </div>
-            <div className="card__body">
+            <div className="card__body text--center">
               <p>
-                Read the latest updates, tutorials, and community stories on our blog 
-                to stay informed about Goose developments.
+                Monthly recognition for our most active code contributors, 
+                bug reporters, and community helpers.
               </p>
-              <Link 
-                className="button button--primary" 
-                to="/blog"
-              >
-                Read Blog
-              </Link>
             </div>
+          </div>
+        </div>
+        
+        <div className="col col--4 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--xl"
+                  src="https://github.com/placeholder.png"
+                  alt="Rising Star"
+                />
+                <div className="avatar__intro">
+                  <div className="avatar__name">⭐ Rising Stars</div>
+                  <small className="avatar__subtitle">New Contributors</small>
+                </div>
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <p>
+                Welcoming new community members who are making their first 
+                meaningful contributions to the Goose ecosystem.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center">
+            <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)' }}>
+              Want to be featured as a Community All Star? Start contributing on{' '}
+              <Link href="https://github.com/block/goose">GitHub</Link>, help others on{' '}
+              <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
+              Goose projects with the community!
+            </p>
           </div>
         </div>
       </div>
@@ -199,73 +250,7 @@ function ContributeSection() {
   );
 }
 
-function SocialLinksSection() {
-  return (
-    <section className="container margin-vert--lg">
-      <div className="row">
-        <div className="col col--12">
-          <div className="text--center margin-bottom--lg">
-            <Heading as="h2">Follow Us</Heading>
-            <p>Stay connected across all platforms</p>
-          </div>
-        </div>
-      </div>
-      
-      <div className="row">
-        <div className="col col--12">
-          <div className="text--center">
-            <div className="margin-bottom--md">
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://discord.gg/block-opensource"
-              >
-                Discord
-              </Link>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://github.com/block/goose"
-              >
-                GitHub
-              </Link>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://www.youtube.com/@blockopensource"
-              >
-                YouTube
-              </Link>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://www.linkedin.com/company/block-opensource"
-              >
-                LinkedIn
-              </Link>
-            </div>
-            <div>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://x.com/blockopensource"
-              >
-                Twitter / X
-              </Link>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://bsky.app/profile/opensource.block.xyz"
-              >
-                BlueSky
-              </Link>
-              <Link 
-                className="button button--outline button--primary margin-horiz--sm" 
-                href="https://njump.me/opensource@block.xyz"
-              >
-                Nostr
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+
 
 export default function Community(): ReactNode {
   const { siteConfig } = useDocusaurusContext();
@@ -274,11 +259,10 @@ export default function Community(): ReactNode {
       title="Community" 
       description="Join the Goose community - connect with developers, contribute to the project, and help shape the future of AI-powered development tools."
     >
-      <CommunityHeader />
       <main>
-        <CommunitySection />
+        <UpcomingEventsSection />
+        <CommunityAllStarsSection />
         <ContributeSection />
-        <SocialLinksSection />
       </main>
     </Layout>
   );
