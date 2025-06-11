@@ -1,17 +1,16 @@
-use anyhow::Result;
-use console::style;
-
 use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
+use anyhow::Result;
+use console::style;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
-use minijinja::{Environment, Error, Template, UndefinedBehavior};
+use minijinja::{Environment, Error, UndefinedBehavior};
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
@@ -190,7 +189,7 @@ fn parse_recipe_content(content: &str) -> Result<Recipe> {
         Ok(serde_yaml::from_str(content)?)
     } else {
         Err(anyhow::anyhow!(
-            "Unsupported file format for recipe file. Expected .yaml or .json"
+            "Could not parse recipe content. Most likely there is a syntax error in your yaml file."
         ))
     }
 }
@@ -244,20 +243,32 @@ fn apply_values_to_parameters(
 }
 
 fn render_content_with_params(content: &str, params: &HashMap<String, String>) -> Result<String> {
-    // Create a minijinja environment and context
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
-    let template: Template<'_, '_> = env
-        .template_from_str(content)
-        .map_err(|e: Error| anyhow::anyhow!("Invalid template syntax: {}", e.to_string()))?;
 
-    // Render the template with the parameters
-    template.render(params).map_err(|e: Error| {
-        anyhow::anyhow!(
-            "Failed to render the recipe {} - please check if all required parameters are provided",
-            e.to_string()
-        )
-    })
+    if let Some(recipe_dir) = params.get("recipe_dir") {
+        let recipe_dir = recipe_dir.clone();
+        env.set_loader(move |name| {
+            let path = Path::new(&recipe_dir).join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => Ok(Some(content)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "could not read template",
+                )
+                .with_source(e)),
+            }
+        });
+    }
+
+    let template = env
+        .template_from_str(content)
+        .map_err(|e| anyhow::anyhow!("Invalid template syntax: {}", e))?;
+
+    template
+        .render(params)
+        .map_err(|e| anyhow::anyhow!("Failed to render the recipe {}", e))
 }
 
 #[cfg(test)]
