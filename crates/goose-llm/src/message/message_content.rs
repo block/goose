@@ -264,7 +264,9 @@ impl From<Content> for MessageContent {
 mod tests {
     use super::*;
     use crate::types::core::{ToolCall, ToolError};
+    use crate::UniFfiTag;
     use serde_json::json;
+    use uniffi::{FfiConverter, RustBuffer};
 
     // ---------- ToolRequestToolCall ----------------------------------------------------------
 
@@ -350,6 +352,95 @@ mod tests {
         match &*parsed {
             Err(ToolError::ExecutionError(msg)) => {
                 assert!(msg.contains("interpret tool use"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
+        }
+    }
+
+    // ---------- FFI (lower / lift) round-trips ----------------------------------------------
+    // https://mozilla.github.io/uniffi-rs/latest/internals/lifting_and_lowering.html
+
+    #[test]
+    fn ffi_roundtrip_tool_request_ok_and_err() {
+        // ---------- status: success ----------
+        let ok_call = ToolCall::new("echo", json!({"text": "hi"}));
+        let ok_wrapper = ToolRequestToolCall::from(Ok(ok_call.clone()));
+
+        // First lower → inspect JSON
+        let buf1: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+
+        let json_ok: String =
+            <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String OK");
+        assert!(json_ok.contains(r#""status":"success""#));
+
+        // Second lower → round-trip wrapper
+        let buf2: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+
+        let lifted_ok = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
+            .expect("lift wrapper OK");
+        assert_eq!(lifted_ok, ok_wrapper);
+
+        // ---------- status: error ----------
+        let err_call = ToolError::NotFound("no such function".into());
+        let err_wrapper = ToolRequestToolCall::from(Err(err_call.clone()));
+
+        let buf1: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let json_err: String =
+            <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String ERR");
+        assert!(json_err.contains(r#""status":"error""#));
+
+        let buf2: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let lifted_err = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
+            .expect("lift wrapper ERR");
+
+        match &*lifted_err {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("no such function"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn ffi_roundtrip_tool_response_ok_and_err() {
+        // ---------- status: success ----------
+        let body = vec![Content::Text(TextContent {
+            text: "done".into(),
+        })];
+        let ok_wrapper = ToolResponseToolResult::from(Ok(body.clone()));
+
+        let buf1: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+        let json_ok: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        assert!(json_ok.contains(r#""status":"success""#));
+
+        let buf2: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+        let lifted_ok =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+        assert_eq!(lifted_ok, ok_wrapper);
+
+        // ---------- status: error ----------
+        let err_call = ToolError::InvalidParameters("bad params".into());
+        let err_wrapper = ToolResponseToolResult::from(Err(err_call.clone()));
+
+        let buf1: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let json_err: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        assert!(json_err.contains(r#""status":"error""#));
+
+        let buf2: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let lifted_err =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+
+        match &*lifted_err {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("bad params"))
             }
             other => panic!("expected ExecutionError, got {:?}", other),
         }
