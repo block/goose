@@ -155,6 +155,39 @@
       --text-subtle-inverse: var(--grey-50);
       --text-prominent-inverse: var(--grey-20);
     }
+
+    &.dim {
+      /* Dim theme - softer dark mode with reduced contrast while maintaining WCAG compliance */
+      --background-app: #1a1b1e;
+      --background-prominent: #2a2b2e;
+      --background-standard: #232425;
+      --background-subtle: #1e1f21;
+      --background-app-inverse: var(--constant-white);
+      --background-subtle-inverse: var(--grey-95);
+      --background-standard-inverse: var(--grey-90);
+      --background-prominent-inverse: var(--grey-80);
+
+      --border-divider: #2a2b2e;
+      --border-inverse: var(--constant-black);
+      --border-prominent: #e1e1e1;
+      --border-standard: #3a3b3e;
+      --border-subtle: #2a2b2e;
+
+      --icon-disabled: #4a4b4e;
+      --icon-extra-subtle: #4a4b4e;
+      --icon-inverse: var(--constant-black);
+      --icon-prominent: #e1e1e1;
+      --icon-standard: #b1b2b5;
+      --icon-subtle: #7a7b7e;
+
+      --text-placeholder: #4a4b4e;
+      --text-prominent: #e1e1e1;
+      --text-standard: #b1b2b5;
+      --text-standard-inverse: var(--grey-20);
+      --text-subtle: #7a7b7e;
+      --text-subtle-inverse: var(--grey-50);
+      --text-prominent-inverse: var(--grey-20);
+    }
     /* end arcade colors */
 
     /* Force scrollbars to be visible */
