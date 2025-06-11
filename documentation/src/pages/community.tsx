@@ -121,7 +121,33 @@ function CommunityAllStarsSection() {
       <div className="row">
         {currentData.communityStars.map((contributor, index) => (
           <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
-            <div className="card">
+            <div 
+              className="card"
+              style={{
+                transition: 'all 0.3s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+                e.currentTarget.style.borderColor = 'var(--ifm-color-primary)';
+                // Add a little sparkle to the avatar
+                const avatar = e.currentTarget.querySelector('.avatar__photo');
+                if (avatar) {
+                  avatar.style.transform = 'rotate(5deg)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '';
+                e.currentTarget.style.borderColor = '';
+                // Reset avatar rotation
+                const avatar = e.currentTarget.querySelector('.avatar__photo');
+                if (avatar) {
+                  avatar.style.transform = 'rotate(0deg)';
+                }
+              }}
+            >
               <div className="card__header text--center">
                 <div className="avatar avatar--vertical">
                   {contributor.avatarUrl ? (
@@ -129,12 +155,14 @@ function CommunityAllStarsSection() {
                       className="avatar__photo avatar__photo--lg"
                       src={contributor.avatarUrl}
                       alt={contributor.name}
+                      style={{ transition: 'transform 0.3s ease' }}
                     />
                   ) : contributor.handle !== 'TBD' ? (
                     <img
                       className="avatar__photo avatar__photo--lg"
                       src={`https://github.com/${contributor.handle}.png`}
                       alt={contributor.name}
+                      style={{ transition: 'transform 0.3s ease' }}
                     />
                   ) : (
                     <div style={{ 
@@ -186,7 +214,33 @@ function CommunityAllStarsSection() {
       <div className="row">
         {currentData.teamStars.map((contributor, index) => (
           <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
-            <div className="card">
+            <div 
+              className="card"
+              style={{
+                transition: 'all 0.3s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+                e.currentTarget.style.borderColor = 'var(--ifm-color-primary)';
+                // Add a little sparkle to the avatar
+                const avatar = e.currentTarget.querySelector('.avatar__photo');
+                if (avatar) {
+                  avatar.style.transform = 'rotate(-5deg)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '';
+                e.currentTarget.style.borderColor = '';
+                // Reset avatar rotation
+                const avatar = e.currentTarget.querySelector('.avatar__photo');
+                if (avatar) {
+                  avatar.style.transform = 'rotate(0deg)';
+                }
+              }}
+            >
               <div className="card__header text--center">
                 <div className="avatar avatar--vertical">
                   {contributor.handle !== 'TBD' ? (
@@ -194,6 +248,7 @@ function CommunityAllStarsSection() {
                       className="avatar__photo avatar__photo--lg"
                       src={`https://github.com/${contributor.handle}.png`}
                       alt={contributor.name}
+                      style={{ transition: 'transform 0.3s ease' }}
                     />
                   ) : (
                     <div style={{ 
@@ -267,7 +322,29 @@ function CommunityAllStarsSection() {
                       borderRadius: bgColor ? '8px' : '6px', 
                       fontWeight: bgColor ? 'bold' : '500',
                       boxShadow: bgColor ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
-                      border: !bgColor ? '1px solid var(--ifm-color-emphasis-300)' : 'none'
+                      border: !bgColor ? '1px solid var(--ifm-color-emphasis-300)' : 'none',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!bgColor) {
+                        e.currentTarget.style.backgroundColor = 'var(--ifm-hover-overlay)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                      } else {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!bgColor) {
+                        e.currentTarget.style.backgroundColor = 'var(--ifm-background-surface-color)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      } else {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                      }
                     }}
                   >
                     {contributor.medal && (
