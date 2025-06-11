@@ -86,7 +86,7 @@ Project/
 ```
 
 ### 4. Default Patterns
-By default, if you haven't created any .gooseignore files and no .gitignore file exists, Goose will not modify files matching these patterns:
+By default, if you haven't created any `.gooseignore` files and no `.gitignore` file exists, Goose will not modify files matching these patterns:
 ```plaintext
 **/.env
 **/.env.*
