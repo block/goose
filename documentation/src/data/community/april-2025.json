@@ -1,0 +1,54 @@
+{
+  "month": "April 2025",
+  "featuredContributors": [
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    }
+  ],
+  "risingStars": [
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    },
+    {
+      "name": "Coming Soon",
+      "handle": "TBD"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "TBD", "rank": 1, "medal": "🥇" },
+    { "handle": "TBD", "rank": 2, "medal": "🥈" },
+    { "handle": "TBD", "rank": 3, "medal": "🥉" },
+    { "handle": "TBD", "rank": 4 },
+    { "handle": "TBD", "rank": 5 }
+  ]
+}
