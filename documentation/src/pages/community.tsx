@@ -63,8 +63,16 @@ function UpcomingEventsSection() {
 
 function CommunityAllStarsSection() {
   const [activeMonth, setActiveMonth] = React.useState(communityConfig.defaultMonth);
+  const [showScrollIndicator, setShowScrollIndicator] = React.useState(true);
   
   const currentData = communityDataMap[activeMonth];
+
+  // Handle scroll to show/hide indicator
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+    setShowScrollIndicator(!isAtBottom);
+  };
 
   return (
     <section className="container margin-vert--lg">
@@ -299,7 +307,7 @@ function CommunityAllStarsSection() {
       
       <div className="row">
         <div className="col col--6 col--offset-3">
-          <div className="card" style={{ padding: '20px' }}>
+          <div className="card" style={{ padding: '20px', position: 'relative' }}>
             <div 
               style={{ 
                 display: 'flex', 
@@ -310,6 +318,7 @@ function CommunityAllStarsSection() {
                 overflowY: 'auto',
                 paddingRight: '8px'
               }}
+              onScroll={handleScroll}
             >
               {currentData.leaderboard.map((contributor, index) => {
                 const bgColor = contributor.medal === '🥇' ? '#FFD700' : 
@@ -383,6 +392,25 @@ function CommunityAllStarsSection() {
                 );
               })}
             </div>
+            {/* Simple scroll indicator - only show when not at bottom */}
+            {showScrollIndicator && (
+              <div style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: '12px',
+                color: 'var(--ifm-color-emphasis-600)',
+                fontWeight: '500',
+                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'opacity 0.3s ease'
+              }}>
+                Scroll for more ↓
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -390,8 +418,8 @@ function CommunityAllStarsSection() {
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-top--lg">
-            <p style={{ color: 'var(--ifm-color-emphasis-600)', fontSize: '14px' }}>
-              Thank you to all our amazing contributors! 🙏
+            <p>
+              Thank you all for contributing! ❤️
             </p>
           </div>
         </div>
@@ -419,10 +447,10 @@ function CommunityAllStarsSection() {
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  fontSize: '20px',
+                  fontSize: '24px',
                   color: '#666'
                 }}>
-                  ?
+                  ⭐
                 </div>
               </div>
             </div>
@@ -432,20 +460,15 @@ function CommunityAllStarsSection() {
                 <br />
                 <small>Future Community Star</small>
               </div>
+              <div style={{ fontSize: '14px', marginTop: '12px' }}>
+                Want to be a Community All Star? Just start contributing on{' '}
+                <Link href="https://github.com/block/goose">GitHub</Link>, helping others on{' '}
+                <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
+                goose projects with the community! You can check out the{' '}
+                <Link href="https://github.com/block/goose/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
+                for more tips.
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="row">
-        <div className="col col--12">
-          <div className="text--center">
-            <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)' }}>
-              Want to be featured as a Community All Star? Start contributing on{' '}
-              <Link href="https://github.com/block/goose">GitHub</Link>, help others on{' '}
-              <Link href="https://discord.gg/block-opensource">Discord</Link>, or share your 
-              Goose projects with the community!
-            </p>
           </div>
         </div>
       </div>
