@@ -438,6 +438,7 @@ type TemporalService struct {
 	scheduleJobs map[string]*JobStatus // In-memory job tracking
 	runningJobs  map[string]bool       // Track which jobs are currently running
 	runningWorkflows map[string][]string // Track workflow IDs for each job
+	recipesDir   string                  // Directory for managed recipe storage
 	ports        *PortConfig           // Port configuration
 }
 
@@ -456,6 +457,13 @@ func NewTemporalService() (*TemporalService, error) {
 	if err := ensureTemporalServerRunning(ports); err != nil {
 		return nil, fmt.Errorf("failed to ensure Temporal server is running: %w", err)
 	}
+
+	// Set up managed recipes directory
+	recipesDir := filepath.Join(".", "managed-recipes")
+	if err := os.MkdirAll(recipesDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create managed recipes directory: %w", err)
+	}
+	log.Printf("Using managed recipes directory: %s", recipesDir)
 
 	// Create client (Temporal server should now be running)
 	c, err := client.Dial(client.Options{
@@ -484,6 +492,7 @@ func NewTemporalService() (*TemporalService, error) {
 		scheduleJobs: make(map[string]*JobStatus),
 		runningJobs:  make(map[string]bool),
 		runningWorkflows: make(map[string][]string),
+		recipesDir:   recipesDir,
 		ports:        ports,
 	}
 	
@@ -518,6 +527,113 @@ func (ts *TemporalService) GetTemporalPort() int {
 // GetUIPort returns the Temporal UI port for this service
 func (ts *TemporalService) GetUIPort() int {
 	return ts.ports.UIPort
+}
+
+// storeRecipeForSchedule copies a recipe file to managed storage and returns the managed path and content
+func (ts *TemporalService) storeRecipeForSchedule(jobID, originalPath string) (string, []byte, error) {
+	// Validate original recipe file exists
+	if _, err := os.Stat(originalPath); os.IsNotExist(err) {
+		return "", nil, fmt.Errorf("recipe file not found: %s", originalPath)
+	}
+
+	// Read the original recipe content
+	recipeContent, err := os.ReadFile(originalPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read recipe file: %w", err)
+	}
+
+	// Validate it's a valid recipe by trying to parse it
+	if _, err := parseRecipeContent(recipeContent); err != nil {
+		return "", nil, fmt.Errorf("invalid recipe file: %w", err)
+	}
+
+	// Create managed file path
+	originalFilename := filepath.Base(originalPath)
+	ext := filepath.Ext(originalFilename)
+	if ext == "" {
+		ext = ".yaml" // Default to yaml if no extension
+	}
+
+	managedFilename := fmt.Sprintf("%s%s", jobID, ext)
+	managedPath := filepath.Join(ts.recipesDir, managedFilename)
+
+	// Write to managed storage
+	if err := os.WriteFile(managedPath, recipeContent, 0644); err != nil {
+		return "", nil, fmt.Errorf("failed to write managed recipe file: %w", err)
+	}
+
+	log.Printf("Stored recipe for job %s: %s -> %s (size: %d bytes)",
+		jobID, originalPath, managedPath, len(recipeContent))
+
+	return managedPath, recipeContent, nil
+}
+
+// parseRecipeContent parses recipe content from bytes (YAML or JSON)
+func parseRecipeContent(content []byte) (*Recipe, error) {
+	var recipe Recipe
+
+	// Try YAML first, then JSON
+	if err := yaml.Unmarshal(content, &recipe); err != nil {
+		if err := json.Unmarshal(content, &recipe); err != nil {
+			return nil, fmt.Errorf("failed to parse as YAML or JSON: %w", err)
+		}
+	}
+
+	return &recipe, nil
+}
+
+// getEmbeddedRecipeContent retrieves embedded recipe content from schedule metadata
+func (ts *TemporalService) getEmbeddedRecipeContent(jobID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	scheduleID := fmt.Sprintf("goose-job-%s", jobID)
+	handle := ts.client.ScheduleClient().GetHandle(ctx, scheduleID)
+
+	desc, err := handle.Describe(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get schedule description: %w", err)
+	}
+
+	if desc.Schedule.State.Note == "" {
+		return "", fmt.Errorf("no metadata found in schedule")
+	}
+
+	var metadata map[string]interface{}
+	if err := json.Unmarshal([]byte(desc.Schedule.State.Note), &metadata); err != nil {
+		return "", fmt.Errorf("failed to parse schedule metadata: %w", err)
+	}
+
+	if recipeContent, ok := metadata["recipe_content"].(string); ok {
+		return recipeContent, nil
+	}
+
+	return "", fmt.Errorf("no embedded recipe content found")
+}
+
+// cleanupManagedRecipe removes managed recipe files for a job
+func (ts *TemporalService) cleanupManagedRecipe(jobID string) {
+	// Clean up both permanent and temporary files
+	patterns := []string{
+		fmt.Sprintf("%s.*", jobID),      // Permanent files (jobID.yaml, jobID.json, etc.)
+		fmt.Sprintf("%s-temp.*", jobID), // Temporary files
+	}
+
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(ts.recipesDir, pattern))
+		if err != nil {
+			log.Printf("Error finding recipe files for cleanup: %v", err)
+			continue
+		}
+
+		for _, filePath := range matches {
+			if err := os.Remove(filePath); err != nil {
+				log.Printf("Warning: Failed to remove recipe file %s: %v", filePath, err)
+			} else {
+				log.Printf("Cleaned up recipe file: %s", filePath)
+			}
+		}
+	}
 }
 
 // Workflow definition for executing Goose recipes
@@ -560,10 +676,20 @@ func ExecuteGooseRecipe(ctx context.Context, jobID, recipePath string) (string, 
 		defer globalService.markJobAsNotRunning(jobID)
 	}
 
-	// Check if recipe file exists
-	if _, err := os.Stat(recipePath); os.IsNotExist(err) {
+	// Resolve the actual recipe path (might be embedded in metadata)
+	actualRecipePath, err := resolveRecipePath(jobID, recipePath)
+	if err != nil {
 		return "", temporal.NewNonRetryableApplicationError(
-			fmt.Sprintf("recipe file not found: %s", recipePath),
+			fmt.Sprintf("failed to resolve recipe: %v", err),
+			"InvalidRecipeError",
+			err,
+		)
+	}
+
+	// Check if recipe file exists
+	if _, err := os.Stat(actualRecipePath); os.IsNotExist(err) {
+		return "", temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("recipe file not found: %s", actualRecipePath),
 			"InvalidRecipeError",
 			err,
 		)
@@ -585,14 +711,38 @@ func ExecuteGooseRecipe(ctx context.Context, jobID, recipePath string) (string, 
 	}()
 
 	// Check if this is a foreground job
-	if isForegroundJob(recipePath) {
+	if isForegroundJob(actualRecipePath) {
 		logger.Info("Executing foreground job with cancellation support", "jobID", jobID)
-		return executeForegroundJobWithCancellation(subCtx, jobID, recipePath)
+		return executeForegroundJobWithCancellation(subCtx, jobID, actualRecipePath)
 	}
 
 	// For background jobs, execute with cancellation support
 	logger.Info("Executing background job with cancellation support", "jobID", jobID)
-	return executeBackgroundJobWithCancellation(subCtx, jobID, recipePath)
+	return executeBackgroundJobWithCancellation(subCtx, jobID, actualRecipePath)
+}
+
+// resolveRecipePath resolves the actual recipe path, handling embedded recipes
+func resolveRecipePath(jobID, recipePath string) (string, error) {
+	// If the recipe path exists as-is, use it
+	if _, err := os.Stat(recipePath); err == nil {
+		return recipePath, nil
+	}
+
+	// Try to get embedded recipe content from schedule metadata
+	if globalService != nil {
+		if recipeContent, err := globalService.getEmbeddedRecipeContent(jobID); err == nil && recipeContent != "" {
+			// Create a temporary file with the embedded content
+			tempPath := filepath.Join(globalService.recipesDir, fmt.Sprintf("%s-temp.yaml", jobID))
+			if err := os.WriteFile(tempPath, []byte(recipeContent), 0644); err != nil {
+				return "", fmt.Errorf("failed to write temporary recipe file: %w", err)
+			}
+			log.Printf("Created temporary recipe file for job %s: %s", jobID, tempPath)
+			return tempPath, nil
+		}
+	}
+
+	// If no embedded content and original path doesn't exist, return error
+	return "", fmt.Errorf("recipe not found: %s (and no embedded content available)", recipePath)
 }
 
 // HTTP API handlers
@@ -630,6 +780,8 @@ func (ts *TemporalService) handleJobs(w http.ResponseWriter, r *http.Request) {
 		resp = ts.runNow(req)
 	case "kill_job":
 		resp = ts.killJob(req)
+	case "inspect_job":
+		resp = ts.inspectJob(req)
 	default:
 		resp = JobResponse{Success: false, Message: fmt.Sprintf("Unknown action: %s", req.Action)}
 	}
@@ -648,14 +800,43 @@ func (ts *TemporalService) createSchedule(req JobRequest) JobResponse {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Job with ID '%s' already exists", req.JobID)}
 	}
 
-	// Validate recipe file exists
-	if _, err := os.Stat(req.RecipePath); os.IsNotExist(err) {
-		return JobResponse{Success: false, Message: fmt.Sprintf("Recipe file not found: %s", req.RecipePath)}
+	// Validate and copy recipe file to managed storage
+	managedRecipePath, recipeContent, err := ts.storeRecipeForSchedule(req.JobID, req.RecipePath)
+	if err != nil {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to store recipe: %v", err)}
 	}
 
 	scheduleID := fmt.Sprintf("goose-job-%s", req.JobID)
 
-	// Create Temporal schedule
+	// Prepare metadata to store with the schedule as a JSON string in the Note field
+	executionMode := req.ExecutionMode
+	if executionMode == "" {
+		executionMode = "background" // Default to background if not specified
+	}
+
+	scheduleMetadata := map[string]interface{}{
+		"job_id":         req.JobID,
+		"cron_expr":      req.CronExpr,
+		"recipe_path":    managedRecipePath,        // Use managed path
+		"original_path":  req.RecipePath,           // Keep original for reference
+		"execution_mode": executionMode,
+		"created_at":     time.Now().Format(time.RFC3339),
+	}
+
+	// For small recipes, embed content directly in metadata
+	if len(recipeContent) < 8192 { // 8KB limit for embedding
+		scheduleMetadata["recipe_content"] = string(recipeContent)
+		log.Printf("Embedded recipe content in metadata for job %s (size: %d bytes)", req.JobID, len(recipeContent))
+	} else {
+		log.Printf("Recipe too large for embedding, using managed file for job %s (size: %d bytes)", req.JobID, len(recipeContent))
+	}
+
+	metadataJSON, err := json.Marshal(scheduleMetadata)
+	if err != nil {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to encode metadata: %v", err)}
+	}
+
+	// Create Temporal schedule with metadata in Note field
 	schedule := client.ScheduleOptions{
 		ID: scheduleID,
 		Spec: client.ScheduleSpec{
@@ -667,22 +848,18 @@ func (ts *TemporalService) createSchedule(req JobRequest) JobResponse {
 			Args:      []interface{}{req.JobID, req.RecipePath},
 			TaskQueue: TaskQueueName,
 		},
+		Note: string(metadataJSON), // Store metadata as JSON in the Note field
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := ts.client.ScheduleClient().Create(ctx, schedule)
+	_, err = ts.client.ScheduleClient().Create(ctx, schedule)
 	if err != nil {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to create schedule: %v", err)}
 	}
 
 	// Track job in memory - ensure execution mode has a default value
-	executionMode := req.ExecutionMode
-	if executionMode == "" {
-		executionMode = "background" // Default to background if not specified
-	}
-	
 	jobStatus := &JobStatus{
 		ID:               req.JobID,
 		CronExpr:         req.CronExpr,
@@ -713,6 +890,9 @@ func (ts *TemporalService) deleteSchedule(req JobRequest) JobResponse {
 	if err != nil {
 		return JobResponse{Success: false, Message: fmt.Sprintf("Failed to delete schedule: %v", err)}
 	}
+
+	// Clean up managed recipe files
+	ts.cleanupManagedRecipe(req.JobID)
 
 	// Remove from memory
 	delete(ts.scheduleJobs, req.JobID)
@@ -799,11 +979,23 @@ func (ts *TemporalService) updateSchedule(req JobRequest) JobResponse {
 	// Get the existing schedule handle
 	handle := ts.client.ScheduleClient().GetHandle(ctx, scheduleID)
 	
-	// Update the schedule with new cron expression
+	// Update the schedule with new cron expression while preserving metadata
 	err := handle.Update(ctx, client.ScheduleUpdateOptions{
 		DoUpdate: func(input client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
 			// Update the cron expression
 			input.Description.Schedule.Spec.CronExpressions = []string{req.CronExpr}
+
+			// Update the cron expression in metadata stored in Note field
+			if input.Description.Schedule.State.Note != "" {
+				var metadata map[string]interface{}
+				if err := json.Unmarshal([]byte(input.Description.Schedule.State.Note), &metadata); err == nil {
+					metadata["cron_expr"] = req.CronExpr
+					if updatedMetadataJSON, err := json.Marshal(metadata); err == nil {
+						input.Description.Schedule.State.Note = string(updatedMetadataJSON)
+					}
+				}
+			}
+
 			return &client.ScheduleUpdate{
 				Schedule: &input.Description.Schedule,
 			}, nil
@@ -843,81 +1035,114 @@ func (ts *TemporalService) listSchedules() JobResponse {
 		if strings.HasPrefix(schedule.ID, "goose-job-") {
 			jobID := strings.TrimPrefix(schedule.ID, "goose-job-")
 
-			// Get additional details from in-memory tracking
-			var jobStatus JobStatus
-			if tracked, exists := ts.scheduleJobs[jobID]; exists {
-				jobStatus = *tracked
-			} else {
-				// Fallback for schedules not in memory
-				jobStatus = JobStatus{
-					ID:        jobID,
-					CreatedAt: time.Now(), // We don't have the real creation time
-				}
-			}
-
-			// Update with Temporal schedule info
-			if len(schedule.Spec.CronExpressions) > 0 {
-				jobStatus.CronExpr = schedule.Spec.CronExpressions[0]
-			}
-
-			// Get detailed schedule information including paused state and running status
+			// Get detailed schedule information to access metadata
 			scheduleHandle := ts.client.ScheduleClient().GetHandle(ctx, schedule.ID)
-			if desc, err := scheduleHandle.Describe(ctx); err == nil {
-				jobStatus.Paused = desc.Schedule.State.Paused
-				
-				// Check if there are any running workflows for this job
-				jobStatus.CurrentlyRunning = ts.isJobCurrentlyRunning(ctx, jobID)
-				
-				// Update last run time - use the most recent between scheduled and manual runs
-				var mostRecentRun *string
-				
-				// Check scheduled runs from Temporal
-				if len(desc.Info.RecentActions) > 0 {
-					lastAction := desc.Info.RecentActions[len(desc.Info.RecentActions)-1]
-					if !lastAction.ActualTime.IsZero() {
-						scheduledRunStr := lastAction.ActualTime.Format(time.RFC3339)
-						mostRecentRun = &scheduledRunStr
-						log.Printf("Job %s scheduled run: %s", jobID, scheduledRunStr)
-					}
-				}
-				
-				// Check manual runs from our tracking
-				if tracked, exists := ts.scheduleJobs[jobID]; exists && tracked.LastManualRun != nil {
-					log.Printf("Job %s manual run: %s", jobID, *tracked.LastManualRun)
-					
-					// Compare times if we have both
-					if mostRecentRun != nil {
-						scheduledTime, err1 := time.Parse(time.RFC3339, *mostRecentRun)
-						manualTime, err2 := time.Parse(time.RFC3339, *tracked.LastManualRun)
-						
-						if err1 == nil && err2 == nil {
-							if manualTime.After(scheduledTime) {
-								mostRecentRun = tracked.LastManualRun
-								log.Printf("Job %s: manual run is more recent", jobID)
-							} else {
-								log.Printf("Job %s: scheduled run is more recent", jobID)
-							}
-						}
-					} else {
-						// Only manual run available
-						mostRecentRun = tracked.LastManualRun
-						log.Printf("Job %s: only manual run available", jobID)
-					}
-				}
-				
-				if mostRecentRun != nil {
-					jobStatus.LastRun = mostRecentRun
-				} else {
-					log.Printf("Job %s has no runs (scheduled or manual)", jobID)
-				}
-				
-				// Update next run time if available - this field may not exist in older SDK versions
-				// We'll skip this for now to avoid compilation errors
-			} else {
+			desc, err := scheduleHandle.Describe(ctx)
+			if err != nil {
 				log.Printf("Warning: Could not get detailed info for schedule %s: %v", schedule.ID, err)
+				continue
 			}
 
-			// Update in-memory tracking with latest info
+			// Initialize job status with defaults
+			jobStatus := JobStatus{
+				ID:               jobID,
+				CurrentlyRunning: ts.isJobCurrentlyRunning(ctx, jobID),
+				Paused:           desc.Schedule.State.Paused,
+				CreatedAt:        time.Now(), // Fallback if not in metadata
+			}
+
+			// Extract metadata from the schedule's Note field (stored as JSON)
+			if desc.Schedule.State.Note != "" {
+				var metadata map[string]interface{}
+				if err := json.Unmarshal([]byte(desc.Schedule.State.Note), &metadata); err == nil {
+					// Extract cron expression
+					if cronExpr, ok := metadata["cron_expr"].(string); ok {
+						jobStatus.CronExpr = cronExpr
+					} else if len(desc.Schedule.Spec.CronExpressions) > 0 {
+						// Fallback to spec if not in metadata
+						jobStatus.CronExpr = desc.Schedule.Spec.CronExpressions[0]
+					}
+
+					// Extract recipe path
+					if recipePath, ok := metadata["recipe_path"].(string); ok {
+						jobStatus.RecipePath = recipePath
+					}
+
+					// Extract execution mode
+					if executionMode, ok := metadata["execution_mode"].(string); ok {
+						jobStatus.ExecutionMode = &executionMode
+					}
+
+					// Extract creation time
+					if createdAtStr, ok := metadata["created_at"].(string); ok {
+						if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+							jobStatus.CreatedAt = createdAt
+						}
+					}
+				} else {
+					log.Printf("Failed to parse metadata from Note field for schedule %s: %v", schedule.ID, err)
+					// Fallback to spec values
+					if len(desc.Schedule.Spec.CronExpressions) > 0 {
+						jobStatus.CronExpr = desc.Schedule.Spec.CronExpressions[0]
+					}
+					defaultMode := "background"
+					jobStatus.ExecutionMode = &defaultMode
+				}
+			} else {
+				// Fallback for schedules without metadata (legacy schedules)
+				log.Printf("Schedule %s has no metadata, using fallback values", schedule.ID)
+				if len(desc.Schedule.Spec.CronExpressions) > 0 {
+					jobStatus.CronExpr = desc.Schedule.Spec.CronExpressions[0]
+				}
+				// For legacy schedules, we can't recover recipe path or execution mode
+				defaultMode := "background"
+				jobStatus.ExecutionMode = &defaultMode
+			}
+
+			// Update last run time - use the most recent between scheduled and manual runs
+			var mostRecentRun *string
+
+			// Check scheduled runs from Temporal
+			if len(desc.Info.RecentActions) > 0 {
+				lastAction := desc.Info.RecentActions[len(desc.Info.RecentActions)-1]
+				if !lastAction.ActualTime.IsZero() {
+					scheduledRunStr := lastAction.ActualTime.Format(time.RFC3339)
+					mostRecentRun = &scheduledRunStr
+					log.Printf("Job %s scheduled run: %s", jobID, scheduledRunStr)
+				}
+			}
+
+			// Check manual runs from our in-memory tracking (if available)
+			if tracked, exists := ts.scheduleJobs[jobID]; exists && tracked.LastManualRun != nil {
+				log.Printf("Job %s manual run: %s", jobID, *tracked.LastManualRun)
+
+				// Compare times if we have both
+				if mostRecentRun != nil {
+					scheduledTime, err1 := time.Parse(time.RFC3339, *mostRecentRun)
+					manualTime, err2 := time.Parse(time.RFC3339, *tracked.LastManualRun)
+
+					if err1 == nil && err2 == nil {
+						if manualTime.After(scheduledTime) {
+							mostRecentRun = tracked.LastManualRun
+							log.Printf("Job %s: manual run is more recent", jobID)
+						} else {
+							log.Printf("Job %s: scheduled run is more recent", jobID)
+						}
+					}
+				} else {
+					// Only manual run available
+					mostRecentRun = tracked.LastManualRun
+					log.Printf("Job %s: only manual run available", jobID)
+				}
+			}
+
+			if mostRecentRun != nil {
+				jobStatus.LastRun = mostRecentRun
+			} else {
+				log.Printf("Job %s has no runs (scheduled or manual)", jobID)
+			}
+
+			// Update in-memory tracking with latest info for manual run tracking
 			ts.scheduleJobs[jobID] = &jobStatus
 
 			jobs = append(jobs, jobStatus)
@@ -1067,6 +1292,68 @@ func (ts *TemporalService) killJob(req JobRequest) JobResponse {
 	return JobResponse{
 		Success: true,
 		Message: fmt.Sprintf("Successfully killed job '%s' and all associated processes", req.JobID),
+	}
+}
+
+func (ts *TemporalService) inspectJob(req JobRequest) JobResponse {
+	if req.JobID == "" {
+		return JobResponse{Success: false, Message: "Missing job_id"}
+	}
+
+	// Check if job exists
+	_, exists := ts.scheduleJobs[req.JobID]
+	if !exists {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' not found", req.JobID)}
+	}
+
+	// Check if job is currently running
+	if !ts.isJobCurrentlyRunning(context.Background(), req.JobID) {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' is not currently running", req.JobID)}
+	}
+
+	// Get process information
+	processes := globalProcessManager.ListProcesses()
+	if mp, exists := processes[req.JobID]; exists {
+		duration := time.Since(mp.StartTime)
+
+		inspectData := map[string]interface{}{
+			"job_id":              req.JobID,
+			"process_id":          mp.Process.Pid,
+			"running_duration":    duration.String(),
+			"running_duration_seconds": int(duration.Seconds()),
+			"start_time":          mp.StartTime.Format(time.RFC3339),
+		}
+
+		// Try to get session ID from workflow tracking
+		if workflowIDs, exists := ts.runningWorkflows[req.JobID]; exists && len(workflowIDs) > 0 {
+			inspectData["session_id"] = workflowIDs[0] // Use the first workflow ID as session ID
+		}
+
+		return JobResponse{
+			Success: true,
+			Message: fmt.Sprintf("Job '%s' is running", req.JobID),
+			Data:    inspectData,
+		}
+	}
+
+	// If no managed process found, check workflows only
+	if workflowIDs, exists := ts.runningWorkflows[req.JobID]; exists && len(workflowIDs) > 0 {
+		inspectData := map[string]interface{}{
+			"job_id":     req.JobID,
+			"session_id": workflowIDs[0],
+			"message":    "Job is running but process information not available",
+		}
+
+		return JobResponse{
+			Success: true,
+			Message: fmt.Sprintf("Job '%s' is running (workflow only)", req.JobID),
+			Data:    inspectData,
+		}
+	}
+
+	return JobResponse{
+		Success: false,
+		Message: fmt.Sprintf("Job '%s' appears to be running but no process or workflow information found", req.JobID),
 	}
 }
 
