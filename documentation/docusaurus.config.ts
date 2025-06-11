@@ -197,7 +197,7 @@ const config: Config = {
           title: "Community",
           items: [
             {
-              label: "Community",
+              label: "Spotlight",
               to: "community",
             },
             {
