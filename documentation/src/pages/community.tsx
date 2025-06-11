@@ -90,7 +90,7 @@ function CommunityAllStarsSection() {
         <div className="col col--12">
           <div className="text--center margin-bottom--lg">
             <Heading as="h1">Community All Stars</Heading>
-            <p>Celebrating our most active contributors and community champions.</p>
+            <p>Every month we take a moment and celebrate all contributions from the open source community. Here are our top contributors and community champions!</p>
           </div>
         </div>
       </div>
@@ -138,7 +138,13 @@ function CommunityAllStarsSection() {
             <div className="card">
               <div className="card__header text--center">
                 <div className="avatar avatar--vertical">
-                  {contributor.handle !== 'TBD' ? (
+                  {contributor.avatarUrl ? (
+                    <img
+                      className="avatar__photo avatar__photo--lg"
+                      src={contributor.avatarUrl}
+                      alt={contributor.name}
+                    />
+                  ) : contributor.handle !== 'TBD' ? (
                     <img
                       className="avatar__photo avatar__photo--lg"
                       src={`https://github.com/${contributor.handle}.png`}
@@ -169,7 +175,7 @@ function CommunityAllStarsSection() {
                         {contributor.name} (@{contributor.handle})
                       </Link>
                     ) : (
-                      `${contributor.name} (@${contributor.handle})`
+                      `${contributor.name}`
                     )}
                   </strong>
                 </div>
