@@ -125,6 +125,9 @@ function CommunityAllStarsSection() {
         <div className="col col--12">
           <div className="text--center margin-bottom--md">
             <Heading as="h3">⭐ Community Stars</Heading>
+            <p style={{ fontSize: '14px', color: 'var(--ifm-color-emphasis-600)' }}>
+              Top 5 Contributors from the open source community!
+            </p>
           </div>
         </div>
       </div>
@@ -181,6 +184,9 @@ function CommunityAllStarsSection() {
         <div className="col col--12">
           <div className="text--center margin-bottom--md">
             <Heading as="h3">⭐ Team Stars</Heading>
+            <p style={{ fontSize: '14px', color: 'var(--ifm-color-emphasis-600)' }}>
+              Top 5 Contributors across Block Open Source teams!
+            </p>
           </div>
         </div>
       </div>
@@ -238,7 +244,7 @@ function CommunityAllStarsSection() {
           <div className="text--center margin-bottom--md">
             <Heading as="h3">🏆 Monthly Leaderboard</Heading>
             <p style={{ fontSize: '14px', color: 'var(--ifm-color-emphasis-600)' }}>
-              All {currentData.leaderboard.length} amazing contributors who make Goose possible!
+              Rankings of all goose contributors getting loose this month!
             </p>
           </div>
         </div>

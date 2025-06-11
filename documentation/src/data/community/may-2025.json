@@ -2,46 +2,46 @@
   "month": "May 2025",
   "featuredContributors": [
     {
+      "name": "GitMurf",
+      "handle": "GitMurf"
+    },
+    {
+      "name": "Anil Muppalla",
+      "handle": "anilmuppalla"
+    },
+    {
+      "name": "Ben Walding",
+      "handle": "bwalding"
+    },
+    {
+      "name": "Gustavo Hoirisch",
+      "handle": "gugahoi"
+    },
+    {
+      "name": "Antonio Cheong",
+      "handle": "acheong08"
+    }
+  ],
+  "risingStars": [
+    {
       "name": "Rizel Scarlett",
       "handle": "blackgirlbytes"
     },
     {
-      "name": "Zane Squires",
+      "name": "Zane",
       "handle": "zanesq"
-    },
-    {
-      "name": "The-Best-Codes",
-      "handle": "The-Best-Codes"
     },
     {
       "name": "Michael Neale",
       "handle": "michaelneale"
     },
     {
-      "name": "Patrick Reis",
-      "handle": "patrickReiis"
-    }
-  ],
-  "risingStars": [
-    {
       "name": "Angie Jones",
       "handle": "angiejones"
     },
     {
-      "name": "Sven-Hendrik Haase",
-      "handle": "svenstaro"
-    },
-    {
-      "name": "faces-of-eth",
-      "handle": "faces-of-eth"
-    },
-    {
-      "name": "Wes Billman",
-      "handle": "wesbillman"
-    },
-    {
-      "name": "Antonio Cheong",
-      "handle": "acheong08"
+      "name": "Max Novich",
+      "handle": "Kvadratni"
     }
   ],
   "leaderboard": [
