@@ -51,9 +51,8 @@ function UpcomingEventsSection() {
         <div className="col col--12">
           <div className="text--center">
             <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)' }}>
-              Want to organize a community event or have ideas for workshops? 
-              Reach out to us on <Link href="https://discord.gg/block-opensource">Discord</Link> or 
-              create a discussion on <Link href="https://github.com/block/goose/discussions">GitHub</Link>.
+              Want to join us on a livestream or have ideas for future events? 
+              Reach out to us on <Link href="https://discord.gg/block-opensource">Discord</Link>.
             </p>
           </div>
         </div>
@@ -264,11 +263,11 @@ function CommunityAllStarsSection() {
                       display: 'flex', 
                       alignItems: 'center', 
                       padding: bgColor ? '12px' : '10px', 
-                      backgroundColor: bgColor || '#f8f9fa', 
+                      backgroundColor: bgColor || 'var(--ifm-background-surface-color)', 
                       borderRadius: bgColor ? '8px' : '6px', 
                       fontWeight: bgColor ? 'bold' : '500',
                       boxShadow: bgColor ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
-                      borderLeft: !bgColor ? '4px solid #e9ecef' : 'none'
+                      border: !bgColor ? '1px solid var(--ifm-color-emphasis-300)' : 'none'
                     }}
                   >
                     {contributor.medal && (
@@ -309,7 +308,7 @@ function CommunityAllStarsSection() {
       <div className="row">
         <div className="col col--12">
           <div className="text--center margin-top--lg">
-            <p style={{ fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)', fontSize: '14px' }}>
+            <p style={{ color: 'var(--ifm-color-emphasis-600)', fontSize: '14px' }}>
               Thank you to all our amazing contributors! 🙏
             </p>
           </div>
