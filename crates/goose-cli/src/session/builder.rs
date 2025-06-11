@@ -180,12 +180,23 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => inner,
                 _ => e.to_string(),
             };
-            eprintln!("Failed to start extension: {}, {:?}", extension.name(), err);
             eprintln!(
-                "Please check extension configuration for {}.",
-                extension.name()
+                "{}",
+                style(format!(
+                    "Warning: Failed to start extension '{}': {}",
+                    extension.name(),
+                    err
+                ))
+                .yellow()
             );
-            process::exit(1);
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Continuing without extension '{}'",
+                    extension.name()
+                ))
+                .yellow()
+            );
         }
     }
 
@@ -194,25 +205,63 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     // Add extensions if provided
     for extension_str in session_config.extensions {
-        if let Err(e) = session.add_extension(extension_str).await {
-            eprintln!("Failed to start extension: {}", e);
-            process::exit(1);
+        if let Err(e) = session.add_extension(extension_str.clone()).await {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Failed to start extension '{}': {}",
+                    extension_str, e
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!("Continuing without extension '{}'", extension_str)).yellow()
+            );
         }
     }
 
     // Add remote extensions if provided
     for extension_str in session_config.remote_extensions {
-        if let Err(e) = session.add_remote_extension(extension_str).await {
-            eprintln!("Failed to start extension: {}", e);
-            process::exit(1);
+        if let Err(e) = session.add_remote_extension(extension_str.clone()).await {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Failed to start remote extension '{}': {}",
+                    extension_str, e
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Continuing without remote extension '{}'",
+                    extension_str
+                ))
+                .yellow()
+            );
         }
     }
 
     // Add builtin extensions
     for builtin in session_config.builtins {
-        if let Err(e) = session.add_builtin(builtin).await {
-            eprintln!("Failed to start builtin extension: {}", e);
-            process::exit(1);
+        if let Err(e) = session.add_builtin(builtin.clone()).await {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Failed to start builtin extension '{}': {}",
+                    builtin, e
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Continuing without builtin extension '{}'",
+                    builtin
+                ))
+                .yellow()
+            );
         }
     }
 
@@ -242,4 +291,47 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         Some(&provider_for_display),
     );
     session
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_session_builder_config_creation() {
+        let config = SessionBuilderConfig {
+            identifier: Some(Identifier::Name("test".to_string())),
+            resume: false,
+            no_session: false,
+            extensions: vec!["echo test".to_string()],
+            remote_extensions: vec!["http://example.com".to_string()],
+            builtins: vec!["developer".to_string()],
+            extensions_override: None,
+            additional_system_prompt: Some("Test prompt".to_string()),
+            debug: true,
+            max_tool_repetitions: Some(5),
+        };
+
+        assert_eq!(config.extensions.len(), 1);
+        assert_eq!(config.remote_extensions.len(), 1);
+        assert_eq!(config.builtins.len(), 1);
+        assert!(config.debug);
+        assert_eq!(config.max_tool_repetitions, Some(5));
+    }
+
+    #[test]
+    fn test_session_builder_config_default() {
+        let config = SessionBuilderConfig::default();
+        
+        assert!(config.identifier.is_none());
+        assert!(!config.resume);
+        assert!(!config.no_session);
+        assert!(config.extensions.is_empty());
+        assert!(config.remote_extensions.is_empty());
+        assert!(config.builtins.is_empty());
+        assert!(config.extensions_override.is_none());
+        assert!(config.additional_system_prompt.is_none());
+        assert!(!config.debug);
+        assert!(config.max_tool_repetitions.is_none());
+    }
 }
