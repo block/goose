@@ -38,6 +38,8 @@ pub struct SessionBuilderConfig {
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
     pub max_tool_repetitions: Option<u32>,
+    /// Whether this session will be used interactively (affects debugging prompts)
+    pub interactive: bool,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -45,7 +47,13 @@ async fn offer_extension_debugging_help(
     extension_name: &str,
     error_message: &str,
     provider: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
 ) -> Result<(), anyhow::Error> {
+    // Only offer debugging help in interactive mode
+    if !interactive {
+        return Ok(());
+    }
+
     let help_prompt = format!(
         "Would you like me to help debug the '{}' extension failure?",
         extension_name
@@ -291,6 +299,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 &extension.name(),
                 &err,
                 Arc::clone(&provider_for_display),
+                session_config.interactive,
             )
             .await
             {
@@ -323,6 +332,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 &extension_str,
                 &e.to_string(),
                 Arc::clone(&provider_for_display),
+                session_config.interactive,
             )
             .await
             {
@@ -356,6 +366,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 &extension_str,
                 &e.to_string(),
                 Arc::clone(&provider_for_display),
+                session_config.interactive,
             )
             .await
             {
@@ -389,6 +400,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 &builtin,
                 &e.to_string(),
                 Arc::clone(&provider_for_display),
+                session_config.interactive,
             )
             .await
             {
@@ -442,6 +454,7 @@ mod tests {
             additional_system_prompt: Some("Test prompt".to_string()),
             debug: true,
             max_tool_repetitions: Some(5),
+            interactive: true,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -449,6 +462,7 @@ mod tests {
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
+        assert!(config.interactive);
     }
 
     #[test]
@@ -465,6 +479,7 @@ mod tests {
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
+        assert!(!config.interactive);
     }
 
     #[tokio::test]

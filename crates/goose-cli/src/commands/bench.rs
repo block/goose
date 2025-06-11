@@ -42,6 +42,7 @@ pub async fn agent_generator(
         additional_system_prompt: None,
         debug: false,
         max_tool_repetitions: None,
+        interactive: false, // Benchmarking is non-interactive
     })
     .await;
 
