@@ -620,12 +620,13 @@ mod tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("special.jsonl");
 
-        // Insert some problematic JSON-like content between long text
+        // Insert some problematic JSON-like content between moderately long text
+        // (keeping under 50KB truncation limit to test serialization/deserialization)
         let long_text = format!(
             "Start_of_message\n{}{}SOME_MIDDLE_TEXT{}End_of_message",
-            "A".repeat(100_000),
+            "A".repeat(10_000), // Reduced from 100_000 to stay under 50KB limit
             "\"}]\n",
-            "A".repeat(100_000)
+            "A".repeat(10_000) // Reduced from 100_000 to stay under 50KB limit
         );
 
         let special_chars = vec![
@@ -715,6 +716,56 @@ mod tests {
                 i + 1,
                 line
             );
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_large_content_truncation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("large_content.jsonl");
+
+        // Create a message with content larger than the 50KB truncation limit
+        let very_large_text = "A".repeat(100_000); // 100KB of text
+        let messages = vec![
+            Message::user().with_text(&very_large_text),
+            Message::assistant().with_text("Small response"),
+        ];
+
+        // Write messages
+        persist_messages(&file_path, &messages, None).await?;
+
+        // Read them back - should be truncated
+        let read_messages = read_messages(&file_path)?;
+
+        assert_eq!(messages.len(), read_messages.len());
+
+        // First message should be truncated
+        if let Some(MessageContent::Text(read_text)) = read_messages[0].content.first() {
+            assert!(
+                read_text.text.len() < very_large_text.len(),
+                "Content should be truncated"
+            );
+            assert!(
+                read_text
+                    .text
+                    .contains("content truncated during session loading"),
+                "Should contain truncation notice"
+            );
+            assert!(
+                read_text.text.starts_with("AAAA"),
+                "Should start with original content"
+            );
+        } else {
+            panic!("Expected text content in first message");
+        }
+
+        // Second message should be unchanged
+        if let Some(MessageContent::Text(read_text)) = read_messages[1].content.first() {
+            assert_eq!(read_text.text, "Small response");
+        } else {
+            panic!("Expected text content in second message");
         }
 
         Ok(())
