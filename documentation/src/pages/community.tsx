@@ -91,28 +91,18 @@ function CommunityAllStarsSection() {
                   src="https://github.com/blackgirlbytes.png"
                   alt="Rizel Scarlett"
                 />
-                <div className="avatar__intro">
-                  <div className="avatar__name">🌟 Featured Contributors</div>
-                  <small className="avatar__subtitle">Community Champions</small>
-                </div>
               </div>
             </div>
             <div className="card__body text--center">
               <div className="margin-bottom--sm">
-                <strong>Rizel Scarlett (@blackgirlbytes)</strong>
+                <strong>
+                  <Link href="https://github.com/blackgirlbytes">
+                    Rizel Scarlett (@blackgirlbytes)
+                  </Link>
+                </strong>
                 <br />
                 <small>Developer Advocate</small>
               </div>
-              <p>
-                Leading community engagement and helping developers build amazing projects with Goose, 
-                including Google Docs extensions and creative automation solutions.
-              </p>
-              <Link 
-                className="button button--outline button--primary button--sm" 
-                href="https://github.com/blackgirlbytes"
-              >
-                View Profile
-              </Link>
             </div>
           </div>
         </div>
@@ -126,27 +116,18 @@ function CommunityAllStarsSection() {
                   src="https://github.com/zanesq.png"
                   alt="Zane Squires"
                 />
-                <div className="avatar__intro">
-                  <div className="avatar__name">🏆 Top Contributors</div>
-                  <small className="avatar__subtitle">This Month</small>
-                </div>
               </div>
             </div>
             <div className="card__body text--center">
               <div className="margin-bottom--sm">
-                <strong>Top Internal Contributors:</strong>
+                <strong>
+                  <Link href="https://github.com/zanesq">
+                    Zane Squires (@zanesq)
+                  </Link>
+                </strong>
                 <br />
-                <small>zanesq • michaelneale • angiejones • Kvadratni</small>
+                <small>Senior Software Engineer</small>
               </div>
-              <div className="margin-bottom--sm">
-                <strong>Top External Contributors:</strong>
-                <br />
-                <small>Murf • bwalding • acheong08 • patrickReiis</small>
-              </div>
-              <p>
-                Our most active contributors this month, driving code improvements, 
-                bug fixes, and feature development.
-              </p>
             </div>
           </div>
         </div>
@@ -158,30 +139,20 @@ function CommunityAllStarsSection() {
                 <img
                   className="avatar__photo avatar__photo--xl"
                   src="https://github.com/The-Best-Codes.png"
-                  alt="Rising Star"
+                  alt="The-Best-Codes"
                 />
-                <div className="avatar__intro">
-                  <div className="avatar__name">⭐ Rising Stars</div>
-                  <small className="avatar__subtitle">New Contributors</small>
-                </div>
               </div>
             </div>
             <div className="card__body text--center">
               <div className="margin-bottom--sm">
-                <strong>Recent Rising Stars:</strong>
+                <strong>
+                  <Link href="https://github.com/The-Best-Codes">
+                    The-Best-Codes (@The-Best-Codes)
+                  </Link>
+                </strong>
                 <br />
-                <small>The-Best-Codes • svenstaro • faces-of-eth • wesbillman</small>
+                <small>Open Source Developer</small>
               </div>
-              <p>
-                Welcoming new community members who are making their first 
-                meaningful contributions to the Goose ecosystem and showing great potential.
-              </p>
-              <Link 
-                className="button button--outline button--primary button--sm" 
-                href="https://github.com/block/goose/graphs/contributors"
-              >
-                View All Contributors
-              </Link>
             </div>
           </div>
         </div>
