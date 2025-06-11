@@ -254,9 +254,10 @@ app.on('open-url', async (_event, url) => {
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
+      const base64 = decodeURIComponent(configParam || '');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }

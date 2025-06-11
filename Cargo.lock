@@ -3514,6 +3514,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
@@ -3609,6 +3610,22 @@ dependencies = [
  "utoipa",
  "webbrowser 0.8.15",
  "xcap",
+]
+
+[[package]]
+name = "goose-scheduler-executor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.5.31",
+ "futures",
+ "goose",
+ "mcp-core",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
