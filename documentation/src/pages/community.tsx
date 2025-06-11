@@ -120,7 +120,7 @@ function CommunityAllStarsSection() {
       </div>
       
       <div className="row">
-        {currentData.featuredContributors.map((contributor, index) => (
+        {currentData.communityStars.map((contributor, index) => (
           <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
             <div className="card">
               <div className="card__header text--center">
@@ -185,7 +185,7 @@ function CommunityAllStarsSection() {
       </div>
       
       <div className="row">
-        {currentData.risingStars.map((contributor, index) => (
+        {currentData.teamStars.map((contributor, index) => (
           <div key={index} className={`col col--2 ${index === 0 ? 'col--offset-1' : ''} margin-bottom--lg`}>
             <div className="card">
               <div className="card__header text--center">

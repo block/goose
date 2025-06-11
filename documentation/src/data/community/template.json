@@ -1,6 +1,6 @@
 {
   "month": "MONTH YEAR",
-  "featuredContributors": [
+  "communityStars": [
     {
       "name": "Full Name 1",
       "handle": "github-username-1"
@@ -22,7 +22,7 @@
       "handle": "github-username-5"
     }
   ],
-  "risingStars": [
+  "teamStars": [
     {
       "name": "Full Name 1",
       "handle": "github-username-1"

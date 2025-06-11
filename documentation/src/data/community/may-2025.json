@@ -1,6 +1,6 @@
 {
   "month": "May 2025",
-  "featuredContributors": [
+  "communityStars": [
     {
       "name": "GitMurf",
       "handle": "GitMurf"
@@ -22,7 +22,7 @@
       "handle": "acheong08"
     }
   ],
-  "risingStars": [
+  "teamStars": [
     {
       "name": "Rizel Scarlett",
       "handle": "blackgirlbytes"

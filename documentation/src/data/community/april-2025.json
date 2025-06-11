@@ -1,6 +1,6 @@
 {
   "month": "April 2025",
-  "featuredContributors": [
+  "communityStars": [
     {
       "name": "Vinny Fiano",
       "handle": "ynniv"
@@ -24,7 +24,7 @@
       "handle": "jokellyfenton"
     }
   ],
-  "risingStars": [
+  "teamStars": [
     {
       "name": "Yingjie He",
       "handle": "yingjiehe-xyz"
