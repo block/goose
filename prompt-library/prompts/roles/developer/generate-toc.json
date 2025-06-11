@@ -1,0 +1,24 @@
+{
+  "id": "documentation-generate-toc",
+  "title": "Generate Table of Contents for Repo",
+  "description": "Generate a logically organized table of contents for a CONTRIBUTING.md file",
+  "category": "Technical",
+  "function": "coding",
+  "prompt": "Analyze the CONTRIBUTING.md file and create a well-structured table of contents. Include all major sections and subsections, using consistent formatting and logical organization.",
+  "example": "Input: CONTRIBUTING.md with sections about coding standards, PR process, and testing\nOutput:\n1. Getting Started\n   1.1 Prerequisites\n   1.2 Setup\n2. Contributing Process\n   2.1 Making Changes\n   2.2 Pull Requests\n3. Code Standards\n   3.1 Style Guide\n   3.2 Testing",
+  "tags": ["documentation", "markdown", "contributing", "organization", "toc"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "extensions": ["developer"],
+  "variables": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the CONTRIBUTING.md file",
+      "required": true
+    }
+  }
+}
