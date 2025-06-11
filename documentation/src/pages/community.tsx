@@ -81,13 +81,22 @@ function CommunityAllStarsSection() {
         </div>
       </div>
       
+      {/* First Group of 5 */}
       <div className="row">
-        <div className="col col--4 margin-bottom--lg">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--md">
+            <Heading as="h3">Featured Contributors</Heading>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--2 col--offset-1 margin-bottom--lg">
           <div className="card">
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <img
-                  className="avatar__photo avatar__photo--xl"
+                  className="avatar__photo avatar__photo--lg"
                   src="https://github.com/blackgirlbytes.png"
                   alt="Rizel Scarlett"
                 />
@@ -97,9 +106,11 @@ function CommunityAllStarsSection() {
               <div className="margin-bottom--sm">
                 <strong>
                   <Link href="https://github.com/blackgirlbytes">
-                    Rizel Scarlett (@blackgirlbytes)
+                    Rizel Scarlett
                   </Link>
                 </strong>
+                <br />
+                <small>@blackgirlbytes</small>
                 <br />
                 <small>Developer Advocate</small>
               </div>
@@ -107,12 +118,12 @@ function CommunityAllStarsSection() {
           </div>
         </div>
         
-        <div className="col col--4 margin-bottom--lg">
+        <div className="col col--2 margin-bottom--lg">
           <div className="card">
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <img
-                  className="avatar__photo avatar__photo--xl"
+                  className="avatar__photo avatar__photo--lg"
                   src="https://github.com/zanesq.png"
                   alt="Zane Squires"
                 />
@@ -122,9 +133,11 @@ function CommunityAllStarsSection() {
               <div className="margin-bottom--sm">
                 <strong>
                   <Link href="https://github.com/zanesq">
-                    Zane Squires (@zanesq)
+                    Zane Squires
                   </Link>
                 </strong>
+                <br />
+                <small>@zanesq</small>
                 <br />
                 <small>Senior Software Engineer</small>
               </div>
@@ -132,12 +145,12 @@ function CommunityAllStarsSection() {
           </div>
         </div>
         
-        <div className="col col--4 margin-bottom--lg">
+        <div className="col col--2 margin-bottom--lg">
           <div className="card">
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <img
-                  className="avatar__photo avatar__photo--xl"
+                  className="avatar__photo avatar__photo--lg"
                   src="https://github.com/The-Best-Codes.png"
                   alt="The-Best-Codes"
                 />
@@ -147,24 +160,24 @@ function CommunityAllStarsSection() {
               <div className="margin-bottom--sm">
                 <strong>
                   <Link href="https://github.com/The-Best-Codes">
-                    The-Best-Codes (@The-Best-Codes)
+                    The-Best-Codes
                   </Link>
                 </strong>
+                <br />
+                <small>@The-Best-Codes</small>
                 <br />
                 <small>Open Source Developer</small>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div className="row">
-        <div className="col col--4 margin-bottom--lg">
+        
+        <div className="col col--2 margin-bottom--lg">
           <div className="card">
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <img
-                  className="avatar__photo avatar__photo--xl"
+                  className="avatar__photo avatar__photo--lg"
                   src="https://github.com/michaelneale.png"
                   alt="Michael Neale"
                 />
@@ -174,9 +187,11 @@ function CommunityAllStarsSection() {
               <div className="margin-bottom--sm">
                 <strong>
                   <Link href="https://github.com/michaelneale">
-                    Michael Neale (@michaelneale)
+                    Michael Neale
                   </Link>
                 </strong>
+                <br />
+                <small>@michaelneale</small>
                 <br />
                 <small>Principal Engineer</small>
               </div>
@@ -184,12 +199,12 @@ function CommunityAllStarsSection() {
           </div>
         </div>
         
-        <div className="col col--4 margin-bottom--lg">
+        <div className="col col--2 margin-bottom--lg">
           <div className="card">
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <img
-                  className="avatar__photo avatar__photo--xl"
+                  className="avatar__photo avatar__photo--lg"
                   src="https://github.com/patrickReiis.png"
                   alt="Patrick Reis"
                 />
@@ -199,11 +214,159 @@ function CommunityAllStarsSection() {
               <div className="margin-bottom--sm">
                 <strong>
                   <Link href="https://github.com/patrickReiis">
-                    Patrick Reis (@patrickReiis)
+                    Patrick Reis
                   </Link>
                 </strong>
                 <br />
+                <small>@patrickReiis</small>
+                <br />
                 <small>Community Contributor</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Second Group of 5 */}
+      <div className="row">
+        <div className="col col--12">
+          <div className="text--center margin-bottom--md">
+            <Heading as="h3">Rising Stars</Heading>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col col--2 col--offset-1 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--lg"
+                  src="https://github.com/angiejones.png"
+                  alt="Angie Jones"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/angiejones">
+                    Angie Jones
+                  </Link>
+                </strong>
+                <br />
+                <small>@angiejones</small>
+                <br />
+                <small>Senior Developer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col col--2 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--lg"
+                  src="https://github.com/svenstaro.png"
+                  alt="Sven-Hendrik Haase"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/svenstaro">
+                    Sven-Hendrik Haase
+                  </Link>
+                </strong>
+                <br />
+                <small>@svenstaro</small>
+                <br />
+                <small>Open Source Maintainer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col col--2 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--lg"
+                  src="https://github.com/faces-of-eth.png"
+                  alt="faces-of-eth"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/faces-of-eth">
+                    faces-of-eth
+                  </Link>
+                </strong>
+                <br />
+                <small>@faces-of-eth</small>
+                <br />
+                <small>Community Developer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col col--2 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--lg"
+                  src="https://github.com/wesbillman.png"
+                  alt="Wes Billman"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/wesbillman">
+                    Wes Billman
+                  </Link>
+                </strong>
+                <br />
+                <small>@wesbillman</small>
+                <br />
+                <small>Software Engineer</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col col--2 margin-bottom--lg">
+          <div className="card">
+            <div className="card__header text--center">
+              <div className="avatar avatar--vertical">
+                <img
+                  className="avatar__photo avatar__photo--lg"
+                  src="https://github.com/acheong08.png"
+                  alt="Antonio Cheong"
+                />
+              </div>
+            </div>
+            <div className="card__body text--center">
+              <div className="margin-bottom--sm">
+                <strong>
+                  <Link href="https://github.com/acheong08">
+                    Antonio Cheong
+                  </Link>
+                </strong>
+                <br />
+                <small>@acheong08</small>
+                <br />
+                <small>AI Developer</small>
               </div>
             </div>
           </div>
@@ -224,14 +387,14 @@ function CommunityAllStarsSection() {
             <div className="card__header text--center">
               <div className="avatar avatar--vertical">
                 <div style={{ 
-                  width: '96px', 
-                  height: '96px', 
+                  width: '64px', 
+                  height: '64px', 
                   borderRadius: '50%', 
                   backgroundColor: '#f0f0f0', 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  fontSize: '24px',
+                  fontSize: '20px',
                   color: '#666'
                 }}>
                   ?
