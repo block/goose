@@ -229,6 +229,35 @@ You can resume a CLI session in Desktop and vice versa.
 
 You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
 
+## Export Sessions
+
+Export sessions to Markdown to share with your team, create documentation, archive conversations, or review them in a readable format.
+
+<Tabs>
+    <TabItem value="ui" label="Goose Desktop" default>
+        Session export is currently only available through the CLI. You can export Desktop sessions via their session filename:
+
+        1. Click `⚙️` in the upper right corner
+        2. Click `Session History` 
+        3. Note the session filename (e.g., `20250305_113223.jsonl`)
+        4. In the CLI, run the command:
+        ```bash
+        goose session export --name 20250305_113223 --output my-session.md
+        ```
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        Export sessions using the `export` subcommand:
+
+        ```bash
+        # Interactive export - prompts you to select a session
+        goose session export
+        ```
+        
+    </TabItem>
+</Tabs>
+
+For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
+
 ## Search Within Sessions
 
 Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
