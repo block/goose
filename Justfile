@@ -388,23 +388,4 @@ kotlin-example:
     cd bindings/kotlin/ && java \
       -Djna.library.path=$HOME/Development/goose/target/debug \
       -classpath "example.jar:libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
-<<<<<<< Updated upstream
       UsageKt
-||||||| Stash base
-      UsageKt
-=======
-      UsageKt
-
-
-      huggingface-pytorch-tgi-inference-2025-05-30-16-42-23-042
-
-  export GOOSE_PROVIDER=sagemaker_tgi
-  export SAGEMAKER_ENDPOINT_NAME="huggingface-pytorch-tgi-inference-2025-05-30-16-42-23-042"
-  export AWS_REGION="us-east-2"
-  export AWS_PROFILE="osllm-app-staging--admin"
-  export RUST_LOG=info
-
-
-  cargo build
-  cargo run --bin goose -- session
->>>>>>> Stashed changes

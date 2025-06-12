@@ -83,14 +83,9 @@ impl SageMakerTgiProvider {
         })
     }
 
-    fn create_tgi_request(
-        &self,
-        system: &str,
-        messages: &[Message],
-        _tools: &[Tool],
-    ) -> Result<Value> {
-        // Create a simplified prompt for basic TGI models
-        // Skip the complex system prompt and tool descriptions that cause the model to mimic tool formats
+    fn create_tgi_request(&self, system: &str, messages: &[Message]) -> Result<Value> {
+        // Create a simplified prompt for TGI models using recent user and assistant messages.
+        // Uses a minimal system prompt and avoids HTML or tool-related formatting.
         let mut prompt = String::new();
 
         // Use a very simple system prompt if provided, but ensure it doesn't contain HTML instructions
@@ -304,11 +299,9 @@ impl Provider for SageMakerTgiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let request_payload = self
-            .create_tgi_request(system, messages, tools)
-            .map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to create request: {}", e))
-            })?;
+        let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to create request: {}", e))
+        })?;
 
         // Retry configuration
         const MAX_RETRIES: u32 = 3;
