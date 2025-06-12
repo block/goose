@@ -70,11 +70,6 @@ export GOOSE_CONTEXT_STRATEGY=clear      # Automatically clear session
 export GOOSE_CONTEXT_STRATEGY=prompt     # Always prompt user (default)
 ```
 
-Or configure it permanently:
-```bash
-goose configure set GOOSE_CONTEXT_STRATEGY summarize
-```
-
 **Default behavior:**
 - **Interactive mode**: Prompts user to choose (equivalent to `prompt`)
 - **Headless mode** (`goose run`): Automatically summarizes (equivalent to `summarize`)
