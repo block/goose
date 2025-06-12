@@ -7,6 +7,7 @@ import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import HtmlResourceRenderer from './HtmlResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -307,6 +308,10 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
               e.currentTarget.style.display = 'none';
             }}
           />
+        )}
+
+        {result.type === 'resource' && result.resource.uri?.startsWith('ui://') && (
+          <HtmlResourceRenderer content={result} />
         )}
       </div>
     </ToolCallExpandable>

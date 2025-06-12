@@ -86,6 +86,7 @@
     "@ai-sdk/openai": "^0.0.72",
     "@ai-sdk/ui-utils": "^1.0.2",
     "@hey-api/client-fetch": "^0.8.1",
+    "@mcp-ui/client": "^2.2.0",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.7",
