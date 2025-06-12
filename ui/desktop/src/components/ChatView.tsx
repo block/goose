@@ -623,7 +623,7 @@ function ChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || initialPrompt}
+            initialValue={_input || (hasMessages ? _input : initialPrompt)}
             setView={setView}
             hasMessages={hasMessages}
             numTokens={sessionTokenCount}
