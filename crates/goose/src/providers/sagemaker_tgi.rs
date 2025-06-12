@@ -15,11 +15,11 @@ use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use chrono::Utc;
 use mcp_core::content::TextContent;
 use mcp_core::role::Role;
-use chrono::Utc;
 
-pub const SAGEMAKER_TGI_DOC_LINK: &str = 
+pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
 
 pub const SAGEMAKER_TGI_DEFAULT_MODEL: &str = "sagemaker-tgi-endpoint";
@@ -35,10 +35,11 @@ pub struct SageMakerTgiProvider {
 impl SageMakerTgiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        
+
         // Get SageMaker endpoint name (just the name, not full URL)
-        let endpoint_name: String = config.get_param("SAGEMAKER_ENDPOINT_NAME")
-            .map_err(|_| anyhow::anyhow!("SAGEMAKER_ENDPOINT_NAME is required for SageMaker TGI provider"))?;
+        let endpoint_name: String = config.get_param("SAGEMAKER_ENDPOINT_NAME").map_err(|_| {
+            anyhow::anyhow!("SAGEMAKER_ENDPOINT_NAME is required for SageMaker TGI provider")
+        })?;
 
         // Attempt to load config and secrets to get AWS_ prefixed keys
         let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
@@ -67,11 +68,12 @@ impl SageMakerTgiProvider {
         let timeout_config = aws_config::timeout::TimeoutConfig::builder()
             .operation_timeout(Duration::from_secs(300)) // 5 minutes for cold starts
             .build();
-        
-        let config_with_timeout = aws_config.into_builder()
+
+        let config_with_timeout = aws_config
+            .into_builder()
             .timeout_config(timeout_config)
             .build();
-            
+
         let sagemaker_client = SageMakerClient::new(&config_with_timeout);
 
         Ok(Self {
@@ -81,13 +83,23 @@ impl SageMakerTgiProvider {
         })
     }
 
-    fn create_tgi_request(&self, system: &str, messages: &[Message], _tools: &[Tool]) -> Result<Value> {
+    fn create_tgi_request(
+        &self,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<Value> {
         // Create a simplified prompt for basic TGI models
         // Skip the complex system prompt and tool descriptions that cause the model to mimic tool formats
         let mut prompt = String::new();
-        
+
         // Use a very simple system prompt if provided, but ensure it doesn't contain HTML instructions
-        if !system.is_empty() && !system.contains("Available tools") && system.len() < 200 && !system.contains("HTML") && !system.contains("markdown") {
+        if !system.is_empty()
+            && !system.contains("Available tools")
+            && system.len() < 200
+            && !system.contains("HTML")
+            && !system.contains("markdown")
+        {
             prompt.push_str(&format!("System: {}\n\n", system));
         } else {
             // Use a minimal system prompt for TGI that explicitly avoids HTML
@@ -112,7 +124,10 @@ impl SageMakerTgiProvider {
                     for content in &message.content {
                         if let MessageContent::Text(text) = content {
                             // Skip responses that look like tool descriptions or contain HTML
-                            if !text.text.contains("__") && !text.text.contains("Available tools") && !text.text.contains("<") {
+                            if !text.text.contains("__")
+                                && !text.text.contains("Available tools")
+                                && !text.text.contains("<")
+                            {
                                 prompt.push_str(&text.text);
                             }
                         }
@@ -143,10 +158,12 @@ impl SageMakerTgiProvider {
     }
 
     async fn invoke_endpoint(&self, payload: Value) -> Result<Value, ProviderError> {
-        let body = serde_json::to_string(&payload)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to serialize request: {}", e)))?;
+        let body = serde_json::to_string(&payload).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to serialize request: {}", e))
+        })?;
 
-        let response = self.sagemaker_client
+        let response = self
+            .sagemaker_client
             .invoke_endpoint()
             .endpoint_name(&self.endpoint_name)
             .content_type("application/json")
@@ -155,28 +172,38 @@ impl SageMakerTgiProvider {
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("SageMaker invoke failed: {}", e)))?;
 
-        let response_body = response.body.as_ref()
+        let response_body = response
+            .body
+            .as_ref()
             .ok_or_else(|| ProviderError::RequestFailed("Empty response body".to_string()))?;
-        let response_text = std::str::from_utf8(response_body.as_ref())
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to decode response: {}", e)))?;
+        let response_text = std::str::from_utf8(response_body.as_ref()).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to decode response: {}", e))
+        })?;
 
-        serde_json::from_str(response_text)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response JSON: {}", e)))
+        serde_json::from_str(response_text).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response JSON: {}", e))
+        })
     }
 
     fn parse_tgi_response(&self, response: Value) -> Result<Message, ProviderError> {
         // Handle standard TGI response: [{"generated_text": "..."}]
-        let response_array = response.as_array()
+        let response_array = response
+            .as_array()
             .ok_or_else(|| ProviderError::RequestFailed("Expected array response".to_string()))?;
 
         if response_array.is_empty() {
-            return Err(ProviderError::RequestFailed("Empty response array".to_string()));
+            return Err(ProviderError::RequestFailed(
+                "Empty response array".to_string(),
+            ));
         }
 
         let first_result = &response_array[0];
-        let generated_text = first_result.get("generated_text")
+        let generated_text = first_result
+            .get("generated_text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProviderError::RequestFailed("No generated_text in response".to_string()))?;
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No generated_text in response".to_string())
+            })?;
 
         // Strip any HTML tags that might have been generated
         let clean_text = self.strip_html_tags(generated_text);
@@ -195,16 +222,33 @@ impl SageMakerTgiProvider {
     fn strip_html_tags(&self, text: &str) -> String {
         // Simple regex-free approach to strip common HTML tags
         let mut result = text.to_string();
-        
+
         // Remove common HTML tags like <b>, <i>, <strong>, <em>, etc.
-        let tags_to_remove = ["<b>", "</b>", "<i>", "</i>", "<strong>", "</strong>", 
-                             "<em>", "</em>", "<u>", "</u>", "<br>", "<br/>", 
-                             "<p>", "</p>", "<div>", "</div>", "<span>", "</span>"];
-        
+        let tags_to_remove = [
+            "<b>",
+            "</b>",
+            "<i>",
+            "</i>",
+            "<strong>",
+            "</strong>",
+            "<em>",
+            "</em>",
+            "<u>",
+            "</u>",
+            "<br>",
+            "<br/>",
+            "<p>",
+            "</p>",
+            "<div>",
+            "</div>",
+            "<span>",
+            "</span>",
+        ];
+
         for tag in &tags_to_remove {
             result = result.replace(tag, "");
         }
-        
+
         // Remove any remaining HTML-like tags using a simple pattern
         // This is a basic implementation - for production use, consider using a proper HTML parser
         while let Some(start) = result.find('<') {
@@ -214,7 +258,7 @@ impl SageMakerTgiProvider {
                 break;
             }
         }
-        
+
         result.trim().to_string()
     }
 }
@@ -260,8 +304,11 @@ impl Provider for SageMakerTgiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let request_payload = self.create_tgi_request(system, messages, tools)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to create request: {}", e)))?;
+        let request_payload = self
+            .create_tgi_request(system, messages, tools)
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to create request: {}", e))
+            })?;
 
         // Retry configuration
         const MAX_RETRIES: u32 = 3;
@@ -280,7 +327,7 @@ impl Provider for SageMakerTgiProvider {
 
                     // TGI doesn't provide usage statistics, so we estimate
                     let usage = Usage {
-                        input_tokens: Some(0), // Would need to tokenize input to get accurate count
+                        input_tokens: Some(0),  // Would need to tokenize input to get accurate count
                         output_tokens: Some(0), // Would need to tokenize output to get accurate count
                         total_tokens: Some(0),
                     };

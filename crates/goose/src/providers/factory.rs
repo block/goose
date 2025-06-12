@@ -14,8 +14,8 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
-    snowflake::SnowflakeProvider,
     sagemaker_tgi::SageMakerTgiProvider,
+    snowflake::SnowflakeProvider,
     venice::VeniceProvider,
 };
 use crate::model::ModelConfig;
