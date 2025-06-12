@@ -8,9 +8,9 @@ import Heading from "@theme/Heading";
 import styles from "./index.module.css";
 
 // Import community data
-import communityConfig from "../data/community/config.json";
-import april2025Data from "../data/community/april-2025.json";
-import may2025Data from "../data/community/may-2025.json";
+import communityConfig from "./data/config.json";
+import april2025Data from "./data/april-2025.json";
+import may2025Data from "./data/may-2025.json";
 
 // Create a data map for easy access
 const communityDataMap = {
