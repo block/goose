@@ -47,6 +47,75 @@ fn default_mime_type() -> String {
     "text".to_string()
 }
 
+impl ResourceContents {
+    /// Creates a new HTML resource with text content
+    pub fn html_text<S: Into<String>, T: Into<String>>(uri: S, html_content: T) -> Self {
+        ResourceContents::TextResourceContents {
+            uri: uri.into(),
+            mime_type: Some("text/html".to_string()),
+            text: html_content.into(),
+        }
+    }
+
+    /// Creates a new HTML resource with blob content (base64 encoded)
+    pub fn html_blob<S: Into<String>, T: Into<String>>(uri: S, html_blob: T) -> Self {
+        ResourceContents::BlobResourceContents {
+            uri: uri.into(),
+            mime_type: Some("text/html".to_string()),
+            blob: html_blob.into(),
+        }
+    }
+
+    /// Creates a new URI list resource with text content
+    pub fn uri_list_text<S: Into<String>, T: Into<String>>(uri: S, uri_content: T) -> Self {
+        ResourceContents::TextResourceContents {
+            uri: uri.into(),
+            mime_type: Some("text/uri-list".to_string()),
+            text: uri_content.into(),
+        }
+    }
+
+    /// Creates a new URI list resource with blob content (base64 encoded)
+    pub fn uri_list_blob<S: Into<String>, T: Into<String>>(uri: S, uri_blob: T) -> Self {
+        ResourceContents::BlobResourceContents {
+            uri: uri.into(),
+            mime_type: Some("text/uri-list".to_string()),
+            blob: uri_blob.into(),
+        }
+    }
+
+    /// Gets the URI of the resource
+    pub fn uri(&self) -> &str {
+        match self {
+            ResourceContents::TextResourceContents { uri, .. } => uri,
+            ResourceContents::BlobResourceContents { uri, .. } => uri,
+        }
+    }
+
+    /// Gets the MIME type of the resource
+    pub fn mime_type(&self) -> Option<&str> {
+        match self {
+            ResourceContents::TextResourceContents { mime_type, .. } => mime_type.as_deref(),
+            ResourceContents::BlobResourceContents { mime_type, .. } => mime_type.as_deref(),
+        }
+    }
+
+    /// Returns true if this is a UI resource (uri starts with "ui://")
+    pub fn is_ui_resource(&self) -> bool {
+        self.uri().starts_with("ui://")
+    }
+
+    /// Returns true if this is an HTML resource
+    pub fn is_html(&self) -> bool {
+        self.mime_type() == Some("text/html")
+    }
+
+    /// Returns true if this is a URI list resource
+    pub fn is_uri_list(&self) -> bool {
+        self.mime_type() == Some("text/uri-list")
+    }
+}
+
 impl Resource {
     /// Creates a new Resource from a URI with explicit mime type
     pub fn new<S: AsRef<str>>(
@@ -256,5 +325,101 @@ mod tests {
     fn test_invalid_uri() {
         let result = Resource::new("not-a-uri", None, None);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resource_contents_html_text() {
+        let resource =
+            ResourceContents::html_text("ui://my-component/instance-1", "<p>Hello World</p>");
+
+        match &resource {
+            ResourceContents::TextResourceContents {
+                uri,
+                mime_type,
+                text,
+            } => {
+                assert_eq!(uri, "ui://my-component/instance-1");
+                assert_eq!(mime_type, &Some("text/html".to_string()));
+                assert_eq!(text, "<p>Hello World</p>");
+            }
+            _ => panic!("Expected TextResourceContents"),
+        }
+
+        assert!(resource.is_ui_resource());
+        assert!(resource.is_html());
+        assert!(!resource.is_uri_list());
+        assert_eq!(resource.uri(), "ui://my-component/instance-1");
+        assert_eq!(resource.mime_type(), Some("text/html"));
+    }
+
+    #[test]
+    fn test_resource_contents_html_blob() {
+        let blob_data = "PGRpdj48aDI+Q29tcGxleCBDb250ZW50PC9oMj48c2NyaXB0PmNvbnNvbGUubG9nKFwiTG9hZGVkIVwiKTwvc2NyaXB0PjwvZGl2Pg==";
+        let resource = ResourceContents::html_blob("ui://my-component/instance-2", blob_data);
+
+        match &resource {
+            ResourceContents::BlobResourceContents {
+                uri,
+                mime_type,
+                blob,
+            } => {
+                assert_eq!(uri, "ui://my-component/instance-2");
+                assert_eq!(mime_type, &Some("text/html".to_string()));
+                assert_eq!(blob, blob_data);
+            }
+            _ => panic!("Expected BlobResourceContents"),
+        }
+
+        assert!(resource.is_ui_resource());
+        assert!(resource.is_html());
+        assert!(!resource.is_uri_list());
+    }
+
+    #[test]
+    fn test_resource_contents_uri_list_text() {
+        let resource = ResourceContents::uri_list_text(
+            "ui://analytics-dashboard/main",
+            "https://my.analytics.com/dashboard/123",
+        );
+
+        match &resource {
+            ResourceContents::TextResourceContents {
+                uri,
+                mime_type,
+                text,
+            } => {
+                assert_eq!(uri, "ui://analytics-dashboard/main");
+                assert_eq!(mime_type, &Some("text/uri-list".to_string()));
+                assert_eq!(text, "https://my.analytics.com/dashboard/123");
+            }
+            _ => panic!("Expected TextResourceContents"),
+        }
+
+        assert!(resource.is_ui_resource());
+        assert!(!resource.is_html());
+        assert!(resource.is_uri_list());
+    }
+
+    #[test]
+    fn test_resource_contents_uri_list_blob() {
+        let blob_data = "aHR0cHM6Ly9jaGFydHMuZXhhbXBsZS5jb20vYXBpP3R5cGU9cGllJmRhdGE9MSwyLDM=";
+        let resource = ResourceContents::uri_list_blob("ui://live-chart/session-xyz", blob_data);
+
+        match &resource {
+            ResourceContents::BlobResourceContents {
+                uri,
+                mime_type,
+                blob,
+            } => {
+                assert_eq!(uri, "ui://live-chart/session-xyz");
+                assert_eq!(mime_type, &Some("text/uri-list".to_string()));
+                assert_eq!(blob, blob_data);
+            }
+            _ => panic!("Expected BlobResourceContents"),
+        }
+
+        assert!(resource.is_ui_resource());
+        assert!(!resource.is_html());
+        assert!(resource.is_uri_list());
     }
 }
