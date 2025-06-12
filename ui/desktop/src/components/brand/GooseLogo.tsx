@@ -1,4 +1,4 @@
-import { Goose, Rain } from './icons/Goose';
+import { Goose, Rain } from '../icons/Goose';
 
 interface GooseLogoProps {
   className?: string;

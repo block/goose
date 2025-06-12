@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useId } from 'react';
 import useSWR from 'swr';
-import { getSecretKey } from '../config';
-import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { getSecretKey } from '@/config';
+import { Message, createUserMessage, hasCompletedToolCalls } from '@/types/message';
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;

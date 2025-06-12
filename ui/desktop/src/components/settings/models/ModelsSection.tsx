@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { View } from '../../../App';
+import type { View } from '@/App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
-import { useConfig } from '../../ConfigContext';
-import { toastError } from '../../../toasts';
+import { useConfig } from '@/components/context/ConfigContext';
+import { toastError } from '@/toasts';
 
 import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
 

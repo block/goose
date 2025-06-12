@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from './ui/button';
+import { Button } from '../ui/button';
 import { AlertTriangle } from 'lucide-react';
 
 // Capture unhandled promise rejections

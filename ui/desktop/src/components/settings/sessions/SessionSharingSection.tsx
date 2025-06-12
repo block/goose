@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Input } from '../../ui/input';
+import { Input } from '@/components/ui/input';
 import { Check, Lock } from 'lucide-react';
-import { Switch } from '../../ui/switch';
+import { Switch } from '@/components/ui/switch';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');

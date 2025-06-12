@@ -10,7 +10,7 @@ import {
   Target,
   LoaderCircle,
 } from 'lucide-react';
-import { type SessionDetails } from '../../sessions';
+import type { SessionDetails } from '../../sessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { createSharedSession } from '../../sharedSessions';

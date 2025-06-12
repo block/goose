@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import Modal from '../../../../components/Modal';
+import Modal from '@/components/primitives/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
@@ -9,8 +9,8 @@ import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 import { DefaultSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
 import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
 import OllamaForm from './subcomponents/forms/OllamaForm';
-import { useConfig } from '../../../ConfigContext';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
+import { useConfig } from '@/components/context/ConfigContext';
+import { useModelAndProvider } from '@/components/context/ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
 
 interface FormValues {

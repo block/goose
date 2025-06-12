@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { snakeToTitleCase } from '../utils';
-import PermissionModal from './settings/permission/PermissionModal';
+import { snakeToTitleCase } from '@/utils';
+import PermissionModal from '@/components/settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
-import { confirmPermission } from '../api';
+import { confirmPermission } from '@/api';
 
 const ALWAYS_ALLOW = 'always_allow';
 const ALLOW_ONCE = 'allow_once';

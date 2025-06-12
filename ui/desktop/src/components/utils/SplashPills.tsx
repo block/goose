@@ -1,4 +1,4 @@
-import MarkdownContent from './MarkdownContent';
+import MarkdownContent from '../primitives/MarkdownContent';
 
 function truncateText(text: string, maxLength: number = 100): string {
   if (text.length <= maxLength) return text;

@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ArrowLeftRight, ExternalLink } from 'lucide-react';
 
-import Modal from '../../../Modal';
-import { Button } from '../../../ui/button';
+import Modal from '@/components/primitives/Modal';
+import { Button } from '@/components/ui/button';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
-import { Input } from '../../../ui/input';
-import { Select } from '../../../ui/Select';
-import { useConfig } from '../../../ConfigContext';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import type { View } from '../../../../App';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/Select';
+import { useConfig } from '@/components/context/ConfigContext';
+import { useModelAndProvider } from '@/components/context/ModelAndProviderContext';
+import type { View } from '@/App';
 import Model, { getProviderMetadata } from '../modelInterface';
 
 const ModalButtons = ({

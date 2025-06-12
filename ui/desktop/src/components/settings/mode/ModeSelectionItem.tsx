@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Gear } from '../../icons';
+import { Gear } from '@/components/icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
-import { View, ViewOptions } from '../../../App';
+import { View, ViewOptions } from '@/App';
 
 export interface GooseMode {
   key: string;

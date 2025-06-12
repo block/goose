@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Card } from './ui/card';
+import { Card } from '@/components/ui/card';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
-import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
-import { snakeToTitleCase } from '../utils';
-import Dot, { LoadingStatus } from './ui/Dot';
-import Expand from './ui/Expand';
-import { NotificationEvent } from '../hooks/useMessageStream';
+import MarkdownContent from '@/components/primitives/MarkdownContent';
+import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '@/types/message';
+import { snakeToTitleCase } from '@/utils';
+import Dot, { LoadingStatus } from '@/components/ui/Dot';
+import Expand from '@/components/ui/Expand';
+import { NotificationEvent } from '@/hooks/useMessageStream';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;

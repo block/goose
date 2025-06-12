@@ -1,9 +1,9 @@
-import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
-import { Input } from '../../../../../ui/input';
+import { PROVIDER_REGISTRY } from '@/components/settings/providers/ProviderRegistry';
+import { Input } from '@/components/ui/input';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
-import CustomRadio from '../../../../../ui/CustomRadio';
+import CustomRadio from '@/components/ui/CustomRadio';
 
 export default function OllamaForm({
   configValues,

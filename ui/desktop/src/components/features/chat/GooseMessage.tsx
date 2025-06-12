@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
-import LinkPreview from './LinkPreview';
-import ImagePreview from './ImagePreview';
+import LinkPreview from '@components/primitives/LinkPreview';
+import ImagePreview from '@components/primitives/ImagePreview';
 import GooseResponseForm from './GooseResponseForm';
-import { extractUrls } from '../utils/urlUtils';
-import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
-import { formatMessageTimestamp } from '../utils/timeUtils';
-import MarkdownContent from './MarkdownContent';
-import ToolCallWithResponse from './ToolCallWithResponse';
+import { extractUrls } from '@/utils/urlUtils';
+import { extractImagePaths, removeImagePathsFromText } from '@/utils/imageUtils';
+import { formatMessageTimestamp } from '@/utils/timeUtils';
+import MarkdownContent from '@components/primitives/MarkdownContent';
+import ToolCallWithResponse from '@components/features/tools/ToolCallWithResponse';
 import {
   Message,
   getTextContent,
@@ -14,10 +14,10 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   createToolErrorResponseMessage,
-} from '../types/message';
-import ToolCallConfirmation from './ToolCallConfirmation';
-import MessageCopyLink from './MessageCopyLink';
-import { NotificationEvent } from '../hooks/useMessageStream';
+} from '@/types/message';
+import ToolCallConfirmation from '@components/features/tools/ToolCallConfirmation';
+import MessageCopyLink from '@components/utils/MessageCopyLink';
+import { NotificationEvent } from '@/hooks/useMessageStream';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests

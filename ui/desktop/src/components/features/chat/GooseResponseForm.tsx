@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import MarkdownContent from './MarkdownContent';
-import { Button } from './ui/button';
-import { cn } from '../utils';
-import { Send } from './icons';
-// Prefixing unused imports with underscore
-import { createUserMessage as _createUserMessage } from '../types/message';
+import MarkdownContent from '@/components/primitives/MarkdownContent';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/utils';
+import { Send } from '@/components/icons';
 
 interface FormField {
   label: string;

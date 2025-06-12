@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
-import svg1 from '../images/loading-goose/1.svg';
-import svg7 from '../images/loading-goose/7.svg';
+import svg1 from '@/images/loading-goose/1.svg';
+import svg7 from '@/images/loading-goose/7.svg';
 
 interface Obstacle {
   x: number;

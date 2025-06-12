@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Button } from '../../../ui/button';
+import { Button } from '@/components/ui/button';
 import { AddModelModal } from './AddModelModal';
-import type { View } from '../../../../App';
+import type { View } from '@/App';
 import { ArrowLeftRight } from 'lucide-react';
 
 interface AddModelButtonProps {

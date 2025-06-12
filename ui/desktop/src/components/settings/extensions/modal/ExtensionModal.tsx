@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '../../../ui/button';
-import Modal from '../../../Modal';
+import Modal from '../../../primitives/Modal';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';

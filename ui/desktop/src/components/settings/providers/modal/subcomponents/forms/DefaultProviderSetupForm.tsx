@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Input } from '../../../../../ui/input';
-import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
-import { ProviderDetails, ConfigKey } from '../../../../../../api';
+import { Input } from '@/components/ui/input';
+import { useConfig } from '@/components/context/ConfigContext';
+import { ProviderDetails, ConfigKey } from '@/api/types.gen';
 
 interface ValidationErrors {
   [key: string]: string;

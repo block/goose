@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChatType } from '../components/ChatView';
-import { fetchSessionDetails, generateSessionId } from '../sessions';
-import { View, ViewOptions } from '../App';
+import { ChatType } from '@/components/features/chat/ChatView';
+import { fetchSessionDetails, generateSessionId } from '@/sessions';
+import { View, ViewOptions } from '@/App';
 
 type UseChatArgs = {
   setIsLoadingSession: (isLoading: boolean) => void;

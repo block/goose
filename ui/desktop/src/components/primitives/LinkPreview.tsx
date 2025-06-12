@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card } from './ui/card';
+import { Card } from '../ui/card';
 
 interface Metadata {
   title?: string;

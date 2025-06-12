@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Switch } from '../../../ui/switch';
 import { Gear } from '../../../icons/Gear';
-import { FixedExtensionEntry } from '../../../ConfigContext';
+import { FixedExtensionEntry } from '../../../context/ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 
 interface ExtensionItemProps {

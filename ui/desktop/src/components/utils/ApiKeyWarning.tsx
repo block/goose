@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card } from './ui/card';
-import { Bird } from './ui/icons';
-import { ChevronDown } from './icons';
+import { Card } from '../ui/card';
+import { Bird } from '../ui/icons';
+import { ChevronDown } from '../icons';
 
 interface ApiKeyWarningProps {
   className?: string;

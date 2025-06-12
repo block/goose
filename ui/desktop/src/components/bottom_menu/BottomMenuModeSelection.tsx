@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../context/ConfigContext';
 import { View, ViewOptions } from '../../App';
 import { Orbit } from 'lucide-react';
 

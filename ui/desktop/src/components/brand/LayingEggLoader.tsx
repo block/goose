@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Geese } from './icons/Geese';
+import { Geese } from '../icons/Geese';
 
 export default function LayingEggLoader() {
   const [dots, setDots] = useState('');

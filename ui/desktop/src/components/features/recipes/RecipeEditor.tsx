@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Recipe } from '../recipe';
+import { Recipe } from '@/recipe';
 import { Buffer } from 'buffer';
-import { FullExtensionConfig } from '../extensions';
-import { Geese } from './icons/Geese';
-import Copy from './icons/Copy';
+import { FullExtensionConfig } from '@/extensions';
+import { Geese } from '@/components/icons/Geese';
+import { Copy } from '@/components/icons';
 import { Check } from 'lucide-react';
-import { useConfig } from './ConfigContext';
-import { FixedExtensionEntry } from './ConfigContext';
+import { useConfig, FixedExtensionEntry } from '@/components/context/ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
-import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
+import { ScheduleFromRecipeModal } from '@/components/schedule/ScheduleFromRecipeModal';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -73,7 +72,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
           if (extensions && extensions.length > 0) {
             // Map the extensions with the current selection state from recipeExtensions
-            const initializedExtensions = extensions.map((ext) => ({
+            const initializedExtensions = extensions.map((ext: FixedExtensionEntry) => ({
               ...ext,
               enabled: recipeExtensions.includes(ext.name),
             }));
@@ -364,7 +363,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
         recipe={getCurrentConfig()}
-        onCreateSchedule={(deepLink) => {
+        onCreateSchedule={(deepLink: string) => {
           // Open the schedules view with the deep link pre-filled
           window.electron.createChatWindow(
             undefined,

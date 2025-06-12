@@ -1,5 +1,5 @@
 import SplashPills from './SplashPills';
-import GooseLogo from './GooseLogo';
+import GooseLogo from '../brand/GooseLogo';
 
 interface SplashProps {
   append: (text: string) => void;

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Card } from './ui/card';
+import { Card } from '../ui/card';
 
 interface ModalProps {
   children: React.ReactNode;

@@ -2,8 +2,8 @@ import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/po
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, Refresh, Time, Send, Settings } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
-import { useConfig } from '../ConfigContext';
-import { ViewOptions, View } from '../../App';
+import { useConfig } from '@/components/context/ConfigContext';
+import { ViewOptions, View } from '@/App';
 
 interface RecipeConfig {
   id: string;

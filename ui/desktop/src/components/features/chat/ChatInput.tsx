@@ -1,12 +1,12 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Button } from './ui/button';
-import type { View } from '../App';
-import Stop from './ui/Stop';
-import { Attach, Send, Close } from './icons';
+import { Button } from '@ui/button';
+import type { View } from '@/App';
+import Stop from '@ui/Stop';
+import { Attach, Send, Close } from '@components/icons';
 import { debounce } from 'lodash';
-import BottomMenu from './bottom_menu/BottomMenu';
-import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../types/message';
+import BottomMenu from '@components/bottom_menu/BottomMenu';
+import { LocalMessageStorage } from '@utils/localMessageStorage';
+import type { Message } from '@/types/message';
 
 interface PastedImage {
   id: string;

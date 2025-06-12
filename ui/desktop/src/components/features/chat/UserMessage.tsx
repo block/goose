@@ -1,12 +1,12 @@
 import { useRef, useMemo } from 'react';
-import LinkPreview from './LinkPreview';
-import ImagePreview from './ImagePreview';
-import { extractUrls } from '../utils/urlUtils';
-import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
-import MarkdownContent from './MarkdownContent';
-import { Message, getTextContent } from '../types/message';
-import MessageCopyLink from './MessageCopyLink';
-import { formatMessageTimestamp } from '../utils/timeUtils';
+import LinkPreview from '@components/primitives/LinkPreview';
+import ImagePreview from '@components/primitives/ImagePreview';
+import { extractUrls } from '@/utils/urlUtils';
+import { extractImagePaths, removeImagePathsFromText } from '@/utils/imageUtils';
+import MarkdownContent from '@components/primitives/MarkdownContent';
+import { type Message, getTextContent } from '@/types/message';
+import MessageCopyLink from '@components/utils/MessageCopyLink';
+import { formatMessageTimestamp } from '@/utils/timeUtils';
 
 interface UserMessageProps {
   message: Message;
@@ -46,7 +46,7 @@ export default function UserMessage({ message }: UserMessageProps) {
           {/* Render images if any */}
           {imagePaths.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
-              {imagePaths.map((imagePath, index) => (
+              {imagePaths.map((imagePath: string, index: number) => (
                 <ImagePreview key={index} src={imagePath} alt={`Pasted image ${index + 1}`} />
               ))}
             </div>
@@ -65,7 +65,7 @@ export default function UserMessage({ message }: UserMessageProps) {
         {/* TODO(alexhancock): Re-enable link previews once styled well again */}
         {false && urls.length > 0 && (
           <div className="flex flex-wrap mt-2">
-            {urls.map((url, index) => (
+            {urls.map((url: string, index: number) => (
               <LinkPreview key={index} url={url} />
             ))}
           </div>

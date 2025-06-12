@@ -1,7 +1,7 @@
 /* global Blob, ClipboardItem */
 
 import React, { useState } from 'react';
-import { Copy } from './icons';
+import { Copy } from '../icons';
 
 interface MessageCopyLinkProps {
   text: string;

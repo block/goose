@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, ViewOptions } from '../../../App';
-import { useConfig } from '../../ConfigContext';
+import { View, ViewOptions } from '@/App';
+import { useConfig } from '@/components/context/ConfigContext';
 
 interface ToolSelectionStrategySectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;

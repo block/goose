@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
-import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
+import { useConfig, FixedExtensionEntry } from '../../context/ConfigContext';
 import ExtensionList from './subcomponents/ExtensionList';
 import ExtensionModal from './modal/ExtensionModal';
 import {

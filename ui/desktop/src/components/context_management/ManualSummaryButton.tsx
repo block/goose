@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollText } from 'lucide-react';
-import Modal from '../Modal';
+import Modal from '../primitives/Modal';
 import { Button } from '../ui/button';
 import { useChatContextManager } from './ChatContextManager';
 import { Message } from '../../types/message';

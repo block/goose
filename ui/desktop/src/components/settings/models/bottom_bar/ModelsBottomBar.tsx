@@ -1,9 +1,9 @@
 import { Sliders } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
+import { useModelAndProvider } from '@/components/context/ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
-import { View } from '../../../../App';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../ui/Tooltip';
+import { View } from '@/App';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/Tooltip';
 
 interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;

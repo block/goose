@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../context/ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
-import WelcomeGooseLogo from '../../WelcomeGooseLogo';
+import WelcomeGooseLogo from '../../brand/WelcomeGooseLogo';
 import { toastService } from '../../../toasts';
 import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 

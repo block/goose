@@ -1,20 +1,20 @@
 import React from 'react';
 import { MessageSquare, AlertCircle } from 'lucide-react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
-import { ScrollArea } from '../ui/scroll-area';
-import MarkdownContent from '../MarkdownContent';
-import ToolCallWithResponse from '../ToolCallWithResponse';
-import ImagePreview from '../ImagePreview';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import BackButton from '@/components/ui/BackButton';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import MarkdownContent from '@/components/primitives/MarkdownContent';
+import ToolCallWithResponse from '@/components/features/tools/ToolCallWithResponse';
+import ImagePreview from '@/components/primitives/ImagePreview';
 import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   TextContent,
-} from '../../types/message';
-import { type Message } from '../../types/message';
-import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
+  type Message,
+} from '@/types/message';
+import { formatMessageTimestamp } from '@/utils/timeUtils';
+import { extractImagePaths, removeImagePathsFromText } from '@/utils/imageUtils';
 
 /**
  * Get tool responses map from messages

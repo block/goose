@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import { toastInfo } from '../../../../toasts';
+import { useModelAndProvider } from '@/components/context/ModelAndProviderContext';
+import { toastInfo } from '@/toasts';
 
 interface ModelRadioListProps {
   renderItem: (props: {

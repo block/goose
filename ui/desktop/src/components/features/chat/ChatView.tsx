@@ -1,30 +1,30 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { getApiUrl } from '../config';
-import FlappyGoose from './FlappyGoose';
+import { getApiUrl } from '@/config';
+import FlappyGoose from '@components/brand/FlappyGoose';
 import GooseMessage from './GooseMessage';
 import ChatInput from './ChatInput';
-import { type View, ViewOptions } from '../App';
-import LoadingGoose from './LoadingGoose';
-import MoreMenuLayout from './more_menu/MoreMenuLayout';
-import { Card } from './ui/card';
-import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
+import { type View, ViewOptions } from '@/App';
+import LoadingGoose from '@components/brand/LoadingGoose';
+import MoreMenuLayout from '@components/more_menu/MoreMenuLayout';
+import { Card } from '@ui/card';
+import { ScrollArea, ScrollAreaHandle } from '@ui/scroll-area';
 import UserMessage from './UserMessage';
-import Splash from './Splash';
-import { SearchView } from './conversation/SearchView';
-import { createRecipe } from '../recipe';
-import { AgentHeader } from './AgentHeader';
-import LayingEggLoader from './LayingEggLoader';
-import { fetchSessionDetails, generateSessionId } from '../sessions';
+import Splash from '@components/utils/Splash';
+import { SearchView } from '@components/conversation/SearchView';
+import { createRecipe } from '@/recipe';
+import { AgentHeader } from '@components/utils/AgentHeader';
+import LayingEggLoader from '@components/brand/LayingEggLoader';
+import { fetchSessionDetails, generateSessionId } from '@/sessions';
 import 'react-toastify/dist/ReactToastify.css';
-import { useMessageStream } from '../hooks/useMessageStream';
-import { SessionSummaryModal } from './context_management/SessionSummaryModal';
-import { Recipe } from '../recipe';
+import { useMessageStream } from '@/hooks/useMessageStream';
+import { SessionSummaryModal } from '@components/context_management/SessionSummaryModal';
+import { Recipe } from '@/recipe';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
-} from './context_management/ChatContextManager';
-import { ContextHandler } from './context_management/ContextHandler';
-import { LocalMessageStorage } from '../utils/localMessageStorage';
+} from '@components/context_management/ChatContextManager';
+import { ContextHandler } from '@components/context_management/ContextHandler';
+import { LocalMessageStorage } from '@/utils/localMessageStorage';
 import {
   Message,
   createUserMessage,
@@ -35,7 +35,7 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
   TextContent,
-} from '../types/message';
+} from '@/types/message';
 
 export interface ChatType {
   id: string;

@@ -15,7 +15,7 @@ export function nameToKey(name: string): string {
     .toLowerCase();
 }
 
-import { FixedExtensionEntry } from '../../ConfigContext';
+import { FixedExtensionEntry } from '../../context/ConfigContext';
 import { ExtensionConfig } from '../../../api/types.gen';
 
 export interface ExtensionFormData {

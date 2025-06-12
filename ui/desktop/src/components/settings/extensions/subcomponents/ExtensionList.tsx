@@ -1,4 +1,4 @@
-import { FixedExtensionEntry } from '../../../ConfigContext';
+import { FixedExtensionEntry } from '../../../context/ConfigContext';
 import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';

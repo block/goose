@@ -5,12 +5,12 @@ import {
   initializeBundledExtensions,
   syncBundledExtensions,
   addToAgentOnStartup,
-} from '../components/settings/extensions';
-import { extractExtensionConfig } from '../components/settings/extensions/utils';
-import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
+} from '@/components/settings/extensions';
+import { extractExtensionConfig } from '@/components/settings/extensions/utils';
+import type { ExtensionConfig, FixedExtensionEntry } from '@/components/context/ConfigContext';
 // TODO: remove when removing migration logic
-import { toastService } from '../toasts';
-import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
+import { toastService } from '@/toasts';
+import { ExtensionQuery, addExtension as apiAddExtension } from '@/api';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")

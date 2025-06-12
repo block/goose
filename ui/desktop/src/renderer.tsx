@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import { ConfigProvider } from './components/ConfigContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ConfigProvider } from './components/context/ConfigContext';
+import { ErrorBoundary } from './components/error/ErrorBoundary';
 import { patchConsoleLogging } from './utils';
 import SuspenseLoader from './suspense-loader';
 

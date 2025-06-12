@@ -1,4 +1,4 @@
-import {
+import type {
   Message as FrontendMessage,
   Content as FrontendContent,
   MessageContent as FrontendMessageContent,

@@ -1,8 +1,173 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* Cash Sans */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --shadow-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-neutral-100: #f0f2f8;
+  --color-neutral-200: #ccd2dd;
+  --color-neutral-300: #a1a7b0;
+  --color-neutral-400: #6e747e;
+  --color-neutral-500: #32353b;
+  --color-neutral-600: #19191b;
+
+  --color-red-100: #ff6b6b;
+  --color-red-200: #f94b4b;
+
+  --color-blue-100: #7cacff;
+  --color-blue-200: #5c98f9;
+
+  --color-green-100: #a3d795;
+  --color-green-200: #91cb80;
+
+  --color-yellow-100: #ffd966;
+  --color-yellow-200: #fbcd44;
+
+  --color-accent: var(--color-neutral-600);
+}
+
+:root {
+  /* fonts */
+  --font-sans: 'Cash Sans', sans-serif;
+  --font-mono: 'Cash Sans Mono', monospace;
+
+  /* theming accents */
+  --background-accent: var(--color-accent);
+  --border-accent: var(--color-accent);
+  --text-accent: var(--color-accent);
+  --text-on-accent: var(--color-white);
+
+  /* Semantic */
+  --background-app: var(--color-white);
+  --background-default: var(--color-white);
+  --background-medium: var(--color-neutral-200);
+  --background-muted: var(--color-neutral-100);
+  --background-inverse: var(--color-black);
+  --background-danger: var(--color-red-200);
+  --background-success: var(--color-green-200);
+  --background-info: var(--color-blue-200);
+  --background-warning: var(--color-yellow-200);
+
+  --border-default: var(--color-neutral-200);
+  --border-input: var(--color-neutral-200);
+  --border-strong: var(--color-neutral-300);
+  --border-danger: var(--color-red-200);
+  --border-success: var(--color-green-200);
+  --border-warning: var(--color-yellow-200);
+  --border-info: var(--color-blue-200);
+
+  --text-default: var(--color-neutral-600);
+  --text-muted: var(--color-neutral-400);
+  --text-inverse: var(--color-white);
+  --text-danger: var(--color-red-200);
+  --text-success: var(--color-green-200);
+  --text-warning: var(--color-yellow-200);
+  --text-info: var(--color-blue-200);
+
+  --ring: var(--border-strong);
+
+  /* custom shadow */
+
+  --shadow-default:
+    0px 12px 32px 0px rgba(0, 0, 0, 0.04), 0px 8px 16px 0px rgba(0, 0, 0, 0.02),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.04), 0px 0px 1px 0px rgba(0, 0, 0, 0.2);
+}
+
+.dark {
+  /* theming accents */
+  --background-accent: var(--color-white);
+  --border-accent: var(--color-white);
+  --text-accent: var(--color-white);
+  --text-on-accent: var(--color-black);
+
+  /* semantic */
+  --background-app: var(--color-neutral-600);
+  --background-default: var(--color-neutral-600);
+  --background-medium: var(--color-neutral-500);
+  --background-muted: var(--color-neutral-400);
+  --background-danger: var(--color-red-100);
+  --background-success: var(--color-green-100);
+  --background-info: var(--color-blue-100);
+  --background-warning: var(--color-yellow-100);
+
+  --border-default: var(--color-neutral-500);
+  --border-input: var(--color-neutral-500);
+  --border-strong: var(--color-neutral-200);
+  --border-danger: var(--color-red-100);
+  --border-success: var(--color-green-100);
+  --border-warning: var(--color-yellow-100);
+  --border-info: var(--color-blue-100);
+
+  --text-default: var(--color-white);
+  --text-muted: var(--color-neutral-300);
+  --text-inverse: var(--color-black);
+  --text-danger: var(--color-red-100);
+  --text-success: var(--color-green-100);
+  --text-warning: var(--color-yellow-100);
+  --text-info: var(--color-blue-100);
+
+  --ring: var(--border-strong);
+
+  --shadow-default:
+    0px 12px 32px 0px rgba(0, 0, 0, 0.2), 0px 8px 16px 0px rgba(0, 0, 0, 0.15),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 0px 1px 0px rgba(0, 0, 0, 0.3);
+}
+
+@theme inline {
+  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
+
+  --color-background-default: var(--background-default);
+  --color-background-medium: var(--background-medium);
+  --color-background-inverse: var(--background-inverse);
+  --color-background-muted: var(--background-muted);
+  --color-background-danger: var(--background-danger);
+  --color-background-success: var(--background-success);
+  --color-background-info: var(--background-info);
+  --color-background-warning: var(--background-warning);
+
+  --color-background-accent: var(--background-accent);
+  --color-border-accent: var(--border-accent);
+  --color-text-accent: var(--text-accent);
+  --color-text-on-accent: var(--text-on-accent);
+
+  --color-border-default: var(--border-default);
+  --color-border-input: var(--border-input);
+  --color-border-strong: var(--border-strong);
+  --color-border-danger: var(--border-danger);
+  --color-border-success: var(--border-success);
+  --color-border-warning: var(--border-warning);
+  --color-border-info: var(--border-info);
+
+  --color-text-default: var(--text-default);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-danger: var(--text-danger);
+  --color-text-success: var(--text-success);
+  --color-text-warning: var(--text-warning);
+  --color-text-info: var(--text-info);
+
+  /* fonts */
+  --font-sans: 'Cash Sans', sans-serif;
+  --font-mono: 'Cash Sans Mono', monospace;
+  --font-serif: serif;
+
+  /* shape */
+  /* --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px); */
+
+  --color-ring: var(--ring);
+
+  --shadow-default: var(--shadow-default);
+}
 
 @font-face {
   font-family: 'Cash Sans';
@@ -36,275 +201,300 @@
   font-style: normal;
 }
 
-@layer base {
-  :root {
-    --spring-easing: linear(
-      0,
-      0.009,
-      0.035 2.1%,
-      0.141,
-      0.281 6.7%,
-      0.723 12.9%,
-      0.938 16.7%,
-      1.017,
-      1.077,
-      1.121,
-      1.149 24.3%,
-      1.159,
-      1.163,
-      1.161,
-      1.154 29.9%,
-      1.129 32.8%,
-      1.051 39.6%,
-      1.017 43.1%,
-      0.991,
-      0.977 51%,
-      0.974 53.8%,
-      0.975 57.1%,
-      0.997 69.8%,
-      1.003 76.9%,
-      1.004 83.8%,
-      1
-    );
-    --spring-duration: 1.333s;
+/* @theme {
+  --slate: #393838;
 
-    /* custom slate */
-    --slate: #393838;
+  --block-teal: #13bbaf;
+  --block-orange: #ff4f00;
 
-    /* block */
-    --block-teal: #13bbaf;
-    --block-orange: #ff4f00;
+  --constant-white: #ffffff;
+  --constant-black: #000000;
+  --grey-10: #101010;
+  --grey-20: #1e1e1e;
+  --grey-50: #666666;
+  --grey-60: #959595;
+  --grey-80: #cccccc;
+  --grey-85: #dadada;
+  --grey-90: #e8e8e8;
+  --grey-95: #f0f0f0;
+  --dark-grey-15: #1a1a1a;
+  --dark-grey-25: #232323;
+  --dark-grey-30: #2a2a2a;
+  --dark-grey-40: #333333;
+  --dark-grey-45: #595959;
+  --dark-grey-60: #878787;
+  --dark-grey-90: #e1e1e1;
+} */
 
-    /* start arcade colors */
-    --constant-white: #ffffff;
-    --constant-black: #000000;
-    --grey-10: #101010;
-    --grey-20: #1e1e1e;
-    --grey-50: #666666;
-    --grey-60: #959595;
-    --grey-80: #cccccc;
-    --grey-85: #dadada;
-    --grey-90: #e8e8e8;
-    --grey-95: #f0f0f0;
-    --dark-grey-15: #1a1a1a;
-    --dark-grey-25: #232323;
-    --dark-grey-30: #2a2a2a;
-    --dark-grey-40: #333333;
-    --dark-grey-45: #595959;
-    --dark-grey-60: #878787;
-    --dark-grey-90: #e1e1e1;
+/* :root {
+  --spring-easing: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141,
+    0.281 6.7%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017,
+    1.077,
+    1.121,
+    1.149 24.3%,
+    1.159,
+    1.163,
+    1.161,
+    1.154 29.9%,
+    1.129 32.8%,
+    1.051 39.6%,
+    1.017 43.1%,
+    0.991,
+    0.977 51%,
+    0.974 53.8%,
+    0.975 57.1%,
+    0.997 69.8%,
+    1.003 76.9%,
+    1.004 83.8%,
+    1
+  );
+  --spring-duration: 1.333s;
 
-    --background-app: var(--constant-white);
-    --background-prominent: var(--grey-80);
-    --background-standard: var(--grey-90);
-    --background-subtle: var(--grey-95);
-    --background-app-inverse: var(--constant-black);
-    --background-subtle-inverse: var(--dark-grey-15);
-    --background-standard-inverse: var(--dark-grey-25);
-    --background-prominent-inverse: var(--dark-grey-40);
+  --background-app: var(--constant-white);
+  --background-prominent: var(--grey-80);
+  --background-standard: var(--grey-90);
+  --background-subtle: var(--grey-95);
+  --background-app-inverse: var(--constant-black);
+  --background-subtle-inverse: var(--dark-grey-15);
+  --background-standard-inverse: var(--dark-grey-25);
+  --background-prominent-inverse: var(--dark-grey-40);
 
-    --border-divider: var(--grey-90);
-    --border-inverse: var(--constant-white);
-    --border-prominent: var(--grey-10);
-    --border-standard: var(--grey-60);
-    --border-subtle: var(--grey-90);
+  --border-divider: var(--grey-90);
+  --border-inverse: var(--constant-white);
+  --border-prominent: var(--grey-10);
+  --border-standard: var(--grey-60);
+  --border-subtle: var(--grey-90);
 
-    --icon-disabled: var(--grey-60);
-    --icon-extra-subtle: var(--grey-60);
-    --icon-inverse: var(--constant-white);
-    --icon-prominent: var(--grey-10);
-    --icon-standard: var(--grey-20);
-    --icon-subtle: var(--grey-50);
+  --icon-disabled: var(--grey-60);
+  --icon-extra-subtle: var(--grey-60);
+  --icon-inverse: var(--constant-white);
+  --icon-prominent: var(--grey-10);
+  --icon-standard: var(--grey-20);
+  --icon-subtle: var(--grey-50);
 
-    --text-placeholder: var(--grey-60);
-    --text-prominent: var(--grey-10);
-    --text-standard: var(--grey-20);
-    --text-standard-inverse: var(--dark-grey-90);
-    --text-subtle: var(--grey-50);
-    --text-subtle-inverse: var(--dark-grey-60);
-    --text-prominent-inverse: var(--constant-white);
-
-    &.dark {
-      --background-app: var(--constant-black);
-      --background-prominent: var(--dark-grey-40);
-      --background-standard: var(--dark-grey-25);
-      --background-subtle: var(--dark-grey-15);
-      --background-app-inverse: var(--constant-white);
-      --background-subtle-inverse: var(--grey-95);
-      --background-standard-inverse: var(--grey-90);
-      --background-prominent-inverse: var(--grey-80);
-
-      --border-divider: var(--dark-grey-25);
-      --border-inverse: var(--constant-black);
-      --border-prominent: var(--constant-white);
-      --border-standard: var(--dark-grey-45);
-      --border-subtle: var(--dark-grey-25);
-
-      --icon-disabled: var(--dark-grey-45);
-      --icon-extra-subtle: var(--dark-grey-45);
-      --icon-inverse: var(--constant-black);
-      --icon-prominent: var(--constant-white);
-      --icon-standard: var(--dark-grey-90);
-      --icon-subtle: var(--dark-grey-60);
-
-      --text-placeholder: var(--dark-grey-45);
-      --text-prominent: var(--constant-white);
-      --text-standard: var(--dark-grey-90);
-      --text-standard-inverse: var(--grey-20);
-      --text-subtle: var(--dark-grey-60);
-      --text-subtle-inverse: var(--grey-50);
-      --text-prominent-inverse: var(--grey-20);
-    }
-    /* end arcade colors */
-
-    /* Force scrollbars to be visible */
-    [data-radix-scroll-area-viewport] {
-      scrollbar-width: auto !important;
-      -ms-overflow-style: auto !important;
-    }
-
-    /* Override Radix UI ScrollArea styles */
-    [data-radix-scroll-area-viewport] > div {
-      display: block !important;
-    }
-
-    /* Native scrollbar styling */
-    * {
-      scrollbar-width: auto;
-      scrollbar-color: var(--grey-80) transparent;
-    }
-
-    .dark * {
-      scrollbar-color: var(--dark-grey-45) transparent;
-    }
-
-    /* Webkit scrollbar styles */
-    ::-webkit-scrollbar {
-      -webkit-appearance: none;
-      width: 12px; /* Increased from 8px */
-      height: 12px;
-      background-color: transparent;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-      border-radius: 0;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background-color: var(--grey-80);
-      border: 3px solid transparent; /* Creates padding effect */
-      border-radius: 8px;
-      background-clip: padding-box;
-      min-height: 40px; /* Minimum height of thumb */
-    }
-
-    .dark ::-webkit-scrollbar-thumb {
-      background-color: var(--dark-grey-45);
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background-color: var(--grey-60);
-      border: 2px solid transparent; /* Slightly less padding on hover */
-    }
-
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background-color: var(--dark-grey-60);
-    }
-
-    /* Ensure the thumb is more prominent when active */
-    ::-webkit-scrollbar-thumb:active {
-      background-color: var(--grey-50);
-      border: 2px solid transparent;
-    }
-
-    .dark ::-webkit-scrollbar-thumb:active {
-      background-color: var(--dark-grey-60);
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--grey-80);
-      border-radius: 4px;
-    }
-
-    .dark ::-webkit-scrollbar-thumb {
-      background: var(--dark-grey-45);
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--grey-60);
-    }
-
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background: var(--dark-grey-60);
-    }
-  }
-
-  body {
-    background-color: var(--background-app);
-  }
+  --text-placeholder: var(--grey-60);
+  --text-prominent: var(--grey-10);
+  --text-standard: var(--grey-20);
+  --text-standard-inverse: var(--dark-grey-90);
+  --text-subtle: var(--grey-50);
+  --text-subtle-inverse: var(--dark-grey-60);
+  --text-prominent-inverse: var(--constant-white);
 }
 
-@layer components {
-  /* Tailwind doesn't offer all three with break-words */
-  .word-break {
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    word-break: break-word;
-  }
+.dark {
+  --background-app: var(--constant-black);
+  --background-prominent: var(--dark-grey-40);
+  --background-standard: var(--dark-grey-25);
+  --background-subtle: var(--dark-grey-15);
+  --background-app-inverse: var(--constant-white);
+  --background-subtle-inverse: var(--grey-95);
+  --background-standard-inverse: var(--grey-90);
+  --background-prominent-inverse: var(--grey-80);
 
-  .titlebar-drag-region {
-    -webkit-app-region: drag;
-    height: 32px;
-    width: 100%;
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 50;
-  }
+  --border-divider: var(--dark-grey-25);
+  --border-inverse: var(--constant-black);
+  --border-prominent: var(--constant-white);
+  --border-standard: var(--dark-grey-45);
+  --border-subtle: var(--dark-grey-25);
 
-  .no-drag {
-    -webkit-app-region: no-drag;
-  }
+  --icon-disabled: var(--dark-grey-45);
+  --icon-extra-subtle: var(--dark-grey-45);
+  --icon-inverse: var(--constant-black);
+  --icon-prominent: var(--constant-white);
+  --icon-standard: var(--dark-grey-90);
+  --icon-subtle: var(--dark-grey-60);
 
-  .bg-inline-code {
-    border-radius: 4px;
-    color: var(--grey-80);
-    font-family: 'Cash Sans Mono', monospace;
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: normal;
-  }
+  --text-placeholder: var(--dark-grey-45);
+  --text-prominent: var(--constant-white);
+  --text-standard: var(--dark-grey-90);
+  --text-standard-inverse: var(--grey-20);
+  --text-subtle: var(--dark-grey-60);
+  --text-subtle-inverse: var(--grey-50);
+  --text-prominent-inverse: var(--grey-20);
+}
 
-  .bg-inline-code:before {
-    content: '';
-  }
+@theme inline {
+  --color-background-app: var(--background-app);
+  --color-background-prominent: var(--background-prominent);
+  --color-background-standard: var(--background-standard);
+  --color-background-subtle: var(--background-subtle);
+  --color-background-app-inverse: var(--background-app-inverse);
+  --color-background-subtle-inverse: var(--background-subtle-inverse);
+  --color-background-standard-inverse: var(--background-standard-inverse);
+  --color-background-prominent-inverse: var(--background-prominent-inverse);
 
-  pre:has(> code.bg-inline-code) {
-    padding: 1em;
-  }
+  --color-border-divider: var(--border-divider);
+  --color-border-inverse: var(--border-inverse);
+  --color-border-prominent: var(--border-prominent);
+  --color-border-standard: var(--border-standard);
+  --color-border-subtle: var(--border-subtle);
 
-  li > code.bg-inline-code,
-  p > code.bg-inline-code {
-    color: var(--block-orange);
-    padding: 2px 4px;
-  }
+  --color-icon-disabled: var(--icon-disabled);
+  --color-icon-extra-subtle: var(--icon-extra-subtle);
+  --color-icon-inverse: var(--icon-inverse);
+  --color-icon-prominent: var(--icon-prominent);
+  --color-icon-standard: var(--icon-standard);
+  --color-icon-subtle: var(--icon-subtle);
 
-  .bg-inline-code:after {
-    content: '';
-  }
+  --color-text-placeholder: var(--text-placeholder);
+  --color-text-prominent: var(--text-prominent);
+  --color-text-standard: var(--text-standard);
+  --color-text-standard-inverse: var(--text-standard-inverse);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-subtle-inverse: var(--text-subtle-inverse);
+  --color-text-prominent-inverse: var(--text-prominent-inverse);
+} */
 
-  .user-message p {
-    margin-bottom: 0 !important;
-  }
+/* Force scrollbars to be visible */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: auto !important;
+  -ms-overflow-style: auto !important;
+}
 
-  .scrollbar-thin {
-    scrollbar-width: thin;
-  }
+/* Override Radix UI ScrollArea styles */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+}
+
+/* Native scrollbar styling */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--grey-80) transparent;
+}
+
+.dark * {
+  scrollbar-color: var(--dark-grey-45) transparent;
+}
+
+/* Webkit scrollbar styles */
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 12px; /* Increased from 8px */
+  height: 12px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--grey-80);
+  border: 3px solid transparent; /* Creates padding effect */
+  border-radius: 8px;
+  background-clip: padding-box;
+  min-height: 40px; /* Minimum height of thumb */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: var(--dark-grey-45);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--grey-60);
+  border: 2px solid transparent; /* Slightly less padding on hover */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--dark-grey-60);
+}
+
+/* Ensure the thumb is more prominent when active */
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--grey-50);
+  border: 2px solid transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+  background-color: var(--dark-grey-60);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--grey-80);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--dark-grey-45);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--grey-60);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--dark-grey-60);
+}
+
+body {
+  background-color: var(--background-app);
+}
+
+.word-break {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  height: 32px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.bg-inline-code {
+  border-radius: 4px;
+  color: var(--grey-80);
+  font-family: 'Cash Sans Mono', monospace;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+}
+
+.bg-inline-code:before {
+  content: '';
+}
+
+pre:has(> code.bg-inline-code) {
+  padding: 1em;
+}
+
+li > code.bg-inline-code,
+p > code.bg-inline-code {
+  color: var(--block-orange);
+  padding: 2px 4px;
+}
+
+.bg-inline-code:after {
+  content: '';
+}
+
+.user-message p {
+  margin-bottom: 0 !important;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
 }

@@ -1,5 +1,5 @@
 import { SyntheticEvent } from 'react';
-import { Button } from '../../../../ui/button';
+import { Button } from '@/components/ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface ProviderSetupActionsProps {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Check } from './icons';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import { Check } from '../icons';
 
 const Modal = ({ children }: { children: React.ReactNode }) => (
   <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] z-[1000]">

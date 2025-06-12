@@ -8,8 +8,8 @@ import {
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
   providers,
-} from '../api';
-import { client } from '../api/client.gen';
+} from '../../api';
+import { client } from '../../api/client.gen';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
@@ -18,10 +18,10 @@ import type {
   ProviderDetails,
   ExtensionQuery,
   ExtensionConfig,
-} from '../api/types.gen';
-import { removeShims } from './settings/extensions/utils';
+} from '@/api/types.gen';
+import { removeShims } from '../settings/extensions/utils';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '@/api/types.gen';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {

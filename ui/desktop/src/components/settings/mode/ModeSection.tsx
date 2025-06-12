@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
-import { View, ViewOptions } from '../../../App';
-import { useConfig } from '../../ConfigContext';
+import { View, ViewOptions } from '@/App';
+import { useConfig } from '@/components/context/ConfigContext';
 
 interface ModeSectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;

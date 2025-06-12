@@ -5,8 +5,8 @@ import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import type { View, ViewOptions } from '../../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
-import { useConfig } from '../ConfigContext';
-import { useModelAndProvider } from '../ModelAndProviderContext';
+import { useConfig } from '../context/ConfigContext';
+import { useModelAndProvider } from '../context/ModelAndProviderContext';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
