@@ -127,13 +127,19 @@ impl TemporalScheduler {
         if let Ok(port_str) = std::env::var("PORT") {
             if let Ok(port) = port_str.parse::<u16>() {
                 if Self::is_temporal_service_running(http_client, port).await {
-                    info!("Found running Temporal service on PORT environment variable: {}", port);
+                    info!(
+                        "Found running Temporal service on PORT environment variable: {}",
+                        port
+                    );
                     return Ok(port);
                 } else if Self::is_port_free(port).await {
                     info!("Using PORT environment variable for new service: {}", port);
                     return Ok(port);
                 } else {
-                    warn!("PORT environment variable {} is occupied by non-Temporal service", port);
+                    warn!(
+                        "PORT environment variable {} is occupied by non-Temporal service",
+                        port
+                    );
                 }
             }
         }
@@ -148,7 +154,7 @@ impl TemporalScheduler {
 
         // If no existing service found, find a free port to start a new one
         info!("No existing Temporal service found, finding free port to start new service");
-        
+
         for &port in DEFAULT_HTTP_PORTS {
             if Self::is_port_free(port).await {
                 info!("Found free port {} for new Temporal service", port);
@@ -172,7 +178,7 @@ impl TemporalScheduler {
     /// Check if a Temporal service is running and responding on the given port
     async fn is_temporal_service_running(http_client: &Client, port: u16) -> bool {
         let health_url = format!("http://127.0.0.1:{}/health", port);
-        
+
         match http_client
             .get(&health_url)
             .timeout(Duration::from_millis(1000))
@@ -184,7 +190,11 @@ impl TemporalScheduler {
                 true
             }
             Ok(response) => {
-                info!("Port {} is responding but not a healthy Temporal service (status: {})", port, response.status());
+                info!(
+                    "Port {} is responding but not a healthy Temporal service (status: {})",
+                    port,
+                    response.status()
+                );
                 false
             }
             Err(_) => {
@@ -756,7 +766,11 @@ impl TemporalScheduler {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to get status from Temporal service for job '{}': {}", job.id, e);
+                        tracing::warn!(
+                            "Failed to get status from Temporal service for job '{}': {}",
+                            job.id,
+                            e
+                        );
                         // Fall back to session-based checking if Temporal service is unavailable
                     }
                 }
