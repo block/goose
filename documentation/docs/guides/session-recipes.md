@@ -167,6 +167,12 @@ Validation ensures that:
       - Paste it into your browser's address bar
       - You will see a prompt to "Open Goose"
       - Goose Desktop will open with the recipe
+
+  :::note Privacy & Isolation
+  - Each person gets their own private session
+  - No data is shared between users
+  - Your session won't affect the original recipe creator's session
+  :::
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
@@ -323,15 +329,27 @@ Validation ensures that:
 
      </TabItem>
    </Tabs>
+  :::note Privacy & Isolation
+  - Each person gets their own private session
+  - No data is shared between users
+  - Your session won't affect the original recipe creator's session
+  :::
+
+  ### Schedule a Recipe
+  Automate Goose recipes by running them on a schedule.
+
+  **Create a schedule** - Create a scheduled cron job that runs the recipe on the specified cadence. 
+
+  ```bash
+  # Add a new scheduled recipe which runs every day at 9 AM
+  goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+  ```
+  The [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) follows the format "seconds minutes hours day-of-month month day-of-week".
+
+  See the [`schedule` command documentation](/docs/guides/goose-cli-commands#schedule) for detailed examples and options.
 
    </TabItem>
 </Tabs>
-
-:::note Privacy & Isolation
-- Each person gets their own private session
-- No data is shared between users
-- Your session won't affect the original recipe creator's session
-:::
 
 ## Core Components
 
