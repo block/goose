@@ -452,7 +452,12 @@ After selecting a project, you'll be asked to either:
 ---
 ### web
 
-Start a web-based chat interface for interacting with Goose. This feature provides a lightweight GUI option for CLI users.
+Start a new session in Goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
+
+Goose Web is particularly useful when:
+- You want to access Goose with a graphical interface without installing the desktop app
+- You need to use Goose from different devices, including mobile
+- You're working in an environment where installing desktop apps isn't practical
 
 **Usage:**
 ```bash
@@ -471,7 +476,22 @@ goose web --open
 
 # Start web interface at `http://127.0.0.1:8080` 
 goose web --port 8080
+
+# Start web interface accessible from local network at `http://192.168.1.7:8080`
+goose web --host 192.168.1.7 --port 8080
 ```
+
+**Limitations:**
+
+While the web interface provides most core features, be aware of these limitations:
+- Some file system operations may require additional confirmation
+- Extension management must be done through the CLI
+- Certain tool interactions might need extra setup
+- Configuration changes require a server restart
+
+:::warning
+Don't expose the web interface to the internet without proper security measures.
+:::
 
 :::info
 Use `Ctrl-C` to stop the server.
