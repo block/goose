@@ -332,7 +332,9 @@ goose configure
 5. Enter the host where your model is running
 
 :::info Endpoint
-For Ollama, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. If you're running Ollama on port 80 or 443, you'll have to set `OLLMA_HOST=http://host:{port}`
+For Ollama, if you don't provide a host, we set it to `localhost:11434`. 
+When constructing the URL, we prepend `http://` if the scheme is not `http` or `https`. 
+If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=http://{host}:{port}`.
 :::
 
 ```
