@@ -88,7 +88,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", model);
+        tracing::info!("🤖 Using model: {}", model_name);
     }
 
     agent
