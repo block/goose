@@ -181,6 +181,12 @@ impl Usage {
 
 use async_trait::async_trait;
 
+/// Trait for LeadWorkerProvider-specific functionality
+pub trait LeadWorkerProviderTrait {
+    /// Get information about the lead and worker models for logging
+    fn get_model_info(&self) -> (String, String);
+}
+
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
@@ -227,6 +233,12 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
+    }
+
+    /// Check if this provider is a LeadWorkerProvider
+    /// This is used for logging model information at startup
+    fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
+        None
     }
 
     async fn stream(

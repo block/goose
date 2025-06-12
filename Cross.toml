@@ -1,11 +1,4 @@
 # Configuration for cross-compiling using cross
-[build.env]
-passthrough = [
-    "PROTOC",
-    "RUST_LOG",
-    "RUST_BACKTRACE"
-]
-
 [target.aarch64-unknown-linux-gnu]
 xargo = false
 pre-build = [
@@ -51,13 +44,10 @@ pre-build = [
     protoc --version
     """
 ]
-env = { "PROTOC" = "/usr/bin/protoc", "PATH" = "/usr/local/bin:${PATH}" }
 
 [target.x86_64-pc-windows-gnu]
-image = "dockcross/windows-static-x64:latest"
-# Enable verbose output for Windows builds
-build-std = true
-env = { "RUST_LOG" = "debug", "RUST_BACKTRACE" = "1", "CROSS_VERBOSE" = "1" }
+image = "ghcr.io/cross-rs/x86_64-pc-windows-gnu:latest"
+env = { "RUST_LOG" = "debug", "RUST_BACKTRACE" = "1", "CROSS_VERBOSE" = "1", "PKG_CONFIG_ALLOW_CROSS" = "1" }
 pre-build = [
     """\
     apt-get update && apt-get install -y \

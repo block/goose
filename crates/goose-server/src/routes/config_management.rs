@@ -472,7 +472,7 @@ mod tests {
             .unwrap()
             .data_dir()
             .join("schedules.json");
-        let sched = goose::scheduler::Scheduler::new(sched_storage_path)
+        let sched = goose::scheduler_factory::SchedulerFactory::create_legacy(sched_storage_path)
             .await
             .unwrap();
         test_state.set_scheduler(sched).await;

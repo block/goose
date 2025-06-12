@@ -23,7 +23,6 @@ export function ConfirmationModal({
     <BaseModal
       isOpen={isOpen}
       title={title}
-      onClose={onCancel}
       actions={
         <>
           <button

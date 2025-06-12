@@ -218,7 +218,7 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
 
 export function getToolConfirmationContent(
   message: Message
-): ToolConfirmationRequestMessageContent {
+): ToolConfirmationRequestMessageContent | undefined {
   return message.content.find(
     (content): content is ToolConfirmationRequestMessageContent =>
       content.type === 'toolConfirmationRequest'

@@ -24,6 +24,17 @@ const CustomRadio = ({
   secondaryLabel = null,
   rightContent = null,
   className = '',
+}: {
+  id: string;
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  label?: React.ReactNode;
+  secondaryLabel?: React.ReactNode;
+  rightContent?: React.ReactNode;
+  className?: string;
 }) => {
   return (
     <label

@@ -11,7 +11,8 @@ use crate::commands::project::{handle_project_default, handle_projects_interacti
 use crate::commands::recipe::{handle_deeplink, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
-    handle_schedule_add, handle_schedule_list, handle_schedule_remove, handle_schedule_run_now,
+    handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
+    handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
@@ -34,7 +35,7 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 #[group(required = false, multiple = false)]
 struct Identifier {
     #[arg(
@@ -102,6 +103,19 @@ enum SessionCommand {
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
     },
+    #[command(about = "Export a session to Markdown format")]
+    Export {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
+
+        #[arg(
+            short,
+            long,
+            help = "Output file path (default: stdout)",
+            long_help = "Path to save the exported Markdown. If not provided, output will be sent to stdout"
+        )]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -110,7 +124,11 @@ enum SchedulerCommand {
     Add {
         #[arg(long, help = "Unique ID for the job")]
         id: String,
-        #[arg(long, help = "Cron string for the schedule (e.g., '0 0 * * * *')")]
+        #[arg(
+            long,
+            help = "Cron expression for the schedule",
+            long_help = "Cron expression for when to run the job. Examples:\n  '0 * * * *'     - Every hour at minute 0\n  '0 */2 * * *'   - Every 2 hours\n  '@hourly'       - Every hour (shorthand)\n  '0 9 * * *'     - Every day at 9:00 AM\n  '0 9 * * 1'     - Every Monday at 9:00 AM\n  '0 0 1 * *'     - First day of every month at midnight"
+        )]
         cron: String,
         #[arg(
             long,
@@ -142,6 +160,15 @@ enum SchedulerCommand {
         #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
         id: String,
     },
+    /// Check status of Temporal services (temporal scheduler only)
+    #[command(about = "Check status of Temporal services")]
+    ServicesStatus {},
+    /// Stop Temporal services (temporal scheduler only)
+    #[command(about = "Stop Temporal services")]
+    ServicesStop {},
+    /// Show cron expression examples and help
+    #[command(about = "Show cron expression examples and help")]
+    CronHelp {},
 }
 
 #[derive(Subcommand)]
@@ -491,6 +518,31 @@ enum Command {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
+
+    /// Start a web server with a chat interface
+    #[command(about = "Start a web server with a chat interface", hide = true)]
+    Web {
+        /// Port to run the web server on
+        #[arg(
+            short,
+            long,
+            default_value = "3000",
+            help = "Port to run the web server on"
+        )]
+        port: u16,
+
+        /// Host to bind the web server to
+        #[arg(
+            long,
+            default_value = "127.0.0.1",
+            help = "Host to bind the web server to"
+        )]
+        host: String,
+
+        /// Open browser automatically
+        #[arg(long, help = "Open browser automatically when server starts")]
+        open: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -550,6 +602,23 @@ pub async fn cli() -> Result<()> {
                     handle_session_remove(id, regex)?;
                     return Ok(());
                 }
+                Some(SessionCommand::Export { identifier, output }) => {
+                    let session_identifier = if let Some(id) = identifier {
+                        extract_identifier(id)
+                    } else {
+                        // If no identifier is provided, prompt for interactive selection
+                        match crate::commands::session::prompt_interactive_session_selection() {
+                            Ok(id) => id,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return Ok(());
+                            }
+                        }
+                    };
+
+                    crate::commands::session::handle_session_export(session_identifier, output)?;
+                    Ok(())
+                }
                 None => {
                     // Run session command by default
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
@@ -563,6 +632,7 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                         debug,
                         max_tool_repetitions,
+                        interactive: true, // Session command is always interactive
                     })
                     .await;
                     setup_logging(
@@ -671,6 +741,7 @@ pub async fn cli() -> Result<()> {
                 additional_system_prompt: input_config.additional_system_prompt,
                 debug,
                 max_tool_repetitions,
+                interactive, // Use the interactive flag from the Run command
             })
             .await;
 
@@ -712,6 +783,15 @@ pub async fn cli() -> Result<()> {
                 SchedulerCommand::RunNow { id } => {
                     // New arm
                     handle_schedule_run_now(id).await?;
+                }
+                SchedulerCommand::ServicesStatus {} => {
+                    handle_schedule_services_status().await?;
+                }
+                SchedulerCommand::ServicesStop {} => {
+                    handle_schedule_services_stop().await?;
+                }
+                SchedulerCommand::CronHelp {} => {
+                    handle_schedule_cron_help().await?;
                 }
             }
             return Ok(());
@@ -755,6 +835,10 @@ pub async fn cli() -> Result<()> {
             }
             return Ok(());
         }
+        Some(Command::Web { port, host, open }) => {
+            crate::commands::web::handle_web(port, host, open).await?;
+            return Ok(());
+        }
         None => {
             return if !Config::global().exists() {
                 let _ = handle_configure().await;
@@ -772,6 +856,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                     debug: false,
                     max_tool_repetitions: None,
+                    interactive: true, // Default case is always interactive
                 })
                 .await;
                 setup_logging(

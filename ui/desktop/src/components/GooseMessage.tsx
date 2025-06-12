@@ -194,7 +194,7 @@ export default function GooseMessage({
       {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
       {false && metadata && (
         <div className="flex mt-[16px]">
-          <GooseResponseForm message={textContent} metadata={metadata} append={append} />
+          <GooseResponseForm message={textContent} metadata={metadata || null} append={append} />
         </div>
       )}
     </div>

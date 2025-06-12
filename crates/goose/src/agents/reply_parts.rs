@@ -11,7 +11,8 @@ use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
+    augment_message_with_tool_calls, convert_tool_messages_to_text,
+    modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use crate::session;
 use mcp_core::tool::Tool;
@@ -113,20 +114,26 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
+        // Convert tool messages to text if toolshim is enabled
+        let messages_for_provider = if config.toolshim {
+            convert_tool_messages_to_text(messages)
+        } else {
+            messages.to_vec()
+        };
+
         // Clone owned data to move into the async stream
         let system_prompt = system_prompt.to_owned();
-        let messages = messages.to_owned();
         let tools = tools.to_owned();
         let toolshim_tools = toolshim_tools.to_owned();
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
             provider
-                .stream(system_prompt.as_str(), &messages, &tools)
+                .stream(system_prompt.as_str(), &messages_for_provider, &tools)
                 .await?
         } else {
             let (message, usage) = provider
-                .complete(system_prompt.as_str(), &messages, &tools)
+                .complete(system_prompt.as_str(), &messages_for_provider, &tools)
                 .await?;
             stream_from_single_message(message, usage)
         };

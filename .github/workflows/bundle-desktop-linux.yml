@@ -1,0 +1,251 @@
+# This is a **reuseable** workflow that bundles the Desktop App for Linux.
+# It doesn't get triggered on its own. It gets used in multiple workflows:
+#  - release.yml
+#  - canary.yml (when added)
+#  - pr-comment-bundle-desktop.yml (when added)
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to set for the build'
+        required: false
+        default: ""
+        type: string
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
+
+name: "Bundle Desktop (Linux)"
+
+jobs:
+  build-desktop-linux:
+    name: Build Desktop (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Check out source
+      - name: Checkout repository
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # 2) Update versions before build
+      - name: Update versions
+        if: ${{ inputs.version != '' }}
+        run: |
+          # Update version in Cargo.toml
+          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          rm -f Cargo.toml.bak
+
+          # Update version in package.json
+          cd ui/desktop
+          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+
+      # 3) Debug information
+      - name: Debug workflow info
+        env:
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "=== Workflow Information ==="
+          echo "Workflow: ${WORKFLOW_NAME}"
+          echo "Ref: ${WORKFLOW_REF}"
+          echo "Event: ${EVENT_NAME}"
+          echo "Repo: ${REPOSITORY}"
+          echo ""
+          echo "=== System Information ==="
+          uname -a
+          lsb_release -a || true
+          df -h
+
+      # 4) Install system dependencies for Linux packaging
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libnss3-dev \
+            libatk-bridge2.0-dev \
+            libdrm2 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxrandr2 \
+            libgbm1 \
+            libxss1 \
+            libasound2t64 \
+            rpm \
+            fakeroot \
+            dpkg-dev \
+            protobuf-compiler
+
+      # 4a) Pre-build cleanup to ensure enough disk space
+      - name: Pre-build cleanup
+        run: |
+          echo "Performing aggressive pre-build cleanup..."
+          # Clean npm cache
+          npm cache clean --force || true
+          # Clean any previous build artifacts
+          rm -rf target || true
+          # Clean Homebrew cache (if exists)
+          brew cleanup || true
+          # Remove unnecessary large directories
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          # Clean apt cache
+          sudo apt-get clean || true
+          sudo apt-get autoremove -y || true
+          # Check disk space after cleanup
+          df -h
+
+      # 5) Set up Rust
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # pin@v1
+        with:
+          toolchain: stable
+
+      # 6) Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: 'npm'
+          cache-dependency-path: ui/desktop/package-lock.json
+
+      # 7) Cache Rust dependencies
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/index
+          key: ${{ runner.os }}-cargo-index
+          restore-keys: |
+            ${{ runner.os }}-cargo-index
+
+      - name: Cache Cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      # 8) Build the Rust goosed binary
+      - name: Build goosed binary
+        run: |
+          echo "Building goosed binary for Linux..."
+          cargo build --release -p goose-server
+          ls -la target/release/
+          file target/release/goosed
+
+      # 9) Clean up build artifacts to save space
+      - name: Clean up build artifacts
+        run: |
+          echo "Cleaning up to save disk space..."
+          # Remove debug artifacts
+          rm -rf target/debug || true
+          # Remove incremental build files
+          rm -rf target/release/incremental || true
+          rm -rf target/release/deps || true
+          rm -rf target/release/build || true
+          # Remove other target directories that aren't needed
+          find target -name "*.rlib" -delete || true
+          find target -name "*.rmeta" -delete || true
+          # Don't run cargo clean as it will remove our binary
+          # Check disk space
+          df -h
+
+      # 10) Copy binary to Electron folder
+      - name: Copy binary into Electron folder
+        run: |
+          echo "Copying goosed binary to ui/desktop/src/bin/"
+          mkdir -p ui/desktop/src/bin
+          cp target/release/goosed ui/desktop/src/bin/
+          chmod +x ui/desktop/src/bin/goosed
+          ls -la ui/desktop/src/bin/
+
+      # 10a) Final cleanup before npm build
+      - name: Final cleanup before npm build
+        run: |
+          echo "Final cleanup before npm build..."
+          # Now we can remove the entire target directory since we copied the binary
+          rm -rf target || true
+          # Clean any remaining caches
+          rm -rf ~/.cargo/registry/cache || true
+          rm -rf ~/.cargo/git/db || true
+          # Check final disk space
+          df -h
+
+      # 12) Install npm dependencies
+      - name: Install npm dependencies
+        run: |
+          cd ui/desktop
+          # Clear npm cache and remove lock file as suggested by the error
+          rm -rf node_modules package-lock.json || true
+          npm cache clean --force || true
+          npm install
+          # Verify installation
+          ls -la node_modules/.bin/ | head -5
+
+      # 13) Build Electron app with Linux makers (.deb and .rpm)
+      - name: Build Linux packages
+        run: |
+          cd ui/desktop
+          echo "Building Linux packages (.deb and .rpm)..."
+          
+          # Build both .deb and .rpm packages
+          npm run make -- --platform=linux --arch=x64
+          
+          echo "Build completed. Checking output..."
+          ls -la out/
+          find out/ -name "*.deb" -o -name "*.rpm" | head -10
+
+      # 14) List all generated files for debugging
+      - name: List generated files
+        run: |
+          echo "=== All files in out/ directory ==="
+          find ui/desktop/out/ -type f | head -20
+          echo ""
+          echo "=== Package files specifically ==="
+          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm"
+          echo ""
+          echo "=== File sizes ==="
+          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
+
+      # 15) Upload .deb package
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Goose-linux-x64-deb
+          path: ui/desktop/out/make/deb/x64/*.deb
+          if-no-files-found: error
+
+      # 16) Upload .rpm package  
+      - name: Upload .rpm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Goose-linux-x64-rpm
+          path: ui/desktop/out/make/rpm/x64/*.rpm
+          if-no-files-found: error
+
+      # 17) Create combined artifact with both packages
+      - name: Upload combined Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Goose-linux-x64
+          path: |
+            ui/desktop/out/make/deb/x64/*.deb
+            ui/desktop/out/make/rpm/x64/*.rpm
+          if-no-files-found: error
