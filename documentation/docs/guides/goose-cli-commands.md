@@ -357,6 +357,46 @@ goose recipe help
 ```
 
 ---
+### schedule
+Automate recipes by running them on a schedule using a cron job.
+
+**Usage:**
+```bash
+goose schedule <COMMAND>
+```
+
+**Commands:**
+- `add <OPTIONS>`: Create a new scheduled job. Copies the current version of the recipe to `~/.local/share/goose/scheduled_recipes`
+- `list`: View all scheduled jobs
+- `remove`: Delete a scheduled job
+- `sessions`: List sessions created by a scheduled recipe
+- `run-now`: Run a scheduled recipe immediately
+
+**Options:**
+- `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
+- `--cron "* * * * * *"`: Specifies when a job should run using a 6-field [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string in the format "seconds minutes hours day-of-month month day-of-week"
+- `--recipe-source <PATH>`: Path to the recipe YAML file
+- `--limit <NUMBER>`: (Optional) max number of sessions to display when using the `sessions` command
+
+**Examples:**
+```bash
+# Add a new scheduled recipe which runs every day at 9 AM
+goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+
+# List all scheduled jobs
+goose schedule list
+
+# List the 10 most recent Goose sessions created by a scheduled job
+goose schedule sessions --id daily-report --limit 10
+
+# Run a recipe immediately
+goose schedule run-now --id daily-report
+
+# Remove a scheduled job
+goose schedule remove --id daily-report
+```
+
+---
 ### project
 
 Start working on your last project or create a new one.
