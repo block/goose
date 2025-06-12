@@ -16,8 +16,9 @@ use crate::session::storage::SessionMetadata;
 const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
 
-// Default ports to try when discovering the service
-const DEFAULT_HTTP_PORTS: &[u16] = &[8080, 8081, 8082, 8083, 8084, 8085];
+// Default ports to try when discovering the service - using high, obscure ports
+// to avoid conflicts with common services
+const DEFAULT_HTTP_PORTS: &[u16] = &[58080, 58081, 58082, 58083, 58084, 58085];
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JobRequest {
@@ -119,46 +120,46 @@ impl TemporalScheduler {
         Ok(final_scheduler)
     }
 
-    async fn discover_http_port(_http_client: &Client) -> Result<u16, SchedulerError> {
-        // First, try to find a running service using pgrep and lsof
-        if let Ok(port) = Self::find_temporal_service_port_from_processes() {
-            info!(
-                "Found Temporal service port {} from running processes",
-                port
-            );
-            return Ok(port);
-        }
-
-        // If no running service found, we need to find a free port to start the service on
-        info!("No running Temporal service found, finding free port to start service");
+    async fn discover_http_port(http_client: &Client) -> Result<u16, SchedulerError> {
+        info!("Discovering Temporal service port...");
 
         // Check PORT environment variable first
         if let Ok(port_str) = std::env::var("PORT") {
             if let Ok(port) = port_str.parse::<u16>() {
-                if Self::is_port_free(port).await {
-                    info!("Using PORT environment variable: {}", port);
+                if Self::is_temporal_service_running(http_client, port).await {
+                    info!("Found running Temporal service on PORT environment variable: {}", port);
+                    return Ok(port);
+                } else if Self::is_port_free(port).await {
+                    info!("Using PORT environment variable for new service: {}", port);
                     return Ok(port);
                 } else {
-                    warn!(
-                        "PORT environment variable {} is not free, finding alternative",
-                        port
-                    );
+                    warn!("PORT environment variable {} is occupied by non-Temporal service", port);
                 }
             }
         }
 
-        // Try to find a free port from the default list
+        // Try to find an existing Temporal service on default ports
+        for &port in DEFAULT_HTTP_PORTS {
+            if Self::is_temporal_service_running(http_client, port).await {
+                info!("Found existing Temporal service on port {}", port);
+                return Ok(port);
+            }
+        }
+
+        // If no existing service found, find a free port to start a new one
+        info!("No existing Temporal service found, finding free port to start new service");
+        
         for &port in DEFAULT_HTTP_PORTS {
             if Self::is_port_free(port).await {
-                info!("Found free port {} for Temporal service", port);
+                info!("Found free port {} for new Temporal service", port);
                 return Ok(port);
             }
         }
 
         // If all default ports are taken, find any free port in a reasonable range
-        for port in 8086..8200 {
+        for port in 58086..58200 {
             if Self::is_port_free(port).await {
-                info!("Found free port {} for Temporal service", port);
+                info!("Found free port {} for new Temporal service", port);
                 return Ok(port);
             }
         }
@@ -168,112 +169,47 @@ impl TemporalScheduler {
         ))
     }
 
-    async fn is_port_free(port: u16) -> bool {
-        use std::net::{SocketAddr, TcpListener};
-        use std::time::Duration;
-
-        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
-
-        // First, try to bind to the port
-        let listener_result = TcpListener::bind(addr);
-        match listener_result {
-            Ok(listener) => {
-                // Successfully bound, so port was free
-                drop(listener); // Release the port immediately
-
-                // Double-check by trying to connect to see if anything is actually listening
-                let client = reqwest::Client::builder()
-                    .timeout(Duration::from_millis(500))
-                    .build()
-                    .unwrap();
-
-                let test_url = format!("http://127.0.0.1:{}", port);
-                match client.get(&test_url).send().await {
-                    Ok(_) => {
-                        // Something responded, so port is actually in use
-                        warn!(
-                            "Port {} appeared free but something is listening on it",
-                            port
-                        );
-                        false
-                    }
-                    Err(_) => {
-                        // Nothing responded, port is truly free
-                        true
-                    }
-                }
+    /// Check if a Temporal service is running and responding on the given port
+    async fn is_temporal_service_running(http_client: &Client, port: u16) -> bool {
+        let health_url = format!("http://127.0.0.1:{}/health", port);
+        
+        match http_client
+            .get(&health_url)
+            .timeout(Duration::from_millis(1000))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                info!("Confirmed Temporal service is running on port {}", port);
+                true
+            }
+            Ok(response) => {
+                info!("Port {} is responding but not a healthy Temporal service (status: {})", port, response.status());
+                false
             }
             Err(_) => {
-                // Could not bind, port is definitely in use
+                // Port might be free or occupied by something else
                 false
             }
         }
     }
 
-    fn find_temporal_service_port_from_processes() -> Result<u16, SchedulerError> {
-        // Use pgrep to find temporal-service processes
-        let pgrep_output = Command::new("pgrep")
-            .arg("-f")
-            .arg("temporal-service")
-            .output()
-            .map_err(|e| SchedulerError::SchedulerInternalError(format!("pgrep failed: {}", e)))?;
+    async fn is_port_free(port: u16) -> bool {
+        use std::net::{SocketAddr, TcpListener};
 
-        if !pgrep_output.status.success() {
-            return Err(SchedulerError::SchedulerInternalError(
-                "No temporal-service processes found".to_string(),
-            ));
-        }
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
 
-        let pids_str = String::from_utf8_lossy(&pgrep_output.stdout);
-        let pids: Vec<&str> = pids_str
-            .trim()
-            .split('\n')
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        for pid in pids {
-            // Use lsof to find listening ports for this PID
-            let lsof_output = Command::new("lsof")
-                .arg("-p")
-                .arg(pid)
-                .arg("-i")
-                .arg("tcp")
-                .arg("-P") // Show port numbers instead of service names
-                .arg("-n") // Show IP addresses instead of hostnames
-                .output();
-
-            if let Ok(output) = lsof_output {
-                let lsof_str = String::from_utf8_lossy(&output.stdout);
-
-                // Look for HTTP API port (typically 8080-8999 range)
-                for line in lsof_str.lines() {
-                    if line.contains("LISTEN") && line.contains("temporal-") {
-                        // Parse lines like: "temporal-service 12345 user 6u IPv4 0x... 0t0 TCP *:8081 (LISTEN)"
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-
-                        // Find the TCP part which contains the port
-                        for part in &parts {
-                            if part.starts_with("TCP") && part.contains(':') {
-                                // Extract port from TCP *:8081 or TCP 127.0.0.1:8081
-                                if let Some(port_str) = part.split(':').next_back() {
-                                    if let Ok(port) = port_str.parse::<u16>() {
-                                        // HTTP API ports are typically in 8080-8999 range
-                                        if (8080..9000).contains(&port) {
-                                            info!("Found HTTP API port {} for PID {}", port, pid);
-                                            return Ok(port);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        // Try to bind to the port
+        match TcpListener::bind(addr) {
+            Ok(_listener) => {
+                // Successfully bound, so port is free
+                true
+            }
+            Err(_) => {
+                // Could not bind, port is in use
+                false
             }
         }
-
-        Err(SchedulerError::SchedulerInternalError(
-            "Could not find HTTP API port from temporal-service processes".to_string(),
-        ))
     }
 
     async fn fetch_port_config(&self) -> Result<PortConfig, SchedulerError> {
