@@ -258,6 +258,8 @@ impl ExtensionManager {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
+        // dbg!(&init_result);
+
         if let Some(instructions) = init_result.instructions {
             self.instructions
                 .insert(sanitized_name.clone(), instructions);

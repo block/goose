@@ -85,6 +85,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subrecipes: Option<Vec<SubRecipe>>, // any sub-recipes that this recipe depends on
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -144,6 +147,11 @@ pub struct RecipeParameter {
     pub default: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SubRecipe {
+    pub path: String, // path to the sub-recipe file
+}
+
 /// Builder for creating Recipe instances
 pub struct RecipeBuilder {
     // Required fields with default values
@@ -159,6 +167,7 @@ pub struct RecipeBuilder {
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
+    subrecipes: Option<Vec<SubRecipe>>,
 }
 
 impl Recipe {
@@ -188,6 +197,7 @@ impl Recipe {
             activities: None,
             author: None,
             parameters: None,
+            subrecipes: None,
         }
     }
 }
@@ -252,6 +262,12 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the sub-recipes for the Recipe
+    pub fn subrecipes(mut self, subrecipes: Vec<SubRecipe>) -> Self {
+        self.subrecipes = Some(subrecipes);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -274,6 +290,7 @@ impl RecipeBuilder {
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
+            subrecipes: self.subrecipes,
         })
     }
 }

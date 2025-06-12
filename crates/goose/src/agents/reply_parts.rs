@@ -63,6 +63,7 @@ impl Agent {
             Some(model_name),
             tool_selection_strategy,
         );
+        // println!("Using system prompt: {}", system_prompt);
 
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];

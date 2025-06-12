@@ -1,0 +1,11 @@
+[project]
+name = "subrecipes-mcp"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.3.4",
+]
+
+[project.scripts]
+subrecipes-mcp = "main:main"

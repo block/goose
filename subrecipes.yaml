@@ -1,0 +1,25 @@
+version: 1.0.0
+title: "Goose Recipe Handler"
+description: "A simple request router using sub-recipes"
+
+prompt: |
+  You are tasked with answering incoming requests and taking action.
+  Read the oldest file in 'inbox' and see if you can help.
+
+  Use the tools available to you to process the request.
+
+  Write replies to the 'oubox' folder, with the same name as the file you read from 'inbox'.
+
+  If there is no appropriate action to take, just reply stating that you cannot help.
+
+  If you can help, respond with the result of your action.
+
+  Then "touch" the file in 'inbox' to mark it as processed.
+
+extensions:
+  - type: builtin # just to read the file
+    name: developer
+
+subrecipes:
+  - path: ../goose-recipes/joke-of-the-day/recipe.yaml
+  - path: ../goose-recipes/tutorial-trip-planner/recipe.yaml
