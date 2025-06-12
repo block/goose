@@ -346,7 +346,7 @@ Validation ensures that:
   ```
   The [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) follows the format "seconds minutes hours day-of-month month day-of-week".
 
-  See the [`schedule` command documentation](/docs/tools/goose/advanced-guides/goose-cli-commands#schedule) for detailed examples and options.
+  See the [`schedule` command documentation](/docs/guides/goose-cli-commands#schedule) for detailed examples and options.
 
    </TabItem>
 </Tabs>
