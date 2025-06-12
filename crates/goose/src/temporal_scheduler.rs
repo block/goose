@@ -729,8 +729,40 @@ impl TemporalScheduler {
 
         for job in jobs {
             if job.currently_running {
-                // Check if there are any recent active sessions for this job
-                let recent_sessions = self.sessions(&job.id, 5).await?;
+                // First, check with the Temporal service directly for the most accurate status
+                let request = JobRequest {
+                    action: "status".to_string(),
+                    job_id: Some(job.id.clone()),
+                    cron: None,
+                    recipe_path: None,
+                    execution_mode: None,
+                };
+
+                match self.make_request(request).await {
+                    Ok(response) => {
+                        if response.success {
+                            if let Some(jobs) = response.jobs {
+                                if let Some(temporal_job) = jobs.iter().find(|j| j.id == job.id) {
+                                    // If Temporal service says it's not running, trust that
+                                    if !temporal_job.currently_running {
+                                        tracing::info!(
+                                            "Temporal service reports job '{}' is not running",
+                                            job.id
+                                        );
+                                        continue; // Job is already marked as not running by Temporal
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to get status from Temporal service for job '{}': {}", job.id, e);
+                        // Fall back to session-based checking if Temporal service is unavailable
+                    }
+                }
+
+                // Secondary check: look for recent session activity (more lenient timing)
+                let recent_sessions = self.sessions(&job.id, 3).await?;
                 let mut has_active_session = false;
 
                 for (session_name, _) in recent_sessions {
@@ -738,25 +770,31 @@ impl TemporalScheduler {
                         crate::session::storage::Identifier::Name(session_name),
                     );
 
-                    // Check if session file was modified recently (within last 2 minutes)
+                    // Check if session file was modified recently (within last 5 minutes instead of 2)
                     if let Ok(metadata) = std::fs::metadata(&session_path) {
                         if let Ok(modified) = metadata.modified() {
                             let modified_dt: DateTime<Utc> = modified.into();
                             let now = Utc::now();
                             let time_diff = now.signed_duration_since(modified_dt);
 
-                            if time_diff.num_minutes() < 2 {
+                            // Increased tolerance to 5 minutes to reduce false positives
+                            if time_diff.num_minutes() < 5 {
                                 has_active_session = true;
+                                tracing::debug!(
+                                    "Found active session for job '{}' modified {} minutes ago",
+                                    job.id,
+                                    time_diff.num_minutes()
+                                );
                                 break;
                             }
                         }
                     }
                 }
 
-                // If no active sessions found, mark job as not running
+                // Only mark as completed if both Temporal service check failed AND no recent session activity
                 if !has_active_session {
                     tracing::info!(
-                        "No active sessions found for job '{}', marking as not running",
+                        "No active sessions found for job '{}' in the last 5 minutes, marking as completed",
                         job.id
                     );
 
@@ -783,7 +821,7 @@ impl TemporalScheduler {
         let scheduler_clone = self.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(30)); // Check every 30 seconds
+            let mut interval = tokio::time::interval(Duration::from_secs(60)); // Check every 60 seconds instead of 30
 
             loop {
                 interval.tick().await;
