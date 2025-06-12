@@ -341,7 +341,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Create new session
-    let mut session = Session::new(agent, session_file.clone(), session_config.debug, session_config.scheduled_job_id.clone());
+    let mut session = Session::new(
+        agent,
+        session_file.clone(),
+        session_config.debug,
+        session_config.scheduled_job_id.clone(),
+    );
 
     // Add extensions if provided
     for extension_str in session_config.extensions {

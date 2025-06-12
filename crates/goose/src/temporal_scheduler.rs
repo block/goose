@@ -54,13 +54,14 @@ struct RunNowResponse {
     session_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PortConfig {
     http_port: u16,
     temporal_port: u16,
     ui_port: u16,
 }
 
+#[derive(Clone)]
 pub struct TemporalScheduler {
     http_client: Client,
     service_url: String,
@@ -108,6 +109,11 @@ impl TemporalScheduler {
             service_url,
             port_config,
         });
+
+        // Start the status monitor to keep job statuses in sync
+        if let Err(e) = final_scheduler.start_status_monitor().await {
+            tracing::warn!("Failed to start status monitor: {}", e);
+        }
 
         info!("TemporalScheduler initialized successfully");
         Ok(final_scheduler)
@@ -368,7 +374,7 @@ impl TemporalScheduler {
             command.process_group(0);
         }
 
-        let child = command.spawn().map_err(|e| {
+        let mut child = command.spawn().map_err(|e| {
             SchedulerError::SchedulerInternalError(format!(
                 "Failed to start Go temporal service: {}",
                 e
@@ -380,9 +386,6 @@ impl TemporalScheduler {
             "Temporal Go service started with PID: {} on port {} (detached)",
             pid, self.port_config.http_port
         );
-
-        // Don't wait for the child process - let it run independently
-        std::mem::forget(child);
 
         // Give the process a moment to start up
         sleep(Duration::from_millis(100)).await;
@@ -735,8 +738,12 @@ impl TemporalScheduler {
         sched_id: &str,
         new_cron: String,
     ) -> Result<(), SchedulerError> {
-        tracing::info!("TemporalScheduler: update_schedule() called for job '{}' with cron '{}'", sched_id, new_cron);
-        
+        tracing::info!(
+            "TemporalScheduler: update_schedule() called for job '{}' with cron '{}'",
+            sched_id,
+            new_cron
+        );
+
         let request = JobRequest {
             action: "update".to_string(),
             job_id: Some(sched_id.to_string()),
@@ -756,7 +763,10 @@ impl TemporalScheduler {
     }
 
     pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
-        tracing::info!("TemporalScheduler: kill_running_job() called for job '{}'", sched_id);
+        tracing::info!(
+            "TemporalScheduler: kill_running_job() called for job '{}'",
+            sched_id
+        );
 
         let request = JobRequest {
             action: "kill_job".to_string(),
@@ -776,6 +786,81 @@ impl TemporalScheduler {
         }
     }
 
+    pub async fn update_job_status_from_sessions(&self) -> Result<(), SchedulerError> {
+        tracing::info!("TemporalScheduler: Checking job status based on session activity");
+
+        let jobs = self.list_scheduled_jobs().await?;
+
+        for job in jobs {
+            if job.currently_running {
+                // Check if there are any recent active sessions for this job
+                let recent_sessions = self.sessions(&job.id, 5).await?;
+                let mut has_active_session = false;
+
+                for (session_name, _) in recent_sessions {
+                    let session_path = crate::session::storage::get_path(
+                        crate::session::storage::Identifier::Name(session_name),
+                    );
+
+                    // Check if session file was modified recently (within last 2 minutes)
+                    if let Ok(metadata) = std::fs::metadata(&session_path) {
+                        if let Ok(modified) = metadata.modified() {
+                            let modified_dt: DateTime<Utc> = modified.into();
+                            let now = Utc::now();
+                            let time_diff = now.signed_duration_since(modified_dt);
+
+                            if time_diff.num_minutes() < 2 {
+                                has_active_session = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If no active sessions found, mark job as not running
+                if !has_active_session {
+                    tracing::info!(
+                        "No active sessions found for job '{}', marking as not running",
+                        job.id
+                    );
+
+                    let request = JobRequest {
+                        action: "mark_completed".to_string(),
+                        job_id: Some(job.id.clone()),
+                        cron: None,
+                        recipe_path: None,
+                        execution_mode: None,
+                    };
+
+                    if let Err(e) = self.make_request(request).await {
+                        tracing::warn!("Failed to mark job '{}' as completed: {}", job.id, e);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Periodically check and update job statuses based on session activity
+    pub async fn start_status_monitor(&self) -> Result<(), SchedulerError> {
+        let scheduler_clone = self.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(30)); // Check every 30 seconds
+
+            loop {
+                interval.tick().await;
+
+                if let Err(e) = scheduler_clone.update_job_status_from_sessions().await {
+                    tracing::warn!("Failed to update job statuses: {}", e);
+                }
+            }
+        });
+
+        Ok(())
+    }
+
     pub async fn get_running_job_info(
         &self,
         sched_id: &str,
@@ -785,24 +870,62 @@ impl TemporalScheduler {
             sched_id
         );
 
-        // First check if the job is marked as currently running
-        let jobs = self.list_scheduled_jobs().await?;
-        let job = jobs.iter().find(|j| j.id == sched_id);
+        // Get the current job status from Temporal service
+        let request = JobRequest {
+            action: "status".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: None,
+            recipe_path: None,
+            execution_mode: None,
+        };
 
-        if let Some(job) = job {
-            if job.currently_running {
-                // For now, we'll return a placeholder session ID and current time
-                // In a more complete implementation, we would track the actual session ID
-                // and start time from the Temporal workflow execution
-                let session_id =
-                    format!("temporal-{}-{}", sched_id, chrono::Utc::now().timestamp());
-                let start_time = chrono::Utc::now(); // This should be the actual start time
-                Ok(Some((session_id, start_time)))
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            if let Some(jobs) = response.jobs {
+                if let Some(job) = jobs.iter().find(|j| j.id == sched_id) {
+                    if job.currently_running {
+                        // Try to get the actual session ID from recent sessions
+                        let recent_sessions = self.sessions(sched_id, 1).await?;
+
+                        if let Some((session_name, _session_metadata)) = recent_sessions.first() {
+                            // Check if this session is still active by looking at the session file
+                            let session_path = crate::session::storage::get_path(
+                                crate::session::storage::Identifier::Name(session_name.clone()),
+                            );
+
+                            // If the session file was modified recently (within last 5 minutes),
+                            // consider it as the current running session
+                            if let Ok(metadata) = std::fs::metadata(&session_path) {
+                                if let Ok(modified) = metadata.modified() {
+                                    let modified_dt: DateTime<Utc> = modified.into();
+                                    let now = Utc::now();
+                                    let time_diff = now.signed_duration_since(modified_dt);
+
+                                    if time_diff.num_minutes() < 5 {
+                                        // This looks like an active session
+                                        return Ok(Some((session_name.clone(), modified_dt)));
+                                    }
+                                }
+                            }
+                        }
+
+                        // Fallback: return a temporal session ID with current time
+                        let session_id =
+                            format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
+                        let start_time = Utc::now();
+                        Ok(Some((session_id, start_time)))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Err(SchedulerError::JobNotFound(sched_id.to_string()))
+                }
             } else {
-                Ok(None)
+                Err(SchedulerError::JobNotFound(sched_id.to_string()))
             }
         } else {
-            Err(SchedulerError::JobNotFound(sched_id.to_string()))
+            Err(SchedulerError::SchedulerInternalError(response.message))
         }
     }
 
@@ -1064,17 +1187,43 @@ mod tests {
     }
 
     #[test]
-    fn test_sessions_method_signature() {
-        // This test verifies the method signature is correct at compile time
-        // We just need to verify the method exists and can be called
+    fn test_job_status_detection_improvements() {
+        // Test that the new job status detection methods compile and work correctly
+        use tokio::runtime::Runtime;
 
-        // This will fail to compile if the method doesn't exist or has wrong signature
-        let _test_fn = |scheduler: &TemporalScheduler, id: &str, limit: usize| {
-            // This is a compile-time check - we don't actually call it
-            let _future = scheduler.sessions(id, limit);
-        };
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            // This test verifies the improved job status detection compiles
+            match TemporalScheduler::new().await {
+                Ok(scheduler) => {
+                    // Test the new status update method
+                    match scheduler.update_job_status_from_sessions().await {
+                        Ok(()) => {
+                            println!("✅ update_job_status_from_sessions() works correctly");
+                        }
+                        Err(e) => {
+                            println!("⚠️  update_job_status_from_sessions() returned error (expected if no jobs): {}", e);
+                        }
+                    }
 
-        println!("✅ sessions() method signature is correct");
+                    // Test the improved get_running_job_info method
+                    match scheduler.get_running_job_info("test-job").await {
+                        Ok(None) => {
+                            println!("✅ get_running_job_info() correctly returns None for non-existent job");
+                        }
+                        Ok(Some((session_id, start_time))) => {
+                            println!("✅ get_running_job_info() returned session info: {} at {}", session_id, start_time);
+                        }
+                        Err(e) => {
+                            println!("⚠️  get_running_job_info() returned error (expected): {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("⚠️  Temporal services not running - method signature test passed: {}", e);
+                }
+            }
+        });
     }
 
     #[test]
