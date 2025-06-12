@@ -21,33 +21,7 @@ goose is your on-machine AI agent, capable of automating complex development tas
 
 Whether you're prototyping an idea, refining existing code, or managing intricate engineering pipelines, goose adapts to your workflow and executes tasks with precision.
 
-Designed for maximum flexibility, goose works with any LLM, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation. 
-
-## Multiple Model Configuration
-
-goose supports using different models for different purposes to optimize performance and cost, which can work across model providers as well as models.
-
-### Lead/Worker Model Pattern
-Use a powerful model for initial planning and complex reasoning, then switch to a faster/cheaper model for execution, this happens automatically by goose:
-
-```bash
-# Required: Enable lead model mode
-export GOOSE_LEAD_MODEL=modelY
-# Optional: configure a provider for the lead model if not the default provider
-export GOOSE_LEAD_PROVIDER=providerX  # Defaults to main provider
-```
-
-### Planning Model Configuration  
-Use a specialized model for the `/plan` command in CLI mode, this is explicitly invoked when you want to plan (vs execute)
-
-```bash
-# Optional: Use different model for planning
-export GOOSE_PLANNER_PROVIDER=openai
-export GOOSE_PLANNER_MODEL=gpt-4
-```
-
-Both patterns help you balance model capabilities with cost and speed for optimal results, and switch between models and vendors as required.
-
+Designed for maximum flexibility, goose works with any LLM and supports multi-model configuration to optimize performance and cost, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation.
 
 # Quick Links
 - [Quickstart](https://block.github.io/goose/docs/quickstart)
