@@ -40,6 +40,48 @@ type PortConfig struct {
 	HTTPPort     int // HTTP API port
 }
 
+// getManagedRecipesDir returns the proper directory for storing managed recipes
+func getManagedRecipesDir() (string, error) {
+	var baseDir string
+	
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: ~/Library/Application Support/temporal/managed-recipes
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		baseDir = filepath.Join(homeDir, "Library", "Application Support", "temporal", "managed-recipes")
+	case "linux":
+		// Linux: ~/.local/share/temporal/managed-recipes
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		baseDir = filepath.Join(homeDir, ".local", "share", "temporal", "managed-recipes")
+	case "windows":
+		// Windows: %APPDATA%\temporal\managed-recipes
+		appDataDir := os.Getenv("APPDATA")
+		if appDataDir == "" {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return "", fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			appDataDir = filepath.Join(homeDir, "AppData", "Roaming")
+		}
+		baseDir = filepath.Join(appDataDir, "temporal", "managed-recipes")
+	default:
+		// Fallback for unknown OS
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		baseDir = filepath.Join(homeDir, ".local", "share", "temporal", "managed-recipes")
+	}
+	
+	return baseDir, nil
+}
+
 // findAvailablePort finds an available port starting from the given port
 func findAvailablePort(startPort int) (int, error) {
 	for port := startPort; port < startPort+100; port++ {
@@ -458,8 +500,11 @@ func NewTemporalService() (*TemporalService, error) {
 		return nil, fmt.Errorf("failed to ensure Temporal server is running: %w", err)
 	}
 
-	// Set up managed recipes directory
-	recipesDir := filepath.Join(".", "managed-recipes")
+	// Set up managed recipes directory in user data directory
+	recipesDir, err := getManagedRecipesDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine managed recipes directory: %w", err)
+	}
 	if err := os.MkdirAll(recipesDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create managed recipes directory: %w", err)
 	}
