@@ -15,37 +15,57 @@ impl SchedulerType {
     pub fn from_config() -> Self {
         let config = Config::global();
 
+        // Debug logging to help troubleshoot environment variable issues
+        tracing::debug!("Checking scheduler configuration...");
+        
         // First check if alpha features are enabled
         // If not, always use legacy scheduler regardless of GOOSE_SCHEDULER_TYPE
-        match config.get_param::<String>("ALPHA") {
+        
+        // Try to get ALPHA as a string first, then as a boolean if that fails
+        let alpha_enabled = match config.get_param::<String>("ALPHA") {
             Ok(alpha_value) => {
-                // Only proceed with temporal if alpha is explicitly enabled
-                if alpha_value.to_lowercase() != "true" {
-                    tracing::info!("Alpha features disabled, using legacy scheduler");
-                    return SchedulerType::Legacy;
-                }
+                alpha_value.to_lowercase() == "true"
             }
             Err(_) => {
-                // No ALPHA env var means alpha features are disabled
-                tracing::info!("No ALPHA environment variable found, using legacy scheduler");
-                return SchedulerType::Legacy;
+                // If string parsing fails, try as boolean
+                match config.get_param::<bool>("ALPHA") {
+                    Ok(alpha_bool) => {
+                        alpha_bool
+                    }
+                    Err(_) => {
+                        tracing::debug!("ALPHA environment variable not found or invalid");
+                        tracing::info!("No ALPHA environment variable found, using legacy scheduler");
+                        return SchedulerType::Legacy;
+                    }
+                }
             }
+        };
+        
+        if !alpha_enabled {
+            tracing::info!("Alpha features disabled, using legacy scheduler");
+            return SchedulerType::Legacy;
         }
+        
+        tracing::info!("Alpha features enabled");
 
         // Alpha is enabled, now check scheduler type preference
         match config.get_param::<String>("GOOSE_SCHEDULER_TYPE") {
-            Ok(scheduler_type) => match scheduler_type.to_lowercase().as_str() {
-                "temporal" => SchedulerType::Temporal,
-                "legacy" => SchedulerType::Legacy,
-                _ => {
-                    tracing::warn!(
-                        "Unknown scheduler type '{}', defaulting to legacy scheduler",
-                        scheduler_type
-                    );
-                    SchedulerType::Legacy
+            Ok(scheduler_type) => {
+                tracing::debug!("Found GOOSE_SCHEDULER_TYPE environment variable: '{}'", scheduler_type);
+                match scheduler_type.to_lowercase().as_str() {
+                    "temporal" => SchedulerType::Temporal,
+                    "legacy" => SchedulerType::Legacy,
+                    _ => {
+                        tracing::warn!(
+                            "Unknown scheduler type '{}', defaulting to legacy scheduler",
+                            scheduler_type
+                        );
+                        SchedulerType::Legacy
+                    }
                 }
             },
             Err(_) => {
+                tracing::debug!("GOOSE_SCHEDULER_TYPE environment variable not found");
                 // When alpha is enabled but no explicit scheduler type is set,
                 // default to temporal scheduler
                 tracing::info!("Alpha enabled, defaulting to temporal scheduler");

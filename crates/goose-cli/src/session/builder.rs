@@ -117,7 +117,7 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false);
+    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
