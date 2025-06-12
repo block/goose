@@ -286,7 +286,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (viewingScheduleId !== null) return;
 
-    // Set up periodic refresh every 8 seconds (slightly longer to reduce flashing)
+    // Set up periodic refresh every 15 seconds (increased from 8 to reduce flashing)
     const intervalId = setInterval(() => {
       if (
         viewingScheduleId === null &&
@@ -300,7 +300,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
       ) {
         fetchSchedules(true); // Pass true to indicate this is a refresh
       }
-    }, 8000);
+    }, 15000); // Increased from 8000 to 15000 (15 seconds)
 
     // Clean up on unmount
     return () => {

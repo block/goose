@@ -782,6 +782,10 @@ func (ts *TemporalService) handleJobs(w http.ResponseWriter, r *http.Request) {
 		resp = ts.killJob(req)
 	case "inspect_job":
 		resp = ts.inspectJob(req)
+	case "mark_completed":
+		resp = ts.markCompleted(req)
+	case "status":
+		resp = ts.getJobStatus(req)
 	default:
 		resp = JobResponse{Success: false, Message: fmt.Sprintf("Unknown action: %s", req.Action)}
 	}
@@ -1354,6 +1358,57 @@ func (ts *TemporalService) inspectJob(req JobRequest) JobResponse {
 	return JobResponse{
 		Success: false,
 		Message: fmt.Sprintf("Job '%s' appears to be running but no process or workflow information found", req.JobID),
+	}
+}
+
+func (ts *TemporalService) markCompleted(req JobRequest) JobResponse {
+	if req.JobID == "" {
+		return JobResponse{Success: false, Message: "Missing job_id"}
+	}
+
+	// Check if job exists
+	_, exists := ts.scheduleJobs[req.JobID]
+	if !exists {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' not found", req.JobID)}
+	}
+
+	log.Printf("Marking job %s as completed (requested by Rust scheduler)", req.JobID)
+
+	// Mark job as not running in our tracking
+	ts.markJobAsNotRunning(req.JobID)
+
+	// Also try to clean up any lingering processes
+	if err := globalProcessManager.KillProcess(req.JobID); err != nil {
+		log.Printf("No process to clean up for job %s: %v", req.JobID, err)
+	}
+
+	return JobResponse{
+		Success: true,
+		Message: fmt.Sprintf("Job '%s' marked as completed", req.JobID),
+	}
+}
+
+func (ts *TemporalService) getJobStatus(req JobRequest) JobResponse {
+	if req.JobID == "" {
+		return JobResponse{Success: false, Message: "Missing job_id"}
+	}
+
+	// Check if job exists
+	job, exists := ts.scheduleJobs[req.JobID]
+	if !exists {
+		return JobResponse{Success: false, Message: fmt.Sprintf("Job '%s' not found", req.JobID)}
+	}
+
+	// Update the currently running status based on our tracking
+	job.CurrentlyRunning = ts.isJobCurrentlyRunning(context.Background(), req.JobID)
+
+	// Return the job as a single-item array for consistency with list endpoint
+	jobs := []JobStatus{*job}
+
+	return JobResponse{
+		Success: true,
+		Message: fmt.Sprintf("Status for job '%s'", req.JobID),
+		Jobs:    jobs,
 	}
 }
 

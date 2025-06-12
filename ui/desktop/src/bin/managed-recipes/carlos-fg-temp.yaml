@@ -1,0 +1,47 @@
+version: 1.0.0
+title: Auto approve CodeX PRs in github-settings repo
+author:
+  contact: lifei
+description: Auto approve CodeX PRs in github-settings repo
+instructions: Auto approve CodeX PRs in github-settings repo with some conditions and instructions. Please follow the instructions step by step.
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+prompt: |
+    **Step 1**
+    Use Developer tool to run GitHub CLI (gh) find prs in https://github.com/squareup/github-settings/pulls which are
+      - open, and
+      - requires dx-ai-tools-team to review but has not approved yet, and
+
+
+    **Step 2**
+    Display the code changes for each PR in a table format
+
+    **Step 3**
+    Verify each PR
+      - is open
+      - it only change the file apps/squareup/chatgpt-connector.yaml. It does NOT change other files except file apps/squareup/chatgpt-connector.yaml
+      - only add service names in the apps/squareup/chatgpt-connector.yaml, please show the service names added in the PR
+      - waiting for dx-ai-tools-team to approve
+      - all the checks have passed
+
+    **Step 4**
+    List all the PRs that pass the verifications, including
+      - PR number
+      - title
+      - the changes
+      - the status of the PR
+      - the link to the PR
+
+    **Step 5**
+    I am the member of this team squareup/dx-ai-tools-team, please approve all the PRs that pass the verification
+
+    **Step 6**
+    Provide the links of PRs that are approved in the previous step, verify the approval is successful
+
+schedule:
+  foreground: true
+  fallback_to_background: true
