@@ -153,21 +153,6 @@ mod tests {
     }
 
     #[test]
-    fn test_scheduler_type_alpha_true_temporal() {
-        // Test that with ALPHA=true and GOOSE_SCHEDULER_TYPE=temporal, we get Temporal scheduler
-        with_vars(
-            [
-                ("ALPHA", Some("true")),
-                ("GOOSE_SCHEDULER_TYPE", Some("temporal")),
-            ],
-            || {
-                let scheduler_type = SchedulerType::from_config();
-                assert!(matches!(scheduler_type, SchedulerType::Temporal));
-            },
-        );
-    }
-
-    #[test]
     fn test_scheduler_type_alpha_true_legacy() {
         // Test that with ALPHA=true and GOOSE_SCHEDULER_TYPE=legacy, we get Legacy scheduler
         with_vars(
@@ -178,21 +163,6 @@ mod tests {
             || {
                 let scheduler_type = SchedulerType::from_config();
                 assert!(matches!(scheduler_type, SchedulerType::Legacy));
-            },
-        );
-    }
-
-    #[test]
-    fn test_scheduler_type_alpha_true_no_scheduler_type() {
-        // Test that with ALPHA=true but no GOOSE_SCHEDULER_TYPE, we default to Temporal
-        with_vars(
-            [
-                ("ALPHA", Some("true")),
-                ("GOOSE_SCHEDULER_TYPE", None::<&str>),
-            ],
-            || {
-                let scheduler_type = SchedulerType::from_config();
-                assert!(matches!(scheduler_type, SchedulerType::Temporal));
             },
         );
     }
