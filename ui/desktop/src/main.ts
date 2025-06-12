@@ -445,7 +445,12 @@ const createChat = async (
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    // Pass through ALPHA and GOOSE_SCHEDULER_TYPE environment variables
+    const envVars = {
+      ALPHA: process.env.ALPHA,
+      GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
+    };
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
