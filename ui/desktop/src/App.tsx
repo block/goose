@@ -302,8 +302,16 @@ export default function App() {
     console.log('Setting up view change handler');
     const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const newView = args[0] as View;
-      console.log(`Received view change request to: ${newView}`);
-      setView(newView);
+      const section = args[1] as string | undefined;
+      console.log(
+        `Received view change request to: ${newView}${section ? `, section: ${section}` : ''}`
+      );
+
+      if (section && newView === 'settings') {
+        setView(newView, { section });
+      } else {
+        setView(newView);
+      }
     };
     const urlParams = new URLSearchParams(window.location.search);
     const viewFromUrl = urlParams.get('view');
