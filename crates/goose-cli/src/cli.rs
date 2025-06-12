@@ -632,6 +632,7 @@ pub async fn cli() -> Result<()> {
                         additional_system_prompt: None,
                         debug,
                         max_tool_repetitions,
+                        interactive: true, // Session command is always interactive
                     })
                     .await;
                     setup_logging(
@@ -740,6 +741,7 @@ pub async fn cli() -> Result<()> {
                 additional_system_prompt: input_config.additional_system_prompt,
                 debug,
                 max_tool_repetitions,
+                interactive, // Use the interactive flag from the Run command
             })
             .await;
 
@@ -854,6 +856,7 @@ pub async fn cli() -> Result<()> {
                     additional_system_prompt: None,
                     debug: false,
                     max_tool_repetitions: None,
+                    interactive: true, // Default case is always interactive
                 })
                 .await;
                 setup_logging(
