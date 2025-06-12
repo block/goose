@@ -170,7 +170,7 @@ export class GitHubUpdater {
         log.info(`GitHubUpdater: Extracting ${fileName} to temp directory`);
 
         const unzipProcess = spawn('unzip', ['-o', downloadPath, '-d', tempExtractDir]);
-        
+
         let stderr = '';
         unzipProcess.stderr.on('data', (data) => {
           stderr += data.toString();
@@ -184,7 +184,7 @@ export class GitHubUpdater {
               reject(new Error(`Unzip process exited with code ${code}`));
             }
           });
-          
+
           unzipProcess.on('error', (err) => {
             reject(err);
           });
