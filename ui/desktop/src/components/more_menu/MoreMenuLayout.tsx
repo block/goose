@@ -22,7 +22,7 @@ export default function MoreMenuLayout({
 
   return (
     <div
-      className="relative flex items-center h-14 border-b border-borderSubtle w-full"
+      className="relative flex items-center h-14 border-b border-border-default w-full"
       style={{ WebkitAppRegion: 'drag' }}
     >
       {showMenu && (
@@ -33,7 +33,7 @@ export default function MoreMenuLayout({
             <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
               <TooltipTrigger asChild>
                 <button
-                  className="z-[100] no-drag hover:cursor-pointer border border-borderSubtle hover:border-borderStandard rounded-lg p-2 pr-3 text-textSubtle hover:text-textStandard text-sm flex items-center transition-colors [&>svg]:size-4 "
+                  className="z-[100] no-drag hover:cursor-pointer border border-border-default hover:bg-background-muted rounded-lg p-2 pr-3 text-text-muted hover:text-text-default text-sm flex items-center transition-colors [&>svg]:size-4 "
                   onClick={async () => {
                     if (hasMessages) {
                       window.electron.directoryChooser();

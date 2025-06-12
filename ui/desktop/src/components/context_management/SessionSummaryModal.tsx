@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Geese } from '../icons/Geese';
+import { Button } from '../ui/button';
 
 interface SessionSummaryModalProps {
   isOpen: boolean;
@@ -106,18 +107,20 @@ export function SessionSummaryModal({
   // Footer Buttons
   const modalActions = (
     <div>
-      <button
+      <Button
         onClick={handleSave}
-        className="w-full h-[60px] text-gray-900 dark:text-white font-medium text-base hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+        variant="ghost"
+        className="w-full h-[60px] text-gray-900 dark:text-white font-medium text-base hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-none"
       >
         Save and Continue
-      </button>
-      <button
+      </Button>
+      <Button
         onClick={onClose}
-        className="w-full h-[60px] text-gray-500 dark:text-gray-400 font-medium text-base hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+        variant="ghost"
+        className="w-full h-[60px] text-gray-500 dark:text-gray-400 font-medium text-base hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-none"
       >
         Cancel
-      </button>
+      </Button>
     </div>
   );
 

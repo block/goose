@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Switch } from '../../../ui/switch';
-import { Gear } from '../../../icons/Gear';
-import { FixedExtensionEntry } from '../../../context/ConfigContext';
+import { Switch } from '@/components/ui/switch';
+import { Gear } from '@/components/icons/Gear';
+import { FixedExtensionEntry } from '@/components/context/ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
+import { Button } from '@/components/ui/button';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
@@ -84,12 +85,14 @@ export default function ExtensionItem({
         onClick={(e) => e.stopPropagation()}
       >
         {editable && (
-          <button
+          <Button
+            variant="ghost"
+            shape="round"
             className="text-textSubtle hover:text-textStandard"
             onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
           >
             <Gear className="h-4 w-4" />
-          </button>
+          </Button>
         )}
         <Switch
           checked={(isToggling && visuallyEnabled) || extension.enabled}

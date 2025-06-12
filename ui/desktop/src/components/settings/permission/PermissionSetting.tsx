@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollArea } from '../../ui/scroll-area';
-import BackButton from '../../ui/BackButton';
-import type { FixedExtensionEntry } from '../../context/ConfigContext';
-import { useConfig } from '../../context/ConfigContext';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import BackButton from '@/components/ui/BackButton';
+import type { FixedExtensionEntry } from '@/components/context/ConfigContext';
+import { useConfig } from '@/components/context/ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
-import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
+import MoreMenuLayout from '@/components/more_menu/MoreMenuLayout';
+import { Button } from '@/components/ui/button';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,9 +22,9 @@ function RuleItem({ title, description }: { title: string; description: string }
         <p className="text-xs text-textSubtle mt-1">{description}</p>
       </div>
       <div>
-        <button onClick={() => setIsModalOpen(true)}>
+        <Button onClick={() => setIsModalOpen(true)} variant="ghost" shape="round">
           <ChevronRight className="w-4 h-4 text-iconStandard" />
-        </button>
+        </Button>
       </div>
       {/* Modal for updating tool permission */}
       {isModalOpen && <PermissionModal onClose={handleModalClose} extensionName={title} />}

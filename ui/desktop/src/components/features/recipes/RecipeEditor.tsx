@@ -10,6 +10,7 @@ import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from '@/components/schedule/ScheduleFromRecipeModal';
+import { Button } from '@/components/ui/button';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -305,19 +306,25 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 <div className="text-sm text-textSubtle text-xs text-textSubtle">
                   Copy this link to share with friends or paste directly in Chrome to open
                 </div>
-                <button
-                  onClick={() => validateForm() && handleCopy()}
-                  className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-iconSubtle" />
-                  )}
-                  <span className="ml-1 text-sm text-textSubtle">
-                    {copied ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleCopy}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy Deep Link
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
             {requiredFieldsAreFilled() && (

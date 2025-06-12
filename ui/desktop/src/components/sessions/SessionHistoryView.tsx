@@ -201,7 +201,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 {shareLink}
               </code>
               <Button
-                size="icon"
+                shape="round"
                 variant="ghost"
                 className="absolute right-2 top-1/2 -translate-y-1/2"
                 onClick={handleCopyLink}

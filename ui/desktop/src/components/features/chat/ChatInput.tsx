@@ -426,10 +426,6 @@ export default function ChatInput({
     }
   };
 
-  const hasSubmittableContent =
-    displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
-  const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
-
   return (
     <div
       className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
@@ -484,69 +480,77 @@ export default function ChatInput({
                       {img.error.substring(0, 50)}
                     </p>
                     {img.dataUrl && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => handleRetryImageSave(img.id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded px-1 py-0.5 text-[8px] leading-none"
+                        variant="default"
+                        size="sm"
+                        className="text-[8px] leading-none"
                         title="Retry saving image"
                       >
                         Retry
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
                 {!img.isLoading && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => handleRemovePastedImage(img.id)}
-                    className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                    variant="ghost"
+                    shape="round"
+                    size="sm"
+                    className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
                     aria-label="Remove image"
                   >
                     <Close className="w-3.5 h-3.5" />
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        {isLoading ? (
+        <div className="flex items-center gap-2">
           <Button
             type="button"
-            size="icon"
+            onClick={handleFileSelect}
             variant="ghost"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onStop?.();
-            }}
-            className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+            shape="round"
+            className="text-textSubtle hover:text-textStandard"
           >
-            <Stop size={24} />
+            <Attach className="h-5 w-5" />
           </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            variant="ghost"
-            disabled={!hasSubmittableContent || isAnyImageLoading} // Disable if no content or if images are still loading/saving
-            className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-              !hasSubmittableContent || isAnyImageLoading
-                ? 'text-textSubtle cursor-not-allowed'
-                : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
-            }`}
-            title={isAnyImageLoading ? 'Waiting for images to save...' : 'Send'}
-          >
-            <Send />
-          </Button>
-        )}
+
+          {isLoading ? (
+            <Button
+              type="button"
+              onClick={onStop}
+              variant="ghost"
+              shape="round"
+              className="text-textSubtle hover:text-textStandard"
+            >
+              <Stop size={20} />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="ghost"
+              shape="round"
+              className="text-textSubtle hover:text-textStandard"
+              disabled={!displayValue.trim() && pastedImages.length === 0}
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
       </form>
 
       <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
         <div className="gap-1 flex items-center justify-between w-full">
           <Button
             type="button"
-            size="icon"
+            shape="round"
             variant="ghost"
             onClick={handleFileSelect}
             className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../../types/message';
 import { useChatContextManager } from './ChatContextManager';
+import { Button } from '../ui/button';
 
 interface ContextHandlerProps {
   messages: Message[];
@@ -122,12 +123,9 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           ? `This conversation has too much information to continue. Extension data often takes up significant space.`
           : `Summarization failed. Continue chatting or start a new session.`}
       </span>
-      <button
-        onClick={openNewSession}
-        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-      >
+      <Button onClick={openNewSession} variant="link" className="text-xs mt-1">
         Click here to start a new session
-      </button>
+      </Button>
     </>
   );
 
@@ -138,12 +136,9 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           ? `Your conversation has exceeded the model's context capacity`
           : `Summarization requested`}
       </span>
-      <button
-        onClick={handleRetry}
-        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-      >
+      <Button onClick={handleRetry} variant="link" className="text-xs mt-1">
         Retry loading summary
-      </button>
+      </Button>
     </>
   );
 
@@ -160,15 +155,12 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           : `This summary includes key points from your conversation.`}
       </span>
       {shouldAllowSummaryInteraction && (
-        <button
-          onClick={openSummaryModal}
-          className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-        >
+        <Button onClick={openSummaryModal} variant="link" className="text-xs mt-1">
           View or edit summary{' '}
           {isContextLengthExceeded
             ? '(you may continue your conversation based on the summary)'
             : ''}
-        </button>
+        </Button>
       )}
     </>
   );

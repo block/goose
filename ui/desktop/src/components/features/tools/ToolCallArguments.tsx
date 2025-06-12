@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MarkdownContent from '@/components/primitives/MarkdownContent';
 import Expand from '@/components/ui/Expand';
+import { Button } from '@/components/ui/button';
 
 export type ToolCallArgumentValue =
   | string
@@ -49,12 +50,14 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
               ) : (
                 <span className="text-textPlaceholder mr-2">{value.slice(0, 60)}...</span>
               )}
-              <button
+              <Button
                 onClick={() => toggleKey(key)}
+                variant="ghost"
+                shape="round"
                 className="hover:opacity-75 text-textPlaceholder pr-2"
               >
                 <Expand size={5} isExpanded={isExpanded} />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

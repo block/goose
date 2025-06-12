@@ -7,6 +7,7 @@ import { snakeToTitleCase } from '@/utils';
 import Dot, { LoadingStatus } from '@/components/ui/Dot';
 import Expand from '@/components/ui/Expand';
 import { NotificationEvent } from '@/hooks/useMessageStream';
+import { Button } from '@/components/ui/button';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -59,10 +60,14 @@ function ToolCallExpandable({
 
   return (
     <div className={className}>
-      <button onClick={toggleExpand} className="w-full flex justify-between items-center pr-2">
+      <Button
+        onClick={toggleExpand}
+        variant="ghost"
+        className="w-full flex justify-between items-center pr-2"
+      >
         <span className="flex items-center">{label}</span>
         <Expand size={5} isExpanded={isExpanded} />
-      </button>
+      </Button>
       {isExpanded && <div>{children}</div>}
     </div>
   );

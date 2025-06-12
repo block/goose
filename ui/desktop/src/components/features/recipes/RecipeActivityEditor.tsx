@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export default function RecipeActivityEditor({
   activities,
@@ -35,12 +36,14 @@ export default function RecipeActivityEditor({
               title={activity.length > 100 ? activity : undefined}
             >
               <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
-              <button
+              <Button
                 onClick={() => handleRemoveActivity(activity)}
+                variant="ghost"
+                shape="round"
                 className="ml-2 text-textStandard hover:text-textSubtle transition-colors"
               >
                 ×
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -53,12 +56,9 @@ export default function RecipeActivityEditor({
             className="flex-1 px-4 py-3 border rounded-lg bg-bgApp text-textStandard placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent"
             placeholder="Add new activity..."
           />
-          <button
-            onClick={handleAddActivity}
-            className="px-5 py-1.5 text-sm bg-bgAppInverse text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
-          >
+          <Button onClick={handleAddActivity} variant="default" className="px-5 py-1.5 text-sm">
             Add activity
-          </button>
+          </Button>
         </div>
       </div>
     </div>

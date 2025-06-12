@@ -4,6 +4,7 @@ import { ChatSmart, Idea, Refresh, Time, Send, Settings } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '@/components/context/ConfigContext';
 import { ViewOptions, View } from '@/App';
+import { Button } from '../ui/button';
 
 interface RecipeConfig {
   id: string;
@@ -33,9 +34,10 @@ const MenuButton: React.FC<MenuButtonProps> = ({
   icon,
   testId = '',
 }) => (
-  <button
+  <Button
     onClick={onClick}
     data-testid={testId}
+    variant="ghost"
     className={`w-full text-left px-4 py-3 min-h-[64px] text-sm hover:bg-bgSubtle transition-[background] border-b border-borderSubtle ${
       danger ? 'text-red-400' : ''
     } ${className}`}
@@ -49,7 +51,7 @@ const MenuButton: React.FC<MenuButtonProps> = ({
       </div>
       {icon && <div className="ml-2">{icon}</div>}
     </div>
-  </button>
+  </Button>
 );
 
 interface ThemeSelectProps {
@@ -62,44 +64,35 @@ const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) =
     <div className="px-4 py-3 border-b border-borderSubtle">
       <div className="text-sm mb-2">Theme</div>
       <div className="grid grid-cols-3 gap-2">
-        <button
+        <Button
           data-testid="light-mode-button"
           onClick={() => onThemeChange('light')}
-          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
-            themeMode === 'light'
-              ? 'border-borderStandard'
-              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
-          }`}
+          variant={themeMode === 'light' ? 'default' : 'outline'}
+          className="flex items-center justify-center gap-2 p-2"
         >
           <Sun className="h-4 w-4" />
           <span className="text-xs">Light</span>
-        </button>
+        </Button>
 
-        <button
+        <Button
           data-testid="dark-mode-button"
           onClick={() => onThemeChange('dark')}
-          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
-            themeMode === 'dark'
-              ? 'border-borderStandard'
-              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
-          }`}
+          variant={themeMode === 'dark' ? 'default' : 'outline'}
+          className="flex items-center justify-center gap-2 p-2"
         >
           <Moon className="h-4 w-4" />
           <span className="text-xs">Dark</span>
-        </button>
+        </Button>
 
-        <button
+        <Button
           data-testid="system-mode-button"
           onClick={() => onThemeChange('system')}
-          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
-            themeMode === 'system'
-              ? 'border-borderStandard'
-              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
-          }`}
+          variant={themeMode === 'system' ? 'default' : 'outline'}
+          className="flex items-center justify-center gap-2 p-2"
         >
           <Sliders className="h-4 w-4" />
           <span className="text-xs">System</span>
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -171,13 +164,15 @@ export default function MoreMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
+        <Button
           data-testid="more-options-button"
-          className={`z-[100] w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard ${open ? 'text-textStandard' : 'text-textSubtle'}`}
+          variant="outline"
+          shape="round"
+          className={`z-[100] cursor-pointer no-drag ${open ? 'text-text-default' : 'text-text-muted'}`}
           role="button"
         >
           <Settings />
-        </button>
+        </Button>
       </PopoverTrigger>
 
       <PopoverPortal>

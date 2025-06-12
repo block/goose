@@ -67,7 +67,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (viewingScheduleId === null) {
       fetchSchedules();
-      
+
       // Check for pending deep link from recipe editor
       const pendingDeepLink = localStorage.getItem('pendingScheduleDeepLink');
       if (pendingDeepLink) {
@@ -458,7 +458,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           <>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              shape="round"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenEditModal(job);
@@ -475,7 +475,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              shape="round"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (job.paused) {
@@ -510,7 +510,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                           <>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              shape="round"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleInspectRunningJob(job.id);
@@ -525,7 +525,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              shape="round"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleKillRunningJob(job.id);
@@ -542,7 +542,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
                         )}
                         <Button
                           variant="ghost"
-                          size="icon"
+                          shape="round"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteSchedule(job.id);

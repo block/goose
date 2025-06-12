@@ -1,4 +1,4 @@
-import SplashPills from './SplashPills';
+import { Button } from '../ui/button';
 import GooseLogo from '../brand/GooseLogo';
 
 interface SplashProps {
@@ -8,6 +8,27 @@ interface SplashProps {
 }
 
 export default function Splash({ append, activities, title }: SplashProps) {
+  // Default activities if none provided
+  const defaultPills = [
+    'What can you do?',
+    'Demo writing and reading files',
+    'Make a snake game in a new folder',
+    'List files in my current directory',
+    'Take a screenshot and summarize',
+  ];
+
+  const pills = activities || defaultPills;
+
+  // Find any pill that starts with "message:"
+  const messagePillIndex = pills.findIndex((pill) => pill.toLowerCase().startsWith('message:'));
+
+  // Extract the message pill and the remaining pills
+  const messagePill = messagePillIndex >= 0 ? pills[messagePillIndex] : null;
+  const remainingPills =
+    messagePillIndex >= 0
+      ? [...pills.slice(0, messagePillIndex), ...pills.slice(messagePillIndex + 1)]
+      : pills;
+
   return (
     <div className="flex flex-col h-full">
       {title && (
@@ -28,8 +49,25 @@ export default function Splash({ append, activities, title }: SplashProps) {
               </div>
             </div>
 
-            <div>
-              <SplashPills append={append} activities={activities} />
+            <div className="flex flex-col">
+              {messagePill && (
+                <div className="mb-6 p-4 bg-bgSubtle rounded-lg border border-borderStandard animate-[fadein_500ms_ease-in_forwards]">
+                  {messagePill.replace(/^message:/i, '').trim()}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-4 animate-[fadein_500ms_ease-in_forwards]">
+                {remainingPills.map((content, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    onClick={() => append(content)}
+                    title={content.length > 100 ? content : undefined}
+                  >
+                    {content.length > 100 ? content.slice(0, 100) + '...' : content}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

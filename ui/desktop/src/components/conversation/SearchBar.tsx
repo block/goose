@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import { debounce } from 'lodash';
+import { Button } from '../ui/button';
 
 /**
  * Props for the SearchBar component
@@ -191,7 +192,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
-            <button onClick={(e) => handleNavigate('prev', e)} className="p-1" title="Previous (↑)">
+            <Button
+              onClick={(e) => handleNavigate('prev', e)}
+              variant="ghost"
+              shape="round"
+              title="Previous (↑)"
+            >
               <ArrowUp
                 className={`h-5 w-5 transition-opacity ${
                   !hasResults
@@ -199,10 +205,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                     : 'text-textSubtleInverse hover:text-textStandardInverse'
                 }`}
               />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={(e) => handleNavigate('next', e)}
-              className="p-1"
+              variant="ghost"
+              shape="round"
               title="Next (↓ or Enter)"
             >
               <ArrowDown
@@ -212,12 +219,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                     : 'text-textSubtleInverse hover:text-textStandardInverse'
                 }`}
               />
-            </button>
+            </Button>
           </div>
 
-          <button onClick={handleClose} className="p-1" title="Close (Esc)">
+          <Button onClick={handleClose} variant="ghost" shape="round" title="Close (Esc)">
             <Close className="h-5 w-5 text-textSubtleInverse hover:text-textStandardInverse" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>
