@@ -3,11 +3,8 @@ import { compareVersions } from 'compare-versions';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import log from './logger';
-
-const execAsync = promisify(exec);
 
 interface GitHubRelease {
   tag_name: string;
@@ -172,10 +169,26 @@ export class GitHubUpdater {
         // Use unzip command to extract
         log.info(`GitHubUpdater: Extracting ${fileName} to temp directory`);
 
-        const { stderr } = await execAsync(
-          `unzip -o "${downloadPath}" -d "${tempExtractDir}"`,
-          { maxBuffer: 1024 * 1024 * 10 } // 10MB buffer
-        );
+        const unzipProcess = spawn('unzip', ['-o', downloadPath, '-d', tempExtractDir]);
+        
+        let stderr = '';
+        unzipProcess.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          unzipProcess.on('close', (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`Unzip process exited with code ${code}`));
+            }
+          });
+          
+          unzipProcess.on('error', (err) => {
+            reject(err);
+          });
+        });
 
         if (stderr && !stderr.includes('warning')) {
           log.warn(`GitHubUpdater: Unzip stderr: ${stderr}`);
@@ -203,7 +216,7 @@ export class GitHubUpdater {
 
         // Move the app to Downloads
         log.info(`GitHubUpdater: Moving Goose.app to Downloads folder`);
-        await execAsync(`mv "${appPath}" "${finalAppPath}"`);
+        await fs.rename(appPath, finalAppPath);
 
         // Verify the move was successful
         try {
