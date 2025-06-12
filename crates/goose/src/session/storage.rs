@@ -461,7 +461,8 @@ pub async fn persist_messages_with_schedule_id(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description_with_schedule_id(session_file, messages, provider, schedule_id).await
+            generate_description_with_schedule_id(session_file, messages, provider, schedule_id)
+                .await
         }
         _ => {
             // Read existing metadata
