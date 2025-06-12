@@ -236,29 +236,61 @@ func killProcessGroup(process *os.Process) error {
 	}
 
 	pid := process.Pid
+	log.Printf("Attempting to kill process group for PID %d", pid)
 
 	switch runtime.GOOS {
 	case "windows":
 		// On Windows, kill the process tree
 		cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			log.Printf("Failed to kill Windows process tree for PID %d: %v", pid, err)
+			return err
+		}
+		log.Printf("Successfully killed Windows process tree for PID %d", pid)
+		return nil
 	default:
-		// On Unix-like systems, kill the process group
-		// First try to kill the process group
+		// On Unix-like systems, kill the process group more aggressively
+		log.Printf("Killing Unix process group for PID %d", pid)
+		
+		// First, try to kill the entire process group with SIGTERM
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-			// If that fails, try killing just the process
-			if err := process.Kill(); err != nil {
-				return err
-			}
+			log.Printf("Failed to send SIGTERM to process group -%d: %v", pid, err)
+		} else {
+			log.Printf("Sent SIGTERM to process group -%d", pid)
+		}
+		
+		// Also try to kill the main process directly
+		if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+			log.Printf("Failed to send SIGTERM to process %d: %v", pid, err)
+		} else {
+			log.Printf("Sent SIGTERM to process %d", pid)
 		}
 
-		// Give it a moment to terminate gracefully
-		time.Sleep(2 * time.Second)
+		// Give processes a brief moment to terminate gracefully
+		time.Sleep(1 * time.Second)
 
-		// Force kill if still running
-		syscall.Kill(-pid, syscall.SIGKILL)
-		syscall.Kill(pid, syscall.SIGKILL)
+		// Force kill the process group with SIGKILL
+		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+			log.Printf("Failed to send SIGKILL to process group -%d: %v", pid, err)
+		} else {
+			log.Printf("Sent SIGKILL to process group -%d", pid)
+		}
+		
+		// Force kill the main process with SIGKILL
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+			log.Printf("Failed to send SIGKILL to process %d: %v", pid, err)
+		} else {
+			log.Printf("Sent SIGKILL to process %d", pid)
+		}
 
+		// Also try using the process.Kill() method as a fallback
+		if err := process.Kill(); err != nil {
+			log.Printf("Failed to kill process using process.Kill(): %v", err)
+		} else {
+			log.Printf("Successfully killed process using process.Kill()")
+		}
+
+		log.Printf("Completed kill attempts for process group %d", pid)
 		return nil
 	}
 }
@@ -1310,17 +1342,21 @@ func (ts *TemporalService) killJob(req JobRequest) JobResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// First, try to kill the managed process
+	log.Printf("Starting kill process for job %s", req.JobID)
+
+	// Step 1: Kill managed processes first
+	processKilled := false
 	if err := globalProcessManager.KillProcess(req.JobID); err != nil {
 		log.Printf("Failed to kill managed process for job %s: %v", req.JobID, err)
 	} else {
 		log.Printf("Successfully killed managed process for job %s", req.JobID)
+		processKilled = true
 	}
 
-	// Also terminate any Temporal workflows for this job
+	// Step 2: Terminate Temporal workflows
+	workflowsKilled := 0
 	workflowIDs, exists := ts.runningWorkflows[req.JobID]
 	if exists && len(workflowIDs) > 0 {
-		killedCount := 0
 		for _, workflowID := range workflowIDs {
 			// Terminate the workflow
 			err := ts.client.TerminateWorkflow(ctx, workflowID, "", "Killed by user request")
@@ -1329,19 +1365,139 @@ func (ts *TemporalService) killJob(req JobRequest) JobResponse {
 				continue
 			}
 			log.Printf("Terminated workflow %s for job %s", workflowID, req.JobID)
-			killedCount++
+			workflowsKilled++
 		}
-		log.Printf("Terminated %d workflow(s) for job %s", killedCount, req.JobID)
+		log.Printf("Terminated %d workflow(s) for job %s", workflowsKilled, req.JobID)
 	}
 
-	// Mark job as not running in our tracking
+	// Step 3: Find and kill any remaining processes by name/pattern
+	additionalKills := ts.killProcessesByJobPattern(req.JobID)
+
+	// Step 4: Mark job as not running in our tracking
 	ts.markJobAsNotRunning(req.JobID)
 
-	log.Printf("Killed job: %s (processes and workflows)", req.JobID)
+	// Prepare response message
+	var messages []string
+	if processKilled {
+		messages = append(messages, "killed managed process")
+	}
+	if workflowsKilled > 0 {
+		messages = append(messages, fmt.Sprintf("terminated %d workflow(s)", workflowsKilled))
+	}
+	if additionalKills > 0 {
+		messages = append(messages, fmt.Sprintf("killed %d additional process(es)", additionalKills))
+	}
+
+	if len(messages) == 0 {
+		messages = append(messages, "no active processes found but marked as not running")
+	}
+
+	log.Printf("Killed job: %s (%s)", req.JobID, strings.Join(messages, ", "))
 	return JobResponse{
 		Success: true,
-		Message: fmt.Sprintf("Successfully killed job '%s' and all associated processes", req.JobID),
+		Message: fmt.Sprintf("Successfully killed job '%s': %s", req.JobID, strings.Join(messages, ", ")),
 	}
+}
+
+// killProcessesByJobPattern finds and kills processes related to a job by searching for patterns
+func (ts *TemporalService) killProcessesByJobPattern(jobID string) int {
+	log.Printf("Searching for additional processes to kill for job %s", jobID)
+	
+	killedCount := 0
+	
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		// Search for goose processes that might be related to this job
+		patterns := []string{
+			fmt.Sprintf("scheduled-%s", jobID),  // Session name pattern
+			fmt.Sprintf("GOOSE_JOB_ID=%s", jobID), // Environment variable pattern
+			jobID, // Job ID itself
+		}
+		
+		for _, pattern := range patterns {
+			// Use pgrep to find processes
+			cmd := exec.Command("pgrep", "-f", pattern)
+			output, err := cmd.Output()
+			if err != nil {
+				log.Printf("No processes found for pattern '%s': %v", pattern, err)
+				continue
+			}
+			
+			pidStr := strings.TrimSpace(string(output))
+			if pidStr == "" {
+				continue
+			}
+			
+			pids := strings.Split(pidStr, "\n")
+			for _, pidStr := range pids {
+				if pidStr == "" {
+					continue
+				}
+				
+				pid, err := strconv.Atoi(pidStr)
+				if err != nil {
+					log.Printf("Invalid PID '%s': %v", pidStr, err)
+					continue
+				}
+				
+				log.Printf("Found process %d matching pattern '%s' for job %s", pid, pattern, jobID)
+				
+				// Kill the process
+				if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+					log.Printf("Failed to send SIGTERM to PID %d: %v", pid, err)
+				} else {
+					log.Printf("Sent SIGTERM to PID %d", pid)
+					killedCount++
+				}
+				
+				// Wait a moment then force kill
+				time.Sleep(500 * time.Millisecond)
+				if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+					log.Printf("Failed to send SIGKILL to PID %d: %v", pid, err)
+				} else {
+					log.Printf("Sent SIGKILL to PID %d", pid)
+				}
+			}
+		}
+		
+	case "windows":
+		// On Windows, search for goose.exe processes
+		sessionPattern := fmt.Sprintf("scheduled-%s", jobID)
+		
+		// Use tasklist to find processes
+		cmd := exec.Command("tasklist", "/FI", "IMAGENAME eq goose.exe", "/FO", "CSV")
+		output, err := cmd.Output()
+		if err != nil {
+			log.Printf("Failed to list Windows processes: %v", err)
+			return killedCount
+		}
+		
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, sessionPattern) || strings.Contains(line, jobID) {
+				// Extract PID from CSV format
+				fields := strings.Split(line, ",")
+				if len(fields) >= 2 {
+					pidStr := strings.Trim(fields[1], "\"")
+					if pid, err := strconv.Atoi(pidStr); err == nil {
+						log.Printf("Found Windows process %d for job %s", pid, jobID)
+						
+						// Kill the process
+						killCmd := exec.Command("taskkill", "/F", "/PID", fmt.Sprintf("%d", pid))
+						if err := killCmd.Run(); err != nil {
+							log.Printf("Failed to kill Windows process %d: %v", pid, err)
+						} else {
+							log.Printf("Killed Windows process %d", pid)
+							killedCount++
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	log.Printf("Killed %d additional processes for job %s", killedCount, jobID)
+	return killedCount
 }
 
 func (ts *TemporalService) inspectJob(req JobRequest) JobResponse {
