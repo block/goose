@@ -1,9 +1,10 @@
 import { app } from 'electron';
 import { compareVersions } from 'compare-versions';
 import * as fs from 'fs/promises';
+import { createWriteStream } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { spawn } from 'child_process';
+import * as yauzl from 'yauzl';
 import log from './logger';
 
 interface GitHubRelease {
@@ -190,40 +191,17 @@ export class GitHubUpdater {
 
       log.info(`GitHubUpdater: Update downloaded to ${downloadPath}`);
 
-      // Auto-unzip the downloaded file
+      // Auto-unzip the downloaded file using yauzl (secure ZIP library)
       try {
         const tempExtractDir = path.join(downloadsDir, `temp-extract-${Date.now()}`);
 
         // Create temp extraction directory
         await fs.mkdir(tempExtractDir, { recursive: true });
 
-        // Use unzip command to extract
-        log.info(`GitHubUpdater: Extracting ${fileName} to temp directory`);
+        log.info(`GitHubUpdater: Extracting ${fileName} to temp directory using yauzl`);
 
-        const unzipProcess = spawn('unzip', ['-o', downloadPath, '-d', tempExtractDir]);
-
-        let stderr = '';
-        unzipProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        await new Promise<void>((resolve, reject) => {
-          unzipProcess.on('close', (code) => {
-            if (code === 0) {
-              resolve();
-            } else {
-              reject(new Error(`Unzip process exited with code ${code}`));
-            }
-          });
-
-          unzipProcess.on('error', (err) => {
-            reject(err);
-          });
-        });
-
-        if (stderr && !stderr.includes('warning')) {
-          log.warn(`GitHubUpdater: Unzip stderr: ${stderr}`);
-        }
+        // Use yauzl to extract the ZIP file securely
+        await extractZipFile(downloadPath, tempExtractDir);
 
         // Check if Goose.app exists in the extracted content
         const appPath = path.join(tempExtractDir, 'Goose.app');
@@ -285,6 +263,109 @@ export class GitHubUpdater {
       };
     }
   }
+}
+
+/**
+ * Securely extract a ZIP file using yauzl with security checks
+ * @param zipPath Path to the ZIP file
+ * @param extractDir Directory to extract to
+ */
+async function extractZipFile(zipPath: string, extractDir: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (!zipfile) {
+        reject(new Error('Failed to open ZIP file'));
+        return;
+      }
+
+      zipfile.readEntry();
+
+      zipfile.on('entry', async (entry: yauzl.Entry) => {
+        try {
+          // Security check: prevent directory traversal attacks
+          if (entry.fileName.includes('..') || path.isAbsolute(entry.fileName)) {
+            log.warn(`GitHubUpdater: Skipping potentially dangerous path: ${entry.fileName}`);
+            zipfile.readEntry();
+            return;
+          }
+
+          const fullPath = path.join(extractDir, entry.fileName);
+
+          // Ensure the resolved path is still within the extraction directory
+          const resolvedPath = path.resolve(fullPath);
+          const resolvedExtractDir = path.resolve(extractDir);
+          if (!resolvedPath.startsWith(resolvedExtractDir + path.sep)) {
+            log.warn(`GitHubUpdater: Path traversal attempt detected: ${entry.fileName}`);
+            zipfile.readEntry();
+            return;
+          }
+
+          // Handle directories
+          if (entry.fileName.endsWith('/')) {
+            await fs.mkdir(fullPath, { recursive: true });
+            zipfile.readEntry();
+            return;
+          }
+
+          // Handle files
+          zipfile.openReadStream(entry, async (err, readStream) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+
+            if (!readStream) {
+              reject(new Error('Failed to open read stream'));
+              return;
+            }
+
+            try {
+              // Ensure parent directory exists
+              await fs.mkdir(path.dirname(fullPath), { recursive: true });
+
+              // Create write stream
+              const writeStream = createWriteStream(fullPath);
+
+              readStream.on('end', () => {
+                writeStream.end();
+                zipfile.readEntry();
+              });
+
+              readStream.on('error', (streamErr) => {
+                writeStream.destroy();
+                reject(streamErr);
+              });
+
+              writeStream.on('error', (writeErr: Error) => {
+                reject(writeErr);
+              });
+
+              // Pipe the data
+              readStream.pipe(writeStream);
+            } catch (fileErr) {
+              reject(fileErr);
+            }
+          });
+        } catch (entryErr) {
+          reject(entryErr);
+        }
+      });
+
+      zipfile.on('end', () => {
+        log.info('GitHubUpdater: ZIP extraction completed successfully');
+        resolve();
+      });
+
+      zipfile.on('error', (zipErr) => {
+        reject(zipErr);
+      });
+    });
+  });
 }
 
 // Create singleton instance
