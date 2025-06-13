@@ -48,11 +48,11 @@ export function setupAutoUpdater(tray?: Tray) {
   autoUpdater.autoDownload = false; // We'll trigger downloads manually
   autoUpdater.autoInstallOnAppQuit = true;
 
-   // Enable updates in development mode for testing
-   if (process.env.ENABLE_DEV_UPDATES === 'true') {
-     autoUpdater.forceDevUpdateConfig = true;
-   }
-   
+  // Enable updates in development mode for testing
+  if (process.env.ENABLE_DEV_UPDATES === 'true') {
+    autoUpdater.forceDevUpdateConfig = true;
+  }
+
   // Set logger
   autoUpdater.logger = log;
 
