@@ -28,6 +28,7 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to GitHub Copilot's chat models including gpt-4o, o1, o3-mini, and Claude models. Uses device code authentication flow for secure access. | Uses GitHub device code authentication flow (no API key needed) |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).**  | `OLLAMA_HOST`                                                                                                                                                                       |
+| [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API an compatible alternative to Ollama and can be used with the Goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because Goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`                                                                                                                                                                |
 | [Snowflake](https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model) | Access the latest models using Snowflake Cortex services, including Claude models. **Requires a Snowflake account and programmatic access token (PAT)**.                                                     | `SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`                                                                                                                                                                 |
@@ -275,9 +276,11 @@ To set up Google Gemini with Goose, follow these steps:
 </Tabs>
 
 
-### Local LLMs (Ollama)
+### Local LLMs (Ollama or Ramalama)
 
-Ollama provides local LLMs, which requires a bit more set up before you can use it with Goose.
+Ollama and Ramalama are both options to provide local LLMs, each which requires a bit more set up before you can use one of them with Goose.
+
+#### Ollama
 
 1. [Download Ollama](https://ollama.com/download). 
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
@@ -365,6 +368,102 @@ If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=
 │
 ◇  Provider Ollama requires OLLAMA_HOST, please enter a value
 │  http://localhost:11434
+│
+◇  Enter a model from that provider:
+│  qwen2.5
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
+
+#### Ramalama
+
+1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
+2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
+
+:::warning Limited Support for models without tool calling
+Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
+:::
+
+Example:
+
+```sh
+# NOTE: the --runtime-args="--jinja" flag is required for Ramalama to work with the Goose Ollama provider.
+ramalama serve --runtime-args="--jinja" ollama://qwen2.5
+```
+
+3. In a separate terminal window, configure with Goose:
+
+```sh
+goose configure
+```
+
+4. Choose to `Configure Providers`
+
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
+
+5. Choose `Ollama` as the model provider since Ramalama is API compatible and can use the Goose Ollama provider
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Databricks
+│  ○ Google Gemini
+│  ○ Groq
+│  ● Ollama (Local open source models)
+│  ○ OpenAI
+│  ○ OpenRouter
+└
+```
+
+5. Enter the host where your model is running
+
+:::info Endpoint
+For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
+:::
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◆  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
+└
+```
+
+
+6. Enter the model you have running
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◇  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
 │
 ◇  Enter a model from that provider:
 │  qwen2.5
