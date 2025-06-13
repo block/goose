@@ -3,6 +3,7 @@ use dotenv::dotenv;
 use goose_llm::extractors::generate_session_name;
 use goose_llm::message::Message;
 use goose_llm::providers::errors::ProviderError;
+use rstest::rstest;
 
 fn should_run_test() -> Result<(), String> {
     dotenv().ok();
@@ -15,18 +16,26 @@ fn should_run_test() -> Result<(), String> {
     Ok(())
 }
 
-async fn _generate_session_name(messages: &[Message]) -> Result<String, ProviderError> {
+async fn _generate_session_name(
+    model_name: &str,
+    messages: &[Message],
+) -> Result<String, ProviderError> {
     let provider_name = "databricks";
     let provider_config = serde_json::json!({
         "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
 
-    generate_session_name(provider_name, provider_config, messages).await
+    let model_config = goose_llm::ModelConfig::new(model_name.to_string());
+    generate_session_name(provider_name, provider_config, model_config, messages).await
 }
 
+#[rstest]
+#[case("claude-3-5-haiku")]
+#[case("goose-gpt-4-1")]
+#[case("goose-gemini-2-5-pro")]
 #[tokio::test]
-async fn test_generate_session_name_success() {
+async fn test_generate_session_name_success(#[case] model_name: &str) {
     if should_run_test().is_err() {
         println!("Skipping...");
         return;
@@ -39,7 +48,7 @@ async fn test_generate_session_name_success() {
         Message::user().with_text("What’s the weather in New York tomorrow?"),
     ];
 
-    let name = _generate_session_name(&messages)
+    let name = _generate_session_name(model_name, &messages)
         .await
         .expect("Failed to generate session name");
 
@@ -57,8 +66,12 @@ async fn test_generate_session_name_success() {
     )
 }
 
+#[rstest]
+#[case("claude-3-5-haiku")]
+#[case("goose-gpt-4-1")]
+#[case("goose-gemini-2-5-pro")]
 #[tokio::test]
-async fn test_generate_session_name_no_user() {
+async fn test_generate_session_name_no_user(#[case] model_name: &str) {
     if should_run_test().is_err() {
         println!("Skipping 'test_generate_session_name_no_user'. Databricks creds not set");
         return;
@@ -70,7 +83,7 @@ async fn test_generate_session_name_no_user() {
         Message::assistant().with_text("All systems go."),
     ];
 
-    let err = _generate_session_name(&messages).await;
+    let err = _generate_session_name(model_name, &messages).await;
     assert!(
         matches!(err, Err(ProviderError::ExecutionError(_))),
         "Expected ExecutionError when there are no user messages, got: {:?}",

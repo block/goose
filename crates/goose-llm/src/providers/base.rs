@@ -3,7 +3,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
-use crate::{message::Message, types::core::Tool};
+use crate::{
+    message::{Message, MessageContent},
+    types::core::{Tool, ToolError},
+};
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, uniffi::Record)]
 pub struct Usage {
@@ -102,7 +105,64 @@ pub trait Provider: Send + Sync {
         system: &str,
         messages: &[Message],
         schema: &serde_json::Value,
-    ) -> Result<ProviderExtractResponse, ProviderError>;
+    ) -> Result<ProviderExtractResponse, ProviderError> {
+        // Build a tool whose parameters *are* the schema
+        let extract_tool = Tool::new(
+            "extract_structured_data",
+            "Return a JSON object that satisfies the supplied JSON-Schema",
+            schema.clone(),
+        );
+
+        // Modify the system prompt to specify that tool must be used
+        let system = format!(
+            "{}\n\nYou must only use the `extract_structured_data` tool to return a JSON object that satisfies the supplied schema:\n{}",
+            system, schema
+        );
+
+        // Call the complete method with the modified system prompt and the tool
+        let ProviderCompleteResponse {
+            message,
+            model,
+            usage,
+        } = self
+            .complete(&system, messages, std::slice::from_ref(&extract_tool))
+            .await?;
+
+        // Find the first tool call in the response message
+        let tool_call_result = message
+            .content
+            .iter()
+            .find_map(|c| {
+                if let MessageContent::ToolReq(tr) = c {
+                    Some(&tr.tool_call.0) // ToolResult<ToolCall>
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| {
+                ProviderError::ResponseParseError(
+                    "assistant did not issue a structured_extract tool call".into(),
+                )
+            })?;
+
+        match tool_call_result {
+            Ok(tool_call) => {
+                let data = tool_call.arguments.clone();
+                Ok(ProviderExtractResponse { data, model, usage })
+            }
+            Err(tool_err) => Err(map_tool_error(tool_err)),
+        }
+    }
+}
+
+fn map_tool_error(err: &ToolError) -> ProviderError {
+    match err {
+        ToolError::InvalidParameters(msg)
+        | ToolError::SchemaError(msg)
+        | ToolError::ExecutionError(msg) => ProviderError::ExecutionError(msg.clone()),
+
+        ToolError::NotFound(msg) => ProviderError::RequestFailed(msg.clone()),
+    }
 }
 
 #[cfg(test)]

@@ -163,8 +163,12 @@ async fn run_extract_paper_test(provider: ProviderType, model: &str) -> Result<(
 async fn run_extract_ui_test(provider: ProviderType, model: &str) -> Result<()> {
     run_extract_test(provider, model, UI_SYSTEM, UI_TEXT, ui_schema(), |v| {
         v.as_object()
-            .and_then(|o| o.get("type").and_then(Value::as_str))
-            == Some("form")
+            .map(|o| {
+                ["type", "label", "children", "attributes"]
+                    .iter()
+                    .all(|k| o.contains_key(*k))
+            })
+            .unwrap_or(false)
     })
     .await
 }
@@ -184,12 +188,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn databricks_extract_paper() -> Result<()> {
+    async fn databricks_gpt_extract_paper() -> Result<()> {
         run_extract_paper_test(ProviderType::Databricks, "goose-gpt-4-1").await
     }
 
     #[tokio::test]
-    async fn databricks_extract_ui() -> Result<()> {
+    async fn databricks_claude_extract_paper() -> Result<()> {
+        run_extract_paper_test(ProviderType::Databricks, "goose-claude-3-7-sonnet").await
+    }
+
+    #[tokio::test]
+    async fn databricks_gemini_extract_paper() -> Result<()> {
+        run_extract_paper_test(ProviderType::Databricks, "goose-gemini-2-5-pro").await
+    }
+
+    #[tokio::test]
+    async fn databricks_gpt_extract_ui() -> Result<()> {
         run_extract_ui_test(ProviderType::Databricks, "goose-gpt-4-1").await
+    }
+
+    #[tokio::test]
+    async fn databricks_claude_extract_ui() -> Result<()> {
+        run_extract_ui_test(ProviderType::Databricks, "goose-claude-3-7-sonnet").await
     }
 }
