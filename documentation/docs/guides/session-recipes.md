@@ -69,10 +69,6 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
    </details>
 
-   ### Edit Recipe File
-
-   Once the recipe file is created, you can open it and modify the value of any field.
-
    ### Optional Parameters
 
    You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
@@ -150,6 +146,28 @@ Validation ensures that:
    </TabItem> 
 </Tabs>
 
+## Edit Recipe
+<Tabs>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+   1. While in the session created from a recipe, click the menu icon **⋮** in the top right corner  
+   2. Select **View recipe**  
+   3. In the dialog that appears, you can edit the:
+      - Title
+      - Description
+      - Instructions
+      - Initial prompt
+      - Activities
+   4. Copy the new recipe URL. The original recipe and your current session are not affected by your edits.
+   5. Use and share the URL for your new recipe. 
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
+  Once the recipe file is created, you can open it with your preferred text editor and modify the value of any field.
+
+</TabItem> 
+</Tabs>
 
 ## Use Recipe
 
