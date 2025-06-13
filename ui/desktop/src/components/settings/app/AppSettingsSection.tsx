@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import UpdateSection from './UpdateSection';
+import { UPDATES_ENABLED } from '../../../updates';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -124,9 +125,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </div>
 
         {/* Update Section */}
-        <div ref={updateSectionRef} className="mt-8 pt-8 border-t border-gray-200">
-          <UpdateSection />
-        </div>
+        {UPDATES_ENABLED && (
+          <div ref={updateSectionRef} className="mt-8 pt-8 border-t border-gray-200">
+            <UpdateSection />
+          </div>
+        )}
       </div>
     </section>
   );
