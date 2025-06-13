@@ -332,15 +332,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
           {/* Action Buttons */}
           <div className="flex flex-col space-y-2 pt-1">
-            {process.env.ALPHA && (
-              <button
-                onClick={() => setIsScheduleModalOpen(true)}
-                disabled={!requiredFieldsAreFilled()}
-                className="w-full h-[60px] rounded-none border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:border-gray-600 text-lg font-medium"
-              >
-                Create Schedule from Recipe
-              </button>
-            )}
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              disabled={!requiredFieldsAreFilled()}
+              className="w-full h-[60px] rounded-none border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:border-gray-600 text-lg font-medium"
+            >
+              Create Schedule from Recipe
+            </button>
             <button
               onClick={() => {
                 localStorage.removeItem('recipe_editor_extensions');
