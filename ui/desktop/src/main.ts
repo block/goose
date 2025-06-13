@@ -37,11 +37,30 @@ import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
   setupAutoUpdater,
+  registerUpdateIpcHandlers,
   setTrayRef,
   updateTrayMenu,
   getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
+
+// Updater toggle functions (moved here to keep updates.ts minimal for release replacement)
+let updatesEnabled = UPDATES_ENABLED;
+
+function toggleUpdates(): boolean {
+  updatesEnabled = !updatesEnabled;
+  return updatesEnabled;
+}
+
+function getUpdatesEnabled(): boolean {
+  // Only return the toggle state, ignore ENABLE_DEV_UPDATES for UI visibility
+  return updatesEnabled;
+}
+
+function shouldSetupUpdater(): boolean {
+  // Setup updater if either the toggle is enabled OR dev updates are enabled
+  return updatesEnabled || process.env.ENABLE_DEV_UPDATES === 'true';
+}
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -1157,8 +1176,11 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
-  // Setup auto-updater
-  UPDATES_ENABLED && setupAutoUpdater();
+  // Register update IPC handlers once
+  registerUpdateIpcHandlers();
+
+  // Setup auto-updater if enabled
+  shouldSetupUpdater() && setupAutoUpdater();
 
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -1199,6 +1221,38 @@ app.whenReady().then(async () => {
 
   // Register the default global hotkey
   registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
+
+  // Register hidden key combination to toggle updater (Cmd+Shift+U+P+D+A+T+E)
+  globalShortcut.register('CommandOrControl+Shift+U', () => {
+    // This is a multi-key sequence, we'll use a simpler approach
+    // Register a hidden key combination: Cmd/Ctrl + Alt + Shift + U for "Update toggle"
+    const newState = toggleUpdates();
+    log.info(
+      `Updater toggled via keyboard shortcut. New state: ${newState ? 'ENABLED' : 'DISABLED'}`
+    );
+
+    // Show a notification to the user
+    new Notification({
+      title: 'Goose Updater',
+      body: `Updates ${newState ? 'enabled' : 'disabled'}`,
+    }).show();
+
+    // If we're enabling updates and haven't set up the auto-updater yet, set it up now
+    if (newState) {
+      try {
+        setupAutoUpdater(tray || undefined);
+        log.info('Auto-updater setup completed after keyboard toggle');
+      } catch (error) {
+        log.error('Error setting up auto-updater after keyboard toggle:', error);
+      }
+    }
+
+    // Notify all windows about the updater state change
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach((win) => {
+      win.webContents.send('updater-state-changed', newState);
+    });
+  });
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -1609,6 +1663,11 @@ app.whenReady().then(async () => {
   // Handler for getting app version
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion();
+  });
+
+  // Handler for getting updater state
+  ipcMain.handle('get-updater-enabled', () => {
+    return getUpdatesEnabled();
   });
 });
 
