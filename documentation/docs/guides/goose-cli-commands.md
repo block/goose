@@ -303,26 +303,29 @@ goose bench ...etc.
 ```
 
 ### recipe
-Used to validate a recipe file and get a link to share the recipe (aka "shared agent") with another Goose user.
+Used to validate recipe files and manage recipe sharing.
 
+**Usage:**
 ```bash
 goose recipe <COMMAND>
 ```
 
+**Commands:**
+- `validate <FILE>`: Validate a recipe file
+- `deeplink <FILE>`: Generate a shareable link for a recipe file
+
 **Options:**
+- `--help, -h`: Print help information
 
-- **`--help, -h`**: Print this message or the help for the subcommand
-
-**Usage:**
-
+**Examples:**
 ```bash
 # Validate a recipe file
-goose recipe validate $FILE.yaml
+goose recipe validate my-recipe.yaml
 
-# Generate a deeplink for a recipe file
-goose recipe deeplink $FILE.yaml
+# Generate a shareable link
+goose recipe deeplink my-recipe.yaml
 
-# Print this message or the help for the given command
+# Get help about recipe commands
 goose recipe help
 ```
 

@@ -81,6 +81,8 @@ pub enum ClaudeVersion {
     Sonnet37,
     /// Claude 3.5 Haiku
     Haiku35,
+    /// Claude Sonnet 4
+    Sonnet4,
     /// Generic Claude model for custom or new versions
     Generic(String),
 }
@@ -96,6 +98,10 @@ pub enum GeminiVersion {
     Pro20Exp,
     /// Gemini 2.5 Pro Experimental version
     Pro25Exp,
+    /// Gemini 2.5 Flash Preview version
+    Flash25Preview,
+    /// Gemini 2.5 Pro Preview version
+    Pro25Preview,
     /// Generic Gemini model for custom or new versions
     Generic(String),
 }
@@ -108,6 +114,7 @@ impl fmt::Display for GcpVertexAIModel {
                 ClaudeVersion::Sonnet35V2 => "claude-3-5-sonnet-v2@20241022",
                 ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
                 ClaudeVersion::Haiku35 => "claude-3-5-haiku@20241022",
+                ClaudeVersion::Sonnet4 => "claude-sonnet-4@20250514",
                 ClaudeVersion::Generic(name) => name,
             },
             Self::Gemini(version) => match version {
@@ -115,6 +122,8 @@ impl fmt::Display for GcpVertexAIModel {
                 GeminiVersion::Flash20 => "gemini-2.0-flash-001",
                 GeminiVersion::Pro20Exp => "gemini-2.0-pro-exp-02-05",
                 GeminiVersion::Pro25Exp => "gemini-2.5-pro-exp-03-25",
+                GeminiVersion::Flash25Preview => "gemini-2.5-flash-preview-05-20",
+                GeminiVersion::Pro25Preview => "gemini-2.5-pro-preview-05-06",
                 GeminiVersion::Generic(name) => name,
             },
         };
@@ -125,7 +134,7 @@ impl fmt::Display for GcpVertexAIModel {
 impl GcpVertexAIModel {
     /// Returns the default GCP location for the model.
     ///
-    /// Each model family has a well-known location:
+    /// Each model family has a well-known location based on availability:
     /// - Claude models default to Ohio (us-east5)
     /// - Gemini models default to Iowa (us-central1)
     pub fn known_location(&self) -> GcpLocation {
@@ -146,10 +155,13 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "claude-3-5-sonnet-v2@20241022" => Ok(Self::Claude(ClaudeVersion::Sonnet35V2)),
             "claude-3-7-sonnet@20250219" => Ok(Self::Claude(ClaudeVersion::Sonnet37)),
             "claude-3-5-haiku@20241022" => Ok(Self::Claude(ClaudeVersion::Haiku35)),
+            "claude-sonnet-4@20250514" => Ok(Self::Claude(ClaudeVersion::Sonnet4)),
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
             "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
             "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
             "gemini-2.5-pro-exp-03-25" => Ok(Self::Gemini(GeminiVersion::Pro25Exp)),
+            "gemini-2.5-flash-preview-05-20" => Ok(Self::Gemini(GeminiVersion::Flash25Preview)),
+            "gemini-2.5-pro-preview-05-06" => Ok(Self::Gemini(GeminiVersion::Pro25Preview)),
             // Generic models based on prefix matching
             _ if s.starts_with("claude-") => {
                 Ok(Self::Claude(ClaudeVersion::Generic(s.to_string())))
@@ -340,10 +352,13 @@ mod tests {
             "claude-3-5-sonnet-v2@20241022",
             "claude-3-7-sonnet@20250219",
             "claude-3-5-haiku@20241022",
+            "claude-sonnet-4@20250514",
             "gemini-1.5-pro-002",
             "gemini-2.0-flash-001",
             "gemini-2.0-pro-exp-02-05",
             "gemini-2.5-pro-exp-03-25",
+            "gemini-2.5-flash-preview-05-20",
+            "gemini-2.5-pro-preview-05-06",
         ];
 
         for model_id in valid_models {
@@ -362,10 +377,13 @@ mod tests {
             ("claude-3-5-sonnet-v2@20241022", GcpLocation::Ohio),
             ("claude-3-7-sonnet@20250219", GcpLocation::Ohio),
             ("claude-3-5-haiku@20241022", GcpLocation::Ohio),
+            ("claude-sonnet-4@20250514", GcpLocation::Ohio),
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
             ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),
             ("gemini-2.5-pro-exp-03-25", GcpLocation::Iowa),
+            ("gemini-2.5-flash-preview-05-20", GcpLocation::Iowa),
+            ("gemini-2.5-pro-preview-05-06", GcpLocation::Iowa),
         ];
 
         for (model_id, expected_location) in test_cases {

@@ -2,15 +2,13 @@
 
 Native desktop app for Goose built with [Electron](https://www.electronjs.org/) and [ReactJS](https://react.dev/). 
 
-# Prerequisites
-- [nvm](https://github.com/nvm-sh/nvm) (recommended for managing node versions easier but not required)
-- node major version equal to or greater than specified in .nvmrc and package.json
-- [rust](https://www.rust-lang.org/tools/install) (for building the server)
+# Building and running
+Goose uses [Hermit](https://github.com/cashapp/hermit) to manage dependencies, so you will need to have it installed and activated.
 
 ```
 git clone git@github.com:block/goose.git
+source ./bin/activate-hermit
 cd goose/ui/desktop
-nvm use
 npm install
 npm run start
 ```

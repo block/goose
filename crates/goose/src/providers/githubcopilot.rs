@@ -230,7 +230,7 @@ impl GithubCopilotProvider {
 
     async fn refresh_api_info(&self) -> Result<CopilotTokenInfo> {
         let config = Config::global();
-        let token = match config.get_secret::<String>("GITHUB_TOKEN") {
+        let token = match config.get_secret::<String>("GITHUB_COPILOT_TOKEN") {
             Ok(token) => token,
             Err(err) => match err {
                 ConfigError::NotFound(_) => {
@@ -238,7 +238,7 @@ impl GithubCopilotProvider {
                         .get_access_token()
                         .await
                         .context("unable to login into github")?;
-                    config.set_secret("GITHUB_TOKEN", Value::String(token.clone()))?;
+                    config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token.clone()))?;
                     token
                 }
                 _ => return Err(err.into()),

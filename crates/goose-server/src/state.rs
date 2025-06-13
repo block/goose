@@ -1,5 +1,5 @@
 use goose::agents::Agent;
-use goose::scheduler::Scheduler;
+use goose::scheduler_trait::SchedulerTrait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -9,7 +9,7 @@ pub type AgentRef = Arc<Agent>;
 pub struct AppState {
     agent: Option<AgentRef>,
     pub secret_key: String,
-    pub scheduler: Arc<Mutex<Option<Arc<Scheduler>>>>,
+    pub scheduler: Arc<Mutex<Option<Arc<dyn SchedulerTrait>>>>,
 }
 
 impl AppState {
@@ -27,12 +27,12 @@ impl AppState {
             .ok_or_else(|| anyhow::anyhow!("Agent needs to be created first."))
     }
 
-    pub async fn set_scheduler(&self, sched: Arc<Scheduler>) {
+    pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
         let mut guard = self.scheduler.lock().await;
         *guard = Some(sched);
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<Scheduler>, anyhow::Error> {
+    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
         self.scheduler
             .lock()
             .await

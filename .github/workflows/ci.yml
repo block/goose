@@ -5,6 +5,9 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches:
+      - main
   workflow_dispatch:
 
 name: CI
@@ -17,19 +20,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
-        with:
-          toolchain: stable
-
       - name: Run cargo fmt
-        run: cargo fmt --check
+        run: source ./bin/activate-hermit && cargo fmt --check
 
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
     steps:
-          # Add disk space cleanup before linting
+      # Add disk space cleanup before linting
       - name: Check disk space before build
         run: df -h
 
@@ -50,7 +48,7 @@ jobs:
             /usr/share/swift
 
           df -h
-          
+
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
@@ -58,11 +56,6 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
-        with:
-          toolchain: stable
 
       - name: Cache Cargo Registry
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
@@ -91,7 +84,7 @@ jobs:
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
-          cargo test
+          source ../bin/activate-hermit && cargo test
         working-directory: crates
 
       # Add disk space cleanup before linting
@@ -120,7 +113,7 @@ jobs:
         run: df -h
 
       - name: Lint
-        run: cargo clippy -- -D warnings
+        run: source ./bin/activate-hermit && cargo clippy -- -D warnings
 
   desktop-lint:
     name: Lint Electron Desktop App
@@ -129,22 +122,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # pin@v2
-        with:
-          node-version: "lts/*"
-
       - name: Install Dependencies
-        run: npm ci
+        run: source ../../bin/activate-hermit && npm ci
         working-directory: ui/desktop
 
       - name: Run Lint
-        run: npm run lint:check
+        run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
 
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     with:
       signing: false

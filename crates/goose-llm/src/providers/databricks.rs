@@ -138,6 +138,11 @@ impl DatabricksProvider {
                     "reduce the length",
                     "token count",
                     "exceeds",
+                    "exceed context limit",
+                    "input length",
+                    "max_tokens",
+                    "decrease input length",
+                    "context limit",
                 ];
                 if check_phrases.iter().any(|c| payload_str.contains(c)) {
                     return Err(ProviderError::ContextLengthExceeded(payload_str));

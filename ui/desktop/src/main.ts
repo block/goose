@@ -12,7 +12,9 @@ import {
   App,
   globalShortcut,
 } from 'electron';
+import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
+import fs from 'node:fs/promises';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { spawn } from 'child_process';
@@ -32,6 +34,82 @@ import {
 import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
+import windowStateKeeper from 'electron-window-state';
+
+// Define temp directory for pasted images
+const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
+
+// Function to ensure the temporary directory exists
+async function ensureTempDirExists(): Promise<string> {
+  try {
+    // Check if the path already exists
+    try {
+      const stats = await fs.stat(gooseTempDir);
+
+      // If it exists but is not a directory, remove it and recreate
+      if (!stats.isDirectory()) {
+        await fs.unlink(gooseTempDir);
+        await fs.mkdir(gooseTempDir, { recursive: true });
+      }
+
+      // Startup cleanup: remove old files and any symlinks
+      const files = await fs.readdir(gooseTempDir);
+      const now = Date.now();
+      const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+      for (const file of files) {
+        const filePath = path.join(gooseTempDir, file);
+        try {
+          const fileStats = await fs.lstat(filePath);
+
+          // Always remove symlinks
+          if (fileStats.isSymbolicLink()) {
+            console.warn(
+              `[Main] Found symlink in temp directory during startup: ${filePath}. Removing it.`
+            );
+            await fs.unlink(filePath);
+            continue;
+          }
+
+          // Remove old files (older than 24 hours)
+          if (fileStats.isFile()) {
+            const fileAge = now - fileStats.mtime.getTime();
+            if (fileAge > MAX_AGE) {
+              console.log(
+                `[Main] Removing old temp file during startup: ${filePath} (age: ${Math.round(fileAge / (60 * 60 * 1000))} hours)`
+              );
+              await fs.unlink(filePath);
+            }
+          }
+        } catch (fileError) {
+          // If we can't stat the file, try to remove it anyway
+          console.warn(`[Main] Could not stat file ${filePath}, attempting to remove:`, fileError);
+          try {
+            await fs.unlink(filePath);
+          } catch (unlinkError) {
+            console.error(`[Main] Failed to remove problematic file ${filePath}:`, unlinkError);
+          }
+        }
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        // Directory doesn't exist, create it
+        await fs.mkdir(gooseTempDir, { recursive: true });
+      } else {
+        throw error;
+      }
+    }
+
+    // Set proper permissions on the directory (0755 = rwxr-xr-x)
+    await fs.chmod(gooseTempDir, 0o755);
+
+    console.log('[Main] Temporary directory for pasted images ensured:', gooseTempDir);
+  } catch (error) {
+    console.error('[Main] Failed to create temp directory:', gooseTempDir, error);
+    throw error; // Propagate error
+  }
+  return gooseTempDir;
+}
 
 if (started) app.quit();
 
@@ -45,7 +123,7 @@ if (process.platform === 'win32') {
   if (!gotTheLock) {
     app.quit();
   } else {
-    app.on('second-instance', (event, commandLine) => {
+    app.on('second-instance', (_event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -66,7 +144,7 @@ if (process.platform === 'win32') {
               }
             }
 
-            createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+            createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
           });
           return; // Skip the rest of the handler
         }
@@ -97,7 +175,7 @@ if (process.platform === 'win32') {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -109,9 +187,13 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    // For bot/recipe URLs, skip existing window processing
-    // and let processProtocolUrl handle it entirely
-    processProtocolUrl(parsedUrl, null);
+    // For bot/recipe URLs, get existing window or create new one
+    const existingWindows = BrowserWindow.getAllWindows();
+    const targetWindow =
+      existingWindows.length > 0
+        ? existingWindows[0]
+        : await createChat(app, undefined, openDir || undefined);
+    processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -122,7 +204,7 @@ async function handleProtocolUrl(url: string) {
       }
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (firstOpenWindow) {
@@ -157,12 +239,12 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       }
     }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+    createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
 }
 
-app.on('open-url', async (event, url) => {
+app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
@@ -172,16 +254,17 @@ app.on('open-url', async (event, url) => {
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
+      const base64 = decodeURIComponent(configParam || '');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
       }
 
       // Create a new window directly
-      await createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+      await createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
       return; // Skip the rest of the handler
     }
 
@@ -194,7 +277,7 @@ app.on('open-url', async (event, url) => {
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir);
+      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
 
     if (parsedUrl.hostname === 'extension') {
@@ -292,7 +375,7 @@ const createChat = async (
   app: App,
   query?: string,
   dir?: string,
-  version?: string,
+  _version?: string,
   resumeSessionId?: string,
   recipeConfig?: RecipeConfig, // Bot configuration
   viewType?: string // View type
@@ -300,7 +383,7 @@ const createChat = async (
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
-  let goosedProcess = null;
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
   if (viewType === 'recipeEditor') {
     // For recipeEditor, get the port from existing windows' config
@@ -327,16 +410,27 @@ const createChat = async (
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
     // Start new Goosed process for regular windows
-    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    port = newPort;
+    working_dir = newWorkingDir;
+    goosedProcess = newGoosedProcess;
   }
+
+  // Load and manage window state
+  const mainWindowState = windowStateKeeper({
+    defaultWidth: 750,
+    defaultHeight: 800,
+  });
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
-    width: 750,
-    height: 800,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
+    width: mainWindowState.width,
+    height: mainWindowState.height,
     minWidth: 650,
     resizable: true,
     transparent: false,
@@ -360,6 +454,9 @@ const createChat = async (
     },
   });
 
+  // Let windowStateKeeper manage the window
+  mainWindowState.manage(mainWindow);
+
   // Enable spellcheck / right and ctrl + click on mispelled word
   //
   // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
@@ -370,7 +467,7 @@ const createChat = async (
   //
   // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
-  mainWindow.webContents.on('context-menu', (event, params) => {
+  mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
 
     // Add each spelling suggestion
@@ -447,18 +544,8 @@ const createChat = async (
       : `?view=${encodeURIComponent(viewType)}`;
   }
 
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-
   // Increment window counter to track number of windows
   const windowId = ++windowCounter;
-  const direction = windowId % 2 === 0 ? 1 : -1; // Alternate direction
-  const initialOffset = 50;
-
-  // Set window position with alternating offset strategy
-  const baseXPosition = Math.round(width / 2 - mainWindow.getSize()[0] / 2);
-  const xOffset = direction * initialOffset * Math.floor(windowId / 2);
-  mainWindow.setPosition(baseXPosition + xOffset, 100);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
@@ -488,7 +575,7 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    if (goosedProcess) {
+    if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
   });
@@ -498,7 +585,17 @@ const createChat = async (
 // Track tray instance
 let tray: Tray | null = null;
 
+const destroyTray = () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+};
+
 const createTray = () => {
+  // If tray already exists, destroy it first
+  destroyTray();
+
   const isDev = process.env.NODE_ENV === 'development';
   let iconPath: string;
 
@@ -532,7 +629,7 @@ const showWindow = async () => {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir);
+    await createChat(app, undefined, openDir || undefined);
     return;
   }
 
@@ -571,16 +668,18 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (replaceWindow: boolean = false) => {
-  const result = await dialog.showOpenDialog({
+const openDirectoryDialog = async (
+  replaceWindow: boolean = false
+): Promise<OpenDialogReturnValue> => {
+  const result = (await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
-  });
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
     await createChat(app, undefined, result.filePaths[0]);
-    if (replaceWindow) {
+    if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
   }
@@ -625,16 +724,280 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
 });
 
+// Handle menu bar icon visibility
+ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showMenuBarIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      createTray();
+    } else {
+      destroyTray();
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting menu bar icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-menu-bar-icon-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showMenuBarIcon ?? true;
+  } catch (error) {
+    console.error('Error getting menu bar icon state:', error);
+    return true;
+  }
+});
+
+// Handle dock icon visibility (macOS only)
+ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
+  try {
+    if (process.platform !== 'darwin') return false;
+
+    const settings = loadSettings();
+    settings.showDockIcon = show;
+    saveSettings(settings);
+
+    if (show) {
+      await app.dock.show();
+    } else {
+      // Only hide the dock if we have a menu bar icon to maintain accessibility
+      if (settings.showMenuBarIcon) {
+        app.dock.hide();
+        setTimeout(() => {
+          focusWindow();
+        }, 50);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting dock icon:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-dock-icon-state', () => {
+  try {
+    if (process.platform !== 'darwin') return true;
+    const settings = loadSettings();
+    return settings.showDockIcon ?? true;
+  } catch (error) {
+    console.error('Error getting dock icon state:', error);
+    return true;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
-  const result = await dialog.showOpenDialog({
+  const result = (await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  });
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
+});
+
+// IPC handler to save data URL to a temporary file
+ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
+  console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
+  try {
+    // Input validation for uniqueId - only allow alphanumeric characters and hyphens
+    if (!uniqueId || !/^[a-zA-Z0-9-]+$/.test(uniqueId) || uniqueId.length > 50) {
+      console.error('[Main] Invalid uniqueId format received.');
+      return { id: uniqueId, error: 'Invalid uniqueId format' };
+    }
+
+    // Input validation for dataUrl
+    if (!dataUrl || typeof dataUrl !== 'string' || dataUrl.length > 10 * 1024 * 1024) {
+      // 10MB limit
+      console.error('[Main] Invalid or too large data URL received.');
+      return { id: uniqueId, error: 'Invalid or too large data URL' };
+    }
+
+    const tempDir = await ensureTempDirExists();
+    const matches = dataUrl.match(/^data:(image\/(png|jpeg|jpg|gif|webp));base64,(.*)$/);
+
+    if (!matches || matches.length < 4) {
+      console.error('[Main] Invalid data URL format received.');
+      return { id: uniqueId, error: 'Invalid data URL format or unsupported image type' };
+    }
+
+    const imageExtension = matches[2]; // e.g., "png", "jpeg"
+    const base64Data = matches[3];
+
+    // Validate base64 data
+    if (!base64Data || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+      console.error('[Main] Invalid base64 data received.');
+      return { id: uniqueId, error: 'Invalid base64 data' };
+    }
+
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Validate image size (max 5MB)
+    if (buffer.length > 5 * 1024 * 1024) {
+      console.error('[Main] Image too large.');
+      return { id: uniqueId, error: 'Image too large (max 5MB)' };
+    }
+
+    const randomString = crypto.randomBytes(8).toString('hex');
+    const fileName = `pasted-${uniqueId}-${randomString}.${imageExtension}`;
+    const filePath = path.join(tempDir, fileName);
+
+    // Ensure the resolved path is still within the temp directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedTempDir = path.resolve(tempDir);
+    if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+      console.error('[Main] Attempted path traversal detected.');
+      return { id: uniqueId, error: 'Invalid file path' };
+    }
+
+    await fs.writeFile(filePath, buffer);
+    console.log(`[Main] Saved image for ID ${uniqueId} to: ${filePath}`);
+    return { id: uniqueId, filePath: filePath };
+  } catch (error) {
+    console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
+    return { id: uniqueId, error: error instanceof Error ? error.message : 'Failed to save image' };
+  }
+});
+
+// IPC handler to serve temporary image files
+ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
+  console.log(`[Main] Received get-temp-image for path: ${filePath}`);
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for image serving');
+    return null;
+  }
+
+  // Ensure the path is within the designated temp directory
+  const resolvedPath = path.resolve(filePath);
+  const resolvedTempDir = path.resolve(gooseTempDir);
+
+  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+    console.warn(`[Main] Attempted to access file outside designated temp directory: ${filePath}`);
+    return null;
+  }
+
+  try {
+    // Check if it's a regular file first, before trying realpath
+    const stats = await fs.lstat(filePath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to serve: ${filePath}`);
+      return null;
+    }
+
+    // Get the real paths for both the temp directory and the file to handle symlinks properly
+    let realTempDir: string;
+    let actualPath = filePath;
+
+    try {
+      realTempDir = await fs.realpath(gooseTempDir);
+      const realPath = await fs.realpath(filePath);
+
+      // Double-check that the real path is still within our real temp directory
+      if (!realPath.startsWith(realTempDir + path.sep)) {
+        console.warn(
+          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
+        );
+        return null;
+      }
+      actualPath = realPath;
+    } catch (realpathError) {
+      // If realpath fails, use the original path validation
+      console.log(
+        `[Main] realpath failed for ${filePath}, using original path validation:`,
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
+      );
+    }
+
+    // Read the file and return as base64 data URL
+    const fileBuffer = await fs.readFile(actualPath);
+    const fileExtension = path.extname(actualPath).toLowerCase().substring(1);
+
+    // Validate file extension
+    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+    if (!allowedExtensions.includes(fileExtension)) {
+      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
+      return null;
+    }
+
+    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
+    const base64Data = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    console.log(`[Main] Served temp image: ${filePath}`);
+    return dataUrl;
+  } catch (error) {
+    console.error(`[Main] Failed to serve temp image: ${filePath}`, error);
+    return null;
+  }
+});
+ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
+  console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for deletion');
+    return;
+  }
+
+  // Ensure the path is within the designated temp directory
+  const resolvedPath = path.resolve(filePath);
+  const resolvedTempDir = path.resolve(gooseTempDir);
+
+  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
+    console.warn(`[Main] Attempted to delete file outside designated temp directory: ${filePath}`);
+    return;
+  }
+
+  try {
+    // Check if it's a regular file first, before trying realpath
+    const stats = await fs.lstat(filePath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to delete: ${filePath}`);
+      return;
+    }
+
+    // Get the real paths for both the temp directory and the file to handle symlinks properly
+    let actualPath = filePath;
+
+    try {
+      const realTempDir = await fs.realpath(gooseTempDir);
+      const realPath = await fs.realpath(filePath);
+
+      // Double-check that the real path is still within our real temp directory
+      if (!realPath.startsWith(realTempDir + path.sep)) {
+        console.warn(
+          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
+        );
+        return;
+      }
+      actualPath = realPath;
+    } catch (realpathError) {
+      // If realpath fails, use the original path validation
+      console.log(
+        `[Main] realpath failed for ${filePath}, using original path validation:`,
+        realpathError instanceof Error ? realpathError.message : String(realpathError)
+      );
+    }
+
+    await fs.unlink(actualPath);
+    console.log(`[Main] Deleted temp file: ${filePath}`);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT') {
+      // ENOENT means file doesn't exist, which is fine
+      console.error(`[Main] Failed to delete temp file: ${filePath}`, error);
+    } else {
+      console.log(`[Main] Temp file already deleted or not found: ${filePath}`);
+    }
+  }
 });
 
 ipcMain.handle('check-ollama', async () => {
@@ -733,9 +1096,9 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('fs');
+    const fsNode = require('fs'); // Using require for fs in this specific handler from original
     try {
-      fs.writeFileSync(filePath, content, { encoding: 'utf8' });
+      fsNode.writeFileSync(filePath, content, { encoding: 'utf8' });
       resolve(true);
     } catch (error) {
       console.error('Error writing to file:', error);
@@ -778,15 +1141,17 @@ const registerGlobalHotkey = (accelerator: string) => {
   globalShortcut.unregisterAll();
 
   try {
-    const ret = globalShortcut.register(accelerator, () => {
+    globalShortcut.register(accelerator, () => {
       focusWindow();
     });
 
-    if (!ret) {
+    // Check if the shortcut was registered successfully
+    if (globalShortcut.isRegistered(accelerator)) {
+      return true;
+    } else {
       console.error('Failed to register global hotkey');
       return false;
     }
-    return true;
   } catch (e) {
     console.error('Error registering global hotkey:', e);
     return false;
@@ -799,35 +1164,34 @@ app.whenReady().then(async () => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
+        'Content-Security-Policy':
           "default-src 'self';" +
-            // Allow inline styles since we use them in our React components
-            "style-src 'self' 'unsafe-inline';" +
-            // Scripts only from our app
-            "script-src 'self';" +
-            // Images from our app and data: URLs (for base64 images)
-            "img-src 'self' data: https:;" +
-            // Connect to our local API and specific external services
-            "connect-src 'self' http://127.0.0.1:*" +
-            // Don't allow any plugins
-            "object-src 'none';" +
-            // Don't allow any frames
-            "frame-src 'none';" +
-            // Font sources
-            "font-src 'self';" +
-            // Media sources
-            "media-src 'none';" +
-            // Form actions
-            "form-action 'none';" +
-            // Base URI restriction
-            "base-uri 'self';" +
-            // Manifest files
-            "manifest-src 'self';" +
-            // Worker sources
-            "worker-src 'self';" +
-            // Upgrade insecure requests
-            'upgrade-insecure-requests;',
-        ],
+          // Allow inline styles since we use them in our React components
+          "style-src 'self' 'unsafe-inline';" +
+          // Scripts only from our app
+          "script-src 'self';" +
+          // Images from our app and data: URLs (for base64 images)
+          "img-src 'self' data: https:;" +
+          // Connect to our local API and specific external services
+          "connect-src 'self' http://127.0.0.1:*" +
+          // Don't allow any plugins
+          "object-src 'none';" +
+          // Don't allow any frames
+          "frame-src 'none';" +
+          // Font sources
+          "font-src 'self';" +
+          // Media sources
+          "media-src 'none';" +
+          // Form actions
+          "form-action 'none';" +
+          // Base URI restriction
+          "base-uri 'self';" +
+          // Manifest files
+          "manifest-src 'self';" +
+          // Worker sources
+          "worker-src 'self';" +
+          // Upgrade insecure requests
+          'upgrade-insecure-requests;',
       },
     });
   });
@@ -849,10 +1213,20 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
+  // Create tray if enabled in settings
+  const settings = loadSettings();
+  if (settings.showMenuBarIcon) {
+    createTray();
+  }
+
+  // Handle dock icon visibility (macOS only)
+  if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
+    app.dock.hide();
+  }
+
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
-  createTray();
   createNewWindow(app, dirPath);
 
   // Get the existing menu
@@ -911,7 +1285,7 @@ app.whenReady().then(async () => {
       },
       {
         label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : null,
+        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
@@ -940,7 +1314,8 @@ app.whenReady().then(async () => {
         submenu: Menu.buildFromTemplate(
           createEnvironmentMenu(envToggles, (newToggles) => {
             envToggles = newToggles;
-            saveSettings({ envToggles: newToggles });
+            const currentSettings = loadSettings();
+            saveSettings({ ...currentSettings, envToggles: newToggles });
             updateEnvironmentVariables(newToggles);
           })
         ),
@@ -1158,11 +1533,6 @@ app.whenReady().then(async () => {
     return false;
   });
 
-  // Handle binary path requests
-  ipcMain.handle('get-binary-path', (_event, binaryName) => {
-    return getBinaryPath(app, binaryName);
-  });
-
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
@@ -1284,12 +1654,93 @@ async function getAllowList(): Promise<string[]> {
   }
 }
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
+
+  // Clean up the temp directory on app quit
+  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
+  try {
+    await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
+
+    // First, check for any symlinks in the directory and refuse to delete them
+    let hasSymlinks = false;
+    try {
+      const files = await fs.readdir(gooseTempDir);
+      for (const file of files) {
+        const filePath = path.join(gooseTempDir, file);
+        const stats = await fs.lstat(filePath);
+        if (stats.isSymbolicLink()) {
+          console.warn(`[Main] Found symlink in temp directory: ${filePath}. Skipping deletion.`);
+          hasSymlinks = true;
+          // Delete the individual file but leave the symlink
+          continue;
+        }
+
+        // Delete regular files individually
+        if (stats.isFile()) {
+          await fs.unlink(filePath);
+        }
+      }
+
+      // If no symlinks were found, it's safe to remove the directory
+      if (!hasSymlinks) {
+        await fs.rm(gooseTempDir, { recursive: true, force: true });
+        console.log('[Main] Pasted images temp directory cleaned up successfully.');
+      } else {
+        console.log(
+          '[Main] Cleaned up files in temp directory but left directory intact due to symlinks.'
+        );
+      }
+    } catch (err) {
+      console.error('[Main] Error while cleaning up temp directory contents:', err);
+    }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');
+    } else {
+      console.error(
+        '[Main] Failed to clean up pasted images temp directory during "will-quit":',
+        error
+      );
+    }
+  }
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
+// Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
+app.on('before-quit', async (event) => {
+  // Skip confirmation dialog in development mode
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    return; // Allow normal quit behavior in dev mode
+  }
+
+  // Prevent the default quit behavior
+  event.preventDefault();
+
+  // Show confirmation dialog
+  try {
+    const result = (await dialog.showMessageBox({
+      type: 'question',
+      buttons: ['Quit', 'Cancel'],
+      defaultId: 1, // Default to Cancel
+      title: 'Confirm Quit',
+      message: 'Are you sure you want to quit Goose?',
+      detail: 'Any unsaved changes may be lost.',
+    })) as unknown as { response: number };
+
+    if (result.response === 0) {
+      // User clicked "Quit"
+      // Set a flag to avoid showing the dialog again
+      app.removeAllListeners('before-quit');
+      // Actually quit the app
+      app.quit();
+    }
+  } catch (error) {
+    console.error('Error showing quit dialog:', error);
+  }
+});
+
 app.on('window-all-closed', () => {
   // Only quit if we're not on macOS or don't have a tray icon
   if (process.platform !== 'darwin' || !tray) {

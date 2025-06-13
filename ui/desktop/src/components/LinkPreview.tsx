@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from './ui/card';
 
 interface Metadata {
@@ -54,9 +54,9 @@ async function fetchMetadata(url: string): Promise<Metadata> {
 
     return {
       title: title || url,
-      description,
+      description: description || undefined,
       favicon,
-      image,
+      image: image || undefined,
       url,
     };
   } catch (error) {
@@ -85,10 +85,11 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
         if (mounted) {
           setMetadata(data);
         }
-      } catch (error) {
+      } catch (err) {
         if (mounted) {
-          console.error('❌ Failed to fetch metadata:', error);
-          setError(error.message || 'Failed to fetch metadata');
+          console.error('❌ Failed to fetch metadata:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metadata';
+          setError(errorMessage);
         }
       } finally {
         if (mounted) {

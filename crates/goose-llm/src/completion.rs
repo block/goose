@@ -36,7 +36,11 @@ pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, Co
     )
     .map_err(|_| CompletionError::UnknownProvider(req.provider_name.to_string()))?;
 
-    let system_prompt = construct_system_prompt(&req.system_preamble, &req.extensions)?;
+    let system_prompt = construct_system_prompt(
+        &req.system_preamble,
+        &req.system_prompt_override,
+        &req.extensions,
+    )?;
     let tools = collect_prefixed_tools(&req.extensions);
 
     // Call the LLM provider
@@ -60,9 +64,24 @@ pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, Co
 
 /// Render the global `system.md` template with the provided context.
 fn construct_system_prompt(
-    system_preamble: &str,
+    preamble: &Option<String>,
+    prompt_override: &Option<String>,
     extensions: &[ExtensionConfig],
 ) -> Result<String, CompletionError> {
+    // If both system_preamble and system_prompt_override are provided, then prompt_override takes precedence
+    // and we don't render the template using preamble and extensions. Just return the prompt_override as is.
+    if prompt_override.is_some() {
+        return Ok(prompt_override.clone().unwrap());
+    }
+
+    let system_preamble = {
+        if let Some(p) = preamble {
+            p
+        } else {
+            "You are a helpful assistant."
+        }
+    };
+
     let mut context: HashMap<&str, Value> = HashMap::new();
     context.insert("system_preamble", Value::String(system_preamble.to_owned()));
     context.insert("extensions", serde_json::to_value(extensions)?);

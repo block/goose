@@ -2,12 +2,16 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::Error;
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -113,6 +117,14 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
+pub fn set_thinking_message(s: &String) {
+    THINKING.with(|t| {
+        if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
+            spinner.set_message(s);
+        }
+    });
+}
+
 pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
 
@@ -144,6 +156,10 @@ pub fn render_message(message: &Message, debug: bool) {
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
+    render_text_no_newlines(format!("\n{}\n\n", text).as_str(), color, dim);
+}
+
+pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -153,7 +169,7 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
     } else {
         styled_text = styled_text.green();
     }
-    println!("\n{}\n", styled_text);
+    print!("{}", styled_text);
 }
 
 pub fn render_enter_plan_mode() {
@@ -359,7 +375,6 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
         }
         _ => print_params(&call.arguments, 0, debug),
     }
-    println!();
 }
 
 fn render_default_request(call: &ToolCall, debug: bool) {
@@ -530,7 +545,13 @@ fn shorten_path(path: &str, debug: bool) -> String {
 }
 
 // Session display functions
-pub fn display_session_info(resume: bool, provider: &str, model: &str, session_file: &Path) {
+pub fn display_session_info(
+    resume: bool,
+    provider: &str,
+    model: &str,
+    session_file: &Path,
+    provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
+) {
     let start_session_msg = if resume {
         "resuming session |"
     } else if session_file.to_str() == Some("/dev/null") || session_file.to_str() == Some("NUL") {
@@ -538,14 +559,42 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
     } else {
         "starting session |"
     };
-    println!(
-        "{} {} {} {} {}",
-        style(start_session_msg).dim(),
-        style("provider:").dim(),
-        style(provider).cyan().dim(),
-        style("model:").dim(),
-        style(model).cyan().dim(),
-    );
+
+    // Check if we have lead/worker mode
+    if let Some(provider_inst) = provider_instance {
+        if let Some(lead_worker) = provider_inst.as_lead_worker() {
+            let (lead_model, worker_model) = lead_worker.get_model_info();
+            println!(
+                "{} {} {} {} {} {} {}",
+                style(start_session_msg).dim(),
+                style("provider:").dim(),
+                style(provider).cyan().dim(),
+                style("lead model:").dim(),
+                style(&lead_model).cyan().dim(),
+                style("worker model:").dim(),
+                style(&worker_model).cyan().dim(),
+            );
+        } else {
+            println!(
+                "{} {} {} {} {}",
+                style(start_session_msg).dim(),
+                style("provider:").dim(),
+                style(provider).cyan().dim(),
+                style("model:").dim(),
+                style(model).cyan().dim(),
+            );
+        }
+    } else {
+        // Fallback to original behavior if no provider instance
+        println!(
+            "{} {} {} {} {}",
+            style(start_session_msg).dim(),
+            style("provider:").dim(),
+            style(provider).cyan().dim(),
+            style("model:").dim(),
+            style(model).cyan().dim(),
+        );
+    }
 
     if session_file.to_str() != Some("/dev/null") && session_file.to_str() != Some("NUL") {
         println!(
@@ -566,6 +615,109 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
 
 pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+}
+
+/// Display context window usage with both current and session totals
+pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
+    use console::style;
+
+    if context_limit == 0 {
+        println!("Context: Error - context limit is zero");
+        return;
+    }
+
+    // Calculate percentage used with bounds checking
+    let percentage =
+        (((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize).min(100);
+
+    // Create dot visualization with safety bounds
+    let dot_count = 10;
+    let filled_dots =
+        (((percentage as f64 / 100.0) * dot_count as f64).round() as usize).min(dot_count);
+    let empty_dots = dot_count - filled_dots;
+
+    let filled = "●".repeat(filled_dots);
+    let empty = "○".repeat(empty_dots);
+
+    // Combine dots and apply color
+    let dots = format!("{}{}", filled, empty);
+    let colored_dots = if percentage < 50 {
+        style(dots).green()
+    } else if percentage < 85 {
+        style(dots).yellow()
+    } else {
+        style(dots).red()
+    };
+
+    // Print the status line
+    println!(
+        "Context: {} {}% ({}/{} tokens)",
+        colored_dots, percentage, total_tokens, context_limit
+    );
+}
+
+pub struct McpSpinners {
+    bars: HashMap<String, ProgressBar>,
+    log_spinner: Option<ProgressBar>,
+
+    multi_bar: MultiProgress,
+}
+
+impl McpSpinners {
+    pub fn new() -> Self {
+        McpSpinners {
+            bars: HashMap::new(),
+            log_spinner: None,
+            multi_bar: MultiProgress::new(),
+        }
+    }
+
+    pub fn log(&mut self, message: &str) {
+        let spinner = self.log_spinner.get_or_insert_with(|| {
+            let bar = self.multi_bar.add(
+                ProgressBar::new_spinner()
+                    .with_style(
+                        ProgressStyle::with_template("{spinner:.green} {msg}")
+                            .unwrap()
+                            .tick_chars("⠋⠙⠚⠛⠓⠒⠊⠉"),
+                    )
+                    .with_message(message.to_string()),
+            );
+            bar.enable_steady_tick(Duration::from_millis(100));
+            bar
+        });
+
+        spinner.set_message(message.to_string());
+    }
+
+    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+        let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
+            if let Some(total) = total {
+                self.multi_bar.add(
+                    ProgressBar::new((total * 100.0) as u64).with_style(
+                        ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
+                            .unwrap(),
+                    ),
+                )
+            } else {
+                self.multi_bar.add(ProgressBar::new_spinner())
+            }
+        });
+        bar.set_position((value * 100.0) as u64);
+        if let Some(msg) = message {
+            bar.set_message(msg.to_string());
+        }
+    }
+
+    pub fn hide(&mut self) -> Result<(), Error> {
+        self.bars.iter_mut().for_each(|(_, bar)| {
+            bar.disable_steady_tick();
+        });
+        if let Some(spinner) = self.log_spinner.as_mut() {
+            spinner.disable_steady_tick();
+        }
+        self.multi_bar.clear()
+    }
 }
 
 #[cfg(test)]
