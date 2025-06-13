@@ -471,6 +471,7 @@ mod tests {
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
+            settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
             interactive: true,
