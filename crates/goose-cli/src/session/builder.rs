@@ -497,6 +497,7 @@ mod tests {
             settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
+            scheduled_job_id: None,
             interactive: true,
             quiet: false,
         };
@@ -506,6 +507,7 @@ mod tests {
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
+        assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
         assert!(!config.quiet);
     }
@@ -524,6 +526,7 @@ mod tests {
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
+        assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
     }
