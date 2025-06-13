@@ -297,12 +297,12 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string | null;
+    mimeType?: string | null;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string | null;
+    mimeType?: string | null;
     uri: string;
 };
 

@@ -31,13 +31,13 @@ pub struct Resource {
 pub enum ResourceContents {
     TextResourceContents {
         uri: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "mimeType")]
         mime_type: Option<String>,
         text: String,
     },
     BlobResourceContents {
         uri: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "mimeType")]
         mime_type: Option<String>,
         blob: String,
     },
@@ -48,6 +48,50 @@ fn default_mime_type() -> String {
 }
 
 impl ResourceContents {
+    /// Creates a new text resource with optional MIME type
+    pub fn new_text<S: Into<String>, T: Into<String>>(uri: S, text_content: T) -> Self {
+        ResourceContents::TextResourceContents {
+            uri: uri.into(),
+            mime_type: None,
+            text: text_content.into(),
+        }
+    }
+
+    /// Creates a new text resource with explicit MIME type
+    pub fn new_text_with_mime_type<S: Into<String>, T: Into<String>, M: Into<String>>(
+        uri: S,
+        text_content: T,
+        mime_type: M,
+    ) -> Self {
+        ResourceContents::TextResourceContents {
+            uri: uri.into(),
+            mime_type: Some(mime_type.into()),
+            text: text_content.into(),
+        }
+    }
+
+    /// Creates a new blob resource with optional MIME type
+    pub fn new_blob<S: Into<String>, T: Into<String>>(uri: S, blob_content: T) -> Self {
+        ResourceContents::BlobResourceContents {
+            uri: uri.into(),
+            mime_type: None,
+            blob: blob_content.into(),
+        }
+    }
+
+    /// Creates a new blob resource with explicit MIME type
+    pub fn new_blob_with_mime_type<S: Into<String>, T: Into<String>, M: Into<String>>(
+        uri: S,
+        blob_content: T,
+        mime_type: M,
+    ) -> Self {
+        ResourceContents::BlobResourceContents {
+            uri: uri.into(),
+            mime_type: Some(mime_type.into()),
+            blob: blob_content.into(),
+        }
+    }
+
     /// Creates a new HTML resource with text content
     pub fn html_text<S: Into<String>, T: Into<String>>(uri: S, html_content: T) -> Self {
         ResourceContents::TextResourceContents {
@@ -421,5 +465,128 @@ mod tests {
         assert!(resource.is_ui_resource());
         assert!(!resource.is_html());
         assert!(resource.is_uri_list());
+    }
+
+    #[test]
+    fn test_new_text_without_mime_type_inference() {
+        // Test that new_text doesn't automatically infer MIME types
+        let resource = ResourceContents::new_text("ui://component-html-as-text", "<p>Hello</p>");
+        match &resource {
+            ResourceContents::TextResourceContents {
+                uri,
+                mime_type,
+                text,
+            } => {
+                assert_eq!(uri, "ui://component-html-as-text");
+                assert_eq!(mime_type, &None); // No automatic inference
+                assert_eq!(text, "<p>Hello</p>");
+            }
+            _ => panic!("Expected TextResourceContents"),
+        }
+
+        // Test explicit MIME type setting
+        let resource = ResourceContents::new_text_with_mime_type(
+            "ui://component-html-as-text",
+            "<p>Hello</p>",
+            "text/html",
+        );
+        match &resource {
+            ResourceContents::TextResourceContents {
+                uri,
+                mime_type,
+                text,
+            } => {
+                assert_eq!(uri, "ui://component-html-as-text");
+                assert_eq!(mime_type, &Some("text/html".to_string()));
+                assert_eq!(text, "<p>Hello</p>");
+            }
+            _ => panic!("Expected TextResourceContents"),
+        }
+    }
+
+    #[test]
+    fn test_serialization_matches_frontend_expectations() {
+        // Test that serialized JSON matches what the frontend expects
+        let resource_with_mime_type =
+            ResourceContents::html_text("ui://component-html-as-text", "<p>Hello</p>");
+        let json_with_mime_type = serde_json::to_string(&resource_with_mime_type).unwrap();
+        println!("With MIME type: {}", json_with_mime_type);
+
+        // Should contain mimeType field with "text/html" value
+        assert!(json_with_mime_type.contains("\"mimeType\":\"text/html\""));
+
+        let resource_without_mime_type =
+            ResourceContents::new_text("ui://some-resource", "content");
+        let json_without_mime_type = serde_json::to_string(&resource_without_mime_type).unwrap();
+        println!("Without MIME type: {}", json_without_mime_type);
+
+        // Should contain mimeType field with null value (not omitted)
+        assert!(json_without_mime_type.contains("\"mimeType\":null"));
+
+        // Verify both can be deserialized by frontend
+        let _: serde_json::Value = serde_json::from_str(&json_with_mime_type).unwrap();
+        let _: serde_json::Value = serde_json::from_str(&json_without_mime_type).unwrap();
+    }
+
+    #[test]
+    fn test_serialization_with_none_mime_type() {
+        // Test that mime_type is serialized even when None
+        let resource = ResourceContents::TextResourceContents {
+            uri: "ui://test".to_string(),
+            mime_type: None,
+            text: "content".to_string(),
+        };
+
+        let json = serde_json::to_string(&resource).unwrap();
+        println!("Serialized JSON: {}", json);
+
+        // Verify that mimeType field is present in JSON (even if null)
+        assert!(json.contains("mimeType"));
+
+        // Verify deserialization works
+        let deserialized: ResourceContents = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            ResourceContents::TextResourceContents { mime_type, .. } => {
+                assert_eq!(mime_type, None);
+            }
+            _ => panic!("Expected TextResourceContents"),
+        }
+    }
+
+    #[test]
+    fn test_new_blob_without_mime_type_inference() {
+        // Test that new_blob doesn't automatically infer MIME types
+        let resource = ResourceContents::new_blob("ui://component-html-as-blob", "base64data");
+        match &resource {
+            ResourceContents::BlobResourceContents {
+                uri,
+                mime_type,
+                blob,
+            } => {
+                assert_eq!(uri, "ui://component-html-as-blob");
+                assert_eq!(mime_type, &None); // No automatic inference
+                assert_eq!(blob, "base64data");
+            }
+            _ => panic!("Expected BlobResourceContents"),
+        }
+
+        // Test explicit MIME type setting
+        let resource = ResourceContents::new_blob_with_mime_type(
+            "ui://component-html-as-blob",
+            "base64data",
+            "text/html",
+        );
+        match &resource {
+            ResourceContents::BlobResourceContents {
+                uri,
+                mime_type,
+                blob,
+            } => {
+                assert_eq!(uri, "ui://component-html-as-blob");
+                assert_eq!(mime_type, &Some("text/html".to_string()));
+                assert_eq!(blob, "base64data");
+            }
+            _ => panic!("Expected BlobResourceContents"),
+        }
     }
 }

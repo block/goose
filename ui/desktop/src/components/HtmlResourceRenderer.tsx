@@ -1,5 +1,6 @@
-import { HtmlResource } from '@mcp-ui/client';
+import { HtmlResource, type UiActionResult } from '@mcp-ui/client';
 import { ResourceContent } from '../types/message';
+import { useState } from 'react';
 
 interface HtmlResourceRendererProps {
   content: ResourceContent;
@@ -7,6 +8,48 @@ interface HtmlResourceRendererProps {
 
 export default function HtmlResourceRenderer({ content }: HtmlResourceRendererProps) {
   const { resource } = content;
+  const [minIframeHeight, setMinIframeHeight] = useState('50vh'); // Default minimum height for the iframe
+
+  function handleUiActionTool(result: UiActionResult) {
+    if (result.type === 'tool') {
+      console.log('Tool action received:', result);
+    }
+  }
+
+  function handleUiActionIntent(result: UiActionResult) {
+    if (result.type === 'intent') {
+      if (result.payload.intent === 'resizeIframe') {
+        setMinIframeHeight((result.payload.params.minHeight as string) || '50vh');
+      }
+    }
+  }
+
+  async function handleUiAction(result: UiActionResult): Promise<{ status: string }> {
+    // if the type is not a UiActionResult, return an error, return an error response
+    if (!result || typeof result !== 'object' || !('type' in result)) {
+      console.error('Invalid onUiAction result:', result);
+      return { status: 'error' };
+    }
+
+    // Handle the UI action result based on its type
+    switch (result.type) {
+      case 'tool':
+        handleUiActionTool(result);
+        break;
+      case 'prompt':
+        break;
+      case 'link':
+        break;
+      case 'intent':
+        handleUiActionIntent(result);
+        break;
+      case 'notification':
+        break;
+      default:
+        break;
+    }
+    return { status: 'ok' };
+  }
 
   // Check if this is a UI resource that should be rendered as HTML
   if (!resource.uri.startsWith('ui://')) {
@@ -14,14 +57,10 @@ export default function HtmlResourceRenderer({ content }: HtmlResourceRendererPr
   }
 
   return (
-    <div className="my-4 border border-borderSubtle rounded-lg overflow-hidden">
-      <div className="bg-bgSubtle px-3 py-2 border-b border-borderSubtle">
-        <p className="text-xs text-textSubtle font-medium">HTML Resource</p>
-        <p className="text-xs text-textSubtle truncate">{resource.uri}</p>
-      </div>
-      <div className="p-4">
-        <HtmlResource resource={resource} />
-      </div>
-    </div>
+    <HtmlResource
+      resource={resource}
+      style={{ minHeight: minIframeHeight }}
+      onUiAction={handleUiAction}
+    />
   );
 }
