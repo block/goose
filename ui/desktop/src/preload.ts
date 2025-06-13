@@ -67,6 +67,8 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
+  getSettings: () => Promise<unknown | null>;
+  setSchedulingEngine: (engine: string) => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   on: (
     channel: string,
@@ -139,6 +141,8 @@ const electronAPI: ElectronAPI = {
   getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   on: (
     channel: string,
