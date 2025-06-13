@@ -283,23 +283,6 @@ async function extractZipFile(zipPath: string, extractDir: string): Promise<void
         return;
       }
 
-      let pendingOperations = 0;
-      let hasError = false;
-
-      const finishOperation = () => {
-        pendingOperations--;
-        if (pendingOperations === 0 && !hasError) {
-          resolve();
-        }
-      };
-
-      const handleError = (error: Error) => {
-        if (!hasError) {
-          hasError = true;
-          reject(error);
-        }
-      };
-
       zipfile.readEntry();
 
       zipfile.on('entry', async (entry: yauzl.Entry) => {
@@ -324,27 +307,20 @@ async function extractZipFile(zipPath: string, extractDir: string): Promise<void
 
           // Handle directories
           if (entry.fileName.endsWith('/')) {
-            try {
-              await fs.mkdir(fullPath, { recursive: true });
-              log.debug(`GitHubUpdater: Created directory: ${entry.fileName}`);
-            } catch (mkdirErr) {
-              log.error(`GitHubUpdater: Failed to create directory ${entry.fileName}:`, mkdirErr);
-            }
+            await fs.mkdir(fullPath, { recursive: true });
             zipfile.readEntry();
             return;
           }
 
           // Handle files
-          pendingOperations++;
-
-          zipfile.openReadStream(entry, async (streamErr, readStream) => {
-            if (streamErr) {
-              handleError(streamErr instanceof Error ? streamErr : new Error(String(streamErr)));
+          zipfile.openReadStream(entry, async (err, readStream) => {
+            if (err) {
+              reject(err);
               return;
             }
 
             if (!readStream) {
-              handleError(new Error('Failed to open read stream'));
+              reject(new Error('Failed to open read stream'));
               return;
             }
 
@@ -352,71 +328,41 @@ async function extractZipFile(zipPath: string, extractDir: string): Promise<void
               // Ensure parent directory exists
               await fs.mkdir(path.dirname(fullPath), { recursive: true });
 
-              // Create write stream with proper options for macOS
-              const writeStream = createWriteStream(fullPath, {
-                mode: entry.externalFileAttributes >>> 16 || 0o644, // Preserve file permissions
-              });
-
-              let streamFinished = false;
-
-              const cleanup = () => {
-                if (!streamFinished) {
-                  streamFinished = true;
-                  finishOperation();
-                }
-              };
+              // Create write stream
+              const writeStream = createWriteStream(fullPath);
 
               readStream.on('end', () => {
-                log.debug(`GitHubUpdater: Extracted file: ${entry.fileName}`);
-                cleanup();
+                writeStream.end();
                 zipfile.readEntry();
               });
 
               readStream.on('error', (streamErr) => {
                 writeStream.destroy();
-                handleError(streamErr instanceof Error ? streamErr : new Error(String(streamErr)));
+                reject(streamErr);
               });
 
               writeStream.on('error', (writeErr: Error) => {
-                handleError(writeErr);
-              });
-
-              writeStream.on('finish', async () => {
-                // For macOS app bundles, we need to set proper permissions
-                if (entry.fileName.includes('.app/') && entry.fileName.includes('MacOS/')) {
-                  try {
-                    // Make executable files actually executable
-                    await fs.chmod(fullPath, 0o755);
-                    log.debug(`GitHubUpdater: Set executable permissions for: ${entry.fileName}`);
-                  } catch (chmodErr) {
-                    log.warn(
-                      `GitHubUpdater: Failed to set permissions for ${entry.fileName}:`,
-                      chmodErr
-                    );
-                  }
-                }
+                reject(writeErr);
               });
 
               // Pipe the data
               readStream.pipe(writeStream);
             } catch (fileErr) {
-              handleError(fileErr instanceof Error ? fileErr : new Error(String(fileErr)));
+              reject(fileErr);
             }
           });
         } catch (entryErr) {
-          handleError(entryErr instanceof Error ? entryErr : new Error(String(entryErr)));
+          reject(entryErr);
         }
       });
 
       zipfile.on('end', () => {
-        log.info('GitHubUpdater: ZIP file processing completed');
-        if (pendingOperations === 0) {
-          resolve();
-        }
+        log.info('GitHubUpdater: ZIP extraction completed successfully');
+        resolve();
       });
 
       zipfile.on('error', (zipErr) => {
-        handleError(zipErr instanceof Error ? zipErr : new Error(String(zipErr)));
+        reject(zipErr);
       });
     });
   });

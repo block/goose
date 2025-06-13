@@ -45,7 +45,7 @@ pub fn vector_search_tool() -> Tool {
 
 pub fn vector_search_tool_prompt() -> String {
     r#"# Tool Selection Instructions
-    Imporant: the user has opted to dynamically enable tools, so although an extension could be enabled, \
+    Important: the user has opted to dynamically enable tools, so although an extension could be enabled, \
     please invoke the vector search tool to actually retrieve the most relevant tools to use according to the user's messages.
     For example, if the user has 3 extensions enabled, but they are asking for a tool to read a pdf file, \
     you would invoke the vector_search tool to find the most relevant read pdf tool.
