@@ -16,7 +16,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe};
+use crate::recipe::{Author, Recipe, Settings};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
@@ -973,12 +973,26 @@ impl Agent {
             metadata: None,
         };
 
+        // Ideally we'd get the name of the provider we are using from the provider itself
+        // but it doesn't know and the plumbing looks complicated.
+        let config = Config::global();
+        let provider_name: String = config
+            .get_param("GOOSE_PROVIDER")
+            .expect("No provider configured. Run 'goose configure' first");
+
+        let settings = Settings {
+            goose_provider: Some(provider_name.clone()),
+            goose_model: Some(model_name.clone()),
+            temperature: Some(model_config.temperature.unwrap_or(0.0)),
+        };
+
         let recipe = Recipe::builder()
             .title("Custom recipe from chat")
             .description("a custom recipe instance from this chat session")
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)
+            .settings(settings)
             .author(author)
             .build()
             .expect("valid recipe");

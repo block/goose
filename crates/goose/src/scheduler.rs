@@ -1300,6 +1300,7 @@ mod tests {
             activities: None,
             author: None,
             parameters: None,
+            settings: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;
         writeln!(

@@ -50,6 +50,7 @@ fn default_version() -> String {
 ///     context: None,
 ///     activities: None,
 ///     author: None,
+///     settings: None,
 ///     parameters: None,
 /// };
 ///
@@ -78,6 +79,9 @@ pub struct Recipe {
     pub context: Option<Vec<String>>, // any additional context
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<Settings>, // settings for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub activities: Option<Vec<String>>, // the activity pills that show up when loading the
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,6 +98,18 @@ pub struct Author {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>, // any additional metadata for the author
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Settings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goose_provider: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goose_model: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -156,6 +172,7 @@ pub struct RecipeBuilder {
     prompt: Option<String>,
     extensions: Option<Vec<ExtensionConfig>>,
     context: Option<Vec<String>>,
+    settings: Option<Settings>,
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
@@ -185,6 +202,7 @@ impl Recipe {
             prompt: None,
             extensions: None,
             context: None,
+            settings: None,
             activities: None,
             author: None,
             parameters: None,
@@ -234,6 +252,11 @@ impl RecipeBuilder {
         self
     }
 
+    pub fn settings(mut self, settings: Settings) -> Self {
+        self.settings = Some(settings);
+        self
+    }
+
     /// Sets the activities for the Recipe
     pub fn activities(mut self, activities: Vec<String>) -> Self {
         self.activities = Some(activities);
@@ -271,6 +294,7 @@ impl RecipeBuilder {
             prompt: self.prompt,
             extensions: self.extensions,
             context: self.context,
+            settings: self.settings,
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
