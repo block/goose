@@ -41,6 +41,7 @@ import {
   updateTrayMenu,
   getUpdateAvailable,
 } from './utils/autoUpdater';
+import { UPDATES_ENABLED } from './updates';
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -1157,7 +1158,7 @@ const registerGlobalHotkey = (accelerator: string) => {
 
 app.whenReady().then(async () => {
   // Setup auto-updater
-  setupAutoUpdater();
+  UPDATES_ENABLED && setupAutoUpdater();
 
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
