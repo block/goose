@@ -89,12 +89,22 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  // Updater state functions
+  getUpdaterEnabled: () => Promise<boolean>;
+  onUpdaterStateChanged: (callback: (enabled: boolean) => void) => void;
+  removeUpdaterStateListener: (callback: (enabled: boolean) => void) => void;
 };
 
 type AppConfigAPI = {
   get: (key: string) => unknown;
   getAll: () => Record<string, unknown>;
 };
+
+// Store callback wrappers for proper cleanup
+const updaterStateCallbacks = new Map<
+  (enabled: boolean) => void,
+  (event: Electron.IpcRendererEvent, enabled: boolean) => void
+>();
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -182,6 +192,22 @@ const electronAPI: ElectronAPI = {
   },
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
+  },
+  // Updater state functions
+  getUpdaterEnabled: (): Promise<boolean> => {
+    return ipcRenderer.invoke('get-updater-enabled');
+  },
+  onUpdaterStateChanged: (callback: (enabled: boolean) => void): void => {
+    const wrapper = (_event: Electron.IpcRendererEvent, enabled: boolean) => callback(enabled);
+    updaterStateCallbacks.set(callback, wrapper);
+    ipcRenderer.on('updater-state-changed', wrapper);
+  },
+  removeUpdaterStateListener: (callback: (enabled: boolean) => void): void => {
+    const wrapper = updaterStateCallbacks.get(callback);
+    if (wrapper) {
+      ipcRenderer.off('updater-state-changed', wrapper);
+      updaterStateCallbacks.delete(callback);
+    }
   },
 };
 

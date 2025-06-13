@@ -34,6 +34,8 @@ export class GitHubUpdater {
   async checkForUpdates(): Promise<UpdateCheckResult> {
     try {
       log.info('GitHubUpdater: Checking for updates via GitHub API...');
+      log.info(`GitHubUpdater: API URL: ${this.apiUrl}`);
+      log.info(`GitHubUpdater: Current app version: ${app.getVersion()}`);
 
       const response = await fetch(this.apiUrl, {
         headers: {
@@ -42,11 +44,21 @@ export class GitHubUpdater {
         },
       });
 
+      log.info(
+        `GitHubUpdater: GitHub API response status: ${response.status} ${response.statusText}`
+      );
+
       if (!response.ok) {
+        const errorText = await response.text();
+        log.error(`GitHubUpdater: GitHub API error response: ${errorText}`);
         throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`);
       }
 
       const release: GitHubRelease = await response.json();
+      log.info(`GitHubUpdater: Found release: ${release.tag_name} (${release.name})`);
+      log.info(`GitHubUpdater: Release published at: ${release.published_at}`);
+      log.info(`GitHubUpdater: Release assets count: ${release.assets.length}`);
+
       const latestVersion = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
       const currentVersion = app.getVersion();
 
@@ -56,6 +68,7 @@ export class GitHubUpdater {
 
       // Compare versions
       const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+      log.info(`GitHubUpdater: Update available: ${updateAvailable}`);
 
       if (!updateAvailable) {
         return {
@@ -69,6 +82,8 @@ export class GitHubUpdater {
       const arch = process.arch;
       let downloadUrl: string | undefined;
       let assetName: string;
+
+      log.info(`GitHubUpdater: Looking for asset for platform: ${platform}, arch: ${arch}`);
 
       if (platform === 'darwin') {
         // macOS
@@ -85,9 +100,16 @@ export class GitHubUpdater {
         assetName = `Goose-linux-${arch}.zip`;
       }
 
+      log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
+      log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
+
       const asset = release.assets.find((a) => a.name === assetName);
       if (asset) {
         downloadUrl = asset.browser_download_url;
+        log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
+        log.info(`GitHubUpdater: Download URL: ${downloadUrl}`);
+      } else {
+        log.warn(`GitHubUpdater: No matching asset found for ${assetName}`);
       }
 
       return {
@@ -98,6 +120,15 @@ export class GitHubUpdater {
       };
     } catch (error) {
       log.error('GitHubUpdater: Error checking for updates:', error);
+      log.error('GitHubUpdater: Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack',
+        name: error instanceof Error ? error.name : 'Unknown',
+        code:
+          error instanceof Error && 'code' in error
+            ? (error as Error & { code: unknown }).code
+            : undefined,
+      });
       return {
         updateAvailable: false,
         error: error instanceof Error ? error.message : 'Unknown error',
