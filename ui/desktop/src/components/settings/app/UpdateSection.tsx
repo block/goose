@@ -147,7 +147,6 @@ export default function UpdateSection() {
   };
 
   const installUpdate = () => {
-    // This will show the dialog immediately, no loading state needed
     window.electron.installUpdate();
   };
 
