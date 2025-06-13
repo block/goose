@@ -68,6 +68,9 @@ aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
 aws-sdk-bedrockruntime = "1.74.0"
 
+# For SageMaker TGI provider
+aws-sdk-sagemakerruntime = "1.62.0"
+
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"
 
