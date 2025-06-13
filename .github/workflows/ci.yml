@@ -98,7 +98,6 @@ jobs:
           source ../bin/activate-hermit && cargo test
         working-directory: crates
 
-      # Add disk space cleanup before linting
       - name: Check disk space before cleanup
         run: df -h
 
