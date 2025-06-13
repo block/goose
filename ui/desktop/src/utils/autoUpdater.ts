@@ -201,16 +201,11 @@ export function registerUpdateIpcHandlers() {
         }
 
         // Show dialog to inform user about manual installation
-        const isExtracted = !!githubUpdateInfo.extractedPath;
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
-          title: 'Update Ready',
-          message: isExtracted
-            ? 'The update has been downloaded and extracted to your Downloads folder.'
-            : 'The update has been downloaded to your Downloads folder.',
-          detail: isExtracted
-            ? `Please move the Goose app from ${path.basename(updatePath)} to your Applications folder to complete the update.`
-            : `Please extract ${path.basename(updatePath)} and move the Goose app to your Applications folder to complete the update.`,
+          title: 'Update Downloaded',
+          message: 'The update has been downloaded to your Downloads folder.',
+          detail: `Please extract ${path.basename(updatePath)} and move the Goose app to your Applications folder to complete the update.`,
           buttons: ['Open Downloads', 'Cancel'],
           defaultId: 0,
           cancelId: 1,
