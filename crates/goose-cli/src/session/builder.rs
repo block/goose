@@ -170,8 +170,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     // Create the agent
     let agent: Agent = Agent::new();
-    let new_provider = create(&provider_name, model_config).unwrap();
-
+    let new_provider = match create(&provider_name, model_config) {
+        Ok(provider) => provider,
+        Err(e) => {
+            output::render_error(&format!(
+                "Error {}.\n\
+                Please check your system keychain and run 'goose configure' again.\n\
+                If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
+                For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
+                e
+            ));
+            process::exit(1);
+        }
+    };
     // Keep a reference to the provider for display_session_info
     let provider_for_display = Arc::clone(&new_provider);
 
