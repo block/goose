@@ -7,8 +7,9 @@ import {
   Calendar,
   ChevronRight,
   Folder,
+  Trash2,
 } from 'lucide-react';
-import { fetchSessions, type Session } from '../../sessions';
+import { fetchSessions, type Session, deleteSession } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import BackButton from '../ui/BackButton';
@@ -18,6 +19,8 @@ import { formatMessageTimestamp } from '../../utils/timeUtils';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
+import { toast } from 'react-toastify';
+import { Modal, ModalContent } from '../ui/modal';
 
 interface SearchContainerElement extends HTMLDivElement {
   _searchHighlighter: SearchHighlighter | null;
@@ -42,6 +45,8 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadSessions();
@@ -157,8 +162,37 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     }
   };
 
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!sessionToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteSession(sessionToDelete.id);
+      
+      // Remove the deleted session from the lists
+      const updatedSessions = sessions.filter(session => session.id !== sessionToDelete.id);
+      setSessions(updatedSessions);
+      setFilteredSessions(filteredSessions.filter(session => session.id !== sessionToDelete.id));
+      
+      toast.success(`Session "${sessionToDelete.metadata.description || sessionToDelete.id}" deleted successfully`);
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      toast.error('Failed to delete session. Please try again later.');
+    } finally {
+      setIsDeleting(false);
+      setSessionToDelete(null);
+    }
+  };
+
   // Render a session item
   const SessionItem = React.memo(function SessionItem({ session }: { session: Session }) {
+    // Prevent event bubbling when clicking delete button
+    const handleDeleteClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setSessionToDelete(session);
+    };
+
     return (
       <Card
         onClick={() => onSelectSession(session.id)}
@@ -199,6 +233,14 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                 )}
               </div>
             </div>
+            <button
+              onClick={handleDeleteClick}
+              className="text-textSubtle hover:text-red-500 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              title="Delete session"
+              aria-label="Delete session"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
             <ChevronRight className="w-8 h-5 text-textSubtle" />
           </div>
         </div>
@@ -298,6 +340,57 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
           </ScrollArea>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={sessionToDelete !== null} onOpenChange={() => !isDeleting && setSessionToDelete(null)}>
+        <ModalContent className="sm:max-w-md p-0 bg-bgApp dark:bg-bgApp dark:border-borderSubtle">
+          <div className="flex justify-center mt-4">
+            <Trash2 className="w-6 h-6 text-red-500" />
+          </div>
+
+          <div className="mt-2 px-6 text-center">
+            <h2 className="text-lg font-semibold text-textStandard">Delete Session</h2>
+          </div>
+
+          <div className="px-6 flex flex-col gap-4 mt-2">
+            <p className="text-sm text-center text-textSubtle">
+              Are you sure you want to delete the session{' '}
+              <span className="font-semibold">
+                "{sessionToDelete?.metadata.description || sessionToDelete?.id}"
+              </span>
+              ? This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex border-t mt-4 dark:border-gray-600">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setSessionToDelete(null)}
+              disabled={isDeleting}
+              className="flex-1 h-[60px] text-textStandard hover:bg-gray-100 hover:dark:bg-gray-600"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="flex-1 h-[60px] text-red-500 hover:bg-red-50 hover:dark:bg-red-900/20 border-l dark:border-gray-600"
+            >
+              {isDeleting ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
