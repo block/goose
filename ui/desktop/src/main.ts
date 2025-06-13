@@ -32,6 +32,8 @@ import {
   loadSettings,
   saveSettings,
   updateEnvironmentVariables,
+  updateSchedulingEngineEnvironment,
+  SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
 import * as electron from 'electron';
@@ -446,10 +448,14 @@ const createChat = async (
   } else {
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
+
+    // Apply scheduling engine setting
+    const settings = loadSettings();
+    updateSchedulingEngineEnvironment(settings.schedulingEngine);
+
     // Start new Goosed process for regular windows
-    // Pass through ALPHA and GOOSE_SCHEDULER_TYPE environment variables
+    // Pass through scheduling engine environment variables
     const envVars = {
-      ALPHA: process.env.ALPHA,
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     };
     const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
@@ -777,6 +783,33 @@ ipcMain.on('react-ready', () => {
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
+});
+
+// Handle scheduling engine settings
+ipcMain.handle('get-settings', () => {
+  try {
+    const settings = loadSettings();
+    return settings;
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
+  try {
+    const settings = loadSettings();
+    settings.schedulingEngine = engine as SchedulingEngine;
+    saveSettings(settings);
+
+    // Update the environment variable immediately
+    updateSchedulingEngineEnvironment(settings.schedulingEngine);
+
+    return true;
+  } catch (error) {
+    console.error('Error setting scheduling engine:', error);
+    return false;
+  }
 });
 
 // Handle menu bar icon visibility
