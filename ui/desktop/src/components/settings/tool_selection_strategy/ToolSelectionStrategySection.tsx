@@ -16,7 +16,13 @@ export const all_tool_selection_strategies = [
     key: 'vector',
     label: 'Vector',
     description:
-      'Filter tools based on vector-based similarity. Recommended when many extensions are enabled.',
+      'Filter tools based on vector similarity.',
+  },
+  {
+    key: 'llm',
+    label: 'LLM-based',
+    description:
+      'Uses LLM to intelligently select the most relevant tools based on the user query context.',
   },
 ];
 
@@ -58,8 +64,8 @@ export const ToolSelectionStrategySection = ({
       </div>
       <div className="border-b border-borderSubtle pb-8">
         <p className="text-sm text-textStandard mb-6">
-          Configure how Goose selects tools for your requests. Available only with Claude models
-          served on Databricks.
+          Configure how Goose selects tools for your requests. Recommended when many extensions are enabled. 
+          Available only with Claude models served on Databricks for now.
         </p>
         <div>
           {all_tool_selection_strategies.map((strategy) => (

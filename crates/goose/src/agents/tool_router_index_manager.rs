@@ -102,12 +102,10 @@ impl ToolRouterIndexManager {
         Ok(())
     }
 
-    /// Helper to check if vector tool router is enabled
-    pub fn vector_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
-        if let Some(selector) = selector {
-            selector.selector_type() == RouterToolSelectionStrategy::Vector
-        } else {
-            false
-        }
+    /// Helper to check if vector or llm tool router is enabled
+    pub fn is_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
+        selector.is_some()
+            && (selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Vector
+                || selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Llm)
     }
 }
