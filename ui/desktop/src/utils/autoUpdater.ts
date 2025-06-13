@@ -205,7 +205,7 @@ export function registerUpdateIpcHandlers() {
           type: 'info',
           title: 'Update Downloaded',
           message: 'The update has been downloaded to your Downloads folder.',
-          detail: `Please extract ${path.basename(updatePath)} and move the Goose app to your Applications folder to complete the update.`,
+          detail: `Please extract the zip file and move the Goose app to your Applications folder to complete the update.`,
           buttons: ['Open Downloads', 'Cancel'],
           defaultId: 0,
           cancelId: 1,
