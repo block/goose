@@ -1,0 +1,22 @@
+version: 1.0.0
+title: Joke of the day
+author:
+  contact: douwe
+description: Will tell you a joke fo the day based on the current day
+instructions: Your job is to tell a joke of the day
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+
+prompt: |
+  generate a joke for today. 
+  {% include "test_child.yaml" %}
+  Find the theme of the joke from the above yaml file.
+  Mention the day on the first line then an empty line and then the joke. 
+  Don't just say the date, but figure out if there's any cultural significance, like national shelves day
+
+templates:
+  - test_child.yaml

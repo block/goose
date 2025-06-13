@@ -1,6 +1,7 @@
 use anyhow::Result;
 use console::style;
 
+use crate::recipes::multi_template::preprocess_template;
 use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
@@ -35,6 +36,15 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
     let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
 
     let recipe = validate_recipe_file_parameters(&recipe_file_content)?;
+    let templates = recipe.templates.unwrap_or_default();
+    let mut template_map: HashMap<String, String> = HashMap::new();
+    for template_name in templates {
+        let template_path = recipe_parent_dir.join(&template_name);
+        let template_content = std::fs::read_to_string(&template_path).map_err(|e| {
+            anyhow::anyhow!("Failed to read template file {}: {}", template_name, e)
+        })?;
+        template_map.insert(template_name, template_content);
+    }
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe.parameters, recipe_parent_dir, true)?;
@@ -45,9 +55,11 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
         ));
     }
 
-    let rendered_content = render_content_with_params(&recipe_file_content, &params_for_template)?;
-
+    let rendered_content =
+        render_content_with_params(&recipe_file_content, &params_for_template, &template_map)?;
+    println!("==========\n{}", rendered_content);
     let recipe = parse_recipe_content(&rendered_content)?;
+    println!("==========recipe prompt:{:?}", recipe.prompt);
 
     // Display information about the loaded recipe
     println!(
@@ -243,12 +255,17 @@ fn apply_values_to_parameters(
     Ok((param_map, missing_params))
 }
 
-fn render_content_with_params(content: &str, params: &HashMap<String, String>) -> Result<String> {
+fn render_content_with_params(
+    content: &str,
+    params: &HashMap<String, String>,
+    template_map: &HashMap<String, String>,
+) -> Result<String> {
+    let preprocessed = preprocess_template(content, template_map);
     // Create a minijinja environment and context
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
     let template: Template<'_, '_> = env
-        .template_from_str(content)
+        .template_from_str(preprocessed.as_str())
         .map_err(|e: Error| anyhow::anyhow!("Invalid template syntax: {}", e.to_string()))?;
 
     // Render the template with the parameters
@@ -292,14 +309,14 @@ mod tests {
         let content = "Hello {{ name }}!";
         let mut params = HashMap::new();
         params.insert("name".to_string(), "World".to_string());
-        let result = render_content_with_params(content, &params).unwrap();
+        let result = render_content_with_params(content, &params, &HashMap::new()).unwrap();
         assert_eq!(result, "Hello World!");
 
         // Test empty parameter substitution
         let content = "Hello {{ empty }}!";
         let mut params = HashMap::new();
         params.insert("empty".to_string(), "".to_string());
-        let result = render_content_with_params(content, &params).unwrap();
+        let result = render_content_with_params(content, &params, &HashMap::new()).unwrap();
         assert_eq!(result, "Hello !");
 
         // Test multiple parameters
@@ -307,13 +324,13 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("greeting".to_string(), "Hi".to_string());
         params.insert("name".to_string(), "Alice".to_string());
-        let result = render_content_with_params(content, &params).unwrap();
+        let result = render_content_with_params(content, &params, &HashMap::new()).unwrap();
         assert_eq!(result, "Hi Alice!");
 
         // Test missing parameter results in error
         let content = "Hello {{ missing }}!";
         let params = HashMap::new();
-        let err = render_content_with_params(content, &params).unwrap_err();
+        let err = render_content_with_params(content, &params, &HashMap::new()).unwrap_err();
         assert!(err
             .to_string()
             .contains("please check if all required parameters"));
@@ -321,7 +338,7 @@ mod tests {
         // Test invalid template syntax results in error
         let content = "Hello {{ unclosed";
         let params = HashMap::new();
-        let err = render_content_with_params(content, &params).unwrap_err();
+        let err = render_content_with_params(content, &params, &HashMap::new()).unwrap_err();
         assert!(err.to_string().contains("Invalid template syntax"));
     }
 

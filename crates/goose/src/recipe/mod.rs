@@ -89,6 +89,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub templates: Option<Vec<String>>, // any additional templates for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -176,6 +179,7 @@ pub struct RecipeBuilder {
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
+    templates: Option<Vec<String>>,
 }
 
 impl Recipe {
@@ -206,6 +210,7 @@ impl Recipe {
             activities: None,
             author: None,
             parameters: None,
+            templates: None,
         }
     }
 }
@@ -275,6 +280,12 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the templates for the Recipe
+    pub fn templates(mut self, templates: Vec<String>) -> Self {
+        self.templates = Some(templates);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -298,6 +309,7 @@ impl RecipeBuilder {
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
+            templates: self.templates,
         })
     }
 }
