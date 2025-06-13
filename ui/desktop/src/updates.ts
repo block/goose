@@ -1,1 +1,1 @@
-export const UPDATES_ENABLED = true;
+export const UPDATES_ENABLED = false;
