@@ -1,3 +1,4 @@
+mod file_vectordb;
 mod lang;
 mod shell;
 
@@ -37,6 +38,9 @@ use mcp_server::Router;
 
 use mcp_core::role::Role;
 
+use self::file_vectordb::{
+    extract_file_contents, generate_file_table_id, FileRecord, FileVectorDB,
+};
 use self::shell::{
     expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
     normalize_line_endings,
@@ -46,6 +50,8 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
+use goose::model::ModelConfig;
+use goose::providers::{self, base::Provider};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 // Embeds the prompts directory to the build
@@ -100,6 +106,7 @@ pub struct DeveloperRouter {
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
+    embedding_provider: Option<Arc<dyn Provider>>,
 }
 
 impl Default for DeveloperRouter {
@@ -295,6 +302,49 @@ impl DeveloperRouter {
             }),
         );
 
+        let find_relevant_content_tool = Tool::new(
+            "find_relevant_content".to_string(),
+            indoc! {r#"
+                Find files with content similar to a given query using vector search.
+                
+                This tool indexes files in a directory and uses semantic similarity to find 
+                files that contain content related to your search query. It's useful for:
+                - Finding code files that implement similar functionality
+                - Locating documentation about specific topics
+                - Discovering related files across a codebase
+                
+                The tool respects .gitignore patterns and skips binary files.
+                Results are returned as a list of file paths with relevant content snippets.
+            "#}
+            .to_string(),
+            json!({
+                "type": "object",
+                "required": ["path", "query"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the directory to search in"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Short description of what you're looking for (e.g., 'authentication functions', 'database configuration', 'error handling')"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Maximum number of results to return (default: 10)"
+                    }
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Find Relevant Content".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
@@ -431,6 +481,9 @@ impl DeveloperRouter {
 
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
+        // Initialize embedding provider for find_relevant_content tool
+        let embedding_provider = Self::create_embedding_provider();
+
         Self {
             tools: vec![
                 bash_tool,
@@ -438,11 +491,41 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
                 image_processor_tool,
+                find_relevant_content_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            embedding_provider,
+        }
+    }
+
+    // Helper method to create embedding provider (same logic as main goose)
+    fn create_embedding_provider() -> Option<Arc<dyn Provider>> {
+        use std::env;
+
+        // Try to create embedding provider using the same logic as the main goose system
+        let embedding_model = env::var("GOOSE_EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+        let embedding_provider_name =
+            env::var("GOOSE_EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
+
+        // Create the provider using the factory
+        let model_config = ModelConfig::new(embedding_model);
+        match providers::create(&embedding_provider_name, model_config) {
+            Ok(provider) => {
+                if provider.supports_embeddings() {
+                    Some(provider)
+                } else {
+                    eprintln!("Warning: Provider {} does not support embeddings. find_relevant_content will use text-based search.", embedding_provider_name);
+                    None
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to create embedding provider {}: {}. find_relevant_content will use text-based search.", embedding_provider_name, e);
+                None
+            }
         }
     }
 
@@ -1115,6 +1198,308 @@ impl DeveloperRouter {
             Content::image(data, "image/png").with_priority(0.0),
         ])
     }
+
+    async fn find_relevant_content(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let query = params
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".into()))?;
+
+        let max_results = params
+            .get("max_results")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as usize;
+
+        let path = self.resolve_path(path_str)?;
+
+        // Check if directory is ignored
+        if self.is_ignored(&path) {
+            return Err(ToolError::ExecutionError(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            )));
+        }
+
+        // Check if path exists and is a directory
+        if !path.exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "Path '{}' does not exist",
+                path.display()
+            )));
+        }
+
+        if !path.is_dir() {
+            return Err(ToolError::ExecutionError(format!(
+                "Path '{}' is not a directory",
+                path.display()
+            )));
+        }
+
+        // Extract file contents
+        let files = extract_file_contents(&path, Some(100))
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to extract files: {}", e)))?;
+
+        if files.is_empty() {
+            return Ok(vec![Content::text(
+                "No readable files found in the specified directory.",
+            )]);
+        }
+
+        // Check if we have an embedding provider for true vector search
+        if let Some(ref provider) = self.embedding_provider {
+            self.find_relevant_content_with_embeddings(provider, &path, query, max_results, files)
+                .await
+        } else {
+            // Fallback to text-based search
+            self.find_relevant_content_text_based(&path, query, max_results, files)
+                .await
+        }
+    }
+
+    async fn find_relevant_content_with_embeddings(
+        &self,
+        provider: &Arc<dyn Provider>,
+        base_path: &PathBuf,
+        query: &str,
+        max_results: usize,
+        files: Vec<(PathBuf, String, String)>,
+    ) -> Result<Vec<Content>, ToolError> {
+        // Create a unique table name for this search session
+        let table_name = format!("files_{}", generate_file_table_id());
+
+        // Initialize vector database
+        let vector_db = FileVectorDB::new(Some(table_name)).await.map_err(|e| {
+            ToolError::ExecutionError(format!("Failed to initialize vector database: {}", e))
+        })?;
+
+        // Prepare texts for embedding
+        let mut file_records = Vec::new();
+        let mut texts_to_embed = Vec::new();
+
+        for (file_path, content, file_type) in files {
+            // Skip files that are ignored
+            if self.is_ignored(&file_path) {
+                continue;
+            }
+
+            // Chunk large files (simple line-based chunking for now)
+            let chunks = if content.len() > 2000 {
+                // Split into chunks of ~2000 characters
+                let lines: Vec<&str> = content.lines().collect();
+                let mut chunks = Vec::new();
+                let mut current_chunk = String::new();
+
+                for line in lines {
+                    if current_chunk.len() + line.len() > 2000 && !current_chunk.is_empty() {
+                        chunks.push(current_chunk.trim().to_string());
+                        current_chunk = String::new();
+                    }
+                    if !current_chunk.is_empty() {
+                        current_chunk.push('\n');
+                    }
+                    current_chunk.push_str(line);
+                }
+                if !current_chunk.is_empty() {
+                    chunks.push(current_chunk.trim().to_string());
+                }
+                chunks
+            } else {
+                vec![content.clone()]
+            };
+
+            // Create records for each chunk
+            for (chunk_index, chunk) in chunks.into_iter().enumerate() {
+                let record = FileRecord {
+                    file_path: file_path.to_string_lossy().to_string(),
+                    content: chunk.clone(),
+                    file_type: file_type.clone(),
+                    chunk_index: chunk_index as i32,
+                    vector: vec![], // Will be filled after embedding
+                };
+                file_records.push(record);
+                texts_to_embed.push(chunk);
+            }
+        }
+
+        if file_records.is_empty() {
+            return Ok(vec![Content::text("No files found after filtering.")]);
+        }
+
+        // Generate embeddings
+        let embeddings = provider
+            .create_embeddings(texts_to_embed)
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to generate embeddings: {}", e))
+            })?;
+
+        // Update records with embeddings
+        for (record, embedding) in file_records.iter_mut().zip(embeddings.into_iter()) {
+            record.vector = embedding;
+        }
+
+        // Index files in vector database
+        vector_db
+            .index_files(file_records)
+            .await
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to index files: {}", e)))?;
+
+        // Generate query embedding
+        let query_embeddings = provider
+            .create_embeddings(vec![query.to_string()])
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to generate query embedding: {}", e))
+            })?;
+
+        let query_embedding = query_embeddings
+            .into_iter()
+            .next()
+            .ok_or_else(|| ToolError::ExecutionError("No query embedding returned".to_string()))?;
+
+        // Search for similar files
+        let results = vector_db
+            .search_files(query_embedding, max_results)
+            .await
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to search files: {}", e)))?;
+
+        if results.is_empty() {
+            return Ok(vec![Content::text(format!(
+                "No files found with content similar to '{}'",
+                query
+            ))]);
+        }
+
+        // Format results
+        let result_count = results.len();
+        let mut result_text = format!(
+            "Found {} files related to '{}' (using vector similarity):\n\n",
+            result_count, query
+        );
+
+        for result in &results {
+            let file_path = PathBuf::from(&result.file_path);
+            let relative_path = file_path
+                .strip_prefix(base_path)
+                .unwrap_or(&file_path)
+                .display();
+
+            // Get a snippet of the content (first 200 characters)
+            let snippet = if result.content.len() > 200 {
+                format!("{}...", &result.content[..200])
+            } else {
+                result.content.clone()
+            };
+
+            let chunk_info = if result.chunk_index > 0 {
+                format!(" (chunk {})", result.chunk_index + 1)
+            } else {
+                String::new()
+            };
+
+            result_text.push_str(&format!(
+                "**{}{}**\n```\n{}\n```\n\n",
+                relative_path, chunk_info, snippet
+            ));
+        }
+
+        Ok(vec![
+            Content::text(format!(
+                "Found {} relevant files using vector similarity",
+                result_count
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::text(result_text)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    async fn find_relevant_content_text_based(
+        &self,
+        base_path: &PathBuf,
+        query: &str,
+        max_results: usize,
+        files: Vec<(PathBuf, String, String)>,
+    ) -> Result<Vec<Content>, ToolError> {
+        // Fallback to simple text-based search (original implementation)
+        let query_lower = query.to_lowercase();
+        let mut scored_files: Vec<(PathBuf, String, String, f32)> = files
+            .into_iter()
+            .filter_map(|(file_path, content, file_type)| {
+                // Skip files that are ignored
+                if self.is_ignored(&file_path) {
+                    return None;
+                }
+
+                // Simple scoring based on query term frequency
+                let content_lower = content.to_lowercase();
+                let score = query_lower
+                    .split_whitespace()
+                    .map(|term| content_lower.matches(term).count() as f32)
+                    .sum::<f32>()
+                    / content.len() as f32;
+
+                if score > 0.0 {
+                    Some((file_path, content, file_type, score))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Sort by score (highest first)
+        scored_files.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Take top results
+        scored_files.truncate(max_results);
+
+        if scored_files.is_empty() {
+            return Ok(vec![Content::text(format!(
+                "No files found containing content related to '{}'",
+                query
+            ))]);
+        }
+
+        // Format results
+        let result_count = scored_files.len();
+        let mut result_text = format!(
+            "Found {} files related to '{}' (using text search):\n\n",
+            result_count, query
+        );
+
+        for (file_path, content, _file_type, score) in &scored_files {
+            let relative_path = file_path
+                .strip_prefix(base_path)
+                .unwrap_or(&file_path)
+                .display();
+
+            // Get a snippet of the content (first 200 characters)
+            let snippet = if content.len() > 200 {
+                format!("{}...", &content[..200])
+            } else {
+                content.to_string()
+            };
+
+            result_text.push_str(&format!(
+                "**{}** (relevance: {:.4})\n```\n{}\n```\n\n",
+                relative_path, score, snippet
+            ));
+        }
+
+        Ok(vec![
+            Content::text(format!("Found {} relevant files", result_count))
+                .with_audience(vec![Role::Assistant]),
+            Content::text(result_text)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
 }
 
 impl Router for DeveloperRouter {
@@ -1152,6 +1537,7 @@ impl Router for DeveloperRouter {
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
+                "find_relevant_content" => this.find_relevant_content(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
@@ -1209,6 +1595,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
+            embedding_provider: self.embedding_provider.clone(),
         }
     }
 }
@@ -1631,6 +2018,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            embedding_provider: None,
         };
 
         // Test basic file matching
@@ -1681,6 +2069,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            embedding_provider: None,
         };
 
         // Try to write to an ignored file
@@ -1740,6 +2129,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            embedding_provider: None,
         };
 
         // Create an ignored file

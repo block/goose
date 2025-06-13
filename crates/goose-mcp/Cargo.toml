@@ -10,6 +10,7 @@ description.workspace = true
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
+goose = { path = "../goose" }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
@@ -58,6 +59,11 @@ oauth2 = { version = "5.0.0", features = ["reqwest"] }
 utoipa = { version = "4.1", optional = true }
 hyper = "1"
 serde_with = "3"
+
+# Vector database for file content search
+lancedb = "0.13"
+arrow = "52.2"
+futures-util = "0.3"
 
 
 [dev-dependencies]
