@@ -282,7 +282,7 @@ impl RouterToolSelector for LLMToolSelector {
         }
     }
 
-    async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError> {
+    async fn index_tools(&self, tools: &[Tool], _extension_name: &str) -> Result<(), ToolError> {
         let mut tool_strings = self.tool_strings.write().await;
 
         for tool in tools {
