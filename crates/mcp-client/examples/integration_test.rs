@@ -110,6 +110,12 @@ where
     let collected_events_after = events.lock().await.len();
     assert_eq!(collected_events_after - collected_eventes_before, n_steps);
 
+    let error_result = client
+        .call_tool("add", serde_json::json!({ "a": "foo", "b": "bar" }))
+        .await;
+    assert!(error_result.is_err());
+    println!("Error result: {error_result:#?}\n");
+
     // List resources
     let resources = client.list_resources(None).await?;
     println!("Resources: {resources:#?}\n");
