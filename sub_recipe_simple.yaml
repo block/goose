@@ -1,0 +1,37 @@
+version: 1.0.0
+title: top recipes
+author:
+  contact: douwe
+description: Will do multiple things
+instructions: Your job is to do multiple things
+prompt: |
+  1. use weather recipe to get the weather for {{city}}
+  2. write the weather to a file
+  3. use joke-of-the-day recipe
+  4. write the joke to a file
+sub_recipes:
+- name: joke-of-the-day
+  file: "{{recipe_dir}}/joke-of-the-day.yaml"
+  params:
+    - name: date
+      value: "{{date}}"
+- name: whether
+  file: "{{recipe_dir}}/weather.yaml"
+  params:
+    - name: city
+      value: "{{city}}"
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+parameters:
+- key: date
+  input_type: string
+  requirement: required
+  description: date provided by the user
+- key: city
+  input_type: string
+  requirement: required
+  description: city provided by the user
