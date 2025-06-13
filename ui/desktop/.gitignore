@@ -7,3 +7,4 @@ src/bin/goose-npm/
 /src/bin/*.cmd
 /playwright-report/
 /test-results/
+/src/bin/temporal-service

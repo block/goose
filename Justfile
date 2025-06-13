@@ -59,6 +59,20 @@ copy-binary BUILD_MODE="release":
         echo "Binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
+    @if [ -f ./temporal-service/temporal-service ]; then \
+        echo "Copying temporal-service binary..."; \
+        cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
+    else \
+        echo "temporal-service binary not found. Building it..."; \
+        cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
+    fi
+    @echo "Checking temporal CLI binary..."
+    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
+        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
+        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
+    else \
+        echo "temporal CLI binary found"; \
+    fi
 
 # Copy binary command for Intel build
 copy-binary-intel:
@@ -68,6 +82,20 @@ copy-binary-intel:
     else \
         echo "Intel release binary not found."; \
         exit 1; \
+    fi
+    @if [ -f ./temporal-service/temporal-service ]; then \
+        echo "Copying temporal-service binary..."; \
+        cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
+    else \
+        echo "temporal-service binary not found. Building it..."; \
+        cd temporal-service && ./build.sh && cp -p temporal-service ../ui/desktop/src/bin/; \
+    fi
+    @echo "Checking temporal CLI binary..."
+    @if [ ! -f ./ui/desktop/src/bin/temporal ]; then \
+        echo "temporal CLI binary not found in ui/desktop/src/bin/"; \
+        echo "Please ensure temporal CLI is available or will be downloaded at runtime"; \
+    else \
+        echo "temporal CLI binary found"; \
     fi
 
 # Copy Windows binary command
@@ -80,6 +108,14 @@ copy-binary-windows:
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
     }"
+    @if [ -f ./temporal-service/temporal-service.exe ]; then \
+        echo "Copying Windows temporal-service binary..."; \
+        cp -p ./temporal-service/temporal-service.exe ./ui/desktop/src/bin/; \
+    else \
+        echo "Windows temporal-service binary not found. Building it..."; \
+        cd temporal-service && GOOS=windows GOARCH=amd64 go build -o temporal-service.exe main.go && cp temporal-service.exe ../ui/desktop/src/bin/; \
+    fi
+    @echo "Note: Temporal CLI for Windows will be downloaded at runtime if needed"
 
 # Run UI with latest
 run-ui:
@@ -93,10 +129,10 @@ run-ui-only:
 
 
 # Run UI with alpha changes
-run-ui-alpha:
+run-ui-alpha temporal="true":
     @just release-binary
-    @echo "Running UI..."
-    cd ui/desktop && npm install && ALPHA=true npm run start-alpha-gui
+    @echo "Running UI with {{ if temporal == "true" { "Temporal" } else { "Legacy" } }} scheduler..."
+    cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE={{ if temporal == "true" { "temporal" } else { "legacy" } }} npm run start-alpha-gui
 
 # Run UI with latest (Windows version)
 run-ui-windows:

@@ -128,6 +128,13 @@ fi
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 mv "$TMP_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 
+# Also move temporal-service if it exists (for scheduling functionality)
+if [ -f "$TMP_DIR/temporal-service" ]; then
+  echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
+  mv "$TMP_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
+  chmod +x "$GOOSE_BIN_DIR/temporal-service"
+fi
+
 # skip configuration for non-interactive installs e.g. automation, docker
 if [ "$CONFIGURE" = true ]; then
   # --- 6) Configure Goose (Optional) ---

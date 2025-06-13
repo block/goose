@@ -211,7 +211,20 @@ pub fn generate_session_id() -> String {
 ///
 /// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
 /// The first line of the file is expected to be metadata, and the rest are messages.
+/// Large messages are automatically truncated to prevent memory issues.
 pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
+    read_messages_with_truncation(session_file, Some(50000)) // 50KB limit per message content
+}
+
+/// Read messages from a session file with optional content truncation
+///
+/// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
+/// The first line of the file is expected to be metadata, and the rest are messages.
+/// If max_content_size is Some, large message content will be truncated during loading.
+pub fn read_messages_with_truncation(
+    session_file: &Path,
+    max_content_size: Option<usize>,
+) -> Result<Vec<Message>> {
     let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -231,16 +244,161 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
             // Metadata successfully parsed, continue with the rest of the lines as messages
         } else {
             // This is not metadata, it's a message
-            messages.push(serde_json::from_str::<Message>(&line)?);
+            let message = parse_message_with_truncation(&line, max_content_size)?;
+            messages.push(message);
         }
     }
 
     // Read the rest of the lines as messages
     for line in lines {
-        messages.push(serde_json::from_str::<Message>(&line?)?);
+        let line = line?;
+        let message = parse_message_with_truncation(&line, max_content_size)?;
+        messages.push(message);
     }
 
     Ok(messages)
+}
+
+/// Parse a message from JSON string with optional content truncation
+fn parse_message_with_truncation(
+    json_str: &str,
+    max_content_size: Option<usize>,
+) -> Result<Message> {
+    // First try to parse normally
+    match serde_json::from_str::<Message>(json_str) {
+        Ok(mut message) => {
+            // If we have a size limit, check and truncate if needed
+            if let Some(max_size) = max_content_size {
+                truncate_message_content_in_place(&mut message, max_size);
+            }
+            Ok(message)
+        }
+        Err(e) => {
+            // If parsing fails and the string is very long, it might be due to size
+            if json_str.len() > 100000 {
+                tracing::warn!(
+                    "Failed to parse very large message ({}KB), attempting truncation",
+                    json_str.len() / 1024
+                );
+
+                // Try to truncate the JSON string itself before parsing
+                let truncated_json = if let Some(max_size) = max_content_size {
+                    truncate_json_string(json_str, max_size)
+                } else {
+                    json_str.to_string()
+                };
+
+                match serde_json::from_str::<Message>(&truncated_json) {
+                    Ok(message) => {
+                        tracing::info!("Successfully parsed message after JSON truncation");
+                        Ok(message)
+                    }
+                    Err(_) => {
+                        tracing::error!("Failed to parse message even after truncation, skipping");
+                        // Return a placeholder message indicating the issue
+                        Ok(Message::user()
+                            .with_text("[Message too large to load - content truncated]"))
+                    }
+                }
+            } else {
+                Err(e.into())
+            }
+        }
+    }
+}
+
+/// Truncate content within a message in place
+fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
+    use crate::message::MessageContent;
+    use mcp_core::{Content, ResourceContents};
+
+    for content in &mut message.content {
+        match content {
+            MessageContent::Text(text_content) => {
+                if text_content.text.len() > max_content_size {
+                    let truncated = format!(
+                        "{}\n\n[... content truncated during session loading from {} to {} characters ...]",
+                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                        text_content.text.len(),
+                        max_content_size
+                    );
+                    text_content.text = truncated;
+                }
+            }
+            MessageContent::ToolResponse(tool_response) => {
+                if let Ok(ref mut result) = tool_response.tool_result {
+                    for content_item in result {
+                        match content_item {
+                            Content::Text(ref mut text_content) => {
+                                if text_content.text.len() > max_content_size {
+                                    let truncated = format!(
+                                        "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
+                                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                                        text_content.text.len(),
+                                        max_content_size
+                                    );
+                                    text_content.text = truncated;
+                                }
+                            }
+                            Content::Resource(ref mut resource_content) => {
+                                if let ResourceContents::TextResourceContents { text, .. } =
+                                    &mut resource_content.resource
+                                {
+                                    if text.len() > max_content_size {
+                                        let truncated = format!(
+                                            "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
+                                            &text[..max_content_size.min(text.len())],
+                                            text.len(),
+                                            max_content_size
+                                        );
+                                        *text = truncated;
+                                    }
+                                }
+                            }
+                            _ => {} // Other content types are typically smaller
+                        }
+                    }
+                }
+            }
+            _ => {} // Other content types are typically smaller
+        }
+    }
+}
+
+/// Attempt to truncate a JSON string by finding and truncating large text values
+fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
+    // This is a heuristic approach - look for large text values in the JSON
+    // and truncate them. This is not perfect but should handle the common case
+    // of large tool responses.
+
+    if json_str.len() <= max_content_size * 2 {
+        return json_str.to_string();
+    }
+
+    // Try to find patterns that look like large text content
+    // Look for "text":"..." patterns and truncate the content
+    let mut result = json_str.to_string();
+
+    // Simple regex-like approach to find and truncate large text values
+    if let Some(start) = result.find("\"text\":\"") {
+        let text_start = start + 8; // Length of "text":"
+        if let Some(end) = result[text_start..].find("\",") {
+            let text_end = text_start + end;
+            let text_content = &result[text_start..text_end];
+
+            if text_content.len() > max_content_size {
+                let truncated_text = format!(
+                    "{}\n\n[... content truncated during JSON parsing from {} to {} characters ...]",
+                    &text_content[..max_content_size.min(text_content.len())],
+                    text_content.len(),
+                    max_content_size
+                );
+                result.replace_range(text_start..text_end, &truncated_text);
+            }
+        }
+    }
+
+    result
 }
 
 /// Read session metadata from a session file
@@ -462,12 +620,13 @@ mod tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("special.jsonl");
 
-        // Insert some problematic JSON-like content between long text
+        // Insert some problematic JSON-like content between moderately long text
+        // (keeping under truncation limit to test serialization/deserialization)
         let long_text = format!(
             "Start_of_message\n{}{}SOME_MIDDLE_TEXT{}End_of_message",
-            "A".repeat(100_000),
+            "A".repeat(10_000), // Reduced from 100_000 to stay under 50KB limit
             "\"}]\n",
-            "A".repeat(100_000)
+            "A".repeat(10_000) // Reduced from 100_000 to stay under 50KB limit
         );
 
         let special_chars = vec![
@@ -557,6 +716,56 @@ mod tests {
                 i + 1,
                 line
             );
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_large_content_truncation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("large_content.jsonl");
+
+        // Create a message with content larger than the 50KB truncation limit
+        let very_large_text = "A".repeat(100_000); // 100KB of text
+        let messages = vec![
+            Message::user().with_text(&very_large_text),
+            Message::assistant().with_text("Small response"),
+        ];
+
+        // Write messages
+        persist_messages(&file_path, &messages, None).await?;
+
+        // Read them back - should be truncated
+        let read_messages = read_messages(&file_path)?;
+
+        assert_eq!(messages.len(), read_messages.len());
+
+        // First message should be truncated
+        if let Some(MessageContent::Text(read_text)) = read_messages[0].content.first() {
+            assert!(
+                read_text.text.len() < very_large_text.len(),
+                "Content should be truncated"
+            );
+            assert!(
+                read_text
+                    .text
+                    .contains("content truncated during session loading"),
+                "Should contain truncation notice"
+            );
+            assert!(
+                read_text.text.starts_with("AAAA"),
+                "Should start with original content"
+            );
+        } else {
+            panic!("Expected text content in first message");
+        }
+
+        // Second message should be unchanged
+        if let Some(MessageContent::Text(read_text)) = read_messages[1].content.first() {
+            assert_eq!(read_text.text, "Small response");
+        } else {
+            panic!("Expected text content in second message");
         }
 
         Ok(())

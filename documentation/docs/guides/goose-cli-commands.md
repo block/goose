@@ -185,6 +185,33 @@ Session removal is permanent and cannot be undone. Goose will show which session
 
 ---
 
+### session export [options]
+
+Export a session to Markdown format for sharing, documentation, or archival purposes.
+
+**Options:**
+- **`-n, --name <name>`**: Export a specific session by name
+- **`-p, --path <path>`**: Export a specific session by file path  
+- **`-o, --output <file>`**: Save exported content to a file (default: stdout)
+
+**Usage:**
+
+```bash
+# Export specific session to file
+goose session export --name my-session --output session.md
+
+# Export specific session to stdout
+goose session export --name my-session
+
+# Interactive export (prompts for session selection)
+goose session export
+
+# Export session by path
+goose session export --path ./my-session.jsonl --output exported.md
+```
+
+---
+
 ### info [options]
 
 Shows Goose information, including the version, configuration file location, session storage, and logs.
@@ -330,6 +357,46 @@ goose recipe help
 ```
 
 ---
+### schedule
+Automate recipes by running them on a schedule using a cron job.
+
+**Usage:**
+```bash
+goose schedule <COMMAND>
+```
+
+**Commands:**
+- `add <OPTIONS>`: Create a new scheduled job. Copies the current version of the recipe to `~/.local/share/goose/scheduled_recipes`
+- `list`: View all scheduled jobs
+- `remove`: Delete a scheduled job
+- `sessions`: List sessions created by a scheduled recipe
+- `run-now`: Run a scheduled recipe immediately
+
+**Options:**
+- `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
+- `--cron "* * * * * *"`: Specifies when a job should run using a 6-field [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string in the format "seconds minutes hours day-of-month month day-of-week"
+- `--recipe-source <PATH>`: Path to the recipe YAML file
+- `--limit <NUMBER>`: (Optional) max number of sessions to display when using the `sessions` command
+
+**Examples:**
+```bash
+# Add a new scheduled recipe which runs every day at 9 AM
+goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+
+# List all scheduled jobs
+goose schedule list
+
+# List the 10 most recent Goose sessions created by a scheduled job
+goose schedule sessions --id daily-report --limit 10
+
+# Run a recipe immediately
+goose schedule run-now --id daily-report
+
+# Remove a scheduled job
+goose schedule remove --id daily-report
+```
+
+---
 ### project
 
 Start working on your last project or create a new one.
@@ -383,6 +450,55 @@ After selecting a project, you'll be asked to either:
 - **Start new session**: Start a new session in the selected project
 
 ---
+### web
+
+Start a new session in Goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
+
+Goose Web is particularly useful when:
+- You want to access Goose with a graphical interface without installing the desktop app
+- You need to use Goose from different devices, including mobile
+- You're working in an environment where installing desktop apps isn't practical
+
+**Usage:**
+```bash
+goose web
+```
+
+**Options:**
+- **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`.
+- **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`.
+- **`--open`**: Automatically open the browser when the server starts.
+
+**Examples:**
+```bash
+# Start web interface at `http://127.0.0.1:3000` and open the browser
+goose web --open
+
+# Start web interface at `http://127.0.0.1:8080` 
+goose web --port 8080
+
+# Start web interface accessible from local network at `http://192.168.1.7:8080`
+goose web --host 192.168.1.7 --port 8080
+```
+
+**Limitations:**
+
+While the web interface provides most core features, be aware of these limitations:
+- Some file system operations may require additional confirmation
+- Extension management must be done through the CLI
+- Certain tool interactions might need extra setup
+- Configuration changes require a server restart
+
+:::warning
+Don't expose the web interface to the internet without proper security measures.
+:::
+
+:::info
+Use `Ctrl-C` to stop the server.
+:::
+
+---
+
 ## Prompt Completion
 
 The CLI provides a set of slash commands that can be accessed during a session. These commands support tab completion for easier use.
