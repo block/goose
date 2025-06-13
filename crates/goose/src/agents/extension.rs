@@ -18,7 +18,7 @@ pub enum ExtensionError {
     Initialization(ExtensionConfig, ClientError),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
-    #[error("User Message exceeded context-limit. History could not be truncated to accomodate.")]
+    #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
     ContextLimit,
     #[error("Transport error: {0}")]
     Transport(#[from] mcp_client::transport::Error),
