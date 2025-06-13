@@ -147,8 +147,6 @@ export default function UpdateSection() {
   };
 
   const installUpdate = () => {
-    setUpdateStatus('installing');
-    // This will quit the app and install the update
     window.electron.installUpdate();
   };
 
@@ -158,8 +156,6 @@ export default function UpdateSection() {
         return 'Checking for updates...';
       case 'downloading':
         return `Downloading update... ${Math.round(progress)}%`;
-      case 'installing':
-        return 'Installing update...';
       case 'ready':
         return 'Update downloaded and ready to install!';
       case 'success':
@@ -180,7 +176,6 @@ export default function UpdateSection() {
     switch (updateStatus) {
       case 'checking':
       case 'downloading':
-      case 'installing':
         return <Loader2 className="w-4 h-4 animate-spin" />;
       case 'success':
         return <CheckCircle className="w-4 h-4 text-green-500" />;
@@ -257,9 +252,10 @@ export default function UpdateSection() {
           {/* Update information */}
           {updateInfo.isUpdateAvailable && (
             <div className="text-xs text-textSubtle mt-4 space-y-1">
-              <p>Update will be downloaded and automatically extracted to your Downloads folder.</p>
+              <p>Update will be downloaded to your Downloads folder.</p>
               <p className="text-xs text-amber-600">
-                After download, move the Goose app to /Applications to complete the update.
+                After download, extract Goose-{updateInfo.latestVersion}.zip and move the Goose app
+                to /Applications to complete the update.
               </p>
             </div>
           )}

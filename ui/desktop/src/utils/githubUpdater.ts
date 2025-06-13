@@ -1,10 +1,8 @@
 import { app } from 'electron';
 import { compareVersions } from 'compare-versions';
 import * as fs from 'fs/promises';
-import { createWriteStream } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import * as yauzl from 'yauzl';
 import log from './logger';
 
 interface GitHubRelease {
@@ -191,70 +189,8 @@ export class GitHubUpdater {
 
       log.info(`GitHubUpdater: Update downloaded to ${downloadPath}`);
 
-      // Auto-unzip the downloaded file using yauzl (secure ZIP library)
-      try {
-        const tempExtractDir = path.join(downloadsDir, `temp-extract-${Date.now()}`);
-
-        // Create temp extraction directory
-        await fs.mkdir(tempExtractDir, { recursive: true });
-
-        log.info(`GitHubUpdater: Extracting ${fileName} to temp directory using yauzl`);
-
-        // Use yauzl to extract the ZIP file securely
-        await extractZipFile(downloadPath, tempExtractDir);
-
-        // Check if Goose.app exists in the extracted content
-        const appPath = path.join(tempExtractDir, 'Goose.app');
-        try {
-          await fs.access(appPath);
-          log.info(`GitHubUpdater: Found Goose.app at ${appPath}`);
-        } catch (error) {
-          log.error('GitHubUpdater: Goose.app not found in extracted content');
-          throw new Error('Goose.app not found in extracted content');
-        }
-
-        // Move Goose.app to Downloads folder
-        const finalAppPath = path.join(downloadsDir, 'Goose.app');
-
-        // Remove existing Goose.app if it exists
-        try {
-          await fs.rm(finalAppPath, { recursive: true, force: true });
-        } catch (e) {
-          // File might not exist, that's fine
-        }
-
-        // Move the app to Downloads
-        log.info(`GitHubUpdater: Moving Goose.app to Downloads folder`);
-        await fs.rename(appPath, finalAppPath);
-
-        // Verify the move was successful
-        try {
-          await fs.access(finalAppPath);
-          log.info(`GitHubUpdater: Successfully moved Goose.app to Downloads`);
-        } catch (error) {
-          log.error('GitHubUpdater: Failed to move Goose.app');
-          throw new Error('Failed to move Goose.app to Downloads');
-        }
-
-        // Clean up temp directory and zip file
-        try {
-          await fs.rm(tempExtractDir, { recursive: true, force: true });
-          await fs.unlink(downloadPath);
-          log.info(`GitHubUpdater: Cleaned up temporary files`);
-        } catch (cleanupError) {
-          log.warn(`GitHubUpdater: Failed to clean up temporary files: ${cleanupError}`);
-        }
-
-        return { success: true, downloadPath: finalAppPath, extractedPath: downloadsDir };
-      } catch (unzipError) {
-        log.error('GitHubUpdater: Error extracting update:', unzipError);
-        // Still return success for download, but note the extraction error
-        return {
-          success: true,
-          downloadPath,
-          error: `Downloaded successfully but extraction failed: ${unzipError instanceof Error ? unzipError.message : 'Unknown error'}`,
-        };
-      }
+      // Return success - user will handle extraction manually
+      return { success: true, downloadPath, extractedPath: downloadsDir };
     } catch (error) {
       log.error('GitHubUpdater: Error downloading update:', error);
       return {
@@ -263,109 +199,6 @@ export class GitHubUpdater {
       };
     }
   }
-}
-
-/**
- * Securely extract a ZIP file using yauzl with security checks
- * @param zipPath Path to the ZIP file
- * @param extractDir Directory to extract to
- */
-async function extractZipFile(zipPath: string, extractDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      if (!zipfile) {
-        reject(new Error('Failed to open ZIP file'));
-        return;
-      }
-
-      zipfile.readEntry();
-
-      zipfile.on('entry', async (entry: yauzl.Entry) => {
-        try {
-          // Security check: prevent directory traversal attacks
-          if (entry.fileName.includes('..') || path.isAbsolute(entry.fileName)) {
-            log.warn(`GitHubUpdater: Skipping potentially dangerous path: ${entry.fileName}`);
-            zipfile.readEntry();
-            return;
-          }
-
-          const fullPath = path.join(extractDir, entry.fileName);
-
-          // Ensure the resolved path is still within the extraction directory
-          const resolvedPath = path.resolve(fullPath);
-          const resolvedExtractDir = path.resolve(extractDir);
-          if (!resolvedPath.startsWith(resolvedExtractDir + path.sep)) {
-            log.warn(`GitHubUpdater: Path traversal attempt detected: ${entry.fileName}`);
-            zipfile.readEntry();
-            return;
-          }
-
-          // Handle directories
-          if (entry.fileName.endsWith('/')) {
-            await fs.mkdir(fullPath, { recursive: true });
-            zipfile.readEntry();
-            return;
-          }
-
-          // Handle files
-          zipfile.openReadStream(entry, async (err, readStream) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-
-            if (!readStream) {
-              reject(new Error('Failed to open read stream'));
-              return;
-            }
-
-            try {
-              // Ensure parent directory exists
-              await fs.mkdir(path.dirname(fullPath), { recursive: true });
-
-              // Create write stream
-              const writeStream = createWriteStream(fullPath);
-
-              readStream.on('end', () => {
-                writeStream.end();
-                zipfile.readEntry();
-              });
-
-              readStream.on('error', (streamErr) => {
-                writeStream.destroy();
-                reject(streamErr);
-              });
-
-              writeStream.on('error', (writeErr: Error) => {
-                reject(writeErr);
-              });
-
-              // Pipe the data
-              readStream.pipe(writeStream);
-            } catch (fileErr) {
-              reject(fileErr);
-            }
-          });
-        } catch (entryErr) {
-          reject(entryErr);
-        }
-      });
-
-      zipfile.on('end', () => {
-        log.info('GitHubUpdater: ZIP extraction completed successfully');
-        resolve();
-      });
-
-      zipfile.on('error', (zipErr) => {
-        reject(zipErr);
-      });
-    });
-  });
 }
 
 // Create singleton instance
