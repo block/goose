@@ -1,0 +1,94 @@
+name: "PR Comment: Bundle Desktop Linux"
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  bundle-desktop-linux:
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/bundle-linux') &&
+      (github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    name: Bundle Desktop Linux
+    uses: ./.github/workflows/bundle-desktop-linux.yml
+    with:
+      ref: refs/pull/${{ github.event.issue.number }}/head
+
+  comment:
+    name: Comment on PR
+    needs: bundle-desktop-linux
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Linux Desktop Bundle
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.issue.number }}
+          edit-mode: replace
+          body: |
+            ## Linux Desktop Bundle
+
+            **Status**: ${{ needs.bundle-desktop-linux.result == 'success' && '✅ Success' || '❌ Failed' }}
+
+            ${{ needs.bundle-desktop-linux.result == 'success' && format('
+            ### 📦 Download Linux Packages
+
+            - [📦 Goose Linux x64 DEB](https://nightly.link/{0}/actions/runs/{1}/Goose-linux-x64-deb.zip)
+            - [📦 Goose Linux x64 RPM](https://nightly.link/{0}/actions/runs/{1}/Goose-linux-x64-rpm.zip)
+            - [📦 Goose Linux x64 Combined](https://nightly.link/{0}/actions/runs/{1}/Goose-linux-x64.zip)
+
+            ### 🚀 Installation Instructions
+
+            **For Ubuntu/Debian (.deb):**
+            ```bash
+            # Download and extract the .deb package
+            wget https://nightly.link/{0}/actions/runs/{1}/Goose-linux-x64-deb.zip
+            unzip Goose-linux-x64-deb.zip
+            sudo dpkg -i *.deb
+            sudo apt-get install -f  # Fix any dependency issues
+            ```
+
+            **For RHEL/Fedora/CentOS (.rpm):**
+            ```bash
+            # Download and extract the .rpm package
+            wget https://nightly.link/{0}/actions/runs/{1}/Goose-linux-x64-rpm.zip
+            unzip Goose-linux-x64-rpm.zip
+            sudo rpm -i *.rpm
+            # Or with yum/dnf:
+            sudo yum install *.rpm
+            # sudo dnf install *.rpm
+            ```
+
+            ### 📋 Package Contents
+            - Goose Desktop Application with GUI
+            - Built-in goosed server binary
+            - Desktop integration and menu entries
+            - Support for both x64 architectures
+
+            ', github.repository, github.run_id) || format('
+            ### ❌ Build Failed
+
+            The Linux desktop bundle build failed. Please check the [workflow logs](https://github.com/{0}/actions/runs/{1}) for details.
+
+            Common issues:
+            - Disk space limitations during build
+            - Missing system dependencies
+            - Electron packaging errors
+            - Binary compilation issues
+
+            ', github.repository, github.run_id) }}
+
+            ---
+            *Triggered by comment from @${{ github.event.comment.user.login }}*
