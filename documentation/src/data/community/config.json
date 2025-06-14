@@ -1,0 +1,15 @@
+{
+  "availableMonths": [
+    {
+      "id": "april-2025",
+      "display": "April 2025",
+      "file": "april-2025.json"
+    },
+    {
+      "id": "may-2025",
+      "display": "May 2025",
+      "file": "may-2025.json"
+    }
+  ],
+  "defaultMonth": "may-2025"
+}
