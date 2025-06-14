@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
@@ -51,26 +51,12 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
-  // Update internal value when initialValue changes
-  useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
-
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
-    setPastedImages((currentPastedImages) => {
-      currentPastedImages.forEach((img) => {
-        if (img.filePath) {
-          window.electron.deleteTempFile(img.filePath);
-        }
-      });
-      return []; // Return a new empty array
-    });
-
-    // Reset history index when input is cleared
-    setHistoryIndex(-1);
-    setIsInGlobalHistory(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+  // ADD_BELOW: history search state
+  const [isHistorySearchOpen, setIsHistorySearchOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historySearchResults, setHistorySearchResults] = useState<string[]>([]);
+  const [historySearchIndex, setHistorySearchIndex] = useState(0);
+  const historySearchInputRef = useRef<HTMLInputElement>(null);
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -79,6 +65,9 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+
+  const updateInitialValueRef = useRef(initialValue);
+  // We add this effect later (after closeHistorySearch) to satisfy dependency order.
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -126,6 +115,91 @@ export default function ChatInput({
 
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
+
+  // === History search helpers ===
+  const getCombinedHistory = useCallback(() => {
+    // Combine current chat history and global history, removing duplicates while preserving order
+    const globalHistory = LocalMessageStorage.getRecentMessages();
+    const combined = [...commandHistory];
+    for (const item of globalHistory) {
+      if (!combined.includes(item)) {
+        combined.push(item);
+      }
+    }
+    return combined;
+  }, [commandHistory]);
+
+  const openHistorySearch = useCallback(() => {
+    if (isHistorySearchOpen) return;
+    setSavedInput(displayValue);
+    setIsHistorySearchOpen(true);
+    setHistorySearchQuery('');
+    const combined = getCombinedHistory();
+    setHistorySearchResults(combined);
+    setHistorySearchIndex(0);
+    // Focus search input on next tick
+    setTimeout(() => {
+      historySearchInputRef.current?.focus();
+    }, 0);
+  }, [displayValue, getCombinedHistory, isHistorySearchOpen]);
+
+  const closeHistorySearch = useCallback(() => {
+    setIsHistorySearchOpen(false);
+    setHistorySearchQuery('');
+    setHistorySearchResults([]);
+    setHistorySearchIndex(0);
+    setDisplayValue(savedInput);
+    setValue(savedInput);
+    textAreaRef.current?.focus();
+  }, [savedInput]);
+
+  // Sync component when initialValue prop changes (must appear after closeHistorySearch to avoid lint errors)
+  useEffect(() => {
+    if (updateInitialValueRef.current === initialValue) return;
+    updateInitialValueRef.current = initialValue;
+
+    setValue(initialValue);
+    setDisplayValue(initialValue);
+
+    // Clean up pasted images
+    setPastedImages((currentPastedImages) => {
+      currentPastedImages.forEach((img) => {
+        if (img.filePath) {
+          window.electron.deleteTempFile(img.filePath);
+        }
+      });
+      return [];
+    });
+
+    // Reset history and search state
+    setHistoryIndex(-1);
+    setIsInGlobalHistory(false);
+    closeHistorySearch();
+  }, [initialValue, closeHistorySearch]);
+
+  const updateHistorySearchResults = useCallback(
+    (query: string) => {
+      const all = getCombinedHistory();
+      let filtered: string[];
+      if (!query) {
+        filtered = all;
+      } else {
+        const lower = query.toLowerCase();
+        filtered = all.filter((m) => m.toLowerCase().includes(lower));
+      }
+      setHistorySearchResults(filtered);
+      const idx = 0;
+      setHistorySearchIndex(idx);
+      if (filtered.length > 0) {
+        setDisplayValue(filtered[idx]);
+        setValue(filtered[idx]);
+      } else {
+        setDisplayValue(savedInput);
+        setValue(savedInput);
+      }
+    },
+    [getCombinedHistory, savedInput]
+  );
 
   // If we have dropped files, add them to the input and update our state.
   useEffect(() => {
@@ -377,6 +451,22 @@ export default function ChatInput({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Open history search with Ctrl+R (not meta key to avoid refresh)
+    if (!evt.shiftKey && !evt.metaKey && evt.ctrlKey && evt.key.toLowerCase() === 'r') {
+      evt.preventDefault();
+      openHistorySearch();
+      return;
+    }
+
+    // If search is open, ignore other navigation key handling
+    if (isHistorySearchOpen) {
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        closeHistorySearch();
+      }
+      return;
+    }
+
     // Handle history navigation first
     handleHistoryNavigation(evt);
 
@@ -430,6 +520,49 @@ export default function ChatInput({
     displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
+  const handleHistorySearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setHistorySearchQuery(query);
+    updateHistorySearchResults(query);
+  };
+
+  const handleHistorySearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      closeHistorySearch();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeHistorySearch();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (historySearchResults.length > 0) {
+        const newIndex =
+          (historySearchIndex - 1 + historySearchResults.length) % historySearchResults.length;
+        setHistorySearchIndex(newIndex);
+        setDisplayValue(historySearchResults[newIndex]);
+        setValue(historySearchResults[newIndex]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historySearchResults.length > 0) {
+        const newIndex = (historySearchIndex + 1) % historySearchResults.length;
+        setHistorySearchIndex(newIndex);
+        setDisplayValue(historySearchResults[newIndex]);
+        setValue(historySearchResults[newIndex]);
+      }
+    }
+  };
+
+  // Keep displayValue in sync when search index changes via other means
+  useEffect(() => {
+    if (isHistorySearchOpen && historySearchResults.length > 0) {
+      const current = historySearchResults[historySearchIndex] ?? '';
+      setDisplayValue(current);
+      setValue(current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historySearchIndex]);
+
   return (
     <div
       className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
@@ -438,12 +571,35 @@ export default function ChatInput({
           : 'border-borderSubtle hover:border-borderStandard'
       } bg-bgApp z-10`}
     >
+      {isHistorySearchOpen && (
+        <div className="absolute -top-8 left-0 right-0 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2 bg-bgSubtle text-textStandard rounded px-3 py-1 shadow pointer-events-auto">
+            <span className="text-xs text-textSubtle">history:</span>
+            <input
+              ref={historySearchInputRef}
+              value={historySearchQuery}
+              onChange={handleHistorySearchInputChange}
+              onKeyDown={handleHistorySearchInputKeyDown}
+              className="bg-transparent outline-none text-xs w-40 placeholder:text-textPlaceholder"
+              placeholder="type to search..."
+            />
+            {historySearchResults.length > 0 && (
+              <span className="text-xs text-textSubtle">
+                {historySearchIndex + 1}/{historySearchResults.length}
+              </span>
+            )}
+            <button type="button" onClick={closeHistorySearch} className="ml-1 p-0.5">
+              <Close className="h-3 w-3 text-textSubtle" />
+            </button>
+          </div>
+        </div>
+      )}
       <form onSubmit={onFormSubmit}>
         <textarea
           data-testid="chat-input"
           autoFocus
           id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
+          placeholder="What can goose help with?   ⌘↑/⌘↓ • ⌃R search"
           value={displayValue}
           onChange={handleChange}
           onCompositionStart={handleCompositionStart}
