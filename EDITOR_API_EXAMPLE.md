@@ -39,6 +39,13 @@ export GOOSE_EDITOR_HOST="https://api.morphllm.com/v1"
 export GOOSE_EDITOR_MODEL="morph-v0"
 ```
 
+**Relace**
+```bash
+export GOOSE_EDITOR_API_KEY="rlc-..."
+export GOOSE_EDITOR_HOST="https://instantapply.endpoint.relace.run/v1/apply"
+export GOOSE_EDITOR_MODEL="auto"
+```
+
 **Local/Custom endpoints:**
 ```bash
 export GOOSE_EDITOR_API_KEY="your-key"

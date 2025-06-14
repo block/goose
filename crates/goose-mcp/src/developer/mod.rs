@@ -163,16 +163,36 @@ impl DeveloperRouter {
             original_code, update_snippet
         );
 
-        // Prepare the request body
-        let body = json!({
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": user_prompt
-                }
-            ]
-        });
+        // Prepare the request body. The Relace endpoint expects the OpenAI
+        // predicted outputs convention where the original code is supplied under
+        // `prediction` and the update snippet is the sole user message.
+
+        let is_relace = host.contains("relace.run");
+
+        let body = if is_relace {
+            json!({
+                "model": model,
+                "prediction": {
+                    "content": original_code
+                },
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": update_snippet
+                    }
+                ]
+            })
+        } else {
+            json!({
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": user_prompt
+                    }
+                ]
+            })
+        };
 
         // Send the request
         let response = match client
