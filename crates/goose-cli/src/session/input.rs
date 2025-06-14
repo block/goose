@@ -42,7 +42,13 @@ pub fn get_input(
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
-    let prompt = format!("{} ", console::style("( O)>").cyan().bold());
+    // Create a more modern and visually distinct prompt
+    let prompt = format!(
+        "{} {} ",
+        console::style("🪿").bold(),
+        console::style("❯").cyan().bold()
+    );
+
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {

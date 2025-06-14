@@ -1,6 +1,7 @@
 use rand::seq::SliceRandom;
 
 /// Extended list of playful thinking messages including both goose and general AI actions
+#[allow(dead_code)]
 const THINKING_MESSAGES: &[&str] = &[
     "Spreading wings",
     "Honking thoughtfully",
@@ -213,6 +214,7 @@ const THINKING_MESSAGES: &[&str] = &[
 ];
 
 /// Returns a random thinking message from the extended list
+#[allow(dead_code)]
 pub fn get_random_thinking_message() -> &'static str {
     THINKING_MESSAGES
         .choose(&mut rand::thread_rng())
