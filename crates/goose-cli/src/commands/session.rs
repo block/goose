@@ -1,4 +1,5 @@
 use crate::session::message_to_markdown;
+use crate::utils::safe_truncate;
 use anyhow::{Context, Result};
 use cliclack::{confirm, multiselect, select};
 use goose::session::info::{get_session_info, SessionInfo, SortOrder};
@@ -50,11 +51,7 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
             } else {
                 &s.metadata.description
             };
-            let truncated_desc = if desc.len() > TRUNCATED_DESC_LENGTH {
-                format!("{}...", &desc[..TRUNCATED_DESC_LENGTH - 3])
-            } else {
-                desc.to_string()
-            };
+            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
             let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
             (display_text, s.clone())
         })
@@ -315,11 +312,7 @@ pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
             };
 
             // Truncate description if too long
-            let truncated_desc = if desc.len() > 40 {
-                format!("{}...", &desc[..37])
-            } else {
-                desc.to_string()
-            };
+            let truncated_desc = safe_truncate(desc, 40);
 
             let display_text = format!("{} - {} ({})", s.modified, truncated_desc, s.id);
             (display_text, s.clone())
