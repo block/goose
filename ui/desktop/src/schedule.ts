@@ -20,6 +20,7 @@ export interface ScheduledJob {
   paused?: boolean;
   current_session_id?: string | null;
   process_start_time?: string | null;
+  execution_mode?: string | null; // "foreground" or "background"
 }
 
 export interface ScheduleSession {
@@ -55,6 +56,7 @@ export async function createSchedule(request: {
   id: string;
   recipe_source: string;
   cron: string;
+  execution_mode?: string;
 }): Promise<ScheduledJob> {
   try {
     const response = await apiCreateSchedule<true>({ body: request });

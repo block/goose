@@ -6,7 +6,9 @@ import { Select } from '../ui/Select';
 import { ScheduledJob } from '../../schedule';
 import cronstrue from 'cronstrue';
 
-type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
+
+type CustomIntervalUnit = 'minute' | 'hour' | 'day';
 
 interface FrequencyOption {
   value: FrequencyValue;
@@ -24,10 +26,16 @@ interface EditScheduleModalProps {
 
 const frequencies: FrequencyOption[] = [
   { value: 'once', label: 'Once' },
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
+  { value: 'every', label: 'Every...' },
+  { value: 'daily', label: 'Daily (at specific time)' },
+  { value: 'weekly', label: 'Weekly (at specific time/days)' },
+  { value: 'monthly', label: 'Monthly (at specific time/day)' },
+];
+
+const customIntervalUnits: { value: CustomIntervalUnit; label: string }[] = [
+  { value: 'minute', label: 'minute(s)' },
+  { value: 'hour', label: 'hour(s)' },
+  { value: 'day', label: 'day(s)' },
 ];
 
 const daysOfWeekOptions: { value: string; label: string }[] = [
@@ -50,22 +58,59 @@ const checkboxInputClassName =
 // Helper function to parse cron expression and determine frequency
 const parseCronExpression = (cron: string) => {
   const parts = cron.split(' ');
-  if (parts.length !== 6) return null;
+  if (parts.length !== 5 && parts.length !== 6) return null;
 
-  const [_seconds, minutes, hours, dayOfMonth, month, dayOfWeek] = parts;
+  // Handle both 5-field and 6-field cron expressions
+  const [minutes, hours, dayOfMonth, month, dayOfWeek] =
+    parts.length === 5 ? parts : parts.slice(1); // Skip seconds if present
 
-  // Check for specific patterns
-  if (dayOfMonth !== '*' && month !== '*' && dayOfWeek === '*') {
-    return { frequency: 'once' as FrequencyValue, minutes, hours, dayOfMonth, month };
-  }
+  // Check for custom intervals (every X minutes/hours/days)
   if (
-    minutes !== '*' &&
+    minutes.startsWith('*/') &&
     hours === '*' &&
     dayOfMonth === '*' &&
     month === '*' &&
     dayOfWeek === '*'
   ) {
-    return { frequency: 'hourly' as FrequencyValue, minutes };
+    const intervalValue = parseInt(minutes.substring(2));
+    return {
+      frequency: 'every' as FrequencyValue,
+      customIntervalValue: intervalValue,
+      customIntervalUnit: 'minute' as CustomIntervalUnit,
+    };
+  }
+  if (
+    minutes === '0' &&
+    hours.startsWith('*/') &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const intervalValue = parseInt(hours.substring(2));
+    return {
+      frequency: 'every' as FrequencyValue,
+      customIntervalValue: intervalValue,
+      customIntervalUnit: 'hour' as CustomIntervalUnit,
+    };
+  }
+  if (
+    minutes === '0' &&
+    hours === '0' &&
+    dayOfMonth.startsWith('*/') &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    const intervalValue = parseInt(dayOfMonth.substring(2));
+    return {
+      frequency: 'every' as FrequencyValue,
+      customIntervalValue: intervalValue,
+      customIntervalUnit: 'day' as CustomIntervalUnit,
+    };
+  }
+
+  // Check for specific patterns
+  if (dayOfMonth !== '*' && month !== '*' && dayOfWeek === '*') {
+    return { frequency: 'once' as FrequencyValue, minutes, hours, dayOfMonth, month };
   }
   if (
     minutes !== '*' &&
@@ -107,11 +152,13 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
   apiErrorExternally = null,
 }) => {
   const [frequency, setFrequency] = useState<FrequencyValue>('daily');
+  const [customIntervalValue, setCustomIntervalValue] = useState<number>(1);
+  const [customIntervalUnit, setCustomIntervalUnit] = useState<CustomIntervalUnit>('minute');
   const [selectedDate, setSelectedDate] = useState<string>(
     () => new Date().toISOString().split('T')[0]
   );
   const [selectedTime, setSelectedTime] = useState<string>('09:00');
-  const [selectedMinute, setSelectedMinute] = useState<string>('0');
+  const [selectedMinute] = useState<string>('0');
   const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState<Set<string>>(new Set(['1']));
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState<string>('1');
   const [derivedCronExpression, setDerivedCronExpression] = useState<string>('');
@@ -135,8 +182,13 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
               `${parsed.hours?.padStart(2, '0')}:${parsed.minutes?.padStart(2, '0')}`
             );
             break;
-          case 'hourly':
-            setSelectedMinute(parsed.minutes || '0');
+          case 'every':
+            if (parsed.customIntervalValue) {
+              setCustomIntervalValue(parsed.customIntervalValue);
+            }
+            if (parsed.customIntervalUnit) {
+              setCustomIntervalUnit(parsed.customIntervalUnit);
+            }
             break;
           case 'daily':
             setSelectedTime(
@@ -177,14 +229,13 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
       if (isNaN(parseInt(minutePart)) || isNaN(parseInt(hourPart))) {
         return 'Invalid time format.';
       }
-      const secondsPart = '0';
       switch (frequency) {
         case 'once':
           if (selectedDate && selectedTime) {
             try {
               const dateObj = new Date(`${selectedDate}T${selectedTime}`);
               if (isNaN(dateObj.getTime())) return "Invalid date/time for 'once'.";
-              return `${secondsPart} ${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
+              return `${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
                 dateObj.getMonth() + 1
               } *`;
             } catch (e) {
@@ -192,15 +243,23 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
             }
           }
           return 'Date and Time are required for "Once" frequency.';
-        case 'hourly': {
-          const sMinute = parseInt(selectedMinute, 10);
-          if (isNaN(sMinute) || sMinute < 0 || sMinute > 59) {
-            return 'Invalid minute (0-59) for hourly frequency.';
+        case 'every': {
+          if (customIntervalValue <= 0) {
+            return 'Custom interval value must be greater than 0.';
           }
-          return `${secondsPart} ${sMinute} * * * *`;
+          switch (customIntervalUnit) {
+            case 'minute':
+              return `*/${customIntervalValue} * * * *`;
+            case 'hour':
+              return `0 */${customIntervalValue} * * *`;
+            case 'day':
+              return `0 0 */${customIntervalValue} * *`;
+            default:
+              return 'Invalid custom interval unit.';
+          }
         }
         case 'daily':
-          return `${secondsPart} ${minutePart} ${hourPart} * * *`;
+          return `${minutePart} ${hourPart} * * *`;
         case 'weekly': {
           if (selectedDaysOfWeek.size === 0) {
             return 'Select at least one day for weekly frequency.';
@@ -208,14 +267,14 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
           const days = Array.from(selectedDaysOfWeek)
             .sort((a, b) => parseInt(a) - parseInt(b))
             .join(',');
-          return `${secondsPart} ${minutePart} ${hourPart} * * ${days}`;
+          return `${minutePart} ${hourPart} * * ${days}`;
         }
         case 'monthly': {
           const sDayOfMonth = parseInt(selectedDayOfMonth, 10);
           if (isNaN(sDayOfMonth) || sDayOfMonth < 1 || sDayOfMonth > 31) {
             return 'Invalid day of month (1-31) for monthly frequency.';
           }
-          return `${secondsPart} ${minutePart} ${hourPart} ${sDayOfMonth} * *`;
+          return `${minutePart} ${hourPart} ${sDayOfMonth} * *`;
         }
         default:
           return 'Invalid frequency selected.';
@@ -239,6 +298,8 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
     }
   }, [
     frequency,
+    customIntervalValue,
+    customIntervalUnit,
     selectedDate,
     selectedTime,
     selectedMinute,
@@ -327,6 +388,43 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
             />
           </div>
 
+          {frequency === 'every' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="customIntervalValue-modal" className={modalLabelClassName}>
+                  Every:
+                </label>
+                <Input
+                  type="number"
+                  id="customIntervalValue-modal"
+                  min="1"
+                  max="999"
+                  value={customIntervalValue}
+                  onChange={(e) => setCustomIntervalValue(parseInt(e.target.value) || 1)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="customIntervalUnit-modal" className={modalLabelClassName}>
+                  Unit:
+                </label>
+                <Select
+                  instanceId="custom-interval-unit-select-modal"
+                  options={customIntervalUnits}
+                  value={customIntervalUnits.find((u) => u.value === customIntervalUnit)}
+                  onChange={(newValue: unknown) => {
+                    const selectedUnit = newValue as {
+                      value: CustomIntervalUnit;
+                      label: string;
+                    } | null;
+                    if (selectedUnit) setCustomIntervalUnit(selectedUnit.value);
+                  }}
+                  placeholder="Select unit..."
+                />
+              </div>
+            </div>
+          )}
+
           {frequency === 'once' && (
             <>
               <div>
@@ -354,22 +452,6 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
                 />
               </div>
             </>
-          )}
-          {frequency === 'hourly' && (
-            <div>
-              <label htmlFor="hourlyMinute-modal" className={modalLabelClassName}>
-                Minute of the hour (0-59):
-              </label>
-              <Input
-                type="number"
-                id="hourlyMinute-modal"
-                min="0"
-                max="59"
-                value={selectedMinute}
-                onChange={(e) => setSelectedMinute(e.target.value)}
-                required
-              />
-            </div>
           )}
           {(frequency === 'daily' || frequency === 'weekly' || frequency === 'monthly') && (
             <div>
@@ -430,7 +512,9 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
             <p className={`${cronPreviewTextColor} mt-2`}>
               <b>Human Readable:</b> {readableCronExpression}
             </p>
-            <p className={cronPreviewTextColor}>Syntax: S M H D M DoW. (S=0, DoW: 0/7=Sun)</p>
+            <p className={cronPreviewTextColor}>
+              Syntax: M H D M DoW (M=minute, H=hour, D=day, M=month, DoW=day of week: 0/7=Sun)
+            </p>
             {frequency === 'once' && (
               <p className={cronPreviewSpecialNoteColor}>
                 Note: "Once" schedules recur annually. True one-time tasks may need backend deletion
