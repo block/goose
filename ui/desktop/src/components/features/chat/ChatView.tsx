@@ -577,7 +577,7 @@ function ChatContent({
                     {filteredMessages.map((message, index) => (
                       <div
                         key={message.id || index}
-                        className="mt-4 px-4"
+                        className="mt-4 px-6"
                         data-testid="message-container"
                       >
                         {isUserMessage(message) ? (

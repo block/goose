@@ -528,3 +528,36 @@ p > code.bg-inline-code {
 .scrollbar-thin {
   scrollbar-width: thin;
 }
+
+/* chat connectors */
+
+.is-user:has(+ .is-assistant) > div:after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 2.5px;
+  width: 1px;
+  height: 0;
+  background-color: var(--border-standard);
+  animation: grow-height 0.3s forwards;
+}
+
+.is-assistant:has(+ .is-assistant) > div:after {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 2.5px;
+  width: 1px;
+  height: 0;
+  background-color: #ffbc6f;
+  animation: grow-height 0.3s forwards;
+}
+
+@keyframes grow-height {
+  from {
+    height: 0;
+  }
+  to {
+    height: 100%;
+  }
+}
