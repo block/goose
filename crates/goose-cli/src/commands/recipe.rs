@@ -1,8 +1,11 @@
 use anyhow::Result;
 use base64::Engine;
 use console::style;
+use serde_json;
 
 use crate::recipes::recipe::load_recipe;
+use crate::recipes::search_recipe::list_available_recipes;
+use crate::recipes::github_recipe::RecipeSource;
 
 /// Validates a recipe file
 ///
@@ -57,4 +60,65 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<()> {
             Err(err)
         }
     }
+}
+
+/// Lists all available recipes from local paths and GitHub repositories
+///
+/// # Arguments
+///
+/// * `format` - Output format ("text" or "json")
+/// * `verbose` - Whether to show detailed information
+///
+/// # Returns
+///
+/// Result indicating success or failure
+pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
+    let recipes = match list_available_recipes() {
+        Ok(recipes) => recipes,
+        Err(e) => {
+            return Err(anyhow::anyhow!("Failed to list recipes: {}", e));
+        }
+    };
+
+    match format {
+        "json" => {
+            println!("{}", serde_json::to_string(&recipes)?);
+        }
+        _ => {
+            if recipes.is_empty() {
+                println!("No recipes found");
+                return Ok(());
+            } else {
+                println!("Available recipes:");
+                for recipe in recipes {
+                    let source_info = match recipe.source {
+                        RecipeSource::Local => format!("local: {}", recipe.path),
+                        RecipeSource::GitHub => format!("github: {}", recipe.path),
+                    };
+
+                    let description = if let Some(desc) = &recipe.description {
+                        if desc.is_empty() {
+                            "(none)"
+                        } else {
+                            desc
+                        }
+                    } else {
+                        "(none)"
+                    };
+
+                    let output = format!("{} - {} - {}", recipe.name, description, source_info);
+                    if verbose {
+                        println!("  {}", output);
+                        if let Some(title) = &recipe.title {
+                            println!("    Title: {}", title);
+                        }
+                        println!("    Path: {}", recipe.path);
+                    } else {
+                        println!("{}", output);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
