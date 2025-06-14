@@ -303,15 +303,26 @@ impl From<PromptMessage> for Message {
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
+    pub id: Option<String>,
     pub role: Role,
     pub created: i64,
     pub content: Vec<MessageContent>,
 }
 
 impl Message {
+    pub fn new(role: Role, created: i64, content: Vec<MessageContent>) -> Self {
+        Message {
+            id: None,
+            role,
+            created,
+            content,
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
+            id: None,
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
@@ -321,6 +332,7 @@ impl Message {
     /// Create a new assistant message with the current timestamp
     pub fn assistant() -> Self {
         Message {
+            id: None,
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),

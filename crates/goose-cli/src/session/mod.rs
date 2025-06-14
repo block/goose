@@ -943,6 +943,7 @@ impl Session {
                 }
             }
         }
+        println!();
 
         Ok(())
     }

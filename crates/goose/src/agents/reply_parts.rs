@@ -2,10 +2,13 @@ use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use async_stream::try_stream;
+use futures::stream::StreamExt;
+
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::providers::base::{Provider, ProviderUsage};
+use crate::providers::base::{stream_from_single_message, MessageStream, Provider};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -113,7 +116,7 @@ impl Agent {
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
         // Convert tool messages to text if toolshim is enabled
@@ -123,28 +126,44 @@ impl Agent {
             messages.to_vec()
         };
 
-        // Call the provider to get a response
-        let (mut response, usage) = provider
-            .complete(system_prompt, &messages_for_provider, tools)
-            .await?;
+        // Clone owned data to move into the async stream
+        let system_prompt = system_prompt.to_owned();
+        let tools = tools.to_owned();
+        let toolshim_tools = toolshim_tools.to_owned();
+        let provider = provider.clone();
 
-        // Store the model information in the global store
-        crate::providers::base::set_current_model(&usage.model);
+        let mut stream = if provider.supports_streaming() {
+            provider
+                .stream(system_prompt.as_str(), &messages_for_provider, &tools)
+                .await?
+        } else {
+            let (message, usage) = provider
+                .complete(system_prompt.as_str(), &messages_for_provider, &tools)
+                .await?;
+            stream_from_single_message(message, usage)
+        };
 
-        // Post-process / structure the response only if tool interpretation is enabled
-        if config.toolshim {
-            let interpreter = OllamaInterpreter::new().map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
-            })?;
+        Ok(Box::pin(try_stream! {
+            while let Some(Ok((mut message, usage))) = stream.next().await {
+                // Store the model information in the global store
+                crate::providers::base::set_current_model(&usage.model);
 
-            response = augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
-                .await
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
-                })?;
-        }
+                // Post-process / structure the response only if tool interpretation is enabled
+                if config.toolshim {
+                    let interpreter = OllamaInterpreter::new().map_err(|e| {
+                        ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
+                    })?;
 
-        Ok((response, usage))
+                    message = augment_message_with_tool_calls(&interpreter, message, &toolshim_tools)
+                        .await
+                        .map_err(|e| {
+                            ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
+                        })?;
+                }
+
+                yield (message, usage);
+            }
+        }))
     }
 
     /// Categorize tool requests from the response into different types
@@ -191,6 +210,7 @@ impl Agent {
         }
 
         let filtered_message = Message {
+            id: response.id.clone(),
             role: response.role.clone(),
             created: response.created,
             content: filtered_content,

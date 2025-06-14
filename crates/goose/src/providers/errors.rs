@@ -23,6 +23,9 @@ pub enum ProviderError {
 
     #[error("Usage data error: {0}")]
     UsageError(String),
+
+    #[error("Unsupported operation: {0}")]
+    NotImplemented(String),
 }
 
 impl From<anyhow::Error> for ProviderError {
