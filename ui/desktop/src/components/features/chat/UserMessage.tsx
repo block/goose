@@ -53,7 +53,7 @@ export default function UserMessage({ message }: UserMessageProps) {
           )}
 
           <div className="relative h-[22px] flex justify-end">
-            <div className="absolute left-0 w-14 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+            <div className="absolute left-0 w-40 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
             <div className="absolute left-0 pt-1">
