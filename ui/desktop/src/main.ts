@@ -417,13 +417,13 @@ const createChat = async (
 
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 750,
+    defaultWidth: 1050,
     defaultHeight: 800,
   });
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 26 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
     x: mainWindowState.x,

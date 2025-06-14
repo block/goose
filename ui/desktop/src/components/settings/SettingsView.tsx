@@ -9,7 +9,6 @@ import SessionSharingSection from './sessions/SessionSharingSection';
 import { ResponseStylesSection } from './response_styles/ResponseStylesSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import { ExtensionConfig } from '../../api';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -27,8 +26,6 @@ export default function SettingsView({
 }) {
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
-      <MoreMenuLayout showMenu={false} />
-
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">

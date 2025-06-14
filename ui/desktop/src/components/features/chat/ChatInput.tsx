@@ -439,7 +439,7 @@ export default function ChatInput({
           data-testid="chat-input"
           autoFocus
           id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
+          placeholder="What would you like to pair on?   ⌘↑/⌘↓"
           value={displayValue}
           onChange={handleChange}
           onCompositionStart={handleCompositionStart}
@@ -511,17 +511,7 @@ export default function ChatInput({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            onClick={handleFileSelect}
-            variant="ghost"
-            shape="round"
-            className="text-textSubtle hover:text-textStandard"
-          >
-            <Attach className="h-5 w-5" />
-          </Button>
-
+        <div className="absolute right-1 top-1 flex items-center gap-2">
           {isLoading ? (
             <Button
               type="button"

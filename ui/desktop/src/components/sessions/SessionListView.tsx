@@ -15,7 +15,6 @@ import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 
@@ -268,8 +267,6 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
   return (
     <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
       <div className="flex-1 flex flex-col min-h-0">
         <div className="px-8 pt-6 pb-4">
           <BackButton onClick={() => setView('chat')} />

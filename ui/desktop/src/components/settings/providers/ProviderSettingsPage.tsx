@@ -7,7 +7,6 @@ import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../brand/WelcomeGooseLogo';
 import { toastService } from '../../../toasts';
-import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -89,8 +88,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
 
   return (
     <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
       <ScrollArea className="flex-1 w-full">
         {isOnboarding && (
           <div className="group/logo flex justify-left pl-8">

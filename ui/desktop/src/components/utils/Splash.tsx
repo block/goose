@@ -1,5 +1,10 @@
-import { Button } from '../ui/button';
-import GooseLogo from '../brand/GooseLogo';
+import { useTextAnimator } from '@/hooks/use-text-animator';
+import { Card } from '../ui/card';
+import { useState, useEffect } from 'react';
+import { gsap } from 'gsap';
+
+// Register GSAP plugins
+gsap.registerPlugin();
 
 interface SplashProps {
   append: (text: string) => void;
@@ -8,16 +13,7 @@ interface SplashProps {
 }
 
 export default function Splash({ append, activities, title }: SplashProps) {
-  // Default activities if none provided
-  const defaultPills = [
-    'What can you do?',
-    'Demo writing and reading files',
-    'Make a snake game in a new folder',
-    'List files in my current directory',
-    'Take a screenshot and summarize',
-  ];
-
-  const pills = activities || defaultPills;
+  const pills = activities || [];
 
   // Find any pill that starts with "message:"
   const messagePillIndex = pills.findIndex((pill) => pill.toLowerCase().startsWith('message:'));
@@ -28,6 +24,58 @@ export default function Splash({ append, activities, title }: SplashProps) {
     messagePillIndex >= 0
       ? [...pills.slice(0, messagePillIndex), ...pills.slice(messagePillIndex + 1)]
       : pills;
+
+  const [timeOfDay, setTimeOfDay] = useState<'morning' | 'afternoon' | 'night'>('morning');
+
+  // Update time of day, current time, and date based on current time
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const hour = now.getHours();
+
+      // Update time of day
+      if (hour >= 5 && hour < 12) {
+        setTimeOfDay('morning');
+      } else if (hour >= 12 && hour < 18) {
+        setTimeOfDay('afternoon');
+      } else {
+        setTimeOfDay('night');
+      }
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getGreeting = () => {
+    switch (timeOfDay) {
+      case 'morning':
+        return {
+          prefix: 'Morning.',
+          message: " Let's get things done.",
+        };
+      case 'afternoon':
+        return {
+          prefix: 'Afternoon.',
+          message: ' Keep the momentum going.',
+        };
+      case 'night':
+        return {
+          prefix: 'Evening.',
+          message: ' Time to wrap things up.',
+        };
+    }
+  };
+
+  const greeting = getGreeting();
+  const [isContentReady, setIsContentReady] = useState(false);
+  const greetingMessageRef = useTextAnimator({ text: greeting.message });
+
+  // Set content ready after initial render
+  useEffect(() => {
+    setIsContentReady(true);
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -43,10 +91,19 @@ export default function Splash({ append, activities, title }: SplashProps) {
       <div className="flex flex-col flex-1">
         <div className="h-full flex flex-col pb-12">
           <div className="p-8">
-            <div className="relative text-textStandard mb-12">
+            {/* <div className="relative text-textStandard mb-12">
               <div className="w-min animate-[flyin_2s_var(--spring-easing)_forwards]">
                 <GooseLogo />
               </div>
+            </div> */}
+
+            <div className="flex flex-col mt-6 mb-4 animate-[appear_300ms_ease-in_forwards] origin-left">
+              <h1 className="text-text-prominent text-4xl font-light min-h-[4rem]">
+                <span>{greeting.prefix}</span>
+                <div className="text-text-muted inline" ref={greetingMessageRef}>
+                  {greeting.message}
+                </div>
+              </h1>
             </div>
 
             <div className="flex flex-col">
@@ -58,14 +115,14 @@ export default function Splash({ append, activities, title }: SplashProps) {
 
               <div className="flex flex-wrap gap-4 animate-[fadein_500ms_ease-in_forwards]">
                 {remainingPills.map((content, index) => (
-                  <Button
+                  <Card
                     key={index}
-                    variant="outline"
                     onClick={() => append(content)}
                     title={content.length > 100 ? content : undefined}
+                    className="cursor-pointer px-6 w-[256px]"
                   >
                     {content.length > 100 ? content.slice(0, 100) + '...' : content}
-                  </Button>
+                  </Card>
                 ))}
               </div>
             </div>

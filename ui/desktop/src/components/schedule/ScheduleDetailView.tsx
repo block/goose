@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
-import BackButton from '../ui/BackButton';
-import { Card } from '../ui/card';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import BackButton from '@/components/ui/BackButton';
+import { Card } from '@/components/ui/card';
 import { fetchSessionDetails, SessionDetails } from '../../sessions';
 import {
   getScheduleSessions,
@@ -16,7 +15,7 @@ import {
   inspectRunningJob,
   ScheduledJob,
 } from '../../schedule';
-import SessionHistoryView from '../sessions/SessionHistoryView';
+import SessionHistoryView from '@/components/sessions/SessionHistoryView';
 import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
@@ -380,7 +379,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   if (!scheduleId) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-app text-textStandard p-8">
-        <MoreMenuLayout showMenu={false} />
         <BackButton onClick={onNavigateBack} />
         <h1 className="text-2xl font-medium text-gray-900 dark:text-white mt-4">
           Schedule Not Found
@@ -394,7 +392,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   return (
     <div className="h-screen w-full flex flex-col bg-app text-textStandard">
-      <MoreMenuLayout showMenu={false} />
       <div className="px-8 pt-6 pb-4 border-b border-borderSubtle flex-shrink-0">
         <BackButton onClick={onNavigateBack} />
         <h1 className="text-3xl font-medium text-gray-900 dark:text-white mt-1">

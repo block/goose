@@ -11,7 +11,7 @@
   --color-white: #ffffff;
   --color-black: #000000;
 
-  --color-neutral-100: #f0f2f8;
+  --color-neutral-100: #e8eaf2;
   --color-neutral-200: #ccd2dd;
   --color-neutral-300: #a1a7b0;
   --color-neutral-400: #6e747e;
@@ -55,7 +55,7 @@
   --background-info: var(--color-blue-200);
   --background-warning: var(--color-yellow-200);
 
-  --border-default: var(--color-neutral-200);
+  --border-default: var(--color-neutral-100);
   --border-input: var(--color-neutral-200);
   --border-strong: var(--color-neutral-300);
   --border-danger: var(--color-red-200);
@@ -72,6 +72,15 @@
   --text-info: var(--color-blue-200);
 
   --ring: var(--border-strong);
+
+  --sidebar: var(--background-muted);
+  --sidebar-foreground: var(--text-default);
+  --sidebar-primary: var(--background-accent);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: var(--background-muted);
+  --sidebar-accent-foreground: var(--text-default);
+  --sidebar-border: var(--border-default);
+  --sidebar-ring: var(--border-default);
 
   /* custom shadow */
 
@@ -115,6 +124,15 @@
 
   --ring: var(--border-strong);
 
+  --sidebar: var(--background-default);
+  --sidebar-foreground: var(--text-default);
+  --sidebar-primary: var(--background-accent);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: var(--background-muted);
+  --sidebar-accent-foreground: var(--text-default);
+  --sidebar-border: var(--border-default);
+  --sidebar-ring: var(--border-default);
+
   --shadow-default:
     0px 12px 32px 0px rgba(0, 0, 0, 0.2), 0px 8px 16px 0px rgba(0, 0, 0, 0.15),
     0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 0px 1px 0px rgba(0, 0, 0, 0.3);
@@ -153,20 +171,22 @@
   --color-text-warning: var(--text-warning);
   --color-text-info: var(--text-info);
 
-  /* fonts */
   --font-sans: 'Cash Sans', sans-serif;
   --font-mono: 'Cash Sans Mono', monospace;
   --font-serif: serif;
 
-  /* shape */
-  /* --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px); */
-
   --color-ring: var(--ring);
 
   --shadow-default: var(--shadow-default);
+}
+
+@layer base {
+  * {
+    @apply border-border-default;
+  }
+  body {
+    @apply bg-background-default text-text-default;
+  }
 }
 
 @font-face {
@@ -351,6 +371,16 @@
   --color-text-subtle-inverse: var(--text-subtle-inverse);
   --color-text-prominent-inverse: var(--text-prominent-inverse);
 } */
+
+/* animations */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /* Force scrollbars to be visible */
 [data-radix-scroll-area-viewport] {

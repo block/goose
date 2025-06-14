@@ -17,7 +17,6 @@ import { createSharedSession } from '../../sharedSessions';
 import { Modal, ModalContent } from '../ui/modal';
 import { Button } from '../ui/button';
 import { toast } from 'react-toastify';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
 interface SessionHistoryViewProps {
   session: SessionDetails;
@@ -108,8 +107,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   return (
     <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
       <SessionHeaderCard onBack={onBack}>
         <div className="ml-8">
           <h1 className="text-lg text-textStandardInverse">

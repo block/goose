@@ -5,7 +5,6 @@ import type { FixedExtensionEntry } from '@/components/context/ConfigContext';
 import { useConfig } from '@/components/context/ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
-import MoreMenuLayout from '@/components/more_menu/MoreMenuLayout';
 import { Button } from '@/components/ui/button';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
@@ -79,8 +78,6 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
 
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
-      <MoreMenuLayout showMenu={false} />
-
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">

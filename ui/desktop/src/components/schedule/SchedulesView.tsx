@@ -12,7 +12,6 @@ import {
 } from '../../schedule';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
@@ -360,7 +359,6 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose }) => {
 
   return (
     <div className="h-screen w-full flex flex-col bg-app text-textStandard">
-      <MoreMenuLayout showMenu={false} />
       <div className="px-8 pt-6 pb-4 border-b border-borderSubtle flex-shrink-0">
         <BackButton onClick={onClose} />
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mt-2">

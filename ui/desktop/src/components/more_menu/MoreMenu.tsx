@@ -38,7 +38,7 @@ const MenuButton: React.FC<MenuButtonProps> = ({
     onClick={onClick}
     data-testid={testId}
     variant="ghost"
-    className={`w-full text-left px-4 py-3 min-h-[64px] text-sm hover:bg-bgSubtle transition-[background] border-b border-borderSubtle ${
+    className={`w-full text-left px-4 py-3 min-h-[64px] text-sm hover:bg-background-muted transition-[background] border-b border-border-default ${
       danger ? 'text-red-400' : ''
     } ${className}`}
   >
@@ -61,7 +61,7 @@ interface ThemeSelectProps {
 
 const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) => {
   return (
-    <div className="px-4 py-3 border-b border-borderSubtle">
+    <div className="px-4 py-3 border-b border-border-default">
       <div className="text-sm mb-2">Theme</div>
       <div className="grid grid-cols-3 gap-2">
         <Button
@@ -181,9 +181,11 @@ export default function MoreMenu({
             className={`z-[150] fixed inset-0 bg-black transition-all animate-in duration-500 fade-in-0 opacity-50`}
           />
           <PopoverContent
-            className="z-[200] w-[375px] overflow-hidden rounded-lg bg-bgApp border border-borderSubtle text-textStandard !zoom-in-100 !slide-in-from-right-4 !slide-in-from-top-0"
-            align="end"
-            sideOffset={5}
+            className="z-[200] w-[375px] overflow-hidden rounded-lg bg-bgApp border border-borderSubtle text-textStandard"
+            // align="end"
+            // side="bottom"
+            // avoidCollisions={true}
+            // collisionPadding={10}
           >
             <div className="flex flex-col rounded-md">
               <MenuButton
