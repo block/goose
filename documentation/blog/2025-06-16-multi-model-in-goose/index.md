@@ -29,7 +29,7 @@ Originally, every Goose session used a single model from start to finish. That w
 
 There was no built-in way to adapt on the fly.
 
-We saw this tension in real usage: agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that's not scalable, and definitely not agent-like.
+We saw this tension in real usage: agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that's not scalable, and definitely not agent like.
 
 ## Designing the Lead/Worker System
 
@@ -83,7 +83,7 @@ If you're curious how it all works under the hood, we've got a [full tutorial](/
 
 ---
 
-We'll keep sharing what we're learning as we build toward more dynamic useful AI agents. If you're experimenting with multi-model setups, we'd love to hear what's working—and what isn't.
+We'll keep sharing what we're learning as we build toward more dynamic useful AI agents. If you're experimenting with multi-model setups, [share](https://discord.gg/block-opensource) what's working and what isn't.
 
 
 <head>
