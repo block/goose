@@ -1,6 +1,7 @@
 import { Message } from './types/message';
 import { getSessionHistory, listSessions, SessionInfo } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
+import { wildcardMatch } from './utils/wildcardMatch';
 
 export interface SessionMetadata {
   description: string;
@@ -24,6 +25,7 @@ export interface Session {
   path: string;
   modified: string;
   metadata: SessionMetadata;
+  contentSearchMatch?: boolean; // Flag to indicate if the session content matches a search term
 }
 
 export interface SessionsResponse {
@@ -51,10 +53,6 @@ export function generateSessionId(): string {
   return `${year}${month}${day}_${hours}${minutes}${seconds}`;
 }
 
-/**
- * Fetches all available sessions from the API
- * @returns Promise with sessions data
- */
 /**
  * Fetches all available sessions from the API
  * @returns Promise with an array of Session objects
@@ -118,4 +116,118 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     console.error(`Error fetching session details for ${sessionId}:`, error);
     throw error;
   }
+}
+
+/**
+ * Extracts text content from a message
+ * @param message The message to extract text from
+ * @returns The text content of the message
+ */
+function extractMessageText(message: Message): string {
+  let text = '';
+  
+  for (const content of message.content) {
+    if (content.type === 'text') {
+      text += content.text + ' ';
+    } else if (content.type === 'toolRequest' || content.type === 'toolResponse') {
+      // Try to extract text from tool calls and responses
+      try {
+        text += JSON.stringify(content) + ' ';
+      } catch (e) {
+        // Ignore errors in JSON stringification
+      }
+    }
+  }
+  
+  return text;
+}
+
+/**
+ * Searches for a term within a session's content
+ * @param sessionId The ID of the session to search
+ * @param searchTerm The term to search for
+ * @param caseSensitive Whether the search should be case sensitive
+ * @returns Promise<boolean> True if the search term was found in the session content
+ */
+export async function searchSessionContent(
+  sessionId: string, 
+  searchTerm: string, 
+  caseSensitive: boolean = false
+): Promise<boolean> {
+  try {
+    const sessionDetails = await fetchSessionDetails(sessionId);
+    const hasWildcard = searchTerm.includes('*');
+    
+    for (const message of sessionDetails.messages) {
+      const messageText = extractMessageText(message);
+      
+      if (hasWildcard) {
+        if (wildcardMatch(messageText, searchTerm, caseSensitive)) {
+          return true;
+        }
+      } else {
+        if (caseSensitive) {
+          if (messageText.includes(searchTerm)) {
+            return true;
+          }
+        } else {
+          if (messageText.toLowerCase().includes(searchTerm.toLowerCase())) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error(`Error searching session content for ${sessionId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Searches for a term within multiple sessions' content
+ * @param sessions Array of sessions to search
+ * @param searchTerm The term to search for
+ * @param caseSensitive Whether the search should be case sensitive
+ * @param onProgress Callback function that receives progress updates
+ * @returns Promise<Session[]> Sessions with contentSearchMatch flag set
+ */
+export async function searchSessionsContent(
+  sessions: Session[],
+  searchTerm: string,
+  caseSensitive: boolean = false,
+  onProgress?: (current: number, total: number) => void
+): Promise<Session[]> {
+  const result = [...sessions];
+  let processedCount = 0;
+  
+  // If no search term, return all sessions without content match flag
+  if (!searchTerm) {
+    return result.map(session => ({ ...session, contentSearchMatch: false }));
+  }
+  
+  // Search each session in parallel with a concurrency limit
+  const concurrencyLimit = 3;
+  const chunks = [];
+  
+  // Split sessions into chunks for concurrent processing
+  for (let i = 0; i < result.length; i += concurrencyLimit) {
+    chunks.push(result.slice(i, i + concurrencyLimit));
+  }
+  
+  // Process chunks sequentially, but sessions within a chunk concurrently
+  for (const chunk of chunks) {
+    await Promise.all(chunk.map(async (session) => {
+      const contentMatch = await searchSessionContent(session.id, searchTerm, caseSensitive);
+      session.contentSearchMatch = contentMatch;
+      
+      processedCount++;
+      if (onProgress) {
+        onProgress(processedCount, result.length);
+      }
+    }));
+  }
+  
+  return result;
 }

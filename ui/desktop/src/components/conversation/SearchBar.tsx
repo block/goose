@@ -157,7 +157,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               value={searchTerm}
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
-              placeholder="Search conversation..."
+              placeholder="Search conversation... (use * for wildcards)"
+              title="Search supports wildcards: use * to match any characters. Example: 'react*app' will match 'react app' and 'react native app'"
               className="w-full text-sm pl-9 pr-24 py-3 bg-bgAppInverse
                       placeholder:text-textSubtleInverse focus:outline-none 
                        active:border-borderProminent"
