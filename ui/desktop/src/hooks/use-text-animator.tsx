@@ -174,15 +174,16 @@ export class TextAnimator {
           ease: 'power2.out',
           onStart: () => {
             gsap.set(char, {
-              fontFamily: 'monospace',
+              fontFamily: 'Cash Sans Mono',
+              fontWeight: 300,
               color: '#666', // Add color change
             });
           },
           onComplete: () => {
             gsap.set(char, {
               innerHTML: initialHTML,
-              color: '', // Reset color
-              fontFamily: '', // Reset to default font
+              color: '',
+              fontFamily: '',
               opacity: 1,
             });
           },

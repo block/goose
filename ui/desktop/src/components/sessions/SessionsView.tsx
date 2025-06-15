@@ -80,7 +80,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   };
 
   // If a session is selected, show the session history view
-  // Otherwise, show the sessions list view with a button to test shared sessions
+  // Otherwise, show the sessions list view with the activity heatmap
   return selectedSession ? (
     <SessionHistoryView
       session={selectedSession}
@@ -91,9 +91,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       onRetry={handleRetryLoadSession}
     />
   ) : (
-    <>
-      <SessionListView setView={setView} onSelectSession={handleSelectSession} />
-    </>
+    <SessionListView setView={setView} onSelectSession={handleSelectSession} />
   );
 };
 

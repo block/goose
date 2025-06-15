@@ -31,7 +31,7 @@ export default function UserMessage({ message }: UserMessageProps) {
   const urls = extractUrls(displayText, []);
 
   return (
-    <div className="flex justify-start mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="message flex justify-start mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex-col max-w-[85%] w-fit">
         <div className="flex flex-col group">
           <div className="flex bg-background-accent text-text-on-accent rounded-2xl py-2 px-4">

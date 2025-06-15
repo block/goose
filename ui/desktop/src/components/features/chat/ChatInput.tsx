@@ -428,7 +428,7 @@ export default function ChatInput({
 
   return (
     <div
-      className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
+      className={`flex flex-col relative h-auto border rounded-lg transition-colors animate-in fade-in slide-in-from-bottom-8 duration-500 ${
         isFocused
           ? 'border-borderProminent hover:border-borderProminent'
           : 'border-borderSubtle hover:border-borderStandard'
