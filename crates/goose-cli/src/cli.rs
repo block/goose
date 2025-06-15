@@ -8,7 +8,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_validate};
+use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -244,6 +244,23 @@ enum RecipeCommand {
         )]
         recipe_name: String,
     },
+
+    /// List available recipes
+    #[command(about = "List available recipes")]
+    List {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Show verbose information including recipe descriptions
+        #[arg(short, long, help = "Show verbose information including recipe descriptions")]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -410,7 +427,7 @@ enum Command {
             long = "no-session",
             help = "Run without storing a session file",
             long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-            conflicts_with_all = ["resume", "name", "path"] 
+            conflicts_with_all = ["resume", "name", "path"]
         )]
         no_session: bool,
 
@@ -851,6 +868,9 @@ pub async fn cli() -> Result<()> {
                 }
                 RecipeCommand::Deeplink { recipe_name } => {
                     handle_deeplink(&recipe_name)?;
+                }
+                RecipeCommand::List { format, verbose } => {
+                    handle_list(&format, verbose)?;
                 }
             }
             return Ok(());
