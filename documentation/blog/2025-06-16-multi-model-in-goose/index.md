@@ -1,5 +1,4 @@
 ---
-unlisted: true
 title: "Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents"
 description: How Goose uses multiple LLMs within a single task, optimizing for speed, cost, and reliability in AI agent workflows
 authors:
