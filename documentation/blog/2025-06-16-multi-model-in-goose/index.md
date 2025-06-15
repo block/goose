@@ -89,7 +89,7 @@ We’ll keep sharing what we’re learning as we build toward more dynamic, more
 <head>
   <meta property="og:title" content="Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/05/whats-in-my-goosehints-file" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/16/multi-model-in-goose" />
   <meta property="og:description" content="How Goose uses multiple LLMs within a single task, optimizing for speed, cost, and reliability in AI agent workflows" />
   <meta property="og:image" content="https://block.github.io/goose/goose/assets/images/multi-model-ai-agent-d408feaeba3e13cafdbfe9377980bc3d.png" />
   <meta name="twitter:card" content="summary_large_image" />
