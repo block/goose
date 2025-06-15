@@ -34,6 +34,10 @@ Goose will start with `gpt-4o` for the first three turns, then hand off to `gpt-
 
 ## Configuration
 
+:::tip
+Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
+:::
+
 The only required setting is:
 
 ```bash
