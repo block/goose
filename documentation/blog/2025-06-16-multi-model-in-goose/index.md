@@ -10,7 +10,7 @@ authors:
 
 Not every task needs a genius. And not every step should cost a fortune.
 
-That’s something we’ve learned the hard way while scaling Goose, our open source AI agent. The same model that’s great at unpacking a gnarly planning request might totally fumble a basic shell command—or worse, it might burn through your token budget doing it.
+That's something we've learned the hard way while scaling Goose, our open source AI agent. The same model that's great at unpacking a gnarly planning request might totally fumble a basic shell command—or worse, it might burn through your token budget doing it.
 
 So we asked ourselves: what if we could mix and match models in a single session?
 
@@ -29,7 +29,7 @@ Originally, every Goose session used a single model from start to finish. That w
 
 There was no built-in way to adapt on the fly.
 
-We saw this tension in real usage: agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that’s not scalable, and definitely not agent-like.
+We saw this tension in real usage: agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that's not scalable, and definitely not agent-like.
 
 ## Designing the Lead/Worker System
 
@@ -39,7 +39,7 @@ The core idea is simple:
 * After a few back-and-forths between you and the model (what we call "turns"), hand off to a worker model that's faster and cheaper, but still capable.
 * If the worker gets stuck, Goose can detect the failure and temporarily bring the lead back in.
 
-It’s turn-based, transparent, and automatic.
+It's turn-based, transparent, and automatic.
 
 You can configure how many turns the lead handles upfront (`GOOSE_LEAD_TURNS`), how many consecutive failures trigger fallback (`GOOSE_LEAD_FAILURE_THRESHOLD`), and how long the fallback lasts before Goose retries the worker.
 
@@ -47,12 +47,12 @@ This gives you a flexible, resilient setup where each model gets used where it s
 
 One of the trickiest parts of this feature was defining what failure looks like.
 
-We didn’t want Goose to swap models just because an API timed out. Instead, we focused on real task failures:
+We didn't want Goose to swap models just because an API timed out. Instead, we focused on real task failures:
 
 * Tool execution errors
 * Syntax mistakes in generated code
 * File not found or permission errors
-* User corrections like "that’s wrong" or "try again"
+* User corrections like "that's wrong" or "try again"
 
 Goose tracks these signals and knows when to escalate. And once the fallback model stabilizes things, it switches back without missing a beat.
 
@@ -60,7 +60,7 @@ Goose tracks these signals and knows when to escalate. And once the fallback mod
 
 Cost savings are a nice side effect, but the real value is in how this shifts the mental model: treating AI models like tools in a toolbox, each with its own role to play. Some are built for strategy. Some are built for speed. The more your agent can switch between them intelligently, the closer it gets to feeling like a true collaborator.
 
-We’ve found that this multi-model design unlocks new workflows:
+We've found that this multi-model design unlocks new workflows:
 
 * **Long dev sessions** where planning and execution ebb and flow
 * **Cross-provider setups** (Claude for planning, OpenAI for execution)
@@ -79,11 +79,11 @@ export GOOSE_MODEL="claude-4-sonnet"
 
 From there, Goose takes care of the hand off, the fallback, and the recovery. You just... keep vibing.
 
-If you're curious how it all works under the hood, we’ve got a [full tutorial](/docs/tutorials/lead-worker).
+If you're curious how it all works under the hood, we've got a [full tutorial](/docs/tutorials/lead-worker).
 
 ---
 
-We’ll keep sharing what we’re learning as we build toward more dynamic, more useful AI agents. If you're experimenting with multi-model setups, we’d love to hear what’s working—and what isn't.
+We'll keep sharing what we're learning as we build toward more dynamic useful AI agents. If you're experimenting with multi-model setups, we'd love to hear what's working—and what isn't.
 
 
 <head>
