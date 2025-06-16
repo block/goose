@@ -18,6 +18,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import useTextStreaming from '../hooks/useTextStreaming';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -49,8 +50,19 @@ export default function GooseMessage({
   const imagePaths = extractImagePaths(textContent);
 
   // Remove image paths from text for display
-  const displayText =
+  const fullDisplayText =
     imagePaths.length > 0 ? removeImagePathsFromText(textContent, imagePaths) : textContent;
+
+  // Determine the index of the current message within the chat
+  const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
+
+  // Determine if we should stream text. Only stream for assistant messages that are not part of the resumed history.
+  const shouldStream =
+    message.role === 'assistant' &&
+    messageIndex !== undefined &&
+    messageIndex >= messageHistoryIndex;
+
+  const displayText = useTextStreaming(fullDisplayText, shouldStream);
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
@@ -62,7 +74,6 @@ export default function GooseMessage({
   // 1. The message is purely text
   // 2. The link wasn't also present in the previous message
   // 3. The message contains the explicit http:// or https:// protocol at the beginning
-  const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
   const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
@@ -115,7 +126,7 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col w-full">
-        {textContent && (
+        {displayText && (
           <div className="flex flex-col group">
             <div className={`goose-message-content pt-2`}>
               <div ref={contentRef}>{<MarkdownContent content={displayText} />}</div>
@@ -137,7 +148,7 @@ export default function GooseMessage({
                   {timestamp}
                 </div>
               )}
-              {textContent && message.content.every((content) => content.type === 'text') && (
+              {displayText && message.content.every((content) => content.type === 'text') && (
                 <div className="absolute left-0 pt-1">
                   <MessageCopyLink text={displayText} contentRef={contentRef} />
                 </div>
@@ -194,7 +205,7 @@ export default function GooseMessage({
       {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
       {false && metadata && (
         <div className="flex mt-[16px]">
-          <GooseResponseForm message={textContent} metadata={metadata || null} append={append} />
+          <GooseResponseForm message={displayText} metadata={metadata || null} append={append} />
         </div>
       )}
     </div>
