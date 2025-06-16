@@ -1,3 +1,4 @@
+mod editor_models;
 mod lang;
 mod shell;
 
@@ -37,6 +38,7 @@ use mcp_server::Router;
 
 use mcp_core::role::Role;
 
+use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{
     expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
     normalize_line_endings,
@@ -100,6 +102,7 @@ pub struct DeveloperRouter {
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
+    editor_model: Option<EditorModel>,
 }
 
 impl Default for DeveloperRouter {
@@ -109,146 +112,12 @@ impl Default for DeveloperRouter {
 }
 
 impl DeveloperRouter {
-    // Helper method to check if Editor API is properly configured
-    fn is_editor_api_configured(&self) -> bool {
-        // Don't use Editor API during tests
-        if cfg!(test) {
-            return false;
-        }
-
-        std::env::var("GOOSE_EDITOR_API_KEY")
-            .map(|s| !s.is_empty())
-            .unwrap_or(false)
-            && std::env::var("GOOSE_EDITOR_HOST")
-                .map(|s| !s.is_empty())
-                .unwrap_or(false)
-            && std::env::var("GOOSE_EDITOR_MODEL")
-                .map(|s| !s.is_empty())
-                .unwrap_or(false)
-    }
-
-    async fn call_editor_api(
-        &self,
-        original_code: &str,
-        _old_str: &str,
-        update_snippet: &str,
-    ) -> Result<String, String> {
-        eprintln!("Calling Editor API");
-        use reqwest::Client;
-        use serde_json::{json, Value};
-
-        // Get environment variables (we know they exist because is_editor_api_configured() was checked)
-        let api_key = std::env::var("GOOSE_EDITOR_API_KEY")
-            .expect("GOOSE_EDITOR_API_KEY should be set when this function is called");
-        let host = std::env::var("GOOSE_EDITOR_HOST")
-            .expect("GOOSE_EDITOR_HOST should be set when this function is called");
-        let model = std::env::var("GOOSE_EDITOR_MODEL")
-            .expect("GOOSE_EDITOR_MODEL should be set when this function is called");
-
-        // Check if this is a Relace endpoint before moving host
-        let is_relace = host.contains("relace.run");
-
-        // Construct the full URL
-        let provider_url = if host.ends_with("/chat/completions") {
-            host
-        } else if host.ends_with('/') {
-            format!("{}chat/completions", host)
-        } else {
-            format!("{}/chat/completions", host)
-        };
-
-        // Create the client
-        let client = Client::new();
-
-        // Format the prompt as specified in the Python example
-        let user_prompt = format!(
-            "<code>{}</code>\n<update>{}</update>",
-            original_code, update_snippet
-        );
-
-        // Prepare the request body. The Relace endpoint expects the OpenAI
-        // predicted outputs convention where the original code is supplied under
-        // `prediction` and the update snippet is the sole user message.
-
-        let body = if is_relace {
-            json!({
-                "model": model,
-                "prediction": {
-                    "content": original_code
-                },
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": update_snippet
-                    }
-                ]
-            })
-        } else {
-            json!({
-                "model": model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ]
-            })
-        };
-
-        // Send the request
-        let response = match client
-            .post(&provider_url)
-            .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&body)
-            .send()
-            .await
-        {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Request error: {}", e)),
-        };
-
-        // Process the response
-        if !response.status().is_success() {
-            return Err(format!("API error: HTTP {}", response.status()));
-        }
-
-        // Parse the JSON response
-        let response_json: Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => return Err(format!("Failed to parse response: {}", e)),
-        };
-
-        // Extract the content from the response
-        let content = response_json
-            .get("choices")
-            .and_then(|choices| choices.get(0))
-            .and_then(|choice| choice.get("message"))
-            .and_then(|message| message.get("content"))
-            .and_then(|content| content.as_str())
-            .ok_or_else(|| "Invalid response format".to_string())?;
-        eprintln!("Editor API worked");
-        Ok(content.to_string())
-    }
-
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        // Check if Editor API is configured to determine text editor tool description
-        let is_editor_configured = if cfg!(test) {
-            false // Don't use Editor API during tests
-        } else {
-            std::env::var("GOOSE_EDITOR_API_KEY")
-                .map(|s| !s.is_empty())
-                .unwrap_or(false)
-                && std::env::var("GOOSE_EDITOR_HOST")
-                    .map(|s| !s.is_empty())
-                    .unwrap_or(false)
-                && std::env::var("GOOSE_EDITOR_MODEL")
-                    .map(|s| !s.is_empty())
-                    .unwrap_or(false)
-        };
+        // Create editor model if configured
+        let editor_model = create_editor_model();
 
         // Get OS-specific shell tool description
         let shell_tool_desc = match std::env::consts::OS {
@@ -309,23 +178,26 @@ impl DeveloperRouter {
         );
 
         // Create text editor tool with different descriptions based on editor API configuration
-        let text_editor_desc = if is_editor_configured {
-            indoc! {r#"
+        let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
+            (
+                formatdoc! {r#"
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Edit the file with the new content.
+                - `edit_file`: Edit the file with the new content.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, you must specify both `old_str` and `new_str` - str_replace will take the new_str and work out how to place old_str with it intelligently.
-            "#}
+                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+            "#, editor.get_str_replace_description()},
+                "edit_file",
+            )
         } else {
-            indoc! {r#"
+            (indoc! {r#"
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
@@ -340,7 +212,7 @@ impl DeveloperRouter {
                 To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
-            "#}
+            "#}.to_string(), "str_replace")
         };
 
         let text_editor_tool = Tool::new(
@@ -356,8 +228,8 @@ impl DeveloperRouter {
                     },
                     "command": {
                         "type": "string",
-                        "enum": ["view", "write", "str_replace", "undo_edit"],
-                        "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
+                        "enum": ["view", "write", str_replace_command, "undo_edit"],
+                        "description": format!("Allowed options are: `view`, `write`, `{}`, `undo_edit`.", str_replace_command)
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
@@ -600,6 +472,7 @@ impl DeveloperRouter {
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model,
         }
     }
 
@@ -815,7 +688,7 @@ impl DeveloperRouter {
 
                 self.text_editor_write(&path, file_text).await
             }
-            "str_replace" => {
+            "str_replace" | "edit_file" => {
                 let old_str = params
                     .get("old_str")
                     .and_then(|v| v.as_str())
@@ -960,11 +833,11 @@ impl DeveloperRouter {
             .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
 
         // Check if Editor API is configured and use it as the primary path
-        if self.is_editor_api_configured() {
+        if let Some(ref editor) = self.editor_model {
             // Editor API path - save history then call API directly
             self.save_file_history(path)?;
 
-            match self.call_editor_api(&content, old_str, new_str).await {
+            match editor.edit_code(&content, old_str, new_str).await {
                 Ok(updated_content) => {
                     // Write the updated content directly
                     let normalized_content = normalize_line_endings(&updated_content);
@@ -1410,6 +1283,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
+            editor_model: create_editor_model(), // Recreate the editor model since it's not Clone
         }
     }
 }
@@ -1839,6 +1713,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Test basic file matching
@@ -1889,6 +1764,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Try to write to an ignored file
@@ -1948,6 +1824,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Create an ignored file
@@ -2091,18 +1968,20 @@ mod tests {
         let tools = router.list_tools();
         let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
 
-        // Should use traditional description
+        // Should use traditional description with str_replace command
         assert!(text_editor_tool
             .description
             .contains("Replace a string in a file with a new string"));
         assert!(text_editor_tool
             .description
             .contains("the `old_str` needs to exactly match one"));
+        assert!(text_editor_tool.description.contains("str_replace"));
 
-        // Should not contain editor API description
+        // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
             .contains("Edit the file with the new content"));
+        assert!(!text_editor_tool.description.contains("edit_file"));
         assert!(!text_editor_tool
             .description
             .contains("work out how to place old_str with it intelligently"));
