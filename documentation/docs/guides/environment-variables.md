@@ -50,7 +50,7 @@ export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 
 ### Lead/Worker Model Configuration
 
-These variables configure a lead/worker model pattern where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
+These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -62,7 +62,7 @@ These variables configure a lead/worker model pattern where a powerful lead mode
 
 A _turn_ is one complete prompt-response interaction. Here's how it works with the default settings:
 - Use the lead model for the first 3 turns
-- Use the worker model starting on the 4th turns
+- Use the worker model starting on the 4th turn
 - Fallback to the lead model if the worker model struggles for 2 consecutive turns
 - Use the lead model for 2 turns and then switch back to the worker model
 

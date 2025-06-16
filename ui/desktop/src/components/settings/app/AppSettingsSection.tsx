@@ -124,6 +124,32 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           )}
         </div>
 
+        {/* Help & Feedback Section */}
+        <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-medium text-textStandard mb-1">Help & Feedback</h3>
+          <p className="text-sm text-textSubtle mb-4">
+            Help us improve Goose by reporting issues or requesting new features.
+          </p>
+          <div className="flex space-x-4">
+            <a
+              href="https://github.com/block/goose/issues/new?template=bug_report.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Report a Bug
+            </a>
+            <a
+              href="https://github.com/block/goose/issues/new?template=feature_request.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Request a Feature
+            </a>
+          </div>
+        </div>
+
         {/* Update Section */}
         {UPDATES_ENABLED && (
           <div ref={updateSectionRef} className="mt-8 pt-8 border-t border-gray-200">
