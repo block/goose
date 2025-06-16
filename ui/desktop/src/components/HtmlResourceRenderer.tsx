@@ -10,14 +10,9 @@ export default function HtmlResourceRenderer({ content }: HtmlResourceRendererPr
   const { resource } = content;
   const [minIframeHeight, setMinIframeHeight] = useState('50vh'); // Default minimum height for the iframe
 
-  function handleUiActionTool(result: UiActionResult) {
-    if (result.type === 'tool') {
-      console.log('Tool action received:', result);
-    }
-  }
-
   function handleUiActionIntent(result: UiActionResult) {
     if (result.type === 'intent') {
+      console.log('Intent action received:', result);
       if (result.payload.intent === 'resizeIframe') {
         setMinIframeHeight((result.payload.params.minHeight as string) || '50vh');
       }
@@ -34,16 +29,19 @@ export default function HtmlResourceRenderer({ content }: HtmlResourceRendererPr
     // Handle the UI action result based on its type
     switch (result.type) {
       case 'tool':
-        handleUiActionTool(result);
+        console.log('Tool action received, but not implemented:', result);
         break;
       case 'prompt':
+        console.log('Prompt action received, but not implemented:', result);
         break;
       case 'link':
+        console.log('Link action received, but not implemented:', result);
         break;
       case 'intent':
         handleUiActionIntent(result);
         break;
       case 'notification':
+        console.log('Notification action received, but not implemented:', result);
         break;
       default:
         break;
