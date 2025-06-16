@@ -18,7 +18,7 @@ use crate::agents::extension::Envs;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, StdioTransport, Transport};
+use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
 use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
 use serde_json::Value;
 
@@ -184,6 +184,27 @@ impl ExtensionManager {
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
                 let transport = SseTransport::new(uri, all_envs);
+                let handle = transport.start().await?;
+                Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
+            }
+            ExtensionConfig::StreamableHttp {
+                uri,
+                envs,
+                env_keys,
+                headers,
+                timeout,
+                ..
+            } => {
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport = StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
                 let handle = transport.start().await?;
                 Box::new(
                     McpClient::connect(
@@ -752,10 +773,13 @@ impl ExtensionManager {
                     ExtensionConfig::Sse {
                         description, name, ..
                     }
+                    | ExtensionConfig::StreamableHttp {
+                        description, name, ..
+                    }
                     | ExtensionConfig::Stdio {
                         description, name, ..
                     } => {
-                        // For SSE/Stdio, use description if available
+                        // For SSE/StreamableHttp/Stdio, use description if available
                         description
                             .as_ref()
                             .map(|s| s.to_string())
