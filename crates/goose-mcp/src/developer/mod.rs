@@ -145,6 +145,9 @@ impl DeveloperRouter {
         let model = std::env::var("GOOSE_EDITOR_MODEL")
             .expect("GOOSE_EDITOR_MODEL should be set when this function is called");
 
+        // Check if this is a Relace endpoint before moving host
+        let is_relace = host.contains("relace.run");
+
         // Construct the full URL
         let provider_url = if host.ends_with("/chat/completions") {
             host
@@ -166,8 +169,6 @@ impl DeveloperRouter {
         // Prepare the request body. The Relace endpoint expects the OpenAI
         // predicted outputs convention where the original code is supplied under
         // `prediction` and the update snippet is the sole user message.
-
-        let is_relace = host.contains("relace.run");
 
         let body = if is_relace {
             json!({
