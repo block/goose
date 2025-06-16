@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listSavedRecipes, deleteRecipe, SavedRecipe } from '../recipe/recipeStorage';
+import { listSavedRecipes, archiveRecipe, SavedRecipe } from '../recipe/recipeStorage';
 import { FileText, Trash2, Download, Calendar, Globe, Folder } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import BackButton from './ui/BackButton';
@@ -53,26 +53,26 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
 
   const handleDeleteRecipe = async (savedRecipe: SavedRecipe) => {
     // TODO: Use Electron's dialog API for confirmation
-    // const result = await window.electron.showMessageBox({
-    //   type: 'warning',
-    //   buttons: ['Cancel', 'Delete'],
-    //   defaultId: 0,
-    //   title: 'Delete Recipe',
-    //   message: `Are you sure you want to delete "${savedRecipe.name}"?`,
-    //   detail: 'This action cannot be undone.',
-    // });
+    const result = await window.electron.showMessageBox({
+      type: 'warning',
+      buttons: ['Cancel', 'Delete'],
+      defaultId: 0,
+      title: 'Delete Recipe',
+      message: `Are you sure you want to delete "${savedRecipe.name}"?`,
+      detail: 'Deleted recipes can be restored later.',
+    });
 
-    // if (result.response !== 1) {
-    //   return;
-    // }
+    if (result.response !== 1) {
+      return;
+    }
 
     try {
-      await deleteRecipe(savedRecipe.path);
+      await archiveRecipe(savedRecipe.name, savedRecipe.isGlobal);
       // Reload the recipes list
       await loadSavedRecipes();
     } catch (err) {
-      console.error('Failed to delete recipe:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete recipe');
+      console.error('Failed to archive recipe:', err);
+      setError(err instanceof Error ? err.message : 'Failed to archive recipe');
     }
   };
 
@@ -134,7 +134,10 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
             ) : (
               <div className="space-y-8 px-8">
                 {savedRecipes.map((savedRecipe) => (
-                  <section key={savedRecipe.path} className="border-b border-borderSubtle pb-8">
+                  <section
+                    key={`${savedRecipe.isGlobal ? 'global' : 'local'}-${savedRecipe.name}`}
+                    className="border-b border-borderSubtle pb-8"
+                  >
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">

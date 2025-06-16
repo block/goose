@@ -71,6 +71,8 @@ type ElectronAPI = {
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
+  ensureDirectory: (dirPath: string) => Promise<boolean>;
+  listFiles: (dirPath: string, extension?: string) => Promise<string[]>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
   setMenuBarIcon: (show: boolean) => Promise<boolean>;
@@ -143,6 +145,9 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
+  ensureDirectory: (dirPath: string) => ipcRenderer.invoke('ensure-directory', dirPath),
+  listFiles: (dirPath: string, extension?: string) =>
+    ipcRenderer.invoke('list-files', dirPath, extension),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
   setMenuBarIcon: (show: boolean) => ipcRenderer.invoke('set-menu-bar-icon', show),

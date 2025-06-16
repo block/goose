@@ -2,7 +2,6 @@ import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
-// Should Recipe have a name and id?
 export interface Recipe {
   title: string;
   description: string;
