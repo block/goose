@@ -100,7 +100,7 @@ function CommunityAllStarsSection() {
       
       <div className="flex justify-center">
         {currentData.teamStars.map((contributor, index) => (
-          <StarsCard key={index} contributor={contributor} />
+          <StarsCard key={index} contributor={{...contributor, totalCount: currentData.teamStars.length}} />
         ))}
       </div>
       
@@ -208,7 +208,7 @@ function CommunityAllStarsSection() {
 
 export function StarsCard({contributor}): ReactNode {
   return (
-    <div className="col col--2 mb-8">
+    <div className={`col ${contributor.totalCount <= 3 ? 'col--4' : 'col--2'} mb-8`}>
       <div 
         className="h-full border-2 border-borderSubtle rounded-2xl cursor-pointer hover:shadow-xl hover:border-[var(--ifm-color-primary-dark)]"
       >
