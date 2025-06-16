@@ -1811,8 +1811,10 @@ app.on('before-quit', async (event) => {
       // User clicked "Quit"
       // Set a flag to avoid showing the dialog again
       app.removeAllListeners('before-quit');
-      // Actually quit the app
-      app.quit();
+      // Force quit the app
+      process.nextTick(() => {
+        app.exit(0);
+      });
     }
   } catch (error) {
     console.error('Error showing quit dialog:', error);
