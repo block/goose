@@ -6,7 +6,7 @@ description: Add MCP Money Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [MCP Money Server](https://www.npmjs.com/package/mcp-money) as a Goose extension to provide access to Bitcoin Lightning Network and Cashu ecash functionality directly within your AI assistant workflow.
+This tutorial covers how to add the [MCP Money Server](https://github.com/pablof7z/mcp-money) as a Goose extension to provide access to Bitcoin Lightning Network and Cashu ecash functionality directly within your AI assistant workflow.
 
 :::tip TLDR
 
