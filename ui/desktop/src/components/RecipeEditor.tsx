@@ -336,7 +336,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <button
                 onClick={() => setIsScheduleModalOpen(true)}
                 disabled={!requiredFieldsAreFilled()}
-                className="w-full p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500"
+                className="w-full h-[60px] rounded-none border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:border-gray-600 text-lg font-medium"
               >
                 Create Schedule from Recipe
               </button>

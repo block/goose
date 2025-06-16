@@ -41,7 +41,7 @@ export default function RecipeInfoModal({
         <div className="flex flex-col flex-grow overflow-y-auto space-y-8">
           <textarea
             ref={textareaRef}
-            className="w-full flex-grow resize-none min-h-[300px] max-h-[calc(100vh-300px)] border border-borderSubtle rounded-lg p-3 text-textStandard focus:outline-none focus:ring-2 focus:border-borderSubtle"
+            className="w-full flex-grow resize-none min-h-[300px] max-h-[calc(100vh-300px)] border border-borderSubtle rounded-lg p-3 text-textStandard bg-bgApp focus:outline-none focus:ring-1 focus:ring-borderProminent focus:border-borderProminent"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={`Enter ${infoLabel.toLowerCase()}...`}

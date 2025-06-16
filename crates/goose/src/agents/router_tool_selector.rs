@@ -5,24 +5,27 @@ use mcp_core::{Content, ToolError};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::tool_vectordb::ToolVectorDB;
+use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::{self, base::Provider};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
     Vector,
+    Llm,
 }
 
 #[async_trait]
 pub trait RouterToolSelector: Send + Sync {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError>;
-    async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError>;
+    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ToolError>;
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError>;
     async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError>;
@@ -76,6 +79,9 @@ impl RouterToolSelector for VectorToolSelector {
 
         let k = params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
 
+        // Extract extension_name from params if present
+        let extension_name = params.get("extension_name").and_then(|v| v.as_str());
+
         // Check if provider supports embeddings
         if !self.embedding_provider.supports_embeddings() {
             return Err(ToolError::ExecutionError(
@@ -98,7 +104,7 @@ impl RouterToolSelector for VectorToolSelector {
 
         let vector_db = self.vector_db.read().await;
         let tools = vector_db
-            .search_tools(query_embedding, k)
+            .search_tools(query_embedding, k, extension_name)
             .await
             .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 
@@ -119,7 +125,7 @@ impl RouterToolSelector for VectorToolSelector {
         Ok(selected_tools)
     }
 
-    async fn index_tools(&self, tools: &[Tool]) -> Result<(), ToolError> {
+    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ToolError> {
         let texts_to_embed: Vec<String> = tools
             .iter()
             .map(|tool| {
@@ -155,6 +161,7 @@ impl RouterToolSelector for VectorToolSelector {
                     description: tool.description.clone(),
                     schema: schema_str,
                     vector,
+                    extension_name: extension_name.to_string(),
                 }
             })
             .collect();
@@ -196,19 +203,153 @@ impl RouterToolSelector for VectorToolSelector {
     }
 }
 
+pub struct LLMToolSelector {
+    llm_provider: Arc<dyn Provider>,
+    tool_strings: Arc<RwLock<HashMap<String, String>>>, // extension_name -> tool_string
+    recent_tool_calls: Arc<RwLock<VecDeque<String>>>,
+}
+
+impl LLMToolSelector {
+    pub async fn new(provider: Arc<dyn Provider>) -> Result<Self> {
+        Ok(Self {
+            llm_provider: provider.clone(),
+            tool_strings: Arc::new(RwLock::new(HashMap::new())),
+            recent_tool_calls: Arc::new(RwLock::new(VecDeque::with_capacity(100))),
+        })
+    }
+}
+
+#[async_trait]
+impl RouterToolSelector for LLMToolSelector {
+    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let query = params
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".to_string()))?;
+
+        let extension_name = params
+            .get("extension_name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // Get relevant tool strings based on extension_name
+        let tool_strings = self.tool_strings.read().await;
+        let relevant_tools = if let Some(ext) = &extension_name {
+            tool_strings.get(ext).cloned()
+        } else {
+            // If no extension specified, use all tools
+            Some(
+                tool_strings
+                    .values()
+                    .cloned()
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+            )
+        };
+
+        if let Some(tools) = relevant_tools {
+            // Use LLM to search through tools
+            let prompt = format!(
+                "Given the following tools:\n{}\n\nFind the most relevant tools for the query: {}\n\nReturn the tools in this exact format for each tool:\nTool: <tool_name>\nDescription: <tool_description>\nSchema: <tool_schema>",
+                tools, query
+            );
+            let system_message = Message::user().with_text("You are a tool selection assistant. Your task is to find the most relevant tools based on the user's query.");
+            let response = self
+                .llm_provider
+                .complete(&prompt, &[system_message], &[])
+                .await
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
+
+            // Extract just the message content from the response
+            let (message, _usage) = response;
+            let text = message.content[0].as_text().unwrap_or_default();
+
+            // Split the response into individual tool entries
+            let tool_entries: Vec<Content> = text
+                .split("\n\n")
+                .filter(|entry| entry.trim().starts_with("Tool:"))
+                .map(|entry| {
+                    Content::Text(TextContent {
+                        text: entry.trim().to_string(),
+                        annotations: None,
+                    })
+                })
+                .collect();
+
+            Ok(tool_entries)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    async fn index_tools(&self, tools: &[Tool], _extension_name: &str) -> Result<(), ToolError> {
+        let mut tool_strings = self.tool_strings.write().await;
+
+        for tool in tools {
+            let tool_string = format!(
+                "Tool: {}\nDescription: {}\nSchema: {}",
+                tool.name,
+                tool.description,
+                serde_json::to_string_pretty(&tool.input_schema)
+                    .unwrap_or_else(|_| "{}".to_string())
+            );
+
+            if let Some(extension_name) = tool.name.split("__").next() {
+                let entry = tool_strings.entry(extension_name.to_string()).or_default();
+                if !entry.is_empty() {
+                    entry.push_str("\n\n");
+                }
+                entry.push_str(&tool_string);
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError> {
+        let mut tool_strings = self.tool_strings.write().await;
+        if let Some(extension_name) = tool_name.split("__").next() {
+            tool_strings.remove(extension_name);
+        }
+        Ok(())
+    }
+
+    async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError> {
+        let mut recent_calls = self.recent_tool_calls.write().await;
+        if recent_calls.len() >= 100 {
+            recent_calls.pop_front();
+        }
+        recent_calls.push_back(tool_name.to_string());
+        Ok(())
+    }
+
+    async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError> {
+        let recent_calls = self.recent_tool_calls.read().await;
+        Ok(recent_calls.iter().rev().take(limit).cloned().collect())
+    }
+
+    fn selector_type(&self) -> RouterToolSelectionStrategy {
+        RouterToolSelectionStrategy::Llm
+    }
+}
+
 // Helper function to create a boxed tool selector
 pub async fn create_tool_selector(
     strategy: Option<RouterToolSelectionStrategy>,
     provider: Arc<dyn Provider>,
-    table_name: String,
+    table_name: Option<String>,
 ) -> Result<Box<dyn RouterToolSelector>> {
     match strategy {
         Some(RouterToolSelectionStrategy::Vector) => {
-            let selector = VectorToolSelector::new(provider, table_name).await?;
+            let selector = VectorToolSelector::new(provider, table_name.unwrap()).await?;
+            Ok(Box::new(selector))
+        }
+        Some(RouterToolSelectionStrategy::Llm) => {
+            let selector = LLMToolSelector::new(provider).await?;
             Ok(Box::new(selector))
         }
         None => {
-            let selector = VectorToolSelector::new(provider, table_name).await?;
+            let selector = LLMToolSelector::new(provider).await?;
             Ok(Box::new(selector))
         }
     }

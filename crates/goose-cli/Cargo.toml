@@ -64,6 +64,7 @@ http = "1.0"
 webbrowser = "1.0"
 
 indicatif = "0.17.11"
+urlencoding = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

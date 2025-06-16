@@ -1,16 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
+import UpdateSection from './UpdateSection';
+import { UPDATES_ENABLED } from '../../../updates';
 
-export default function AppSettingsSection() {
+interface AppSettingsSectionProps {
+  scrollToSection?: string;
+}
+
+export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
+  const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if running on macOS
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
+
+  // Handle scrolling to update section
+  useEffect(() => {
+    if (scrollToSection === 'update' && updateSectionRef.current) {
+      // Use a timeout to ensure the DOM is ready
+      setTimeout(() => {
+        updateSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [scrollToSection]);
 
   // Load menu bar and dock icon states
   useEffect(() => {
@@ -106,6 +123,39 @@ export default function AppSettingsSection() {
             </div>
           )}
         </div>
+
+        {/* Help & Feedback Section */}
+        <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-medium text-textStandard mb-1">Help & Feedback</h3>
+          <p className="text-sm text-textSubtle mb-4">
+            Help us improve Goose by reporting issues or requesting new features.
+          </p>
+          <div className="flex space-x-4">
+            <a
+              href="https://github.com/block/goose/issues/new?template=bug_report.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Report a Bug
+            </a>
+            <a
+              href="https://github.com/block/goose/issues/new?template=feature_request.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Request a Feature
+            </a>
+          </div>
+        </div>
+
+        {/* Update Section */}
+        {UPDATES_ENABLED && (
+          <div ref={updateSectionRef} className="mt-8 pt-8 border-t border-gray-200">
+            <UpdateSection />
+          </div>
+        )}
       </div>
     </section>
   );

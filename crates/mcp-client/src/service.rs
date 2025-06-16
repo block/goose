@@ -27,8 +27,8 @@ impl<T: TransportHandle> McpService<T> {
         self.pending_requests.respond(id, response).await
     }
 
-    pub async fn hangup(&self) {
-        self.pending_requests.broadcast_close().await
+    pub async fn hangup(&self, error: Error) {
+        self.pending_requests.broadcast_close(error).await
     }
 }
 
@@ -115,9 +115,13 @@ impl PendingRequests {
         }
     }
 
-    pub async fn broadcast_close(&self) {
+    pub async fn broadcast_close(&self, error: Error) {
         for (_, tx) in self.requests.write().await.drain() {
-            let _ = tx.send(Err(Error::ChannelClosed));
+            let err = match &error {
+                Error::StdioProcessError(s) => Error::StdioProcessError(s.clone()),
+                _ => Error::ChannelClosed,
+            };
+            let _ = tx.send(Err(err));
         }
     }
 

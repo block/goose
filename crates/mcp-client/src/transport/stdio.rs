@@ -168,7 +168,13 @@ impl TransportHandle for StdioTransportHandle {
 
     async fn receive(&self) -> Result<JsonRpcMessage, Error> {
         let mut receiver = self.receiver.lock().await;
-        receiver.recv().await.ok_or(Error::ChannelClosed)
+        match receiver.recv().await {
+            Some(message) => Ok(message),
+            None => {
+                self.check_for_errors().await?;
+                Err(Error::ChannelClosed)
+            }
+        }
     }
 }
 

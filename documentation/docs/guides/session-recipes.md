@@ -69,10 +69,6 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
    </details>
 
-   ### Edit Recipe File
-
-   Once the recipe file is created, you can open it and modify the value of any field.
-
    ### Optional Parameters
 
    You may add parameters to a recipe, which will require users to fill in data when running the recipe. Parameters can be added to any part of the recipe (instructions, prompt, activities, etc).
@@ -150,6 +146,28 @@ Validation ensures that:
    </TabItem> 
 </Tabs>
 
+## Edit Recipe
+<Tabs>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+   1. While in the session created from a recipe, click the menu icon **⋮** in the top right corner  
+   2. Select **View recipe**  
+   3. In the dialog that appears, you can edit the:
+      - Title
+      - Description
+      - Instructions
+      - Initial prompt
+      - Activities
+   4. Copy the new recipe URL. The original recipe and your current session are not affected by your edits.
+   5. Use and share the URL for your new recipe. 
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
+  Once the recipe file is created, you can open it with your preferred text editor and modify the value of any field.
+
+</TabItem> 
+</Tabs>
 
 ## Use Recipe
 
@@ -167,6 +185,12 @@ Validation ensures that:
       - Paste it into your browser's address bar
       - You will see a prompt to "Open Goose"
       - Goose Desktop will open with the recipe
+
+  :::note Privacy & Isolation
+  - Each person gets their own private session
+  - No data is shared between users
+  - Your session won't affect the original recipe creator's session
+  :::
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
@@ -323,15 +347,27 @@ Validation ensures that:
 
      </TabItem>
    </Tabs>
+  :::note Privacy & Isolation
+  - Each person gets their own private session
+  - No data is shared between users
+  - Your session won't affect the original recipe creator's session
+  :::
+
+  ### Schedule a Recipe
+  Automate Goose recipes by running them on a schedule.
+
+  **Create a schedule** - Create a scheduled cron job that runs the recipe on the specified cadence. 
+
+  ```bash
+  # Add a new scheduled recipe which runs every day at 9 AM
+  goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
+  ```
+  The [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) follows the format "seconds minutes hours day-of-month month day-of-week".
+
+  See the [`schedule` command documentation](/docs/guides/goose-cli-commands#schedule) for detailed examples and options.
 
    </TabItem>
 </Tabs>
-
-:::note Privacy & Isolation
-- Each person gets their own private session
-- No data is shared between users
-- Your session won't affect the original recipe creator's session
-:::
 
 ## Core Components
 

@@ -44,6 +44,19 @@ if (process.env['APPLE_ID'] === undefined) {
 module.exports = {
   packagerConfig: cfg,
   rebuildConfig: {},
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'block',
+          name: 'goose'
+        },
+        prerelease: false,
+        draft: true
+      }
+    }
+  ],
   makers: [
     {
       name: '@electron-forge/maker-zip',

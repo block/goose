@@ -7,6 +7,7 @@ import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
 import { Buffer } from 'buffer';
 import { Recipe } from '../../recipe';
+import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -499,17 +500,24 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-lg z-50 flex flex-col max-h-[90vh] overflow-hidden">
-        <div className="px-6 pt-6 pb-4 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Create New Schedule
-          </h2>
+      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="px-8 pt-8 pb-4 flex-shrink-0 text-center">
+          <div className="flex flex-col items-center">
+            <img src={ClockIcon} alt="Clock" className="w-11 h-11 mb-2" />
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Create New Schedule
+            </h2>
+            <p className="text-base text-gray-500 dark:text-gray-400 mt-2 max-w-sm">
+              Create a new schedule using the settings below to do things like automatically run
+              tasks or create files
+            </p>
+          </div>
         </div>
 
         <form
           id="new-schedule-form"
           onSubmit={handleLocalSubmit}
-          className="px-6 py-4 space-y-4 flex-grow overflow-y-auto"
+          className="px-8 py-4 space-y-4 flex-grow overflow-y-auto"
         >
           {apiErrorExternally && (
             <p className="text-red-500 text-sm mb-3 p-2 bg-red-100 dark:bg-red-900/30 rounded-md border border-red-500/50">
@@ -524,7 +532,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
           <div>
             <label htmlFor="scheduleId-modal" className={modalLabelClassName}>
-              Schedule ID:
+              Name:
             </label>
             <Input
               type="text"
@@ -537,30 +545,30 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           </div>
 
           <div>
-            <label className={modalLabelClassName}>Recipe Source:</label>
+            <label className={modalLabelClassName}>Source:</label>
             <div className="space-y-2">
-              <div className="flex gap-2">
+              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
                 <button
                   type="button"
                   onClick={() => setSourceType('file')}
-                  className={`px-3 py-2 text-sm rounded-md border ${
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                     sourceType === 'file'
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  YAML File
+                  YAML
                 </button>
                 <button
                   type="button"
                   onClick={() => setSourceType('deeplink')}
-                  className={`px-3 py-2 text-sm rounded-md border ${
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                     sourceType === 'deeplink'
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  Deep Link
+                  Deep link
                 </button>
               </div>
 
@@ -570,7 +578,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     type="button"
                     variant="outline"
                     onClick={handleBrowseFile}
-                    className="w-full justify-center"
+                    className="w-full justify-center rounded-full"
                   >
                     Browse for YAML file...
                   </Button>
@@ -589,6 +597,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     value={deepLinkInput}
                     onChange={(e) => handleDeepLinkChange(e.target.value)}
                     placeholder="Paste goose://bot or goose://recipe link here..."
+                    className="rounded-full"
                   />
                   {parsedRecipe && (
                     <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-md border border-green-500/50">
@@ -740,6 +749,15 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         {/* Actions */}
         <div className="mt-[8px] ml-[-24px] mr-[-24px] pt-[16px]">
           <Button
+            type="submit"
+            form="new-schedule-form"
+            variant="ghost"
+            disabled={isLoadingExternally}
+            className="w-full h-[60px] rounded-none border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:border-gray-600 text-lg font-medium"
+          >
+            {isLoadingExternally ? 'Creating...' : 'Create Schedule'}
+          </Button>
+          <Button
             type="button"
             variant="ghost"
             onClick={handleClose}
@@ -747,15 +765,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             className="w-full h-[60px] rounded-none border-t text-gray-400 hover:bg-gray-50 dark:border-gray-600 text-lg font-regular"
           >
             Cancel
-          </Button>
-          <Button
-            type="submit"
-            form="new-schedule-form"
-            variant="default"
-            disabled={isLoadingExternally}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg dark:text-white dark:border-gray-600 font-regular"
-          >
-            {isLoadingExternally ? 'Creating...' : 'Create Schedule'}
           </Button>
         </div>
       </Card>

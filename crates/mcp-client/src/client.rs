@@ -135,7 +135,8 @@ where
                     Ok(message) => {
                         tracing::info!("Received message: {:?}", message);
                         match message {
-                            JsonRpcMessage::Response(JsonRpcResponse { id: Some(id), .. }) => {
+                            JsonRpcMessage::Response(JsonRpcResponse { id: Some(id), .. })
+                            | JsonRpcMessage::Error(JsonRpcError { id: Some(id), .. }) => {
                                 service_ptr.respond(&id.to_string(), Ok(message)).await;
                             }
                             _ => {
@@ -145,8 +146,7 @@ where
                         }
                     }
                     Err(e) => {
-                        tracing::error!("transport error: {:?}", e);
-                        service_ptr.hangup().await;
+                        service_ptr.hangup(e).await;
                         subscribers_ptr.lock().await.clear();
                         break;
                     }

@@ -26,13 +26,16 @@ impl ToolRouterIndexManager {
 
                 if !tools.is_empty() {
                     // Index all tools at once
-                    selector.index_tools(&tools).await.map_err(|e| {
-                        anyhow!(
-                            "Failed to index tools for extension {}: {}",
-                            extension_name,
-                            e
-                        )
-                    })?;
+                    selector
+                        .index_tools(&tools, extension_name)
+                        .await
+                        .map_err(|e| {
+                            anyhow!(
+                                "Failed to index tools for extension {}: {}",
+                                extension_name,
+                                e
+                            )
+                        })?;
 
                     tracing::info!(
                         "Indexed {} tools for extension {}",
@@ -42,16 +45,20 @@ impl ToolRouterIndexManager {
                 }
             }
             "remove" => {
-                // Get tool names for the extension to remove them
+                // Remove all tools for this extension
                 let tools = extension_manager
                     .get_prefixed_tools(Some(extension_name.to_string()))
                     .await?;
 
                 for tool in &tools {
-                    selector
-                        .remove_tool(&tool.name)
-                        .await
-                        .map_err(|e| anyhow!("Failed to remove tool {}: {}", tool.name, e))?;
+                    selector.remove_tool(&tool.name).await.map_err(|e| {
+                        anyhow!(
+                            "Failed to remove tool {} for extension {}: {}",
+                            tool.name,
+                            extension_name,
+                            e
+                        )
+                    })?;
                 }
 
                 tracing::info!(
@@ -61,7 +68,7 @@ impl ToolRouterIndexManager {
                 );
             }
             _ => {
-                anyhow::bail!("Invalid action '{}' for tool indexing", action);
+                return Err(anyhow!("Invalid action: {}", action));
             }
         }
 
@@ -87,7 +94,7 @@ impl ToolRouterIndexManager {
 
         // Index all platform tools at once
         selector
-            .index_tools(&tools)
+            .index_tools(&tools, "platform")
             .await
             .map_err(|e| anyhow!("Failed to index platform tools: {}", e))?;
 
@@ -95,12 +102,10 @@ impl ToolRouterIndexManager {
         Ok(())
     }
 
-    /// Helper to check if vector tool router is enabled
-    pub fn vector_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
-        if let Some(selector) = selector {
-            selector.selector_type() == RouterToolSelectionStrategy::Vector
-        } else {
-            false
-        }
+    /// Helper to check if vector or llm tool router is enabled
+    pub fn is_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
+        selector.is_some()
+            && (selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Vector
+                || selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Llm)
     }
 }

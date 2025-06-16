@@ -280,8 +280,9 @@ function ChatContent({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat({ ...chat, messages });
-  }, [messages, setChat, chat]);
+    // @ts-expect-error - TypeScript being overly strict about the return type
+    setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
+  }, [messages, setChat]);
 
   useEffect(() => {
     if (messages.length > 0) {

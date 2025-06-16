@@ -35,6 +35,20 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
+import {
+  setupAutoUpdater,
+  registerUpdateIpcHandlers,
+  setTrayRef,
+  updateTrayMenu,
+  getUpdateAvailable,
+} from './utils/autoUpdater';
+import { UPDATES_ENABLED } from './updates';
+
+// Updater functions (moved here to keep updates.ts minimal for release replacement)
+function shouldSetupUpdater(): boolean {
+  // Setup updater if either the flag is enabled OR dev updates are enabled
+  return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
+}
 
 // Define temp directory for pasted images
 const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
@@ -254,9 +268,10 @@ app.on('open-url', async (_event, url) => {
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
+      const base64 = decodeURIComponent(configParam || '');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
@@ -338,7 +353,6 @@ const getVersion = () => {
 };
 
 let [provider, model] = getGooseProvider();
-console.log('[main] Got provider and model:', { provider, model });
 
 let sharingUrl = getSharingUrl();
 
@@ -354,8 +368,6 @@ let appConfig = {
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
   secretKey: generateSecretKey(),
 };
-
-console.log('[main] Created appConfig:', appConfig);
 
 // Track windows by ID
 let windowCounter = 0;
@@ -511,8 +523,6 @@ const createChat = async (
     `);
   });
 
-  console.log('[main] Creating window with config:', windowConfig);
-
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
@@ -551,7 +561,6 @@ const createChat = async (
   } else {
     // In production, we need to use a proper file protocol URL with correct base path
     const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
-    console.log('Loading production path:', indexPath);
     mainWindow.loadFile(indexPath, {
       search: queryParams ? queryParams.slice(1) : undefined,
     });
@@ -606,14 +615,11 @@ const createTray = () => {
 
   tray = new Tray(iconPath);
 
-  const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Window', click: showWindow },
-    { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() },
-  ]);
+  // Set tray reference for auto-updater
+  setTrayRef(tray);
 
-  tray.setToolTip('Goose');
-  tray.setContextMenu(contextMenu);
+  // Initially build menu based on update status
+  updateTrayMenu(getUpdateAvailable());
 
   // On Windows, clicking the tray icon should show the window
   if (process.platform === 'win32') {
@@ -1120,7 +1126,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
-  createChat(app, undefined, openDir);
+  return await createChat(app, undefined, openDir);
 };
 
 const focusWindow = () => {
@@ -1158,6 +1164,12 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Register update IPC handlers once
+  registerUpdateIpcHandlers();
+
+  // Setup auto-updater if enabled
+  shouldSetupUpdater() && setupAutoUpdater();
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1172,7 +1184,7 @@ app.whenReady().then(async () => {
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
           // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:*" +
+          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
           // Don't allow any frames
@@ -1226,7 +1238,7 @@ app.whenReady().then(async () => {
   // Parse command line arguments
   const { dirPath } = parseArgs();
 
-  createNewWindow(app, dirPath);
+  await createNewWindow(app, dirPath);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -1422,7 +1434,7 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createChat(app);
+      createNewWindow(app);
     }
   });
 
@@ -1596,6 +1608,17 @@ app.whenReady().then(async () => {
     } catch (error) {
       console.error('Error opening URL in Chrome:', error);
     }
+  });
+
+  // Handle app restart
+  ipcMain.on('restart-app', () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
+  // Handler for getting app version
+  ipcMain.on('get-app-version', (event) => {
+    event.returnValue = app.getVersion();
   });
 });
 
