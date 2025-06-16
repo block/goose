@@ -45,12 +45,29 @@ export default function GooseMessage({
   // Extract text content from the message
   let textContent = getTextContent(message);
 
-  // Extract image paths from the message
-  const imagePaths = extractImagePaths(textContent);
+  // Utility to split Chain-of-Thought (CoT) from the visible assistant response.
+  // If the text contains a <think>...</think> block, everything inside is treated as the
+  // CoT and removed from the user-visible text.
+  const splitChainOfThought = (text: string): { visibleText: string; cotText: string | null } => {
+    const regex = /<think>([\s\S]*?)<\/think>/i;
+    const match = text.match(regex);
+    if (!match) {
+      return { visibleText: text, cotText: null };
+    }
+
+    const cotRaw = match[1].trim();
+    const visible = text.replace(match[0], '').trim();
+    return { visibleText: visible, cotText: cotRaw.length > 0 ? cotRaw : null };
+  };
+
+  const { visibleText: textWithoutCot, cotText } = splitChainOfThought(textContent);
+
+  // Extract image paths from the visible part of the message (exclude CoT)
+  const imagePaths = extractImagePaths(textWithoutCot);
 
   // Remove image paths from text for display
   const displayText =
-    imagePaths.length > 0 ? removeImagePathsFromText(textContent, imagePaths) : textContent;
+    imagePaths.length > 0 ? removeImagePathsFromText(textWithoutCot, imagePaths) : textWithoutCot;
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
@@ -115,7 +132,20 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col w-full">
-        {textContent && (
+        {/* Chain-of-Thought (hidden by default) */}
+        {cotText && (
+          <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
+            <summary className="cursor-pointer text-sm text-textSubtle select-none">
+              Show thinking
+            </summary>
+            <div className="mt-2">
+              <MarkdownContent content={cotText} />
+            </div>
+          </details>
+        )}
+
+        {/* Visible assistant response */}
+        {displayText && (
           <div className="flex flex-col group">
             <div className={`goose-message-content pt-2`}>
               <div ref={contentRef}>{<MarkdownContent content={displayText} />}</div>
@@ -137,7 +167,7 @@ export default function GooseMessage({
                   {timestamp}
                 </div>
               )}
-              {textContent && message.content.every((content) => content.type === 'text') && (
+              {displayText && message.content.every((content) => content.type === 'text') && (
                 <div className="absolute left-0 pt-1">
                   <MessageCopyLink text={displayText} contentRef={contentRef} />
                 </div>
@@ -194,7 +224,7 @@ export default function GooseMessage({
       {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
       {false && metadata && (
         <div className="flex mt-[16px]">
-          <GooseResponseForm message={textContent} metadata={metadata || null} append={append} />
+          <GooseResponseForm message={displayText} metadata={metadata || null} append={append} />
         </div>
       )}
     </div>
