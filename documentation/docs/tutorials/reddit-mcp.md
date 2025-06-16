@@ -1,7 +1,7 @@
 ---
 title: Reddit Extension
 
-escription: Add Reddit MCP Server as a Goose Extension
+description: Add Reddit MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -55,7 +55,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-In this example, I’ll use Goose with the Reddit MCP Server to build a custom AI news feed. Goose will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
+In this example, I’ll use Goose with the Reddit MCP Server to build a custom news feed for AI topics. Goose will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
 
 It’s like Reddit, but curated just for you.
 
