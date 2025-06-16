@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use chrono::Utc;
 use futures::stream::BoxStream;
 use futures::{FutureExt, Stream, TryStreamExt};
 use futures_util::stream;
@@ -17,6 +18,7 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
@@ -27,7 +29,8 @@ use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult,
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::router_tool_selector::{
@@ -59,6 +62,7 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -85,6 +89,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
+            scheduler_service: Mutex::new(None),
         }
     }
 
@@ -102,6 +107,12 @@ impl Agent {
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
         }
+    }
+
+    /// Set the scheduler service for this agent
+    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
+        let mut scheduler_service = self.scheduler_service.lock().await;
+        *scheduler_service = Some(scheduler);
     }
 }
 
@@ -201,6 +212,13 @@ impl Agent {
                     )),
                 );
             }
+        }
+
+        if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
+            let result = self
+                .handle_schedule_management(tool_call.arguments, request_id.clone())
+                .await;
+            return (request_id, Ok(ToolCallResult::from(result)));
         }
 
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
@@ -362,6 +380,325 @@ impl Agent {
         (request_id, result)
     }
 
+    pub(crate) async fn handle_schedule_management(
+        &self,
+        arguments: serde_json::Value,
+        _request_id: String,
+    ) -> ToolResult<Vec<Content>> {
+        let scheduler = match self.scheduler_service.lock().await.as_ref() {
+            Some(s) => s.clone(),
+            None => {
+                return Err(ToolError::ExecutionError(
+                    "Scheduler not available. This tool only works in server mode.".to_string(),
+                ))
+            }
+        };
+
+        let action = arguments
+            .get("action")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'action' parameter".to_string()))?;
+
+        match action {
+            "list" => self.handle_list_jobs(scheduler).await,
+            "create" => self.handle_create_job(scheduler, arguments).await,
+            "run_now" => self.handle_run_now(scheduler, arguments).await,
+            "pause" => self.handle_pause_job(scheduler, arguments).await,
+            "unpause" => self.handle_unpause_job(scheduler, arguments).await,
+            "delete" => self.handle_delete_job(scheduler, arguments).await,
+            "kill" => self.handle_kill_job(scheduler, arguments).await,
+            "inspect" => self.handle_inspect_job(scheduler, arguments).await,
+            "sessions" => self.handle_list_sessions(scheduler, arguments).await,
+            _ => Err(ToolError::ExecutionError(format!(
+                "Unknown action: {}",
+                action
+            ))),
+        }
+    }
+
+    async fn handle_list_jobs(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+    ) -> ToolResult<Vec<Content>> {
+        match scheduler.list_scheduled_jobs().await {
+            Ok(jobs) => {
+                let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to serialize jobs: {}", e))
+                })?;
+                Ok(vec![Content::text(format!(
+                    "Scheduled Jobs:\n{}",
+                    jobs_json
+                ))])
+            }
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to list jobs: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_create_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let recipe_path = arguments
+            .get("recipe_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ToolError::ExecutionError("Missing 'recipe_path' parameter".to_string())
+            })?;
+
+        let cron_expression = arguments
+            .get("cron_expression")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ToolError::ExecutionError("Missing 'cron_expression' parameter".to_string())
+            })?;
+
+        // Validate recipe file exists and is readable
+        if !std::path::Path::new(recipe_path).exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "Recipe file not found: {}",
+                recipe_path
+            )));
+        }
+
+        // Validate it's a valid recipe by trying to parse it
+        match std::fs::read_to_string(recipe_path) {
+            Ok(content) => {
+                if recipe_path.ends_with(".json") {
+                    serde_json::from_str::<Recipe>(&content).map_err(|e| {
+                        ToolError::ExecutionError(format!("Invalid JSON recipe: {}", e))
+                    })?;
+                } else {
+                    serde_yaml::from_str::<Recipe>(&content).map_err(|e| {
+                        ToolError::ExecutionError(format!("Invalid YAML recipe: {}", e))
+                    })?;
+                }
+            }
+            Err(e) => {
+                return Err(ToolError::ExecutionError(format!(
+                    "Cannot read recipe file: {}",
+                    e
+                )))
+            }
+        }
+
+        // Generate unique job ID
+        let job_id = format!("agent_created_{}", Utc::now().timestamp());
+
+        let job = crate::scheduler::ScheduledJob {
+            id: job_id.clone(),
+            source: recipe_path.to_string(),
+            cron: cron_expression.to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+        };
+
+        match scheduler.add_scheduled_job(job).await {
+            Ok(()) => Ok(vec![Content::text(format!(
+                "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}'",
+                job_id, recipe_path, cron_expression
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to create job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_run_now(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.run_now(job_id).await {
+            Ok(session_id) => Ok(vec![Content::text(format!(
+                "Successfully started job '{}'. Session ID: {}",
+                job_id, session_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to run job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_pause_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.pause_schedule(job_id).await {
+            Ok(()) => Ok(vec![Content::text(format!(
+                "Successfully paused job '{}'",
+                job_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to pause job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_unpause_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.unpause_schedule(job_id).await {
+            Ok(()) => Ok(vec![Content::text(format!(
+                "Successfully unpaused job '{}'",
+                job_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to unpause job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_delete_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.remove_scheduled_job(job_id).await {
+            Ok(()) => Ok(vec![Content::text(format!(
+                "Successfully deleted job '{}'",
+                job_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to delete job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_kill_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.kill_running_job(job_id).await {
+            Ok(()) => Ok(vec![Content::text(format!(
+                "Successfully killed running job '{}'",
+                job_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to kill job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_inspect_job(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        match scheduler.get_running_job_info(job_id).await {
+            Ok(Some((session_id, start_time))) => {
+                let duration = Utc::now().signed_duration_since(start_time);
+                Ok(vec![Content::text(format!(
+                    "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
+                    job_id, session_id, start_time.to_rfc3339(), duration.num_seconds()
+                ))])
+            }
+            Ok(None) => Ok(vec![Content::text(format!(
+                "Job '{}' is not currently running",
+                job_id
+            ))]),
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to inspect job: {}",
+                e
+            ))),
+        }
+    }
+
+    async fn handle_list_sessions(
+        &self,
+        scheduler: Arc<dyn SchedulerTrait>,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let job_id = arguments
+            .get("job_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ExecutionError("Missing 'job_id' parameter".to_string()))?;
+
+        let limit = arguments
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(50) as usize;
+
+        match scheduler.sessions(job_id, limit).await {
+            Ok(sessions) => {
+                if sessions.is_empty() {
+                    Ok(vec![Content::text(format!(
+                        "No sessions found for job '{}'",
+                        job_id
+                    ))])
+                } else {
+                    let sessions_info: Vec<String> = sessions
+                        .into_iter()
+                        .map(|(session_name, metadata)| {
+                            format!(
+                                "- Session: {} (Messages: {}, Working Dir: {})",
+                                session_name,
+                                metadata.message_count,
+                                metadata.working_dir.display()
+                            )
+                        })
+                        .collect();
+
+                    Ok(vec![Content::text(format!(
+                        "Sessions for job '{}':\n{}",
+                        job_id,
+                        sessions_info.join("\n")
+                    ))])
+                }
+            }
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to list sessions: {}",
+                e
+            ))),
+        }
+    }
+
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
@@ -432,6 +769,7 @@ impl Agent {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
             prefixed_tools.push(platform_tools::manage_extensions_tool());
+            prefixed_tools.push(platform_tools::manage_schedule_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -984,5 +1322,211 @@ impl Agent {
             .expect("valid recipe");
 
         Ok(recipe)
+    }
+}
+
+#[cfg(test)]
+mod schedule_tool_tests {
+    use super::*;
+    use crate::scheduler::{ScheduledJob, SchedulerError};
+    use crate::scheduler_trait::SchedulerTrait;
+    use crate::session::storage::SessionMetadata;
+    use async_trait::async_trait;
+    use chrono::{DateTime, Utc};
+    use mcp_core::{Content, ToolError};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    // Mock scheduler for testing
+    struct MockScheduler {
+        jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
+    }
+
+    impl MockScheduler {
+        fn new() -> Self {
+            Self {
+                jobs: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl SchedulerTrait for MockScheduler {
+        async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
+            let mut jobs = self.jobs.lock().await;
+            jobs.push(job);
+            Ok(())
+        }
+
+        async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
+            let jobs = self.jobs.lock().await;
+            Ok(jobs.clone())
+        }
+
+        async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+            let mut jobs = self.jobs.lock().await;
+            if let Some(pos) = jobs.iter().position(|job| job.id == id) {
+                jobs.remove(pos);
+                Ok(())
+            } else {
+                Err(SchedulerError::JobNotFound(id.to_string()))
+            }
+        }
+
+        async fn pause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn unpause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn run_now(&self, _id: &str) -> Result<String, SchedulerError> {
+            Ok("test_session_123".to_string())
+        }
+
+        async fn sessions(
+            &self,
+            _sched_id: &str,
+            _limit: usize,
+        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+            Ok(vec![])
+        }
+
+        async fn update_schedule(
+            &self,
+            _sched_id: &str,
+            _new_cron: String,
+        ) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn get_running_job_info(
+            &self,
+            _sched_id: &str,
+        ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+            Ok(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_list() {
+        let agent = Agent::new();
+        let mock_scheduler = Arc::new(MockScheduler::new());
+        agent.set_scheduler(mock_scheduler.clone()).await;
+
+        // Test list action
+        let arguments = json!({
+            "action": "list"
+        });
+
+        let result = agent
+            .handle_schedule_management(arguments, "test_req".to_string())
+            .await;
+        assert!(result.is_ok());
+
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        if let Content::Text(text_content) = &content[0] {
+            assert!(text_content.text.contains("Scheduled Jobs:"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_no_scheduler() {
+        let agent = Agent::new();
+        // Don't set scheduler
+
+        let arguments = json!({
+            "action": "list"
+        });
+
+        let result = agent
+            .handle_schedule_management(arguments, "test_req".to_string())
+            .await;
+        assert!(result.is_err());
+
+        if let Err(ToolError::ExecutionError(msg)) = result {
+            assert!(msg.contains("Scheduler not available"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_run_now() {
+        let agent = Agent::new();
+        let mock_scheduler = Arc::new(MockScheduler::new());
+        agent.set_scheduler(mock_scheduler.clone()).await;
+
+        let arguments = json!({
+            "action": "run_now",
+            "job_id": "test_job"
+        });
+
+        let result = agent
+            .handle_schedule_management(arguments, "test_req".to_string())
+            .await;
+        assert!(result.is_ok());
+
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        if let Content::Text(text_content) = &content[0] {
+            assert!(text_content
+                .text
+                .contains("Successfully started job 'test_job'"));
+            assert!(text_content.text.contains("test_session_123"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_dispatch() {
+        let agent = Agent::new();
+        let mock_scheduler = Arc::new(MockScheduler::new());
+        agent.set_scheduler(mock_scheduler.clone()).await;
+
+        // Test that the tool is properly dispatched through dispatch_tool_call
+        let tool_call = mcp_core::tool::ToolCall {
+            name: PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
+            arguments: json!({
+                "action": "list"
+            }),
+        };
+
+        let (request_id, result) = agent
+            .dispatch_tool_call(tool_call, "test_dispatch".to_string())
+            .await;
+        assert_eq!(request_id, "test_dispatch");
+        assert!(result.is_ok());
+
+        let tool_result = result.unwrap();
+        // The result should be a future that resolves to the tool output
+        let output = tool_result.result.await;
+        assert!(output.is_ok());
+
+        let content = output.unwrap();
+        assert_eq!(content.len(), 1);
+        if let Content::Text(text_content) = &content[0] {
+            assert!(text_content.text.contains("Scheduled Jobs:"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_in_list_tools() {
+        let agent = Agent::new();
+        let tools = agent.list_tools(None).await;
+
+        // Check that the schedule management tool is included in the list
+        let schedule_tool = tools
+            .iter()
+            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+        assert!(schedule_tool.is_some());
+
+        let tool = schedule_tool.unwrap();
+        assert!(tool
+            .description
+            .contains("Manage scheduled recipe execution"));
     }
 }
