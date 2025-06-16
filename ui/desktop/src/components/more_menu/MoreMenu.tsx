@@ -357,10 +357,10 @@ export default function MoreMenu({
                   setOpen(false);
                   setView('recipes');
                 }}
-                subtitle="Browse and load saved recipes"
+                subtitle="Browse your saved recipes"
                 icon={<FileText className="w-4 h-4" />}
               >
-                Load Recipes
+                Go to Recipe Library
               </MenuButton>
               <MenuButton
                 onClick={() => {

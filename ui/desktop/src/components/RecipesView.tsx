@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { listSavedRecipes, archiveRecipe, SavedRecipe } from '../recipe/recipeStorage';
-import { FileText, Trash2, Download, Calendar, Globe, Folder } from 'lucide-react';
+import { FileText, Trash2, Bot, Calendar, Globe, Folder } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import BackButton from './ui/BackButton';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -163,8 +163,8 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
                         onClick={() => handleLoadRecipe(savedRecipe)}
                         className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-opacity-90 transition-colors text-sm font-medium"
                       >
-                        <Download className="w-4 h-4" />
-                        Load Recipe
+                        <Bot className="w-4 h-4" />
+                        Use Recipe
                       </button>
                       <button
                         onClick={() => handlePreviewRecipe(savedRecipe)}
