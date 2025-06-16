@@ -105,7 +105,6 @@ const getInitialView = (): ViewConfig => {
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [appInitialized, setAppInitialized] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
@@ -207,15 +206,10 @@ export default function App() {
       toastService.configure({ silent: false });
     };
 
-    (async () => {
-      try {
-        await initializeApp();
-        setAppInitialized(true);
-      } catch (error) {
-        console.error('Unhandled error in initialization:', error);
-        setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    })();
+    initializeApp().catch((error) => {
+      console.error('Unhandled error in initialization:', error);
+      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+    });
   }, [read, getExtensions, addExtension]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
@@ -515,7 +509,6 @@ export default function App() {
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
-              readyForAutoUserPrompt={appInitialized}
               chat={chat}
               setChat={setChat}
               setView={setView}
