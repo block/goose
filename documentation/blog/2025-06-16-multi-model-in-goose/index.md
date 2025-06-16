@@ -2,6 +2,7 @@
 title: "Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents"
 description: How Goose uses multiple LLMs within a single task, optimizing for speed, cost, and reliability in AI agent workflows
 authors:
+    - mic
     - angie
 ---
 
@@ -10,7 +11,7 @@ authors:
 
 Not every task needs a genius. And not every step should cost a fortune.
 
-That's something we've learned the hard way while scaling Goose, our open source AI agent. The same model that's great at unpacking a gnarly planning request might totally fumble a basic shell command—or worse, it might burn through your token budget doing it.
+That's something we've learned while scaling Goose, our open source AI agent. The same model that's great at unpacking a planning request might totally fumble a basic shell command, or worse - it might burn through your token budget doing it.
 
 So we asked ourselves: what if we could mix and match models in a single session?
 
@@ -20,7 +21,7 @@ This is the gap the lead/worker model is designed to fill.
 
 <!-- truncate -->
 
-## The Problem With One-Model Sessions
+## The Problem with Single-Model Sessions
 
 Originally, every Goose session used a single model from start to finish. That worked fine for short tasks, but longer sessions were harder to tune:
 
@@ -29,17 +30,16 @@ Originally, every Goose session used a single model from start to finish. That w
 
 There was no built-in way to adapt on the fly.
 
-We saw this tension in real usage: agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that's not scalable, and definitely not agent like.
+We saw this tension in real usage where agents would start strong, then stall out when the model struggled to follow through. Sometimes users would manually switch models mid-session. But that's not scalable, and definitely not agent like.
 
 ## Designing the Lead/Worker System
 
 The core idea is simple:
 
 * Start the session with a lead model that's strong at reasoning and planning.
-* After a few back-and-forths between you and the model (what we call "turns"), hand off to a worker model that's faster and cheaper, but still capable.
+* After a few back and forths between you and the model (what we call "turns"), hand off to a worker model that's faster and cheaper, but still capable.
 * If the worker gets stuck, Goose can detect the failure and temporarily bring the lead back in.
 
-It's turn-based, transparent, and automatic.
 
 You can configure how many turns the lead handles upfront (`GOOSE_LEAD_TURNS`), how many consecutive failures trigger fallback (`GOOSE_LEAD_FAILURE_THRESHOLD`), and how long the fallback lasts before Goose retries the worker.
 
@@ -66,11 +66,11 @@ We've found that this multi-model design unlocks new workflows:
 * **Cross-provider setups** (Claude for planning, OpenAI for execution)
 * **Lower-friction defaults** for teams worried about LLM spend
 
-It also opens the door for even smarter routing in the future—task-type switching, ensemble voting, maybe even letting Goose decide which model to call based on tool context.
+It also opens the door for even smarter routing in the future with things like switching based on tasks, ensemble voting, or maybe even letting Goose decide which model to call based on tool context.
 
 ## Try It Out
 
-[Lead/worker mode](/docs/tutorials/lead-worker) is already available in Goose.  To enable, simply export these variables with two models that have already been configured in Goose:
+Lead/worker mode is already available in Goose.  To enable, export these variables with two models that have already been configured in Goose:
 
 ```bash
 export GOOSE_LEAD_MODEL="gpt-4o"
@@ -83,7 +83,7 @@ If you're curious how it all works under the hood, we've got a [full tutorial](/
 
 ---
 
-We'll keep sharing what we're learning as we build toward more dynamic useful AI agents. If you're experimenting with multi-model setups, [share](https://discord.gg/block-opensource) what's working and what isn't.
+If you're experimenting with multi-model setups, [share what's working and what isn't](https://discord.gg/block-opensource).
 
 
 <head>
