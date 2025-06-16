@@ -1,14 +1,17 @@
+mod morphllm_editor;
 mod openai_compatible_editor;
 mod relace_editor;
 
 use anyhow::Result;
 
+pub use morphllm_editor::MorphLLMEditor;
 pub use openai_compatible_editor::OpenAICompatibleEditor;
 pub use relace_editor::RelaceEditor;
 
 /// Enum for different editor models that can perform intelligent code editing
 #[derive(Debug)]
 pub enum EditorModel {
+    MorphLLM(MorphLLMEditor),
     OpenAICompatible(OpenAICompatibleEditor),
     Relace(RelaceEditor),
 }
@@ -22,6 +25,11 @@ impl EditorModel {
         update_snippet: &str,
     ) -> Result<String, String> {
         match self {
+            EditorModel::MorphLLM(editor) => {
+                editor
+                    .edit_code(original_code, old_str, update_snippet)
+                    .await
+            }
             EditorModel::OpenAICompatible(editor) => {
                 editor
                     .edit_code(original_code, old_str, update_snippet)
@@ -38,6 +46,7 @@ impl EditorModel {
     /// Get the description for the str_replace command when this editor is active
     pub fn get_str_replace_description(&self) -> &'static str {
         match self {
+            EditorModel::MorphLLM(editor) => editor.get_str_replace_description(),
             EditorModel::OpenAICompatible(editor) => editor.get_str_replace_description(),
             EditorModel::Relace(editor) => editor.get_str_replace_description(),
         }
@@ -77,6 +86,10 @@ pub fn create_editor_model() -> Option<EditorModel> {
     // Determine which editor to use based on the host
     if host.contains("relace.run") {
         Some(EditorModel::Relace(RelaceEditor::new(api_key, host, model)))
+    } else if host.contains("api.morphllm") {
+        Some(EditorModel::MorphLLM(MorphLLMEditor::new(
+            api_key, host, model,
+        )))
     } else {
         Some(EditorModel::OpenAICompatible(OpenAICompatibleEditor::new(
             api_key, host, model,

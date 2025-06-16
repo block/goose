@@ -3,15 +3,15 @@ use anyhow::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
 
-/// Relace-specific editor that uses the predicted outputs convention
+/// MorphLLM editor that uses the standard chat completions format
 #[derive(Debug)]
-pub struct RelaceEditor {
+pub struct MorphLLMEditor {
     api_key: String,
     host: String,
     model: String,
 }
 
-impl RelaceEditor {
+impl MorphLLMEditor {
     pub fn new(api_key: String, host: String, model: String) -> Self {
         Self {
             api_key,
@@ -21,14 +21,14 @@ impl RelaceEditor {
     }
 }
 
-impl EditorModelImpl for RelaceEditor {
+impl EditorModelImpl for MorphLLMEditor {
     async fn edit_code(
         &self,
         original_code: &str,
         _old_str: &str,
         update_snippet: &str,
     ) -> Result<String, String> {
-        eprintln!("Calling Relace Editor API");
+        eprintln!("Calling MorphLLM Editor API");
 
         // Construct the full URL
         let provider_url = if self.host.ends_with("/chat/completions") {
@@ -42,19 +42,19 @@ impl EditorModelImpl for RelaceEditor {
         // Create the client
         let client = Client::new();
 
-        // Prepare the request body for Relace API
-        // The Relace endpoint expects the OpenAI predicted outputs convention
-        // where the original code is supplied under `prediction` and the
-        // update snippet is the sole user message.
+        // Format the prompt as specified in the Python example
+        let user_prompt = format!(
+            "<code>{}</code>\n<update>{}</update>",
+            original_code, update_snippet
+        );
+
+        // Prepare the request body for OpenAI-compatible API
         let body = json!({
             "model": self.model,
-            "prediction": {
-                "content": original_code
-            },
             "messages": [
                 {
                     "role": "user",
-                    "content": update_snippet
+                    "content": user_prompt
                 }
             ]
         });
@@ -92,11 +92,28 @@ impl EditorModelImpl for RelaceEditor {
             .and_then(|content| content.as_str())
             .ok_or_else(|| "Invalid response format".to_string())?;
 
-        eprintln!("Relace Editor API worked");
+        eprintln!("MorphLLM Editor API worked");
         Ok(content.to_string())
     }
 
     fn get_str_replace_description(&self) -> &'static str {
-        "edit_file will take the new_str and work out how to place old_str with it intelligently."
+        "Use the edit_file to propose an edit to an existing file.
+        This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write.
+        When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines.
+
+        For example:
+        // ... existing code ...
+        FIRST_EDIT
+        // ... existing code ...
+        SECOND_EDIT
+        // ... existing code ...
+        THIRD_EDIT
+        // ... existing code ...
+
+        You should bias towards repeating as few lines of the original file as possible to convey the change.
+        Each edit should contain sufficient context of unchanged lines around the code you're editing to resolve ambiguity.
+        If you plan on deleting a section, you must provide surrounding context to indicate the deletion.
+        DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.        
+        "
     }
 }
