@@ -1,5 +1,6 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+const { resolve } = require('path');
 
 let cfg = {
   asar: true,
@@ -33,12 +34,6 @@ let cfg = {
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
     teamId: process.env['APPLE_TEAM_ID']
   },
-  protocols: [
-    {
-      name: "GooseProtocol",     // The macOS CFBundleURLName
-      schemes: ["goose"]         // The macOS CFBundleURLSchemes array
-    }
-  ]
 }
 
 if (process.env['APPLE_ID'] === undefined) {
@@ -49,43 +44,57 @@ if (process.env['APPLE_ID'] === undefined) {
 module.exports = {
   packagerConfig: cfg,
   rebuildConfig: {},
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'block',
+          name: 'goose'
+        },
+        prerelease: false,
+        draft: true
+      }
+    }
+  ],
   makers: [
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin', 'win32'],
       config: {
-          arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
-          options: {
-              icon: 'src/images/icon.ico'
+        arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
+        options: {
+          icon: 'src/images/icon.ico'
         }
       }
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
   ],
   plugins: [
     {
       name: '@electron-forge/plugin-vite',
       config: {
-        // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
-        // If you are familiar with Vite configuration, it will look really familiar.
         build: [
           {
-            // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
             entry: 'src/main.ts',
             config: 'vite.main.config.ts',
-            target: 'main',
           },
           {
             entry: 'src/preload.ts',
             config: 'vite.preload.config.ts',
-            target: 'preload',
           },
         ],
         renderer: [

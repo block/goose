@@ -1,12 +1,11 @@
 on:
   push:
-    paths-ignore:
-      - "documentation/**"
     branches:
       - main
   pull_request:
-    paths-ignore:
-      - "documentation/**"
+    branches:
+      - main
+  merge_group:
     branches:
       - main
   workflow_dispatch:
@@ -19,21 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
       - name: Run cargo fmt
-        run: cargo fmt --check
+        run: source ./bin/activate-hermit && cargo fmt --check
 
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
     steps:
-          # Add disk space cleanup before linting
+      # Add disk space cleanup before linting
       - name: Check disk space before build
         run: df -h
 
@@ -51,25 +45,31 @@ jobs:
             /usr/local/share/chromium \
             /usr/local/share/powershell \
             /usr/share/dotnet \
-            /usr/share/swift
-
-          df -h
+            /usr/share/swift \
+            /opt/ghc \
+            /opt/hostedtoolcache \
+            /usr/local/graalvm \
+            /usr/local/sqlpackage
           
+          # Clean package manager caches
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+          
+          # Clean docker if present
+          docker system prune -af 2>/dev/null || true
+          
+          df -h
+
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
       - name: Cache Cargo Registry
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
@@ -77,7 +77,7 @@ jobs:
             ${{ runner.os }}-cargo-registry-
 
       - name: Cache Cargo Index
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/index
           key: ${{ runner.os }}-cargo-index
@@ -85,7 +85,7 @@ jobs:
             ${{ runner.os }}-cargo-index
 
       - name: Cache Cargo Build
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
@@ -95,10 +95,9 @@ jobs:
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
-          cargo test
+          source ../bin/activate-hermit && cargo test
         working-directory: crates
 
-      # Add disk space cleanup before linting
       - name: Check disk space before cleanup
         run: df -h
 
@@ -109,46 +108,43 @@ jobs:
           rm -rf target/debug/deps
           rm -rf target/debug/build
           rm -rf target/debug/incremental
+          # Clean cargo cache more aggressively
+          cargo clean || true
           # Clean npm cache if it exists
-          npm cache clean --force || true
+          npm cache clean --force 2>/dev/null || true
           # Clean apt cache
           sudo apt-get clean
+          sudo apt-get autoremove -y
           # Remove unnecessary large directories
           rm -rf ~/.cargo/registry/index || true
+          rm -rf ~/.cargo/registry/cache || true
           # Remove docker images if any
-          docker system prune -af || true
-          # Remove unused packages
-          sudo apt-get autoremove -y || true
+          docker system prune -af 2>/dev/null || true
 
       - name: Check disk space after cleanup
         run: df -h
 
       - name: Lint
-        run: cargo clippy -- -D warnings
+        run: source ./bin/activate-hermit && cargo clippy -- -D warnings
 
   desktop-lint:
     name: Lint Electron Desktop App
     runs-on: macos-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: "lts/*"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
       - name: Install Dependencies
-        run: npm ci
+        run: source ../../bin/activate-hermit && npm ci
         working-directory: ui/desktop
 
       - name: Run Lint
-        run: npm run lint:check
+        run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
 
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     with:
       signing: false

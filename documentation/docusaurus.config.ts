@@ -1,6 +1,7 @@
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
+import tailwindPlugin from "./plugins/tailwind-config.cjs";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -13,7 +14,7 @@ const inkeepOrgId = process.env.INKEEP_ORG_ID;
 const config: Config = {
   title: "codename goose",
   tagline:
-    "Your on-machine AI agent, automating engineering tasks seamlessly.",
+    "Your local AI agent, automating engineering tasks seamlessly.",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -58,7 +59,11 @@ const config: Config = {
           blogSidebarCount: 'ALL'
         },
         theme: {
-          customCss: "./src/css/custom.css",
+          customCss: [
+            "./src/css/custom.css",
+            "./src/css/extensions.css",
+            "./src/css/tailwind.css",
+          ],
         },
       } satisfies Preset.Options,
     ],
@@ -95,10 +100,19 @@ const config: Config = {
           {
             from: '/docs',
             to: '/docs/category/getting-started'
+          },
+          {
+            from: '/v1/extensions',
+            to: '/extensions'
+          },
+          {
+            from: '/docs/guides/share-goose-sessions',
+            to: '/docs/guides/session-recipes'
           }
-        ]
+        ],
       },
     ],
+    tailwindPlugin,
   ],
   themes: ["@inkeep/docusaurus/chatButton", "@inkeep/docusaurus/searchBar"],
   themeConfig: {
@@ -118,11 +132,6 @@ const config: Config = {
           position: "left",
         },
         {
-          to: "https://block.github.io/goose/v1/extensions/",
-          label: "Extensions",
-          position: "left",
-        },
-        {
           to: "/docs/category/getting-started",
           position: "left",
           label: "Docs",
@@ -133,6 +142,29 @@ const config: Config = {
           label: "Tutorials",
         },
         { to: "/blog", label: "Blog", position: "left" },
+        {
+          type: 'dropdown',
+          label: 'Resources',
+          position: 'left',
+          items: [
+            {
+              to: '/extensions',
+              label: 'Extensions',
+            },
+            {
+              to: '/recipe-generator',
+              label: 'Recipe Generator',
+            },
+            {
+              to: '/prompt-library',
+              label: 'Prompt Library',
+            },
+            {
+              to: 'deeplink-generator',
+              label: 'Deeplink Generator',
+            },
+          ],
+        },
 
         {
           href: "https://discord.gg/block-opensource",
@@ -157,7 +189,7 @@ const config: Config = {
             },
             {
               label: "Extensions",
-              to: "https://block.github.io/goose/v1/extensions/",
+              to: "/extensions",
             },
           ],
         },

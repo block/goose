@@ -1,15 +1,29 @@
 ---
 sidebar_position: 2
+title: Updating Goose
+sidebar_label: Updating Goose
 ---
-
-# Updating Goose
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
 
+The Goose CLI and desktop apps are under active and continuous development. To get the newest features and fixes, you should periodically update your Goose client using the following instructions.
+
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+        :::info
+        To update Goose to the latest stable version, reinstall using the instructions below
+        :::
+        <div style={{ marginTop: '1rem' }}>
+          1. <DesktopInstallButtons/>
+          2. Unzip the downloaded zip file.
+          3. Run the executable file to launch the Goose Desktop application.
+          4. Overwrite the existing Goose application with the new version.
+          5. Run the executable file to launch the Goose desktop application.
+        </div>
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
     You can update Goose by running:
 
     ```sh
@@ -38,17 +52,5 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
     goose --version
     ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-        :::info
-        To update Goose to the latest stable version, reinstall using the instructions below
-        :::
-        <div style={{ marginTop: '1rem' }}>
-          1. <DesktopInstallButtons/>
-          2. Unzip the downloaded zip file.
-          3. Run the executable file to launch the Goose Desktop application.
-          4. Overwrite the existing Goose application with the new version.
-          5. Run the executable file to launch the Goose desktop application.
-        </div>
   </TabItem>
 </Tabs>

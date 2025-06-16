@@ -1,0 +1,136 @@
+---
+title: "MCP in the Enterprise: Real World Adoption at Block"
+description: "How Block is using MCP to power real world automation company-wide."
+authors: 
+    - angie
+---
+
+
+![blog cover](mcp-for-enterprise.png)
+
+At Block, we've been exploring how to make AI agents genuinely useful in a business setting. Not just for demos or prototypes, but for real, everyday work. 
+As one of the early collaborators on the [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol), we partnered with Anthropic to help shape and define the open standard that bridges AI agents with real-world tools and data.
+
+MCP lets AI agents interact with APIs, tools, and data systems through a common interface. It eliminates the guesswork by exposing deterministic tool definitions, so the agent doesn't have to guess how to call an API. 
+Instead, it focuses on what we actually want... results!
+
+While others are still experimenting, we've rolled this out company-wide at Block, and with real impact.
+
+
+<!--truncate-->
+
+
+## Why We Chose MCP at Block
+
+We didn't want to build one-off integrations or hardwire AI into a specific vendor ecosystem. 
+Like most enterprise companies, our needs span engineering, design, security, compliance, customer support, sales, and more. 
+We wanted flexibility.
+
+MCP gives us that. 
+It's model-agnostic and tool-agnostic, allowing our AI agent to interact with internal APIs, open source tools, and even off-the-shelf SaaS products, all through the same protocol.
+
+It also aligns well with our [security philosophy](/blog/2025/03/31/securing-mcp). 
+MCP allows us to define which models can invoke which tools, and lets us annotate tools as "read-only" or "destructive" to require user confirmation when necessary.
+
+
+## How We Configure and Secure MCP
+
+We developed [**Goose**](/), an open source, MCP-compatible AI agent. Thousands of Block employees use the tool daily.
+Available as both a CLI and desktop app, Goose comes with default access to a curated set of approved MCP servers.
+Most employees report saving 50–75% of their time on common tasks, and several have shared that work which once took days can now be completed in just a few hours.
+
+To ensure a secure and reliable experience, all MCP servers used internally are authored by our own engineers. 
+This allows us to tailor each integration to our systems and use cases from development tools to compliance workflows.
+
+Some of our most widely used MCPs include:
+
+- **Snowflake** for querying internal data  
+- **GitHub and Jira** for software development workflows  
+- **Slack and Google Drive** for information gathering and task coordination  
+- **Internal APIs** for specialized use cases like compliance checks and support triage
+
+In addition to tool access, Goose relies on large language models (LLMs) to interpret prompts and plan actions. 
+We use Databricks as our LLM hosting platform, enabling Goose to interact with both Claude and OpenAI models through secure, enterprise-managed endpoints. 
+We've established corporate agreements with model providers that include data usage protections, and we restrict Goose from being used with certain categories of sensitive data, in line with internal policies.
+
+For service-level authorization, we use OAuth to securely distribute tokens. 
+Goose is pre-configured to authenticate with commonly used services, and tokens are stored securely using native system keychains. 
+Currently, OAuth flows are implemented directly within locally run MCP servers, a practical but temporary solution. 
+We’re actively exploring more scalable, decoupled patterns for the future.
+
+Additionally, some servers enforce LLM allowlists or restrict tool output from being shared across systems to further minimize data exposure risks.
+
+
+
+## Real Stories with Real Impact
+
+Goose has become an everyday tool for teams across Block. 
+With MCP servers acting as flexible connectors, employees are using automation in increasingly creative and practical ways to remove bottlenecks and focus on higher-value work.
+
+Our engineers are using MCP-powered tools to migrate legacy codebases, refactor and simplify complex logic, generate unit tests, streamline dependency upgrades, and speed up triage workflows. 
+Goose helps developers work across unfamiliar systems, reduce repetitive coding tasks, and deliver improvements faster than traditional approaches.
+
+Data and operations teams are using Goose to query internal systems, summarize large datasets, automate reporting, and surface relevant context from multiple sources. 
+In many cases, this reduces the reliance on manual data pulls or lengthy back-and-forths with specialists, making insights more accessible to everyone.
+
+Meanwhile, teams in design, product, support, and risk are utilizing Goose in ways that remove overhead from their daily work. 
+Whether it's generating documentation, triaging tickets, or creating prototypes, MCP-based workflows are proving adaptable beyond engineering.
+
+This shift is helping eliminate the mechanical work that slows us down. 
+As more teams experiment, they discover new ways to collaborate with Goose and reshape how things get done.
+
+
+
+## What We've Learned So Far
+
+Rolling out MCP tooling company-wide required more than just technical setup. We invested in:
+
+- Pre-installed agent access and default server bundles  
+- Weekly education sessions from our internal Developer Relations team  
+- Internal communication channels to seek help as well as share and celebrate wins  
+
+Some of our takeaways:
+
+- The easier we made it to start - by pre-installing Goose, bundling MCPs, and auto-configuring models - the faster adoption took off
+- People get more creative once they see what's possible, especially when they can remix or build on what others have already done
+- Centralized onboarding and prompt sharing saves time and helps scale best practices  
+
+
+## What's Next
+
+We're continuing to expand use cases outside of traditional engineering teams. MCP is helping unblock marketing, sales, and support workflows, and we're just getting started.
+
+We're also investing in:
+
+- More secure defaults and tooling restrictions based on context  
+- Human-in-the-loop features for higher risk operations  
+- Encouraging open source MCP contributions from across the company  
+
+
+
+## Want to Learn More?
+
+If you're curious about Goose or MCP, check out the [Goose documentation](/docs/quickstart) or [MCP spec](https://spec.modelcontextprotocol.io/). 
+We'd love to hear how others are approaching AI automation at scale.
+
+
+
+<div style={{display: 'none'}}>
+
+![](mcp-for-enterprise-social.png)
+
+</div>
+
+
+<head>
+  <meta property="og:title" content="MCP in the Enterprise: Real World Adoption at Block" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://block.github.io/goose//blog/2025/04/21/mcp-in-enterprise" />
+  <meta property="og:description" content="How Block is using MCP to power real world automation company-wide." />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/mcp-for-enterprise-social-bb8a18872fedc0046ef72bb413dea851.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta name="twitter:title" content="MCP in the Enterprise: Real World Adoption at Block" />
+  <meta name="twitter:description" content="How Block is using MCP to power real world automation company-wide." />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-for-enterprise-social-bb8a18872fedc0046ef72bb413dea851.png" />
+</head>

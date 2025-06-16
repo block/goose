@@ -1,13 +1,14 @@
-use crate::eval_suites::{BenchAgent, EvaluationMetric};
+use crate::bench_session::BenchAgent;
+use crate::eval_suites::EvalMetricValue;
 use goose::message::{Message, MessageContent};
 use std::collections::HashMap;
 use std::time::Instant;
 
 /// Collect baseline metrics including execution time, tool usage, and token count
 pub async fn collect_baseline_metrics(
-    agent: &mut Box<dyn BenchAgent>,
+    agent: &mut BenchAgent,
     prompt: String,
-) -> (Vec<Message>, HashMap<String, EvaluationMetric>) {
+) -> (Vec<Message>, HashMap<String, EvalMetricValue>) {
     // Initialize metrics map
     let mut metrics = HashMap::new();
 
@@ -20,7 +21,7 @@ pub async fn collect_baseline_metrics(
         Err(e) => {
             metrics.insert(
                 "prompt_error".to_string(),
-                EvaluationMetric::String(format!("Error: {}", e)),
+                EvalMetricValue::String(format!("Error: {}", e)),
             );
             Vec::new()
         }
@@ -30,21 +31,21 @@ pub async fn collect_baseline_metrics(
     let execution_time = start_time.elapsed();
     metrics.insert(
         "prompt_execution_time_seconds".to_string(),
-        EvaluationMetric::Float(execution_time.as_secs_f64()),
+        EvalMetricValue::Float(execution_time.as_secs_f64()),
     );
 
     // Count tool calls
     let (total_tool_calls, tool_calls_by_name) = count_tool_calls(&messages);
     metrics.insert(
         "total_tool_calls".to_string(),
-        EvaluationMetric::Integer(total_tool_calls),
+        EvalMetricValue::Integer(total_tool_calls),
     );
 
     // Add tool calls by name metrics
     for (tool_name, count) in tool_calls_by_name {
         metrics.insert(
             format!("tool_calls_{}", tool_name),
-            EvaluationMetric::Integer(count),
+            EvalMetricValue::Integer(count),
         );
     }
 
@@ -52,7 +53,7 @@ pub async fn collect_baseline_metrics(
     if let Some(token_count) = agent.get_token_usage().await {
         metrics.insert(
             "total_tokens".to_string(),
-            EvaluationMetric::Integer(token_count as i64),
+            EvalMetricValue::Integer(token_count as i64),
         );
     }
 
@@ -82,8 +83,8 @@ fn count_tool_calls(messages: &[Message]) -> (i64, HashMap<String, i64>) {
 
 /// Convert HashMap of metrics to Vec
 pub fn metrics_hashmap_to_vec(
-    metrics: HashMap<String, EvaluationMetric>,
-) -> Vec<(String, EvaluationMetric)> {
+    metrics: HashMap<String, EvalMetricValue>,
+) -> Vec<(String, EvalMetricValue)> {
     metrics.into_iter().collect()
 }
 

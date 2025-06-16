@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ViewConfig } from '../../App';
+import { View, ViewOptions } from '../../App';
 import { fetchSessionDetails, type SessionDetails } from '../../sessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
+import { toastError } from '../../toasts';
 
 interface SessionsViewProps {
-  setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
 }
 
 const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
@@ -28,6 +29,13 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       setError('Failed to load session details. Please try again later.');
       // Keep the selected session null if there's an error
       setSelectedSession(null);
+
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toastError({
+        title: 'Failed to load session. The file may be corrupted.',
+        msg: 'Please try again later.',
+        traceback: errorMessage,
+      });
     } finally {
       setIsLoadingSession(false);
     }
@@ -40,6 +48,8 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleResumeSession = () => {
     if (selectedSession) {
+      console.log('Selected session object:', JSON.stringify(selectedSession, null, 2));
+
       // Get the working directory from the session metadata
       const workingDir = selectedSession.metadata.working_dir;
 
@@ -70,7 +80,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   };
 
   // If a session is selected, show the session history view
-  // Otherwise, show the sessions list view
+  // Otherwise, show the sessions list view with a button to test shared sessions
   return selectedSession ? (
     <SessionHistoryView
       session={selectedSession}
@@ -81,7 +91,9 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       onRetry={handleRetryLoadSession}
     />
   ) : (
-    <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+    <>
+      <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+    </>
   );
 };
 

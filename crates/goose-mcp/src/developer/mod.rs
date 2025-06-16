@@ -13,21 +13,28 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
 };
-use tokio::process::Command;
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    process::Command,
+    sync::mpsc,
+};
 use url::Url;
 
 use include_dir::{include_dir, Dir};
-use mcp_core::prompt::{Prompt, PromptArgument, PromptTemplate};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
     resource::Resource,
     tool::Tool,
+    Content,
+};
+use mcp_core::{
+    prompt::{Prompt, PromptArgument, PromptTemplate},
+    tool::ToolAnnotations,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::content::Content;
 use mcp_core::role::Role;
 
 use self::shell::{
@@ -161,6 +168,7 @@ impl DeveloperRouter {
                     "command": {"type": "string"}
                 }
             }),
+            None,
         );
 
         let text_editor_tool = Tool::new(
@@ -199,6 +207,7 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
+            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -212,6 +221,13 @@ impl DeveloperRouter {
                 "type": "object",
                 "required": [],
                 "properties": {}
+            }),
+            Some(ToolAnnotations {
+                title: Some("List available windows".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -241,6 +257,13 @@ impl DeveloperRouter {
                     }
                 }
             }),
+            Some(ToolAnnotations {
+                title: Some("Capture a full screen".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let image_processor_tool = Tool::new(
@@ -262,6 +285,13 @@ impl DeveloperRouter {
                         "description": "Absolute path to the image file to process"
                     }
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Process Image".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
             }),
         );
 
@@ -378,10 +408,20 @@ impl DeveloperRouter {
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
+        } else {
+            // If no .gooseignore exists, check for .gitignore as fallback
+            let gitignore_path = cwd.join(".gitignore");
+            if gitignore_path.is_file() {
+                tracing::debug!(
+                    "No .gooseignore found, using .gitignore as fallback for ignore patterns"
+                );
+                let _ = builder.add(gitignore_path);
+                has_ignore_file = true;
+            }
         }
 
         // Only use default patterns if no .gooseignore files were found
-        // If the file is empty, we will not ignore any file
+        // AND no .gitignore was used as fallback
         if !has_ignore_file {
             // Add some sensible defaults
             let _ = builder.add_line(None, "**/.env");
@@ -430,7 +470,11 @@ impl DeveloperRouter {
     }
 
     // Shell command execution with platform-specific handling
-    async fn bash(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn bash(
+        &self,
+        params: Value,
+        notifier: mpsc::Sender<JsonRpcMessage>,
+    ) -> Result<Vec<Content>, ToolError> {
         let command =
             params
                 .get("command")
@@ -462,26 +506,102 @@ impl DeveloperRouter {
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
-        let cmd_with_redirect = format_command_for_platform(command);
+        let cmd_str = format_command_for_platform(command);
 
         // Execute the command using platform-specific shell
-        let child = Command::new(&shell_config.executable)
+        let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
             .arg(&shell_config.arg)
-            .arg(cmd_with_redirect)
+            .arg(cmd_str)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        let mut stdout_reader = BufReader::new(stdout);
+        let mut stderr_reader = BufReader::new(stderr);
+
+        let output_task = tokio::spawn(async move {
+            let mut combined_output = String::new();
+
+            let mut stdout_buf = Vec::new();
+            let mut stderr_buf = Vec::new();
+
+            let mut stdout_done = false;
+            let mut stderr_done = false;
+
+            loop {
+                tokio::select! {
+                    n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
+                        if n? == 0 {
+                            stdout_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stdout_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stdout",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stdout_buf.clear();
+                        }
+                    }
+
+                    n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
+                        if n? == 0 {
+                            stderr_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stderr_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stderr",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stderr_buf.clear();
+                        }
+                    }
+
+                    else => break,
+                }
+
+                if stdout_done && stderr_done {
+                    break;
+                }
+            }
+            Ok::<_, std::io::Error>(combined_output)
+        });
+
         // Wait for the command to complete and get output
-        let output = child
-            .wait_with_output()
+        child
+            .wait()
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
+        let output_str = match output_task.await {
+            Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
+            Err(e) => return Err(ToolError::ExecutionError(e.to_string())),
+        };
 
         // Check the character count of the output
         const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
@@ -811,7 +931,7 @@ impl DeveloperRouter {
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
             // Check if this matches Mac screenshot pattern:
             // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM)(?: \(\d+\))?\.png$")
+            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
                 .ok()
                 .and_then(|re| re.captures(filename))
             {
@@ -1021,12 +1141,13 @@ impl Router for DeveloperRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
         Box::pin(async move {
             match tool_name.as_str() {
-                "shell" => this.bash(arguments).await,
+                "shell" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
@@ -1168,6 +1289,10 @@ mod tests {
             .await
     }
 
+    fn dummy_sender() -> mpsc::Sender<JsonRpcMessage> {
+        mpsc::channel(1).0
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_shell_missing_parameters() {
@@ -1175,7 +1300,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let router = get_router().await;
-        let result = router.call_tool("shell", json!({})).await;
+        let result = router.call_tool("shell", json!({}), dummy_sender()).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -1236,6 +1361,7 @@ mod tests {
                         "command": "view",
                         "path": large_file_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1261,6 +1387,7 @@ mod tests {
                         "command": "view",
                         "path": many_chars_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1292,6 +1419,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1304,6 +1432,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1342,6 +1471,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1356,6 +1486,7 @@ mod tests {
                     "old_str": "world",
                     "new_str": "Rust"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1380,6 +1511,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1417,6 +1549,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "First line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1431,6 +1564,7 @@ mod tests {
                     "old_str": "First line",
                     "new_str": "Second line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1443,6 +1577,7 @@ mod tests {
                     "command": "undo_edit",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1458,6 +1593,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1556,6 +1692,7 @@ mod tests {
                     "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1574,6 +1711,7 @@ mod tests {
                     "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1615,6 +1753,7 @@ mod tests {
                 json!({
                     "command": format!("cat {}", secret_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1631,6 +1770,202 @@ mod tests {
                 json!({
                     "command": format!("cat {}", allowed_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should be able to cat non-ignored file");
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gitignore_fallback_when_no_gooseignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\n*.tmp\n.env").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test that gitignore patterns are respected
+        assert!(
+            router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env pattern from .gitignore should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "test.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gooseignore_takes_precedence_over_gitignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create both .gooseignore and .gitignore files with different patterns
+        std::fs::write(temp_dir.path().join(".gooseignore"), "*.secret").unwrap();
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\ntarget/").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // .gooseignore patterns should be used
+        assert!(
+            router.is_ignored(Path::new("test.secret")),
+            "*.secret pattern from .gooseignore should be ignored"
+        );
+
+        // .gitignore patterns should NOT be used when .gooseignore exists
+        assert!(
+            !router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+        assert!(
+            !router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_default_patterns_when_no_ignore_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Don't create any ignore files
+        let router = DeveloperRouter::new();
+
+        // Default patterns should be used
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env.local")),
+            ".env.local should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new("secrets.txt")),
+            "secrets.txt should be ignored by default patterns"
+        );
+        assert!(
+            !router.is_ignored(Path::new("normal.txt")),
+            "normal.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Try to write to a file ignored by .gitignore
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("test.log").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to write to file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to write to a non-ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Create a file that would be ignored by .gitignore
+        let log_file_path = temp_dir.path().join("test.log");
+        std::fs::write(&log_file_path, "log content").unwrap();
+
+        // Try to cat the ignored file
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", log_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to cat file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to cat a non-ignored file
+        let allowed_file_path = temp_dir.path().join("allowed.txt");
+        std::fs::write(&allowed_file_path, "allowed content").unwrap();
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
             )
             .await;
 

@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
+use mcp_core::tool::Tool;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::warn;
 use utoipa::ToSchema;
 
 use crate::config;
 use crate::config::extensions::name_to_key;
+use crate::config::permission::PermissionLevel;
 
 /// Errors from Extension operation
 #[derive(Error, Debug)]
@@ -15,10 +18,16 @@ pub enum ExtensionError {
     Initialization(ExtensionConfig, ClientError),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
-    #[error("User Message exceeded context-limit. History could not be truncated to accomodate.")]
+    #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
     ContextLimit,
     #[error("Transport error: {0}")]
     Transport(#[from] mcp_client::transport::Error),
+    #[error("Environment variable `{0}` is not allowed to be overridden.")]
+    InvalidEnvVar(String),
+    #[error("Error during extension setup: {0}")]
+    SetupError(String),
+    #[error("Join error occurred during task execution: {0}")]
+    TaskJoinError(#[from] tokio::task::JoinError),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -32,15 +41,80 @@ pub struct Envs {
 }
 
 impl Envs {
+    /// List of sensitive env vars that should not be overridden
+    const DISALLOWED_KEYS: [&'static str; 31] = [
+        // 🔧 Binary path manipulation
+        "PATH",       // Controls executable lookup paths — critical for command hijacking
+        "PATHEXT",    // Windows: Determines recognized executable extensions (e.g., .exe, .bat)
+        "SystemRoot", // Windows: Can affect system DLL resolution (e.g., `kernel32.dll`)
+        "windir",     // Windows: Alternative to SystemRoot (used in legacy apps)
+        // 🧬 Dynamic linker hijacking (Linux/macOS)
+        "LD_LIBRARY_PATH",  // Alters shared library resolution
+        "LD_PRELOAD",       // Forces preloading of shared libraries — common attack vector
+        "LD_AUDIT",         // Loads a monitoring library that can intercept execution
+        "LD_DEBUG",         // Enables verbose linker logging (information disclosure risk)
+        "LD_BIND_NOW",      // Forces immediate symbol resolution, affecting ASLR
+        "LD_ASSUME_KERNEL", // Tricks linker into thinking it’s running on an older kernel
+        // 🍎 macOS dynamic linker variables
+        "DYLD_LIBRARY_PATH",     // Same as LD_LIBRARY_PATH but for macOS
+        "DYLD_INSERT_LIBRARIES", // macOS equivalent of LD_PRELOAD
+        "DYLD_FRAMEWORK_PATH",   // Overrides framework lookup paths
+        // 🐍 Python / Node / Ruby / Java / Golang hijacking
+        "PYTHONPATH",   // Overrides Python module resolution
+        "PYTHONHOME",   // Overrides Python root directory
+        "NODE_OPTIONS", // Injects options/scripts into every Node.js process
+        "RUBYOPT",      // Injects Ruby execution flags
+        "GEM_PATH",     // Alters where RubyGems looks for installed packages
+        "GEM_HOME",     // Changes RubyGems default install location
+        "CLASSPATH",    // Java: Controls where classes are loaded from — critical for RCE attacks
+        "GO111MODULE",  // Go: Forces use of module proxy or disables it
+        "GOROOT", // Go: Changes root installation directory (could lead to execution hijacking)
+        // 🖥️ Windows-specific process & DLL hijacking
+        "APPINIT_DLLS", // Forces Windows to load a DLL into every process
+        "SESSIONNAME",  // Affects Windows session configuration
+        "ComSpec",      // Determines default command interpreter (can replace `cmd.exe`)
+        "TEMP",
+        "TMP",          // Redirects temporary file storage (useful for injection attacks)
+        "LOCALAPPDATA", // Controls application data paths (can be abused for persistence)
+        "USERPROFILE",  // Windows user directory (can affect profile-based execution paths)
+        "HOMEDRIVE",
+        "HOMEPATH", // Changes where the user's home directory is located
+    ];
+
+    /// Constructs a new Envs, skipping disallowed env vars with a warning
     pub fn new(map: HashMap<String, String>) -> Self {
-        Self { map }
+        let mut validated = HashMap::new();
+
+        for (key, value) in map {
+            if Self::is_disallowed(&key) {
+                warn!("Skipping disallowed env var: {}", key);
+                continue;
+            }
+            validated.insert(key, value);
+        }
+
+        Self { map: validated }
     }
 
+    /// Returns a copy of the validated env vars
     pub fn get_env(&self) -> HashMap<String, String> {
-        self.map
+        self.map.clone()
+    }
+
+    /// Returns an error if any disallowed env var is present
+    pub fn validate(&self) -> Result<(), Box<ExtensionError>> {
+        for key in self.map.keys() {
+            if Self::is_disallowed(key) {
+                return Err(Box::new(ExtensionError::InvalidEnvVar(key.clone())));
+            }
+        }
+        Ok(())
+    }
+
+    fn is_disallowed(key: &str) -> bool {
+        Self::DISALLOWED_KEYS
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect()
+            .any(|disallowed| disallowed.eq_ignore_ascii_case(key))
     }
 }
 
@@ -56,10 +130,15 @@ pub enum ExtensionConfig {
         uri: String,
         #[serde(default)]
         envs: Envs,
+        #[serde(default)]
+        env_keys: Vec<String>,
         description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -70,8 +149,13 @@ pub enum ExtensionConfig {
         args: Vec<String>,
         #[serde(default)]
         envs: Envs,
+        #[serde(default)]
+        env_keys: Vec<String>,
         timeout: Option<u64>,
         description: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -80,6 +164,22 @@ pub enum ExtensionConfig {
         name: String,
         display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
+    },
+    /// Frontend-provided tools that will be called through the frontend
+    #[serde(rename = "frontend")]
+    Frontend {
+        /// The name used to identify this extension
+        name: String,
+        /// The tools provided by the frontend
+        tools: Vec<Tool>,
+        /// Instructions for how to use these tools
+        instructions: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
 }
 
@@ -89,6 +189,7 @@ impl Default for ExtensionConfig {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: Some(true),
         }
     }
 }
@@ -99,8 +200,10 @@ impl ExtensionConfig {
             name: name.into(),
             uri: uri.into(),
             envs: Envs::default(),
+            env_keys: Vec::new(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -115,8 +218,10 @@ impl ExtensionConfig {
             cmd: cmd.into(),
             args: vec![],
             envs: Envs::default(),
+            env_keys: Vec::new(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -130,16 +235,20 @@ impl ExtensionConfig {
                 name,
                 cmd,
                 envs,
+                env_keys,
                 timeout,
                 description,
+                bundled,
                 ..
             } => Self::Stdio {
                 name,
                 cmd,
                 envs,
+                env_keys,
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                bundled,
             },
             other => other,
         }
@@ -156,6 +265,7 @@ impl ExtensionConfig {
             Self::Sse { name, .. } => name,
             Self::Stdio { name, .. } => name,
             Self::Builtin { name, .. } => name,
+            Self::Frontend { name, .. } => name,
         }
         .to_string()
     }
@@ -171,6 +281,9 @@ impl std::fmt::Display for ExtensionConfig {
                 write!(f, "Stdio({}: {} {})", name, cmd, args.join(" "))
             }
             ExtensionConfig::Builtin { name, .. } => write!(f, "Builtin({})", name),
+            ExtensionConfig::Frontend { name, tools, .. } => {
+                write!(f, "Frontend({}: {} tools)", name, tools.len())
+            }
         }
     }
 }
@@ -178,9 +291,9 @@ impl std::fmt::Display for ExtensionConfig {
 /// Information about the extension used for building prompts
 #[derive(Clone, Debug, Serialize)]
 pub struct ExtensionInfo {
-    name: String,
-    instructions: String,
-    has_resources: bool,
+    pub name: String,
+    pub instructions: String,
+    pub has_resources: bool,
 }
 
 impl ExtensionInfo {
@@ -194,19 +307,26 @@ impl ExtensionInfo {
 }
 
 /// Information about the tool used for building prompts
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct ToolInfo {
-    name: String,
-    description: String,
-    parameters: Vec<String>,
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<PermissionLevel>,
 }
 
 impl ToolInfo {
-    pub fn new(name: &str, description: &str, parameters: Vec<String>) -> Self {
+    pub fn new(
+        name: &str,
+        description: &str,
+        parameters: Vec<String>,
+        permission: Option<PermissionLevel>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             parameters,
+            permission,
         }
     }
 }

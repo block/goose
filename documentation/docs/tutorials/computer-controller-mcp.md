@@ -22,7 +22,12 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
 1. Ensure extension is enabled:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Under `Extensions`, toggle `Computer Controller` to on.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -34,7 +39,7 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◆  What type of extension would you like to add?
   // highlight-start    
@@ -50,7 +55,7 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -70,7 +75,7 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Add Extension (Connect to a new extension) 
   │
   ◇  What type of extension would you like to add?
   │  Built-in Extension 
@@ -85,11 +90,6 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   └  Enabled Computer Controller extension
   ```  
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, toggle `Computer Controller` to on.
-  </TabItem>
 </Tabs>
 
 ## Example Usage
@@ -101,7 +101,10 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open a new session in Goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open a terminal and start a new Goose session:
 
@@ -109,9 +112,6 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
   goose session
   ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open a new session in Goose Desktop
   </TabItem>
 </Tabs>
 

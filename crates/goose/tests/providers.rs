@@ -4,7 +4,7 @@ use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter,
+    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake,
 };
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
@@ -77,14 +77,14 @@ lazy_static::lazy_static! {
 
 /// Generic test harness for any Provider implementation
 struct ProviderTester {
-    provider: Box<dyn Provider + Send + Sync>,
+    provider: Arc<dyn Provider>,
     name: String,
 }
 
 impl ProviderTester {
     fn new<T: Provider + Send + Sync + 'static>(provider: T, name: String) -> Self {
         Self {
-            provider: Box::new(provider),
+            provider: Arc::new(provider),
             name,
         }
     }
@@ -127,6 +127,7 @@ impl ProviderTester {
                     }
                 }
             }),
+            None,
         );
 
         let message = Message::user().with_text("What's the weather like in San Francisco?");
@@ -232,8 +233,8 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        // Ollama and OpenRouter truncate by default even when the context window is exceeded
-        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+        // Ollama truncates by default even when the context window is exceeded
+        if self.name.to_lowercase() == "ollama" {
             assert!(
                 result.is_ok(),
                 "Expected to succeed because of default truncation"
@@ -474,6 +475,28 @@ async fn test_google_provider() -> Result<()> {
         &["GOOGLE_API_KEY"],
         None,
         google::GoogleProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_snowflake_provider() -> Result<()> {
+    test_provider(
+        "Snowflake",
+        &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
+        None,
+        snowflake::SnowflakeProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_sagemaker_tgi_provider() -> Result<()> {
+    test_provider(
+        "SageMakerTgi",
+        &["SAGEMAKER_ENDPOINT_NAME"],
+        None,
+        goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
     )
     .await
 }

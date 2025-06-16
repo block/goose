@@ -29,7 +29,7 @@ that you should be able to observe by using it.
    - Surfacing the plan to document what has been accomplished
    
 > [!TIP] 
-> In addition, there are some implementation choices that we've found very performance driving. The share 
+> In addition, there are some implementation choices that we've found very performance driving. They share 
 > a theme of working well by default without constraining the model.
 > 
 > - Encouraging the model to use `ripgrep` via the shell performs very well for navigating filesystems. It mostly 

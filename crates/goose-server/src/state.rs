@@ -1,25 +1,42 @@
-use anyhow::Result;
 use goose::agents::Agent;
-use serde_json::Value;
-use std::collections::HashMap;
+use goose::scheduler_trait::SchedulerTrait;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
-/// Shared application state
-#[allow(dead_code)]
+pub type AgentRef = Arc<Agent>;
+
 #[derive(Clone)]
 pub struct AppState {
-    pub agent: Arc<RwLock<Option<Box<dyn Agent>>>>,
+    agent: Option<AgentRef>,
     pub secret_key: String,
-    pub config: Arc<Mutex<HashMap<String, Value>>>,
+    pub scheduler: Arc<Mutex<Option<Arc<dyn SchedulerTrait>>>>,
 }
 
 impl AppState {
-    pub async fn new(secret_key: String) -> Result<Self> {
-        Ok(Self {
-            agent: Arc::new(RwLock::new(None)),
+    pub async fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
+        Arc::new(Self {
+            agent: Some(agent.clone()),
             secret_key,
-            config: Arc::new(Mutex::new(HashMap::new())),
+            scheduler: Arc::new(Mutex::new(None)),
         })
+    }
+
+    pub async fn get_agent(&self) -> Result<Arc<Agent>, anyhow::Error> {
+        self.agent
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Agent needs to be created first."))
+    }
+
+    pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
+        let mut guard = self.scheduler.lock().await;
+        *guard = Some(sched);
+    }
+
+    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>, anyhow::Error> {
+        self.scheduler
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
     }
 }

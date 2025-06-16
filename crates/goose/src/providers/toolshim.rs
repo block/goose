@@ -38,6 +38,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolCall};
+use mcp_core::Content;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -96,8 +97,13 @@ impl OllamaInterpreter {
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
+        // Don't add default port if:
+        // 1. URL explicitly ends with standard ports (:80 or :443)
+        // 2. URL uses HTTPS (which implicitly uses port 443)
         let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
-        if base_url.port().is_none() && !explicit_default_port {
+        let is_https = base_url.scheme() == "https";
+
+        if base_url.port().is_none() && !explicit_default_port && !is_https {
             base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
                 ProviderError::RequestFailed("Failed to set default port".to_string())
             })?;
@@ -159,7 +165,10 @@ impl OllamaInterpreter {
         payload["stream"] = json!(false); // needed for the /api/chat endpoint to work
         payload["format"] = format_schema;
 
-        // tracing::warn!("payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        tracing::info!(
+            "Tool interpreter payload: {}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
 
         let response = self.client.post(&url).json(&payload).send().await?;
 
@@ -188,7 +197,10 @@ impl OllamaInterpreter {
 
     fn process_interpreter_response(response: &Value) -> Result<Vec<ToolCall>, ProviderError> {
         let mut tool_calls = Vec::new();
-
+        tracing::info!(
+            "Tool interpreter response is {}",
+            serde_json::to_string_pretty(&response).unwrap_or_default()
+        );
         // Extract tool_calls array from the response
         if response.get("message").is_some() && response["message"].get("content").is_some() {
             let content = response["message"]["content"].as_str().unwrap_or_default();
@@ -233,9 +245,7 @@ impl ToolInterpreter for OllamaInterpreter {
         }
 
         // Create the system prompt
-        let system_prompt = "Rewrite JSON-formatted tool requests into valid JSON tool calls in the following format.
-
-Always respond with the following tool_calls array format:
+        let system_prompt = "If there is detectable JSON-formatted tool requests, write them into valid JSON tool calls in the following format:
 {{
   \"tool_calls\": [
     {{
@@ -248,17 +258,19 @@ Always respond with the following tool_calls array format:
   ]
 }}
 
-You should return an empty tool_calls array if no tools are explicitly referenced:
+Otherwise, if no JSON tool requests are provided, use the no-op tool:
 {{
-  \"tool_calls\": []
+  \"tool_calls\": [
+    {{
+    \"name\": \"noop\",
+      \"arguments\": {{
+      }}
+    }}]
 }}
 ";
 
         // Create enhanced content with instruction to output tool calls as JSON
-        let format_instruction = format!(
-            "{}\n\nWrite valid json if there is detectable json or an attempt at json",
-            last_assistant_msg
-        );
+        let format_instruction = format!("{}\nRequest: {}\n\n", system_prompt, last_assistant_msg);
 
         // Define the JSON schema for tool call format
         let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
@@ -269,12 +281,7 @@ You should return an empty tool_calls array if no tools are explicitly reference
 
         // Make a call to ollama with structured output
         let interpreter_response = self
-            .post_structured(
-                system_prompt,
-                &format_instruction,
-                format_schema,
-                &interpreter_model,
-            )
+            .post_structured("", &format_instruction, format_schema, &interpreter_model)
             .await?;
 
         // Process the interpreter response to get tool calls directly
@@ -298,9 +305,76 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
     tool_info
 }
 
+/// Convert messages containing ToolRequest/ToolResponse to text messages for toolshim mode
+/// This is necessary because some providers (like Bedrock) validate that tool_use/tool_result
+/// blocks can only exist when tools are defined, but in toolshim mode we pass empty tools
+pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
+    messages
+        .iter()
+        .map(|message| {
+            let mut new_content = Vec::new();
+            let mut has_tool_content = false;
+
+            for content in &message.content {
+                match content {
+                    MessageContent::ToolRequest(req) => {
+                        has_tool_content = true;
+                        // Convert tool request to text format
+                        let text = if let Ok(tool_call) = &req.tool_call {
+                            format!(
+                                "Using tool: {}\n{{\n  \"name\": \"{}\",\n  \"arguments\": {}\n}}",
+                                tool_call.name,
+                                tool_call.name,
+                                serde_json::to_string_pretty(&tool_call.arguments)
+                                    .unwrap_or_default()
+                            )
+                        } else {
+                            "Tool request failed".to_string()
+                        };
+                        new_content.push(MessageContent::text(text));
+                    }
+                    MessageContent::ToolResponse(res) => {
+                        has_tool_content = true;
+                        // Convert tool response to text format
+                        let text = match &res.tool_result {
+                            Ok(contents) => {
+                                let text_contents: Vec<String> = contents
+                                    .iter()
+                                    .filter_map(|c| match c {
+                                        Content::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                format!("Tool result:\n{}", text_contents.join("\n"))
+                            }
+                            Err(e) => format!("Tool error: {}", e),
+                        };
+                        new_content.push(MessageContent::text(text));
+                    }
+                    _ => {
+                        // Keep other content types as-is
+                        new_content.push(content.clone());
+                    }
+                }
+            }
+
+            if has_tool_content {
+                Message {
+                    role: message.role.clone(),
+                    content: new_content,
+                    created: message.created,
+                }
+            } else {
+                message.clone()
+            }
+        })
+        .collect()
+}
+
 /// Modifies the system prompt to include tool usage instructions when tool interpretation is enabled
 pub fn modify_system_prompt_for_tool_json(system_prompt: &str, tools: &[Tool]) -> String {
     let tool_info = format_tool_info(tools);
+
     format!(
         "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
         system_prompt,
@@ -354,8 +428,11 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     // Add each tool call to the message
     let mut final_message = message;
     for tool_call in tool_calls {
-        let id = Uuid::new_v4().to_string();
-        final_message = final_message.with_tool_request(id, Ok(tool_call));
+        if tool_call.name != "noop" {
+            // do not actually execute noop tool
+            let id = Uuid::new_v4().to_string();
+            final_message = final_message.with_tool_request(id, Ok(tool_call));
+        }
     }
 
     Ok(final_message)

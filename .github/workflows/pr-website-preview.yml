@@ -9,7 +9,9 @@ on:
       - closed
     paths:
       - 'documentation/**'
-      - 'extensions-site/**'
+  push:
+    branches-ignore:
+      - 'dependabot/**'
 
 concurrency: preview-${{ github.ref }}
 
@@ -18,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
         if: github.event.action != 'closed'
+        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
         with:
           node-version: 20 
 
@@ -38,24 +40,8 @@ jobs:
           npm install
           npm run build
 
-      - name: Install dependencies and build extensions-site
-        working-directory: ./extensions-site
-        env:
-          VITE_BASENAME: "/goose/pr-preview/pr-${{ github.event.number }}/v1/extensions/" # Set the base URL here for the extensions site
-        run: |
-          npm install
-          npm run build
-
-      - name: Combine builds into one directory
-        if: github.event.action != 'closed'
-        run: |
-          mkdir combined-build
-          cp -r documentation/build/* combined-build/
-          mkdir -p combined-build/v1/extensions
-          cp -r extensions-site/build/client/* combined-build/v1/extensions/
-
       - name: Deploy preview
-        uses: rossjrw/pr-preview-action@v1
+        uses: rossjrw/pr-preview-action@df22037db54ab6ee34d3c1e2b8810ac040a530c6 # pin@v1
         if: ${{ github.event.pull_request.head.repo.full_name == 'block/goose' }}
         with:
-          source-dir: combined-build
+          source-dir: documentation/build

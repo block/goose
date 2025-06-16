@@ -129,6 +129,7 @@ impl GooseCompleter {
             "/prompts",
             "/prompt",
             "/mode",
+            "/recipe",
         ];
 
         // Find commands that match the prefix
@@ -351,8 +352,13 @@ impl Helper for GooseCompleter {}
 impl Hinter for GooseCompleter {
     type Hint = String;
 
-    fn hint(&self, _line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<Self::Hint> {
-        None
+    fn hint(&self, line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<Self::Hint> {
+        // Only show hint when line is empty
+        if line.is_empty() {
+            Some("Press Enter to send, Ctrl-J for new line".to_string())
+        } else {
+            None
+        }
     }
 }
 
@@ -366,7 +372,9 @@ impl Highlighter for GooseCompleter {
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        Cow::Borrowed(hint)
+        // Style the hint text with a dim color
+        let styled = console::Style::new().dim().apply_to(hint).to_string();
+        Cow::Owned(styled)
     }
 
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {

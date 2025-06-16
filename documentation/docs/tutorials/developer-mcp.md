@@ -23,7 +23,12 @@ The Developer extension is already enabled by default when Goose is installed.
 1. Ensure extension is enabled:
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. Click `...` in the upper right corner
+  2. Click `Advanced Settings`
+  3. Under `Extensions`, toggle `Developer` to on.
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:
   ```sh
@@ -44,11 +49,6 @@ The Developer extension is already enabled by default when Goose is installed.
   └  Extension settings updated successfully
   ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, toggle `Developer` to on.
-  </TabItem>
 </Tabs>
 
 ## Example Usage
@@ -61,7 +61,10 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Open a new session in Goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
 
   1. Open a terminal and start a new Goose session:
 
@@ -69,9 +72,6 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
   goose session
   ```
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-   1. Open a new session in Goose Desktop
   </TabItem>
 </Tabs>
 

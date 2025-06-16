@@ -74,6 +74,8 @@ RUN apt-get update && apt-get install -y \
     # Python
     python3 \
     python3-pip \
+    # Java
+    openjdk-17-jdk \
     # Additional tools
     tree \
     tmux \
@@ -81,6 +83,9 @@ RUN apt-get update && apt-get install -y \
 
 # Install uv using curl
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install JBang using curl
+RUN curl -Ls https://sh.jbang.dev | bash -s - app setup
 
 # Copy the built binaries
 COPY --from=builder /usr/src/goose/target/release/goose /usr/local/bin/
@@ -109,3 +114,6 @@ RUN git config --global init.defaultBranch main && \
 # Add some helpful aliases
 RUN echo 'alias ll="ls -la"' >> ~/.bashrc && \
     echo 'alias fd=fdfind' >> ~/.bashrc
+
+# Add JBang to PATH
+RUN echo 'export PATH="$HOME/.jbang/bin:$PATH"' >> ~/.bashrc

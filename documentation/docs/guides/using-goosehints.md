@@ -1,13 +1,12 @@
 ---
-title: Using Goosehints
-sidebar_position: 3
+title: Providing Hints to Goose
+sidebar_position: 4
+sidebar_label: Using Goosehints
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-
-# Providing Hints to Goose
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
 
@@ -29,13 +28,7 @@ You can use both global and local hints at the same time. When both exist, Goose
 :::
 
 <Tabs>
-    <TabItem value="manual" label="Manual" default>
-    
-    - **Global hints file** - Create a `.goosehints` file in `~/.config/goose`.
-    - **Local hints file** -  Create a `.goosehints` file at the root of the directory you'd like it applied to.
-
-    </TabItem>
-    <TabItem value="ui" label="Goose Desktop">
+    <TabItem value="ui" label="Goose Desktop" default>
 
     #### Global hints file
     1. Create a `.goosehints` file in `~/.config/goose`.
@@ -51,6 +44,12 @@ You can use both global and local hints at the same time. When both exist, Goose
     :::tip
     You may have to adjust the screen size to fully see the Save and Cancel buttons.
     :::
+
+    </TabItem>
+    <TabItem value="manual" label="Manual">
+    
+    - **Global hints file** - Create a `.goosehints` file in `~/.config/goose`.
+    - **Local hints file** -  Create a `.goosehints` file at the root of the directory you'd like it applied to.
 
     </TabItem>
 </Tabs>

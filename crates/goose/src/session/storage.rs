@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 fn get_home_dir() -> PathBuf {
     choose_app_strategy(crate::config::APP_STRATEGY.clone())
@@ -17,16 +18,29 @@ fn get_home_dir() -> PathBuf {
 }
 
 /// Metadata for a session, stored as the first line in the session file
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMetadata {
     /// Working directory for the session
+    #[schema(value_type = String, example = "/home/user/sessions/session1")]
     pub working_dir: PathBuf,
     /// A short description of the session, typically 3 words or less
     pub description: String,
+    /// ID of the schedule that triggered this session, if any
+    pub schedule_id: Option<String>,
     /// Number of messages in the session
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
     pub total_tokens: Option<i32>,
+    /// The number of input tokens used in the session. Retrieved from the provider's last usage.
+    pub input_tokens: Option<i32>,
+    /// The number of output tokens used in the session. Retrieved from the provider's last usage.
+    pub output_tokens: Option<i32>,
+    /// The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).
+    pub accumulated_total_tokens: Option<i32>,
+    /// The number of input tokens used in the session. Accumulated across all messages.
+    pub accumulated_input_tokens: Option<i32>,
+    /// The number of output tokens used in the session. Accumulated across all messages.
+    pub accumulated_output_tokens: Option<i32>,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -39,28 +53,59 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         struct Helper {
             description: String,
             message_count: usize,
+            schedule_id: Option<String>, // For backward compatibility
             total_tokens: Option<i32>,
+            input_tokens: Option<i32>,
+            output_tokens: Option<i32>,
+            accumulated_total_tokens: Option<i32>,
+            accumulated_input_tokens: Option<i32>,
+            accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
 
+        // Get working dir, falling back to home if not specified or if specified dir doesn't exist
+        let working_dir = helper
+            .working_dir
+            .filter(|path| path.exists())
+            .unwrap_or_else(get_home_dir);
+
         Ok(SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
+            schedule_id: helper.schedule_id,
             total_tokens: helper.total_tokens,
-            working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
+            input_tokens: helper.input_tokens,
+            output_tokens: helper.output_tokens,
+            accumulated_total_tokens: helper.accumulated_total_tokens,
+            accumulated_input_tokens: helper.accumulated_input_tokens,
+            accumulated_output_tokens: helper.accumulated_output_tokens,
+            working_dir,
         })
     }
 }
 
 impl SessionMetadata {
     pub fn new(working_dir: PathBuf) -> Self {
+        // If working_dir doesn't exist, fall back to home directory
+        let working_dir = if !working_dir.exists() {
+            get_home_dir()
+        } else {
+            working_dir
+        };
+
         Self {
             working_dir,
             description: String::new(),
+            schedule_id: None,
             message_count: 0,
             total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            accumulated_total_tokens: None,
+            accumulated_input_tokens: None,
+            accumulated_output_tokens: None,
         }
     }
 }
@@ -166,7 +211,20 @@ pub fn generate_session_id() -> String {
 ///
 /// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
 /// The first line of the file is expected to be metadata, and the rest are messages.
+/// Large messages are automatically truncated to prevent memory issues.
 pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
+    read_messages_with_truncation(session_file, Some(50000)) // 50KB limit per message content
+}
+
+/// Read messages from a session file with optional content truncation
+///
+/// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
+/// The first line of the file is expected to be metadata, and the rest are messages.
+/// If max_content_size is Some, large message content will be truncated during loading.
+pub fn read_messages_with_truncation(
+    session_file: &Path,
+    max_content_size: Option<usize>,
+) -> Result<Vec<Message>> {
     let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -186,16 +244,161 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
             // Metadata successfully parsed, continue with the rest of the lines as messages
         } else {
             // This is not metadata, it's a message
-            messages.push(serde_json::from_str::<Message>(&line)?);
+            let message = parse_message_with_truncation(&line, max_content_size)?;
+            messages.push(message);
         }
     }
 
     // Read the rest of the lines as messages
     for line in lines {
-        messages.push(serde_json::from_str::<Message>(&line?)?);
+        let line = line?;
+        let message = parse_message_with_truncation(&line, max_content_size)?;
+        messages.push(message);
     }
 
     Ok(messages)
+}
+
+/// Parse a message from JSON string with optional content truncation
+fn parse_message_with_truncation(
+    json_str: &str,
+    max_content_size: Option<usize>,
+) -> Result<Message> {
+    // First try to parse normally
+    match serde_json::from_str::<Message>(json_str) {
+        Ok(mut message) => {
+            // If we have a size limit, check and truncate if needed
+            if let Some(max_size) = max_content_size {
+                truncate_message_content_in_place(&mut message, max_size);
+            }
+            Ok(message)
+        }
+        Err(e) => {
+            // If parsing fails and the string is very long, it might be due to size
+            if json_str.len() > 100000 {
+                tracing::warn!(
+                    "Failed to parse very large message ({}KB), attempting truncation",
+                    json_str.len() / 1024
+                );
+
+                // Try to truncate the JSON string itself before parsing
+                let truncated_json = if let Some(max_size) = max_content_size {
+                    truncate_json_string(json_str, max_size)
+                } else {
+                    json_str.to_string()
+                };
+
+                match serde_json::from_str::<Message>(&truncated_json) {
+                    Ok(message) => {
+                        tracing::info!("Successfully parsed message after JSON truncation");
+                        Ok(message)
+                    }
+                    Err(_) => {
+                        tracing::error!("Failed to parse message even after truncation, skipping");
+                        // Return a placeholder message indicating the issue
+                        Ok(Message::user()
+                            .with_text("[Message too large to load - content truncated]"))
+                    }
+                }
+            } else {
+                Err(e.into())
+            }
+        }
+    }
+}
+
+/// Truncate content within a message in place
+fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
+    use crate::message::MessageContent;
+    use mcp_core::{Content, ResourceContents};
+
+    for content in &mut message.content {
+        match content {
+            MessageContent::Text(text_content) => {
+                if text_content.text.len() > max_content_size {
+                    let truncated = format!(
+                        "{}\n\n[... content truncated during session loading from {} to {} characters ...]",
+                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                        text_content.text.len(),
+                        max_content_size
+                    );
+                    text_content.text = truncated;
+                }
+            }
+            MessageContent::ToolResponse(tool_response) => {
+                if let Ok(ref mut result) = tool_response.tool_result {
+                    for content_item in result {
+                        match content_item {
+                            Content::Text(ref mut text_content) => {
+                                if text_content.text.len() > max_content_size {
+                                    let truncated = format!(
+                                        "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
+                                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                                        text_content.text.len(),
+                                        max_content_size
+                                    );
+                                    text_content.text = truncated;
+                                }
+                            }
+                            Content::Resource(ref mut resource_content) => {
+                                if let ResourceContents::TextResourceContents { text, .. } =
+                                    &mut resource_content.resource
+                                {
+                                    if text.len() > max_content_size {
+                                        let truncated = format!(
+                                            "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
+                                            &text[..max_content_size.min(text.len())],
+                                            text.len(),
+                                            max_content_size
+                                        );
+                                        *text = truncated;
+                                    }
+                                }
+                            }
+                            _ => {} // Other content types are typically smaller
+                        }
+                    }
+                }
+            }
+            _ => {} // Other content types are typically smaller
+        }
+    }
+}
+
+/// Attempt to truncate a JSON string by finding and truncating large text values
+fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
+    // This is a heuristic approach - look for large text values in the JSON
+    // and truncate them. This is not perfect but should handle the common case
+    // of large tool responses.
+
+    if json_str.len() <= max_content_size * 2 {
+        return json_str.to_string();
+    }
+
+    // Try to find patterns that look like large text content
+    // Look for "text":"..." patterns and truncate the content
+    let mut result = json_str.to_string();
+
+    // Simple regex-like approach to find and truncate large text values
+    if let Some(start) = result.find("\"text\":\"") {
+        let text_start = start + 8; // Length of "text":"
+        if let Some(end) = result[text_start..].find("\",") {
+            let text_end = text_start + end;
+            let text_content = &result[text_start..text_end];
+
+            if text_content.len() > max_content_size {
+                let truncated_text = format!(
+                    "{}\n\n[... content truncated during JSON parsing from {} to {} characters ...]",
+                    &text_content[..max_content_size.min(text_content.len())],
+                    text_content.len(),
+                    max_content_size
+                );
+                result.replace_range(text_start..text_end, &truncated_text);
+            }
+        }
+    }
+
+    result
 }
 
 /// Read session metadata from a session file
@@ -233,57 +436,27 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 pub async fn persist_messages(
     session_file: &Path,
     messages: &[Message],
-    provider: Option<Arc<Box<dyn Provider>>>,
+    provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
-    // Read existing metadata
-    let mut metadata = read_metadata(session_file)?;
-
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
-        .filter(|m| !m.as_concat_text().trim().is_empty())
+        .filter(|m| m.role == mcp_core::role::Role::User && !m.as_concat_text().trim().is_empty())
         .count();
 
     // Check if we need to update the description (after 1st or 3rd user message)
-    if let Some(provider) = provider {
-        if user_message_count < 4 {
-            // Generate description
-            let mut description_prompt = "Based on the conversation so far, provide a concise header for this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the header. Avoid filler words such as help, summary, exchange, request etc that do not help distinguish different conversations.".to_string();
-
-            // get context from messages so far
-            let context: Vec<String> = messages.iter().map(|m| m.as_concat_text()).collect();
-
-            if !context.is_empty() {
-                description_prompt = format!(
-                    "Here are the first few user messages:\n{}\n\n{}",
-                    context.join("\n"),
-                    description_prompt
-                );
-            }
-
-            // Generate the description
-            let message = Message::user().with_text(&description_prompt);
-            match provider
-                .complete(
-                    "Reply with only a description in four words or less.",
-                    &[message],
-                    &[],
-                )
-                .await
-            {
-                Ok((response, _)) => {
-                    metadata.description = response.as_concat_text();
-                }
-                Err(e) => {
-                    tracing::error!("Failed to generate session description: {:?}", e);
-                }
-            }
+    match provider {
+        Some(provider) if user_message_count < 4 => {
+            //generate_description is responsible for writing the messages
+            generate_description(session_file, messages, provider).await
+        }
+        _ => {
+            // Read existing metadata
+            let metadata = read_metadata(session_file)?;
+            // Write the file with metadata and messages
+            save_messages_with_metadata(session_file, &metadata, messages)
         }
     }
-
-    // Write the file with metadata and messages
-    save_messages_with_metadata(session_file, &metadata, messages)
 }
 
 /// Write messages to a session file with the provided metadata
@@ -318,12 +491,12 @@ pub fn save_messages_with_metadata(
 pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
-    provider: &dyn Provider,
+    provider: Arc<dyn Provider>,
 ) -> Result<()> {
     // Create a special message asking for a 3-word description
     let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
 
-    // get context from messages so far
+    // get context from messages so far, limiting each message to 300 chars
     let context: Vec<String> = messages
         .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
@@ -358,9 +531,7 @@ pub async fn generate_description(
     metadata.description = description;
 
     // Update the file with the new metadata and existing messages
-    update_metadata(session_file, &metadata).await?;
-
-    Ok(())
+    save_messages_with_metadata(session_file, &metadata, messages)
 }
 
 /// Update only the metadata in a session file, preserving all messages
@@ -442,5 +613,215 @@ mod tests {
         assert_eq!(parts[0].len(), 8);
         // Time part should be 6 digits
         assert_eq!(parts[1].len(), 6);
+    }
+
+    #[tokio::test]
+    async fn test_special_characters_and_long_text() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("special.jsonl");
+
+        // Insert some problematic JSON-like content between moderately long text
+        // (keeping under truncation limit to test serialization/deserialization)
+        let long_text = format!(
+            "Start_of_message\n{}{}SOME_MIDDLE_TEXT{}End_of_message",
+            "A".repeat(10_000), // Reduced from 100_000 to stay under 50KB limit
+            "\"}]\n",
+            "A".repeat(10_000) // Reduced from 100_000 to stay under 50KB limit
+        );
+
+        let special_chars = vec![
+            // Long text
+            long_text.as_str(),
+            // Newlines in different positions
+            "Line 1\nLine 2",
+            "Line 1\r\nLine 2",
+            "\nStart with newline",
+            "End with newline\n",
+            "\n\nMultiple\n\nNewlines\n\n",
+            // JSON special characters
+            "Quote\"in middle",
+            "\"Quote at start",
+            "Quote at end\"",
+            "Multiple\"\"Quotes",
+            "{\"json\": \"looking text\"}",
+            // Unicode and special characters
+            "Unicode: 🦆🤖👾",
+            "Special: \\n \\r \\t",
+            "Mixed: \n\"🦆\"\r\n\\n",
+            // Control characters
+            "Tab\there",
+            "Bell\u{0007}char",
+            "Null\u{0000}char",
+            // Long text with mixed content
+            "A very long message with multiple lines\nand \"quotes\"\nand emojis 🦆\nand \\escaped chars",
+            // Potentially problematic JSON content
+            "}{[]\",\\",
+            "]}}\"\\n\\\"{[",
+            "Edge case: } ] some text",
+            "{\"foo\": \"} ]\"}",
+            "}]",   
+        ];
+
+        let mut messages = Vec::new();
+        for text in special_chars {
+            messages.push(Message::user().with_text(text));
+            messages.push(Message::assistant().with_text(text));
+        }
+
+        // Write messages with special characters
+        persist_messages(&file_path, &messages, None).await?;
+
+        // Read them back
+        let read_messages = read_messages(&file_path)?;
+
+        // Compare all messages
+        assert_eq!(messages.len(), read_messages.len());
+        for (i, (orig, read)) in messages.iter().zip(read_messages.iter()).enumerate() {
+            assert_eq!(orig.role, read.role, "Role mismatch at message {}", i);
+            assert_eq!(
+                orig.content.len(),
+                read.content.len(),
+                "Content length mismatch at message {}",
+                i
+            );
+
+            if let (Some(MessageContent::Text(orig_text)), Some(MessageContent::Text(read_text))) =
+                (orig.content.first(), read.content.first())
+            {
+                assert_eq!(
+                    orig_text.text, read_text.text,
+                    "Text mismatch at message {}\nExpected: {}\nGot: {}",
+                    i, orig_text.text, read_text.text
+                );
+            } else {
+                panic!("Messages don't match expected structure at index {}", i);
+            }
+        }
+
+        // Verify file format
+        let contents = fs::read_to_string(&file_path)?;
+        let lines: Vec<&str> = contents.lines().collect();
+
+        // First line should be metadata
+        assert!(
+            lines[0].contains("\"description\""),
+            "First line should be metadata"
+        );
+
+        // Each subsequent line should be valid JSON
+        for (i, line) in lines.iter().enumerate().skip(1) {
+            assert!(
+                serde_json::from_str::<Message>(line).is_ok(),
+                "Invalid JSON at line {}: {}",
+                i + 1,
+                line
+            );
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_large_content_truncation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("large_content.jsonl");
+
+        // Create a message with content larger than the 50KB truncation limit
+        let very_large_text = "A".repeat(100_000); // 100KB of text
+        let messages = vec![
+            Message::user().with_text(&very_large_text),
+            Message::assistant().with_text("Small response"),
+        ];
+
+        // Write messages
+        persist_messages(&file_path, &messages, None).await?;
+
+        // Read them back - should be truncated
+        let read_messages = read_messages(&file_path)?;
+
+        assert_eq!(messages.len(), read_messages.len());
+
+        // First message should be truncated
+        if let Some(MessageContent::Text(read_text)) = read_messages[0].content.first() {
+            assert!(
+                read_text.text.len() < very_large_text.len(),
+                "Content should be truncated"
+            );
+            assert!(
+                read_text
+                    .text
+                    .contains("content truncated during session loading"),
+                "Should contain truncation notice"
+            );
+            assert!(
+                read_text.text.starts_with("AAAA"),
+                "Should start with original content"
+            );
+        } else {
+            panic!("Expected text content in first message");
+        }
+
+        // Second message should be unchanged
+        if let Some(MessageContent::Text(read_text)) = read_messages[1].content.first() {
+            assert_eq!(read_text.text, "Small response");
+        } else {
+            panic!("Expected text content in second message");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_special_chars() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("metadata.jsonl");
+
+        let mut metadata = SessionMetadata::default();
+        metadata.description = "Description with\nnewline and \"quotes\" and 🦆".to_string();
+
+        let messages = vec![Message::user().with_text("test")];
+
+        // Write with special metadata
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
+
+        // Read back metadata
+        let read_metadata = read_metadata(&file_path)?;
+        assert_eq!(metadata.description, read_metadata.description);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_working_dir() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create metadata with non-existent directory
+        let invalid_dir = PathBuf::from("/path/that/does/not/exist");
+        let metadata = SessionMetadata::new(invalid_dir.clone());
+
+        // Should fall back to home directory
+        assert_ne!(metadata.working_dir, invalid_dir);
+        assert_eq!(metadata.working_dir, get_home_dir());
+
+        // Test deserialization of invalid directory
+        let messages = vec![Message::user().with_text("test")];
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
+
+        // Modify the file to include invalid directory
+        let contents = fs::read_to_string(&file_path)?;
+        let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+        lines[0] = lines[0].replace(
+            &get_home_dir().to_string_lossy().into_owned(),
+            &invalid_dir.to_string_lossy().into_owned(),
+        );
+        fs::write(&file_path, lines.join("\n"))?;
+
+        // Read back - should fall back to home dir
+        let read_metadata = read_metadata(&file_path)?;
+        assert_ne!(read_metadata.working_dir, invalid_dir);
+        assert_eq!(read_metadata.working_dir, get_home_dir());
+
+        Ok(())
     }
 }

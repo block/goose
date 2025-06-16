@@ -21,6 +21,11 @@ on:
         required: false
         default: true
         type: boolean
+      ref:
+        description: 'Git ref to checkout (branch, tag, or SHA). Defaults to main branch if not specified.'
+        required: false
+        type: string
+        default: ''
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'
@@ -45,6 +50,30 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
     steps:
+      # Debug information about the workflow and inputs
+      - name: Debug workflow info
+        env:
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SIGNING: ${{ inputs.signing }}
+          INPUT_QUICK_TEST: ${{ inputs.quick_test }}
+        run: |
+          echo "=== Workflow Information ==="
+          echo "Workflow: ${WORKFLOW_NAME}"
+          echo "Ref: ${WORKFLOW_REF}"
+          echo "Event: ${EVENT_NAME}"
+          echo "Repo: ${REPOSITORY}"
+          echo ""
+          echo "=== Input Parameters ==="
+          echo "Build ref: ${INPUT_REF:-<default branch>}"
+          echo "Version: ${INPUT_VERSION:-not set}"
+          echo "Signing: ${INPUT_SIGNING:-false}"
+          echo "Quick test: ${INPUT_QUICK_TEST:-true}"
+
       # Check initial disk space
       - name: Check initial disk space
         run: df -h
@@ -52,47 +81,69 @@ jobs:
       # Validate Signing Secrets if signing is enabled
       - name: Validate Signing Secrets
         if: ${{ inputs.signing }}
+        env:
+          HAS_CERT: ${{ secrets.CERTIFICATE_OSX_APPLICATION != '' }}
+          HAS_CERT_PASS: ${{ secrets.CERTIFICATE_PASSWORD != '' }}
+          HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          HAS_APPLE_PASS: ${{ secrets.APPLE_ID_PASSWORD != '' }}
+          HAS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
         run: |
-          if [[ -z "${{ secrets.CERTIFICATE_OSX_APPLICATION }}" ]]; then
-            echo "Error: CERTIFICATE_OSX_APPLICATION secret is required for signing."
+          missing=()
+          [[ "${HAS_CERT}" != "true" ]] && missing+=("CERTIFICATE_OSX_APPLICATION")
+          [[ "${HAS_CERT_PASS}" != "true" ]] && missing+=("CERTIFICATE_PASSWORD")
+          [[ "${HAS_APPLE_ID}" != "true" ]] && missing+=("APPLE_ID")
+          [[ "${HAS_APPLE_PASS}" != "true" ]] && missing+=("APPLE_ID_PASSWORD")
+          [[ "${HAS_TEAM_ID}" != "true" ]] && missing+=("APPLE_TEAM_ID")
+          
+          if (( ${#missing[@]} > 0 )); then
+            echo "Error: Missing required signing secrets:"
+            printf '%s\n' "${missing[@]}"
             exit 1
           fi
-          if [[ -z "${{ secrets.CERTIFICATE_PASSWORD }}" ]]; then
-            echo "Error: CERTIFICATE_PASSWORD secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_ID }}" ]]; then
-            echo "Error: APPLE_ID secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_ID_PASSWORD }}" ]]; then
-            echo "Error: APPLE_ID_PASSWORD secret is required for signing."
-            exit 1
-          fi
-          if [[ -z "${{ secrets.APPLE_TEAM_ID }}" ]]; then
-            echo "Error: APPLE_TEAM_ID secret is required for signing."
-            exit 1
-          fi
+          
           echo "All required signing secrets are present."
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
+          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
+          fetch-depth: 0
+
+      - name: Debug git status
+        run: |
+          echo "=== Git Status ==="
+          git status
+          echo ""
+          echo "=== Current Commit ==="
+          git rev-parse HEAD
+          git rev-parse --abbrev-ref HEAD
+          echo ""
+          echo "=== Recent Commits ==="
+          git log --oneline -n 5
+          echo ""
+          echo "=== Remote Branches ==="
+          git branch -r
 
       # Update versions before build
       - name: Update versions
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           # Update version in Cargo.toml
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
+          source ./bin/activate-hermit
           # Update version in package.json 
           cd ui/desktop
-          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       # Pre-build cleanup to ensure enough disk space
       - name: Pre-build cleanup
         run: |
+          source ./bin/activate-hermit
           echo "Performing pre-build cleanup..."
           # Clean npm cache
           npm cache clean --force || true
@@ -105,13 +156,8 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
       - name: Cache Cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
@@ -119,7 +165,7 @@ jobs:
             ${{ runner.os }}-cargo-registry-
 
       - name: Cache Cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/index
           key: ${{ runner.os }}-cargo-index
@@ -127,16 +173,38 @@ jobs:
             ${{ runner.os }}-cargo-index
 
       - name: Cache Cargo build
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      # Install Go for building temporal-service
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
+
       # Build the project
       - name: Build goosed
-        run: cargo build --release -p goose-server
+        run: source ./bin/activate-hermit && cargo build --release -p goose-server
+
+      # Build temporal-service
+      - name: Build temporal-service
+        run: |
+          echo "Building temporal-service..."
+          cd temporal-service
+          go build -o temporal-service main.go
+          chmod +x temporal-service
+          echo "temporal-service built successfully"
+
+      # Install and prepare temporal CLI
+      - name: Install temporal CLI via hermit
+        run: |
+          echo "Installing temporal CLI via hermit..."
+          ./bin/hermit install temporal-cli
+          echo "temporal CLI installed successfully"
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -151,8 +219,11 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Copy binary into Electron folder
-        run: cp target/release/goosed ui/desktop/src/bin/goosed
+      - name: Copy binaries into Electron folder
+        run: |
+          cp target/release/goosed ui/desktop/src/bin/goosed
+          cp temporal-service/temporal-service ui/desktop/src/bin/temporal-service
+          cp bin/temporal ui/desktop/src/bin/temporal
 
       - name: Add MacOS certs for signing and notarization
         if: ${{ inputs.signing }}
@@ -162,13 +233,8 @@ jobs:
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: 'lts/*'
-
       - name: Install dependencies
-        run: npm ci
+        run: source ../../bin/activate-hermit && npm ci
         working-directory: ui/desktop
 
       # Check disk space before bundling
@@ -178,6 +244,7 @@ jobs:
       - name: Make Unsigned App
         if: ${{ !inputs.signing }}
         run: |
+          source ../../bin/activate-hermit
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
@@ -194,7 +261,12 @@ jobs:
 
       - name: Make Signed App
         if: ${{ inputs.signing }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
@@ -208,10 +280,6 @@ jobs:
             exit 1
           fi
         working-directory: ui/desktop
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Final cleanup before artifact upload
         run: |
@@ -222,7 +290,7 @@ jobs:
           df -h
 
       - name: Upload Desktop artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: Goose-darwin-arm64
           path: ui/desktop/out/Goose-darwin-arm64/Goose.zip

@@ -70,6 +70,7 @@ module.exports = [
         HTMLTextAreaElement: 'readonly',
         HTMLButtonElement: 'readonly',
         HTMLDivElement: 'readonly',
+        File: 'readonly',
         FileList: 'readonly',
         FileReader: 'readonly',
         DOMParser: 'readonly',
@@ -86,6 +87,10 @@ module.exports = [
         React: 'readonly',
         handleAction: 'readonly',
         requestAnimationFrame: 'readonly',
+        ResizeObserver: 'readonly',
+        MutationObserver: 'readonly',
+        NodeFilter: 'readonly',
+        Text: 'readonly',
       },
     },
     plugins: {

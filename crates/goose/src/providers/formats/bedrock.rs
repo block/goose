@@ -42,7 +42,28 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
+        MessageContent::ContextLengthExceeded(_) => {
+            bail!("ContextLengthExceeded should not get passed to the provider")
+        }
+        MessageContent::SummarizationRequested(_) => {
+            bail!("SummarizationRequested should not get passed to the provider")
+        }
         MessageContent::ToolRequest(tool_req) => {
+            let tool_use_id = tool_req.id.to_string();
+            let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .name(call.name.to_string())
+                    .input(to_bedrock_json(&call.arguments))
+                    .build()
+            } else {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .build()
+            }?;
+            bedrock::ContentBlock::ToolUse(tool_use)
+        }
+        MessageContent::FrontendToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
                 bedrock::ToolUseBlock::builder()
@@ -62,6 +83,11 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 Ok(content) => Some(
                     content
                         .iter()
+                        // Filter out content items that have User in their audience
+                        .filter(|c| {
+                            c.audience()
+                                .is_none_or(|audience| !audience.contains(&Role::User))
+                        })
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c))
                         .collect::<Result<_>>()?,
                 ),
@@ -89,9 +115,17 @@ pub fn to_bedrock_tool_result_content_block(
     Ok(match content {
         Content::Text(text) => bedrock::ToolResultContentBlock::Text(text.text.to_string()),
         Content::Image(_) => bail!("Image content is not supported by Bedrock provider yet"),
-        Content::Resource(resource) => bedrock::ToolResultContentBlock::Document(
-            to_bedrock_document(tool_use_id, &resource.resource)?,
-        ),
+        Content::Resource(resource) => match &resource.resource {
+            ResourceContents::TextResourceContents { text, .. } => {
+                match to_bedrock_document(tool_use_id, &resource.resource)? {
+                    Some(doc) => bedrock::ToolResultContentBlock::Document(doc),
+                    None => bedrock::ToolResultContentBlock::Text(text.to_string()),
+                }
+            }
+            ResourceContents::BlobResourceContents { .. } => {
+                bail!("Blob resource content is not supported by Bedrock provider yet")
+            }
+        },
     })
 }
 
@@ -149,7 +183,7 @@ pub fn to_bedrock_json(value: &Value) -> Document {
 fn to_bedrock_document(
     tool_use_id: &str,
     content: &ResourceContents,
-) -> Result<bedrock::DocumentBlock> {
+) -> Result<Option<bedrock::DocumentBlock>> {
     let (uri, text) = match content {
         ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
         ResourceContents::BlobResourceContents { .. } => {
@@ -162,13 +196,13 @@ fn to_bedrock_document(
         .and_then(|n| n.to_str())
         .unwrap_or(uri);
 
+    // Return None if the file type is not supported
     let (name, format) = match filename.split_once('.') {
         Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
         Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
         Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
         Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
-        Some((name, _)) => (name, bedrock::DocumentFormat::Txt),
-        _ => (filename, bedrock::DocumentFormat::Txt),
+        _ => return Ok(None), // Not a supported document type
     };
 
     // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
@@ -176,12 +210,14 @@ fn to_bedrock_document(
     // document names unique.
     let name = format!("{tool_use_id}-{name}");
 
-    bedrock::DocumentBlock::builder()
-        .format(format)
-        .name(name)
-        .source(bedrock::DocumentSource::Bytes(text.as_bytes().into()))
-        .build()
-        .map_err(|err| anyhow!("Failed to construct Bedrock document: {}", err))
+    Ok(Some(
+        bedrock::DocumentBlock::builder()
+            .format(format)
+            .name(name)
+            .source(bedrock::DocumentSource::Bytes(text.as_bytes().into()))
+            .build()
+            .map_err(|err| anyhow!("Failed to construct Bedrock document: {}", err))?,
+    ))
 }
 
 pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {

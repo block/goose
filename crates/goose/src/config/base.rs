@@ -1,10 +1,13 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
+use std::fs::OpenOptions;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -32,6 +35,8 @@ pub enum ConfigError {
     DirectoryError(String),
     #[error("Failed to access keyring: {0}")]
     KeyringError(String),
+    #[error("Failed to lock config file: {0}")]
+    LockError(String),
 }
 
 impl From<serde_json::Error> for ConfigError {
@@ -68,7 +73,9 @@ impl From<keyring::Error> for ConfigError {
 ///
 /// Secrets are loaded with the following precedence:
 /// 1. Environment variables (exact key match)
-/// 2. System keyring
+/// 2. System keyring (which can be disabled with GOOSE_DISABLE_KEYRING)
+/// 3. If the keyring is disabled, secrets are stored in a secrets file
+///    (~/.config/goose/secrets.yaml by default)
 ///
 /// # Examples
 ///
@@ -98,7 +105,12 @@ impl From<keyring::Error> for ConfigError {
 /// For Goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
 pub struct Config {
     config_path: PathBuf,
-    keyring_service: String,
+    secrets: SecretStorage,
+}
+
+enum SecretStorage {
+    Keyring { service: String },
+    File { path: PathBuf },
 }
 
 // Global instance
@@ -116,9 +128,18 @@ impl Default for Config {
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
         let config_path = config_dir.join("config.yaml");
+
+        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
+            Ok(_) => SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
+            },
+            Err(_) => SecretStorage::Keyring {
+                service: KEYRING_SERVICE.to_string(),
+            },
+        };
         Config {
             config_path,
-            keyring_service: KEYRING_SERVICE.to_string(),
+            secrets,
         }
     }
 }
@@ -139,7 +160,25 @@ impl Config {
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            keyring_service: service.to_string(),
+            secrets: SecretStorage::Keyring {
+                service: service.to_string(),
+            },
+        })
+    }
+
+    /// Create a new configuration instance with custom paths
+    ///
+    /// This is primarily useful for testing or for applications that need
+    /// to manage multiple configuration files.
+    pub fn new_with_file_secrets<P1: AsRef<Path>, P2: AsRef<Path>>(
+        config_path: P1,
+        secrets_path: P2,
+    ) -> Result<Self, ConfigError> {
+        Ok(Config {
+            config_path: config_path.as_ref().to_path_buf(),
+            secrets: SecretStorage::File {
+                path: secrets_path.as_ref().to_path_buf(),
+            },
         })
     }
 
@@ -176,7 +215,7 @@ impl Config {
     }
 
     // Save current values to the config file
-    fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
+    pub fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
         // Convert to YAML for storage
         let yaml_value = serde_yaml::to_string(&values)?;
 
@@ -186,21 +225,53 @@ impl Config {
                 .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
         }
 
-        std::fs::write(&self.config_path, yaml_value)?;
+        // Open the file with write permissions, create if it doesn't exist
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&self.config_path)?;
+
+        // Acquire an exclusive lock
+        file.lock_exclusive()
+            .map_err(|e| ConfigError::LockError(e.to_string()))?;
+
+        // Write the contents using the same file handle
+        file.write_all(yaml_value.as_bytes())?;
+        file.sync_all()?;
+
+        // Unlock is handled automatically when file is dropped
         Ok(())
     }
 
     // Load current secrets from the keyring
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
 
-        match entry.get_password() {
-            Ok(content) => {
-                let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                Ok(values)
+                match entry.get_password() {
+                    Ok(content) => {
+                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                        Ok(values)
+                    }
+                    Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
+                    Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+                }
             }
-            Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+            SecretStorage::File { path } => {
+                if path.exists() {
+                    let file_content = std::fs::read_to_string(path)?;
+                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+                    let json_value: Value = serde_json::to_value(yaml_value)?;
+                    match json_value {
+                        Value::Object(map) => Ok(map.into_iter().collect()),
+                        _ => Ok(HashMap::new()),
+                    }
+                } else {
+                    Ok(HashMap::new())
+                }
+            }
         }
     }
 
@@ -271,10 +342,56 @@ impl Config {
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
     pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut values = self.load_values()?;
+        // Ensure the directory exists
+        if let Some(parent) = self.config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+        }
+
+        // Open the file with read+write permissions, create if it doesn't exist
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&self.config_path)?;
+
+        // Acquire an exclusive lock for the entire operation
+        file.lock_exclusive()
+            .map_err(|e| ConfigError::LockError(e.to_string()))?;
+
+        // Load current values while holding the lock - read through the file handle
+        let mut values = {
+            let mut file_content = String::new();
+            file.seek(SeekFrom::Start(0))?;
+            file.read_to_string(&mut file_content)?;
+
+            if file_content.trim().is_empty() {
+                HashMap::new()
+            } else {
+                let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+                let json_value: Value = serde_json::to_value(yaml_value)?;
+                match json_value {
+                    Value::Object(map) => map.into_iter().collect(),
+                    _ => HashMap::new(),
+                }
+            }
+        };
+
+        // Modify values
         values.insert(key.to_string(), value);
 
-        self.save_values(values)
+        // Convert to YAML for storage
+        let yaml_value = serde_yaml::to_string(&values)?;
+
+        // Write the contents using the same file handle
+        file.seek(SeekFrom::Start(0))?; // Seek to beginning before writing
+        file.set_len(0)?; // Clear the file
+        file.write_all(yaml_value.as_bytes())?;
+        file.sync_all()?;
+
+        // Unlock is handled automatically when file is dropped
+        Ok(())
     }
 
     /// Delete a configuration value in the config file.
@@ -347,9 +464,17 @@ impl Config {
         let mut values = self.load_secrets()?;
         values.insert(key.to_string(), value);
 
-        let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let json_value = serde_json::to_string(&values)?;
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
+                entry.set_password(&json_value)?;
+            }
+            SecretStorage::File { path } => {
+                let yaml_value = serde_yaml::to_string(&values)?;
+                std::fs::write(path, yaml_value)?;
+            }
+        };
         Ok(())
     }
 
@@ -367,9 +492,17 @@ impl Config {
         let mut values = self.load_secrets()?;
         values.remove(key);
 
-        let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let json_value = serde_json::to_string(&values)?;
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
+                entry.set_password(&json_value)?;
+            }
+            SecretStorage::File { path } => {
+                let yaml_value = serde_yaml::to_string(&values)?;
+                std::fs::write(path, yaml_value)?;
+            }
+        };
         Ok(())
     }
 }
@@ -480,6 +613,25 @@ mod tests {
     }
 
     #[test]
+    fn test_file_based_secrets_management() -> Result<(), ConfigError> {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
+
+        config.set_secret("key", Value::String("value".to_string()))?;
+
+        let value: String = config.get_secret("key")?;
+        assert_eq!(value, "value");
+
+        config.delete_secret("key")?;
+
+        let result: Result<String, ConfigError> = config.get_secret("key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        Ok(())
+    }
+
+    #[test]
     #[serial]
     fn test_secret_management() -> Result<(), ConfigError> {
         cleanup_keyring()?;
@@ -533,6 +685,170 @@ mod tests {
         assert_eq!(value2, "secret2");
 
         cleanup_keyring()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_concurrent_writes() -> Result<(), ConfigError> {
+        use std::sync::{Arc, Barrier, Mutex};
+        use std::thread;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = Arc::new(Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?);
+        let barrier = Arc::new(Barrier::new(3)); // For 3 concurrent threads
+        let values = Arc::new(Mutex::new(HashMap::new()));
+        let mut handles = vec![];
+
+        // Initialize with empty values
+        config.save_values(HashMap::new())?;
+
+        // Spawn 3 threads that will try to write simultaneously
+        for i in 0..3 {
+            let config = Arc::clone(&config);
+            let barrier = Arc::clone(&barrier);
+            let values = Arc::clone(&values);
+            let handle = thread::spawn(move || -> Result<(), ConfigError> {
+                // Wait for all threads to reach this point
+                barrier.wait();
+
+                // Get the lock and update values
+                let mut values = values.lock().unwrap();
+                values.insert(format!("key{}", i), Value::String(format!("value{}", i)));
+
+                // Write all values
+                config.save_values(values.clone())?;
+                Ok(())
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap()?;
+        }
+
+        // Verify all values were written correctly
+        let final_values = config.load_values()?;
+
+        // Print the final values for debugging
+        println!("Final values: {:?}", final_values);
+
+        assert_eq!(
+            final_values.len(),
+            3,
+            "Expected 3 values, got {}",
+            final_values.len()
+        );
+
+        for i in 0..3 {
+            let key = format!("key{}", i);
+            let value = format!("value{}", i);
+            assert!(
+                final_values.get(&key).is_some(),
+                "Missing key {} in final values",
+                key
+            );
+            assert_eq!(
+                final_values.get(&key).unwrap(),
+                &Value::String(value),
+                "Incorrect value for key {}",
+                key
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_concurrent_extension_writes() -> Result<(), ConfigError> {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+        use std::time::Duration;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = Arc::new(Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?);
+        let barrier = Arc::new(Barrier::new(3)); // For 3 concurrent threads
+        let mut handles = vec![];
+
+        // Initialize with empty values
+        config.save_values(HashMap::new())?;
+
+        // Spawn 3 threads that will try to write extension configs simultaneously
+        for i in 0..3 {
+            let config = Arc::clone(&config);
+            let barrier = Arc::clone(&barrier);
+            let handle = thread::spawn(move || -> Result<(), ConfigError> {
+                // Wait for all threads to reach this point
+                barrier.wait();
+
+                // Add a small random delay to increase chance of concurrent access
+                thread::sleep(Duration::from_millis(i * 10));
+
+                let extension_key = format!("extension_{}", i);
+
+                // Use set_param which handles concurrent access properly
+                config.set_param(
+                    &extension_key,
+                    serde_json::json!({
+                        "name": format!("test_extension_{}", i),
+                        "version": format!("1.0.{}", i),
+                        "enabled": true,
+                        "settings": {
+                            "option1": format!("value{}", i),
+                            "option2": i
+                        }
+                    }),
+                )?;
+                Ok(())
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap()?;
+        }
+
+        // Verify all extension configs were written correctly
+        let final_values = config.load_values()?;
+
+        // Print the final values for debugging
+        println!("Final values: {:?}", final_values);
+
+        assert_eq!(
+            final_values.len(),
+            3,
+            "Expected 3 extension configs, got {}",
+            final_values.len()
+        );
+
+        for i in 0..3 {
+            let extension_key = format!("extension_{}", i);
+
+            let config = final_values
+                .get(&extension_key)
+                .expect(&format!("Missing extension config for {}", extension_key));
+
+            // Verify the structure matches what we wrote
+            let config_obj = config.as_object().unwrap();
+            assert_eq!(
+                config_obj.get("name").unwrap().as_str().unwrap(),
+                format!("test_extension_{}", i)
+            );
+            assert_eq!(
+                config_obj.get("version").unwrap().as_str().unwrap(),
+                format!("1.0.{}", i)
+            );
+            assert!(config_obj.get("enabled").unwrap().as_bool().unwrap());
+
+            let settings = config_obj.get("settings").unwrap().as_object().unwrap();
+            assert_eq!(
+                settings.get("option1").unwrap().as_str().unwrap(),
+                format!("value{}", i)
+            );
+            assert_eq!(settings.get("option2").unwrap().as_i64().unwrap() as i32, i);
+        }
+
         Ok(())
     }
 }

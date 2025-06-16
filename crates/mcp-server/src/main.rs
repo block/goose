@@ -2,11 +2,14 @@ use anyhow::Result;
 use mcp_core::content::Content;
 use mcp_core::handler::{PromptError, ResourceError};
 use mcp_core::prompt::{Prompt, PromptArgument};
+use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::tool::ToolAnnotations;
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
 use serde_json::Value;
 use std::{future::Future, pin::Pin, sync::Arc};
+use tokio::sync::mpsc;
 use tokio::{
     io::{stdin, stdout},
     sync::Mutex,
@@ -76,6 +79,13 @@ impl Router for CounterRouter {
                     "properties": {},
                     "required": []
                 }),
+                Some(ToolAnnotations {
+                    title: Some("Increment Tool".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
             ),
             Tool::new(
                 "decrement".to_string(),
@@ -84,6 +94,13 @@ impl Router for CounterRouter {
                     "type": "object",
                     "properties": {},
                     "required": []
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Decrement Tool".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
                 }),
             ),
             Tool::new(
@@ -94,6 +111,13 @@ impl Router for CounterRouter {
                     "properties": {},
                     "required": []
                 }),
+                Some(ToolAnnotations {
+                    title: Some("Get Value Tool".to_string()),
+                    read_only_hint: true,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
             ),
         ]
     }
@@ -102,6 +126,7 @@ impl Router for CounterRouter {
         &self,
         tool_name: &str,
         _arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
@@ -159,7 +184,7 @@ impl Router for CounterRouter {
     fn list_prompts(&self) -> Vec<Prompt> {
         vec![Prompt::new(
             "example_prompt",
-            Some("This is an example prompt that takes one required agrument, message"),
+            Some("This is an example prompt that takes one required argument, message"),
             Some(vec![PromptArgument {
                 name: "message".to_string(),
                 description: Some("A message to put in the prompt".to_string()),

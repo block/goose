@@ -52,6 +52,12 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
+                MessageContent::ContextLengthExceeded(_) => {
+                    continue;
+                }
+                MessageContent::SummarizationRequested(_) => {
+                    continue;
+                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
@@ -151,6 +157,32 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Handle direct image content
                     converted["content"] = json!([convert_image(image, image_format)]);
                 }
+                MessageContent::FrontendToolRequest(request) => match &request.tool_call {
+                    Ok(tool_call) => {
+                        let sanitized_name = sanitize_function_name(&tool_call.name);
+                        let tool_calls = converted
+                            .as_object_mut()
+                            .unwrap()
+                            .entry("tool_calls")
+                            .or_insert(json!([]));
+
+                        tool_calls.as_array_mut().unwrap().push(json!({
+                            "id": request.id,
+                            "type": "function",
+                            "function": {
+                                "name": sanitized_name,
+                                "arguments": tool_call.arguments.to_string(),
+                            }
+                        }));
+                    }
+                    Err(e) => {
+                        output.push(json!({
+                            "role": "tool",
+                            "content": format!("Error: {}", e),
+                            "tool_call_id": request.id
+                        }));
+                    }
+                },
             }
         }
 
@@ -173,15 +205,12 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let mut description = tool.description.clone();
-        description.truncate(1024);
-
-        // OpenAI's tool description max str len is 1024
         result.push(json!({
             "type": "function",
             "function": {
                 "name": tool.name,
-                "description": description,
+                // do not silently truncate description
+                "description": tool.description,
                 "parameters": tool.input_schema,
             }
         }));
@@ -338,11 +367,10 @@ pub fn create_request(
         ));
     }
 
-    let is_o1 = model_config.model_name.starts_with("o1");
-    let is_o3 = model_config.model_name.starts_with("o3");
+    let is_ox_model = model_config.model_name.starts_with("o");
 
     // Only extract reasoning effort for O1/O3 models
-    let (model_name, reasoning_effort) = if is_o1 || is_o3 {
+    let (model_name, reasoning_effort) = if is_ox_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
@@ -362,7 +390,7 @@ pub fn create_request(
     };
 
     let system_message = json!({
-        "role": if is_o1 || is_o3 { "developer" } else { "system" },
+        "role": if is_ox_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -398,7 +426,7 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
     // o1, o3 models currently don't support temperature
-    if !is_o1 && !is_o3 {
+    if !is_ox_model {
         if let Some(temp) = model_config.temperature {
             payload
                 .as_object_mut()
@@ -409,7 +437,7 @@ pub fn create_request(
 
     // o1 models use max_completion_tokens instead of max_tokens
     if let Some(tokens) = model_config.max_tokens {
-        let key = if is_o1 || is_o3 {
+        let key = if is_ox_model {
             "max_completion_tokens"
         } else {
             "max_tokens"
@@ -550,6 +578,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let spec = format_tools(&[tool])?;
@@ -641,6 +670,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let tool2 = Tool::new(
@@ -656,6 +686,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let result = format_tools(&[tool1, tool2]);

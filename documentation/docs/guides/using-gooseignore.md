@@ -1,10 +1,9 @@
 ---
 title: Prevent Goose from Accessing Files
 sidebar_label: Using Gooseignore
-sidebar_position: 8
+sidebar_position: 14
 ---
 
-# Prevent Goose from Accessing Files
 
 `.gooseignore` is a text file that defines patterns for files and directories that Goose will not access. This means Goose cannot read, modify, delete, or run shell commands on these files when using the Developer extension's tools.
 
@@ -48,10 +47,47 @@ downloads/           # Ignore everything in the "downloads" directory
 !error.log           # Except for error.log file
 ```
 
-## Default patterns
+## Ignore File Types and Priority
+Goose respects ignore rules from three sources: global `.gooseignore`, local `.gooseignore`, and `.gitignore`. It uses a priority system to determine which files should be ignored. 
 
-By default, if you haven't created any `.gooseignore` files, Goose will not modify files matching these patterns:
+### 1. Global `.gooseignore`
+- Highest priority and always applied first
+- Located at `~/.config/goose/.gooseignore`
+- Affects all projects on your machine
 
+```
+~/.config/goose/
+└── .gooseignore      ← Applied to all projects
+```
+
+### 2. Local `.gooseignore`
+- Project-specific rules
+- Located in your project root directory
+- Overrides `.gitignore` completely
+
+```
+~/.config/goose/
+└── .gooseignore      ← Global rules applied first
+
+Project/
+├── .gooseignore      ← Local rules applied second
+├── .gitignore        ← Ignored when .gooseignore exists
+└── src/
+```
+
+### 3. `.gitignore` Fallback
+- Used when no local `.gooseignore` exists
+- Goose automatically uses your `.gitignore` rules
+- If a global `.gooseignore` file exists, those rules will be applied in addition to the `.gitignore` patterns.
+
+```
+Project/
+├── .gitignore        ← Used by Goose (when no local .gooseignore)
+└── src/
+```
+
+### 4. Default Patterns
+By default, if you haven't created any .gooseignore files and no .gitignore file exists, Goose will not modify files matching these patterns:
 ```plaintext
 **/.env
 **/.env.*
@@ -66,4 +102,5 @@ Here are some typical scenarios where `.gooseignore` is helpful:
 - **Third-Party Code**: Keep Goose from changing external libraries or dependencies
 - **Important Configurations**: Protect critical configuration files from accidental modifications
 - **Version Control**: Prevent changes to version control files like `.git` directory
-
+- **Existing Projects**: Most projects already have `.gitignore` files that work automatically as ignore patterns for Goose
+- **Custom Restrictions**: Create `.gooseignore` when you need different patterns than your `.gitignore` (e.g., allowing Goose to read files that Git ignores)

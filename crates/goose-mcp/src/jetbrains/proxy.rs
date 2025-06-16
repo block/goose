@@ -237,6 +237,7 @@ impl JetBrainsProxy {
                         name: name.to_string(),
                         description: first_sentence,
                         input_schema,
+                        annotations: None,
                     })
                 } else {
                     debug!("Skipping invalid tool entry: {:?}", t);

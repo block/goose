@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import {
   readAllConfig,
   readConfig,
@@ -19,6 +19,9 @@ import type {
   ExtensionQuery,
   ExtensionConfig,
 } from '../api/types.gen';
+import { removeShims } from './settings/extensions/utils';
+
+export type { ExtensionConfig } from '../api/types.gen';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
@@ -46,10 +49,20 @@ interface ConfigContextType {
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
+  disableAllExtensions: () => Promise<void>;
+  enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
 
 interface ConfigProviderProps {
   children: React.ReactNode;
+}
+
+export class MalformedConfigError extends Error {
+  constructor() {
+    super('Check contents of ~/.config/goose/config.yaml');
+    this.name = 'MalformedConfigError';
+    Object.setPrototypeOf(this, MalformedConfigError.prototype);
+  }
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -59,17 +72,126 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
 
+  const reloadConfig = useCallback(async () => {
+    const response = await readAllConfig();
+    setConfig(response.data?.config || {});
+  }, []);
+
+  const upsert = useCallback(
+    async (key: string, value: unknown, isSecret: boolean = false) => {
+      const query: UpsertConfigQuery = {
+        key: key,
+        value: value,
+        is_secret: isSecret,
+      };
+      await upsertConfig({
+        body: query,
+      });
+      await reloadConfig();
+    },
+    [reloadConfig]
+  );
+
+  const read = useCallback(async (key: string, is_secret: boolean = false) => {
+    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
+    const response = await readConfig({
+      body: query,
+    });
+    return response.data;
+  }, []);
+
+  const remove = useCallback(
+    async (key: string, is_secret: boolean) => {
+      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
+      await removeConfig({
+        body: query,
+      });
+      await reloadConfig();
+    },
+    [reloadConfig]
+  );
+
+  const addExtension = useCallback(
+    async (name: string, config: ExtensionConfig, enabled: boolean) => {
+      // remove shims if present
+      if (config.type === 'stdio') {
+        config.cmd = removeShims(config.cmd);
+      }
+      const query: ExtensionQuery = { name, config, enabled };
+      await apiAddExtension({
+        body: query,
+      });
+      await reloadConfig();
+    },
+    [reloadConfig]
+  );
+
+  const removeExtension = useCallback(
+    async (name: string) => {
+      await apiRemoveExtension({ path: { name: name } });
+      await reloadConfig();
+    },
+    [reloadConfig]
+  );
+
+  const getExtensions = useCallback(
+    async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
+      if (forceRefresh || extensionsList.length === 0) {
+        const result = await apiGetExtensions();
+
+        if (result.response.status === 422) {
+          throw new MalformedConfigError();
+        }
+
+        if (result.error && !result.data) {
+          console.log(result.error);
+          return extensionsList;
+        }
+
+        const extensionResponse: ExtensionResponse = result.data!;
+        setExtensionsList(extensionResponse.extensions);
+        return extensionResponse.extensions;
+      }
+      return extensionsList;
+    },
+    [extensionsList]
+  );
+
+  const toggleExtension = useCallback(
+    async (name: string) => {
+      const exts = await getExtensions(true);
+      const extension = exts.find((ext) => ext.name === name);
+
+      if (extension) {
+        await addExtension(name, extension, !extension.enabled);
+      }
+    },
+    [addExtension, getExtensions]
+  );
+
+  const getProviders = useCallback(
+    async (forceRefresh = false): Promise<ProviderDetails[]> => {
+      if (forceRefresh || providersList.length === 0) {
+        const response = await providers();
+        setProvidersList(response.data || []);
+        return response.data || [];
+      }
+      return providersList;
+    },
+    [providersList]
+  );
+
   useEffect(() => {
     // Load all configuration data and providers on mount
     (async () => {
       // Load config
       const configResponse = await readAllConfig();
-      setConfig(configResponse.data.config || {});
+      setConfig(configResponse.data?.config || {});
 
       // Load providers
       try {
         const providersResponse = await providers();
-        setProvidersList(providersResponse.data);
+        setProvidersList(providersResponse.data || []);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
@@ -77,95 +199,32 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        setExtensionsList(extensionsResponse.data.extensions);
+        setExtensionsList(extensionsResponse.data?.extensions || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }
     })();
   }, []);
 
-  const reloadConfig = async () => {
-    const response = await readAllConfig();
-    setConfig(response.data.config || {});
-  };
-
-  const upsert = async (key: string, value: unknown, isSecret: boolean = false) => {
-    const query: UpsertConfigQuery = {
-      key: key,
-      value: value,
-      is_secret: isSecret,
+  const contextValue = useMemo(() => {
+    const disableAllExtensions = async () => {
+      const currentExtensions = await getExtensions(true);
+      for (const ext of currentExtensions) {
+        if (ext.enabled) {
+          await addExtension(ext.name, ext, false);
+        }
+      }
+      await reloadConfig();
     };
-    await upsertConfig({
-      body: query,
-    });
-    await reloadConfig();
-  };
 
-  const read = async (key: string, is_secret: boolean = false) => {
-    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-    const response = await readConfig({
-      body: query,
-    });
-    return response.data;
-  };
+    const enableBotExtensions = async (extensions: ExtensionConfig[]) => {
+      for (const ext of extensions) {
+        await addExtension(ext.name, ext, true);
+      }
+      await reloadConfig();
+    };
 
-  const remove = async (key: string, is_secret: boolean) => {
-    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-    await removeConfig({
-      body: query,
-    });
-    await reloadConfig();
-  };
-
-  const addExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
-    const query: ExtensionQuery = { name, config, enabled };
-    await apiAddExtension({
-      body: query,
-    });
-    await reloadConfig();
-  };
-
-  const removeExtension = async (name: string) => {
-    await apiRemoveExtension({ path: { name: name } });
-    await reloadConfig();
-  };
-
-  const toggleExtension = async (name: string) => {
-    // Get current extensions to find the one we need to toggle
-    const exts = await getExtensions(true);
-    const extension = exts.find((ext) => ext.name === name);
-
-    if (extension) {
-      // Toggle the enabled state and update using addExtension
-      await addExtension(name, extension, !extension.enabled);
-    }
-  };
-
-  const getProviders = async (forceRefresh = false): Promise<ProviderDetails[]> => {
-    if (forceRefresh || providersList.length === 0) {
-      // If a refresh is forced or we don't have providers yet
-      const response = await providers();
-      setProvidersList(response.data);
-      return response.data;
-    }
-    // Otherwise return the cached providers
-    return providersList;
-  };
-
-  const getExtensions = async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
-    if (forceRefresh || extensionsList.length === 0) {
-      // If a refresh is forced, or we don't have providers yet
-      const response = await apiGetExtensions();
-      const extensionResponse: ExtensionResponse = response.data;
-      setExtensionsList(extensionResponse.extensions);
-      return extensionResponse.extensions;
-    }
-    // Otherwise return the cached providers
-    return extensionsList;
-  };
-
-  const contextValue = useMemo(
-    () => ({
+    return {
       config,
       providersList,
       extensionsList,
@@ -177,9 +236,23 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       toggleExtension,
       getProviders,
       getExtensions,
-    }),
-    [config, providersList, extensionsList]
-  ); // Functions don't need to be dependencies as they don't change
+      disableAllExtensions,
+      enableBotExtensions,
+    };
+  }, [
+    config,
+    providersList,
+    extensionsList,
+    upsert,
+    read,
+    remove,
+    addExtension,
+    removeExtension,
+    toggleExtension,
+    getProviders,
+    getExtensions,
+    reloadConfig,
+  ]);
 
   return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

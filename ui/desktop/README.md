@@ -1,12 +1,16 @@
-# Goose App
+# Goose Desktop App
 
-Mac (and maybe windows?) app for Goose. 
+Native desktop app for Goose built with [Electron](https://www.electronjs.org/) and [ReactJS](https://react.dev/). 
+
+# Building and running
+Goose uses [Hermit](https://github.com/cashapp/hermit) to manage dependencies, so you will need to have it installed and activated.
 
 ```
 git clone git@github.com:block/goose.git
+source ./bin/activate-hermit
 cd goose/ui/desktop
 npm install
-npm start
+npm run start
 ```
 
 # Building notes
@@ -28,9 +32,9 @@ see `package.json`:
 This allows you to set for example GOOSE_PROVIDER__TYPE to be "databricks" by default if you want (so when people start Goose.app - they will get that out of the box). There is no way to set an api key in that bundling as that would be a terrible idea, so only use providers that can do oauth (like databricks can), otherwise stick to default goose.
 
 
-# Runninng with goosed server from source
+# Running with goosed server from source
 
-Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env.
+Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env`.
 Run `cargo run -p goose-server` from parent dir.
 `npm run start` will then run against this.
 You can try server directly with `./test.sh`

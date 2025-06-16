@@ -1,13 +1,23 @@
-import React from 'react';
-import { Clock, MessageSquare, Folder, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Calendar,
+  MessageSquareText,
+  Folder,
+  Share2,
+  Sparkles,
+  Copy,
+  Check,
+  Target,
+  LoaderCircle,
+} from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
-import { Card } from '../ui/card';
+import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
+import { createSharedSession } from '../../sharedSessions';
+import { Modal, ModalContent } from '../ui/modal';
 import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
-import { ScrollArea } from '../ui/scroll-area';
-import MarkdownContent from '../MarkdownContent';
-import ToolCallWithResponse from '../ToolCallWithResponse';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
+import { toast } from 'react-toastify';
+import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
 interface SessionHistoryViewProps {
   session: SessionDetails;
@@ -16,32 +26,8 @@ interface SessionHistoryViewProps {
   onBack: () => void;
   onResume: () => void;
   onRetry: () => void;
+  showActionButtons?: boolean;
 }
-
-export const getToolResponsesMap = (
-  session: SessionDetails,
-  messageIndex: number,
-  toolRequests: ToolRequestMessageContent[]
-) => {
-  const responseMap = new Map();
-
-  if (messageIndex >= 0) {
-    for (let i = messageIndex + 1; i < session.messages.length; i++) {
-      const responses = session.messages[i].content
-        .filter((c) => c.type === 'toolResponse')
-        .map((c) => c as ToolResponseMessageContent);
-
-      for (const response of responses) {
-        const matchingRequest = toolRequests.find((req) => req.id === response.id);
-        if (matchingRequest) {
-          responseMap.set(response.id, response);
-        }
-      }
-    }
-  }
-
-  return responseMap;
-};
 
 const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   session,
@@ -50,154 +36,195 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onBack,
   onResume,
   onRetry,
+  showActionButtons = true,
 }) => {
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareLink, setShareLink] = useState<string>('');
+  const [isSharing, setIsSharing] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+
+  useEffect(() => {
+    const savedSessionConfig = localStorage.getItem('session_sharing_config');
+    if (savedSessionConfig) {
+      try {
+        const config = JSON.parse(savedSessionConfig);
+        if (config.enabled && config.baseUrl) {
+          setCanShare(true);
+        }
+      } catch (error) {
+        console.error('Error parsing session sharing config:', error);
+      }
+    }
+  }, []);
+
+  const handleShare = async () => {
+    setIsSharing(true);
+
+    try {
+      const savedSessionConfig = localStorage.getItem('session_sharing_config');
+      if (!savedSessionConfig) {
+        throw new Error('Session sharing is not configured. Please configure it in settings.');
+      }
+
+      const config = JSON.parse(savedSessionConfig);
+      if (!config.enabled || !config.baseUrl) {
+        throw new Error('Session sharing is not enabled or base URL is not configured.');
+      }
+
+      const shareToken = await createSharedSession(
+        config.baseUrl,
+        session.metadata.working_dir,
+        session.messages,
+        session.metadata.description || 'Shared Session',
+        session.metadata.total_tokens
+      );
+
+      const shareableLink = `goose://sessions/${shareToken}`;
+      setShareLink(shareableLink);
+      setIsShareModalOpen(true);
+    } catch (error) {
+      console.error('Error sharing session:', error);
+      toast.error(
+        `Failed to share session: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard
+      .writeText(shareLink)
+      .then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy link:', err);
+        toast.error('Failed to copy link to clipboard');
+      });
+  };
+
   return (
-    <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+    <div className="h-screen w-full flex flex-col">
+      <MoreMenuLayout showMenu={false} />
 
-      {/* Top Row - back, info, reopen thread (fixed) */}
-      <Card className="px-8 pt-6 pb-4 bg-bgSecondary flex items-center">
-        <BackButton showText={false} onClick={onBack} className="text-textStandard" />
-
-        {/* Session info row */}
+      <SessionHeaderCard onBack={onBack}>
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandard">
+          <h1 className="text-lg text-textStandardInverse">
             {session.metadata.description || session.session_id}
           </h1>
-          <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
+          <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
-              <Clock className="w-4 h-4 mr-1" />
-              {new Date(session.messages[0]?.created * 1000).toLocaleString()}
+              <Calendar className="w-4 h-4 mr-1" />
+              {formatMessageTimestamp(session.messages[0]?.created)}
             </span>
+            <span className="flex items-center">
+              <MessageSquareText className="w-4 h-4 mr-1" />
+              {session.metadata.message_count}
+            </span>
+            {session.metadata.total_tokens !== null && (
+              <span className="flex items-center">
+                <Target className="w-4 h-4 mr-1" />
+                {session.metadata.total_tokens.toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center text-sm text-textSubtle space-x-5">
             <span className="flex items-center">
               <Folder className="w-4 h-4 mr-1" />
               {session.metadata.working_dir}
             </span>
-            <span className="flex items-center">
-              <MessageSquare className="w-4 h-4 mr-1" />
-              {session.metadata.message_count} messages
-            </span>
-            {session.metadata.total_tokens !== null && (
-              <span className="flex items-center">
-                {session.metadata.total_tokens.toLocaleString()} tokens
-              </span>
-            )}
           </div>
         </div>
 
-        <span
-          onClick={onResume}
-          className="ml-auto text-md cursor-pointer text-textStandard hover:font-bold hover:scale-105 transition-all duration-150"
-        >
-          Resume Session
-        </span>
-      </Card>
-
-      <ScrollArea className="h-[calc(100vh-120px)] w-full">
-        {/* Content */}
-        <div className="p-4">
-          <div className="flex flex-col space-y-4">
-            <div className="space-y-4 mb-6">
-              {isLoading ? (
-                <div className="flex justify-center items-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
-                </div>
-              ) : error ? (
-                <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
-                  <div className="text-red-500 mb-4">
-                    <AlertCircle size={32} />
-                  </div>
-                  <p className="text-md mb-2">Error Loading Session Details</p>
-                  <p className="text-sm text-center mb-4">{error}</p>
-                  <Button onClick={onRetry} variant="default">
-                    Try Again
-                  </Button>
-                </div>
-              ) : session?.messages?.length > 0 ? (
-                session.messages
-                  .map((message, index) => {
-                    // Extract text content from the message
-                    const textContent = message.content
-                      .filter((c) => c.type === 'text')
-                      .map((c) => c.text)
-                      .join('\n');
-
-                    // Get tool requests from the message
-                    const toolRequests = message.content
-                      .filter((c) => c.type === 'toolRequest')
-                      .map((c) => c as ToolRequestMessageContent);
-
-                    // Get tool responses map using the helper function
-                    const toolResponsesMap = getToolResponsesMap(session, index, toolRequests);
-
-                    // Skip pure tool response messages for cleaner display
-                    const isOnlyToolResponse =
-                      message.content.length > 0 &&
-                      message.content.every((c) => c.type === 'toolResponse');
-
-                    if (message.role === 'user' && isOnlyToolResponse) {
-                      return null;
-                    }
-
-                    return (
-                      <Card
-                        key={index}
-                        className={`p-4 ${
-                          message.role === 'user'
-                            ? 'bg-bgSecondary border border-borderSubtle'
-                            : 'bg-bgSubtle'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-textStandard">
-                            {message.role === 'user' ? 'You' : 'Goose'}
-                          </span>
-                          <span className="text-xs text-textSubtle">
-                            {new Date(message.created * 1000).toLocaleTimeString()}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col w-full">
-                          {/* Text content */}
-                          {textContent && (
-                            <div className={`${toolRequests.length > 0 ? 'mb-4' : ''}`}>
-                              <MarkdownContent content={textContent} />
-                            </div>
-                          )}
-
-                          {/* Tool requests and responses */}
-                          {toolRequests.length > 0 && (
-                            <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
-                              {toolRequests.map((toolRequest) => (
-                                <ToolCallWithResponse
-                                  // In the session history page, if no tool response found for given request, it means the tool call
-                                  // is broken or cancelled.
-                                  isCancelledMessage={
-                                    toolResponsesMap.get(toolRequest.id) == undefined
-                                  }
-                                  key={toolRequest.id}
-                                  toolRequest={toolRequest}
-                                  toolResponse={toolResponsesMap.get(toolRequest.id)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    );
-                  })
-                  .filter(Boolean) // Filter out null entries
+        {showActionButtons && (
+          <div className="ml-auto flex items-center space-x-4">
+            <button
+              onClick={handleShare}
+              title="Share Session"
+              disabled={!canShare || isSharing}
+              className={`flex items-center text-textStandardInverse px-2 py-1 ${
+                canShare
+                  ? 'hover:font-bold hover:scale-110 transition-all duration-150'
+                  : 'cursor-not-allowed opacity-50'
+              }`}
+            >
+              {isSharing ? (
+                <>
+                  <LoaderCircle className="w-7 h-7 animate-spin mr-2" />
+                  <span>Sharing...</span>
+                </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
-                  <MessageSquare className="w-12 h-12 mb-4" />
-                  <p className="text-lg mb-2">No messages found</p>
-                  <p className="text-sm">This session doesn't contain any messages</p>
-                </div>
+                <>
+                  <Share2 className="w-7 h-7" />
+                </>
               )}
+            </button>
+
+            <button
+              onClick={onResume}
+              title="Resume Session"
+              className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
+            >
+              <Sparkles className="w-7 h-7" />
+            </button>
+          </div>
+        )}
+      </SessionHeaderCard>
+
+      <SessionMessages
+        messages={session.messages}
+        isLoading={isLoading}
+        error={error}
+        onRetry={onRetry}
+      />
+
+      <Modal open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+        <ModalContent className="sm:max-w-md p-0 bg-bgApp dark:bg-bgApp dark:border-borderSubtle">
+          <div className="flex justify-center mt-4">
+            <Share2 className="w-6 h-6 text-textStandard" />
+          </div>
+
+          <div className="mt-2 px-6 text-center">
+            <h2 className="text-lg font-semibold text-textStandard">Share Session (beta)</h2>
+          </div>
+
+          <div className="px-6 flex flex-col gap-4 mt-2">
+            <p className="text-sm text-center text-textSubtle">
+              Share this session link to give others a read only view of your goose chat.
+            </p>
+
+            <div className="relative rounded-lg border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
+              <code className="text-sm text-textStandard dark:text-textStandardInverse overflow-x-hidden break-all pr-8 w-full">
+                {shareLink}
+              </code>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                onClick={handleCopyLink}
+                disabled={isCopied}
+              >
+                {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <span className="sr-only">Copy</span>
+              </Button>
             </div>
           </div>
-        </div>
-      </ScrollArea>
+
+          <div>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsShareModalOpen(false)}
+              className="w-full h-[60px] border-t rounded-b-lg dark:border-gray-600 text-lg text-textStandard hover:bg-gray-100 hover:dark:bg-gray-600"
+            >
+              Cancel
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };

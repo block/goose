@@ -20,6 +20,10 @@ on:
         type: string
         required: false
         default: '["x86_64","aarch64"]'
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
 
 name: "Reusable workflow to build CLI"
 
@@ -40,7 +44,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
@@ -48,14 +55,14 @@ jobs:
           sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
           rm -f Cargo.toml.bak
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
-
       - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
+
+      # Install Go for building temporal-service
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
 
       - name: Build CLI
         env:
@@ -64,6 +71,7 @@ jobs:
           RUST_BACKTRACE: 1
           CROSS_VERBOSE: 1
         run: |
+          source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
           echo "Building for target: ${TARGET}"
@@ -72,16 +80,66 @@ jobs:
           echo "Cross version:"
           cross --version
 
-          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
+          echo "Building with explicit PROTOC path..."
           cross build --release --target ${TARGET} -p goose-cli -vv
 
-          # tar the goose binary as goose-<TARGET>.tar.bz2
-          cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose
+      - name: Build temporal-service for target platform
+        run: |
+          source ./bin/activate-hermit
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          
+          # Set Go cross-compilation variables based on target
+          case "${TARGET}" in
+            "x86_64-unknown-linux-gnu")
+              export GOOS=linux
+              export GOARCH=amd64
+              BINARY_NAME="temporal-service"
+              ;;
+            "aarch64-unknown-linux-gnu")
+              export GOOS=linux
+              export GOARCH=arm64
+              BINARY_NAME="temporal-service"
+              ;;
+            "x86_64-apple-darwin")
+              export GOOS=darwin
+              export GOARCH=amd64
+              BINARY_NAME="temporal-service"
+              ;;
+            "aarch64-apple-darwin")
+              export GOOS=darwin
+              export GOARCH=arm64
+              BINARY_NAME="temporal-service"
+              ;;
+            *)
+              echo "Unsupported target: ${TARGET}"
+              exit 1
+              ;;
+          esac
+          
+          echo "Building temporal-service for ${GOOS}/${GOARCH}..."
+          cd temporal-service
+          go build -o "../target/${TARGET}/release/${BINARY_NAME}" main.go
+          echo "temporal-service built successfully for ${TARGET}"
+
+      - name: Package CLI with temporal-service
+        run: |
+          source ./bin/activate-hermit
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          
+          # Create a directory for the package contents
+          mkdir -p "target/${TARGET}/release/goose-package"
+          
+          # Copy binaries
+          cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/temporal-service" "target/${TARGET}/release/goose-package/"
+          
+          # Create the tar archive with both binaries
+          cd "target/${TARGET}/release"
+          tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
           path: ${{ env.ARTIFACT }}

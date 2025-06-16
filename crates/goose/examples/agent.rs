@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use dotenv::dotenv;
 use futures::StreamExt;
-use goose::agents::{AgentFactory, ExtensionConfig};
+use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::message::Message;
 use goose::providers::databricks::DatabricksProvider;
@@ -10,17 +12,19 @@ async fn main() {
     // Setup a model provider from env vars
     let _ = dotenv();
 
-    let provider = Box::new(DatabricksProvider::default());
+    let provider = Arc::new(DatabricksProvider::default());
 
     // Setup an agent with the developer extension
-    let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
+    let agent = Agent::new();
+    let _ = agent.update_provider(provider).await;
 
     let config = ExtensionConfig::stdio(
         "developer",
-        "./target/debug/developer",
+        "./target/debug/goose",
         DEFAULT_EXTENSION_DESCRIPTION,
         DEFAULT_EXTENSION_TIMEOUT,
-    );
+    )
+    .with_args(vec!["mcp", "developer"]);
     agent.add_extension(config).await.unwrap();
 
     println!("Extensions:");
@@ -32,11 +36,8 @@ async fn main() {
         .with_text("can you summarize the readme.md in this dir using just a haiku?")];
 
     let mut stream = agent.reply(&messages, None).await.unwrap();
-    while let Some(message) = stream.next().await {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&message.unwrap()).unwrap()
-        );
+    while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
+        println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");
     }
 }

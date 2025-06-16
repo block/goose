@@ -1,52 +1,51 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use goose::message::Message;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 pub type Model = (String, String);
 pub type Extension = String;
 
-#[derive(Debug, Serialize, Clone)]
-pub struct BenchAgentError {
-    pub message: String,
-    pub level: String, // ERROR, WARN, etc.
-    pub timestamp: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize)]
-pub enum EvaluationMetric {
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum EvalMetricValue {
     Integer(i64),
     Float(f64),
     String(String),
     Boolean(bool),
 }
 
+impl fmt::Display for EvalMetricValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvalMetricValue::Integer(i) => write!(f, "{}", i),
+            EvalMetricValue::Float(fl) => write!(f, "{:.2}", fl),
+            EvalMetricValue::String(s) => write!(f, "{}", s),
+            EvalMetricValue::Boolean(b) => write!(f, "{}", b),
+        }
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct EvalMetric {
+    pub name: String,
+    pub value: EvalMetricValue,
+}
+
 #[derive(Debug, Default)]
 pub struct ExtensionRequirements {
     pub builtin: Vec<String>,
     pub external: Vec<String>,
-}
-
-#[async_trait]
-pub trait BenchAgent: Send + Sync {
-    async fn prompt(&mut self, p: String) -> Result<Vec<Message>>;
-
-    // Make get_errors async
-    async fn get_errors(&self) -> Vec<BenchAgentError>;
-
-    // Get token usage information
-    async fn get_token_usage(&self) -> Option<i32>;
+    pub remote: Vec<String>,
 }
 
 #[async_trait]
 pub trait Evaluation: Send + Sync {
     async fn run(
         &self,
-        agent: Box<dyn BenchAgent>,
+        agent: &mut BenchAgent,
         run_loc: &mut BenchmarkWorkDir,
-    ) -> Result<Vec<(String, EvaluationMetric)>>;
+    ) -> Result<Vec<(String, EvalMetricValue)>>;
 
     fn name(&self) -> &str;
 
@@ -54,6 +53,7 @@ pub trait Evaluation: Send + Sync {
         ExtensionRequirements {
             builtin: Vec::new(),
             external: Vec::new(),
+            remote: Vec::new(),
         }
     }
 }

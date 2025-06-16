@@ -1,0 +1,43 @@
+/* Search highlight styles */
+.search-highlight {
+  background-color: rgba(255, 213, 0, 0.5);
+  color: var(--text-standard);
+  padding: 0;
+  border-radius: 2px;
+}
+
+.search-highlight.current {
+  background-color: rgba(252, 213, 3, 0.6);
+  box-shadow: inset 0 0 0 1px var(--text-prominent);
+  z-index: 2;
+}
+
+@keyframes expandDown {
+  from {
+    max-height: 0;
+  }
+  to {
+    max-height: var(--search-bar-height);
+  }
+}
+
+@keyframes collapseUp {
+  from {
+    max-height: var(--search-bar-height);
+  }
+  to {
+    max-height: 0;
+  }
+}
+
+.search-bar-enter {
+  --search-bar-height: 72px;
+  animation: expandDown 0.15s ease-out forwards;
+  overflow: hidden;
+}
+
+.search-bar-exit {
+  --search-bar-height: 72px;
+  animation: collapseUp 0.15s ease-out forwards;
+  overflow: hidden;
+}

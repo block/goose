@@ -1,20 +1,28 @@
 pub mod anthropic;
 pub mod azure;
+pub mod azureauth;
 pub mod base;
 pub mod bedrock;
 pub mod databricks;
+pub mod embedding;
 pub mod errors;
 mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod githubcopilot;
 pub mod google;
 pub mod groq;
+pub mod lead_worker;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
 pub mod openrouter;
+pub mod sagemaker_tgi;
+pub mod snowflake;
 pub mod toolshim;
 pub mod utils;
+pub mod utils_universal_openai_stream;
+pub mod venice;
 
 pub use factory::{create, providers};

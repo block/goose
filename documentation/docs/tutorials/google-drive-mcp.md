@@ -12,28 +12,29 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [Google Drive MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive) as a Goose extension, allowing you to list, read, and search files in Google Drive.
 
 :::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  GDRIVE_OAUTH_PATH=$USER_HOME/.config/gcp-oauth.keys.json \ 
+  GDRIVE_CREDENTIALS_PATH=$USER_HOME/.config/.gdrive-server-credentials.json \ 
+  npx -y @modelcontextprotocol/server-gdrive auth \
+  npx -y @modelcontextprotocol/server-gdrive 
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  GDRIVE_CREDENTIALS_PATH: $USER_HOME/.config/.gdrive-server-credentials.json
+  GDRIVE_OAUTH_PATH: $USER_HOME/.config/gcp-oauth.keys.json  
+  ```
+:::
 
-**Authentication Command**
-
-In your terminal, run the following:
-
-```sh
-GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
-GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
-npx -y @modelcontextprotocol/server-gdrive auth
-```
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-gdrive 
-```
-
-**Environment Variables**
-```
-GDRIVE_CREDENTIALS_PATH: ~/.config/.gdrive-server-credentials.json
-```
-```
-GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json
-```
+:::info
+Note that you *must* use absolute paths in the environment variables. Make sure you replace `$USER_HOME` with your home directory.
 :::
 
 ## Configuration
@@ -75,10 +76,14 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
   
      To connect your Google account, run the following authentication command in your terminal:
           ```sh
-          GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
-          GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
+          GDRIVE_OAUTH_PATH=$USER_HOME/.config/gcp-oauth.keys.json \ 
+          GDRIVE_CREDENTIALS_PATH=$USER_HOME/.config/.gdrive-server-credentials.json \ 
           npx -y @modelcontextprotocol/server-gdrive auth
           ```
+         :::info
+         Replace `$USER_HOME` with your home directory.
+         :::
+
       A browser window will open for authentication. Follow the prompts to connect your Google account and complete the OAuth process. At this stage, your environment variable `GDRIVE_CREDENTIALS_PATH` will be set with the saved credentials.
 
 :::tip
@@ -86,7 +91,27 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
+  2. Press `Yes` to confirm the installation
+  3. For `GDRIVE_CREDENTIALS_PATH`, enter the following:
+  ```sh
+  $USER_HOME/.config/.gdrive-server-credentials.json
+  ```
+    :::info
+    Replace `$USER_HOME` with your home directory. You must specify an absolute path for this extension to work.
+    :::
+  4. For `GDRIVE_OAUTH_PATH`, enter the following:
+  ```sh
+  $USER_HOME/.config/gcp-oauth.keys.json
+  ```
+    :::info
+    Replace `$USER_HOME` with your home directory. You must specify an absolute path for this extension to work.
+    :::
+  5. Click `Save Configuration`
+  6. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -97,7 +122,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -113,7 +138,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -130,7 +155,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -150,7 +175,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -168,18 +193,12 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ``` 
 
-
-:::tip
-You may need to use absolute paths (rather than relying on shell exapansion for `~`) for the `GDRIVE_CREDENTIALS_PATH` and `GDRIVE_OAUTH_PATH`.
-:::
-
-  6. Add your environment variables 
-
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -192,6 +211,36 @@ You may need to use absolute paths (rather than relying on shell exapansion for 
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```
+
+  7. Add your environment variables 
+
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  google drive
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │    
     // highlight-start
     ◆  Would you like to add environment variables?
@@ -216,20 +265,6 @@ You may need to use absolute paths (rather than relying on shell exapansion for 
     └  Added google drive extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
-  2. Press `Yes` to confirm the installation
-  3. For `GDRIVE_CREDENTIALS_PATH`, enter the following:
-  ```
-  ~/.config/.gdrive-server-credentials.json
-  ```
-  4. For `GDRIVE_OAUTH_PATH`, enter the following:
-  ```
-  ~/.config/gcp-oauth.keys.json
-  ```
-  5. Click `Save Configuration`
-  6. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

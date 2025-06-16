@@ -14,6 +14,12 @@ use serde_json::{json, Map, Value};
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     messages
         .iter()
+        .filter(|message| {
+            message
+                .content
+                .iter()
+                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+        })
         .map(|message| {
             let role = if message.role == Role::User {
                 "user"
@@ -83,21 +89,21 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     .iter()
                                     .filter_map(|c| match c {
                                         Content::Text(t) => Some(t.text.clone()),
+                                        Content::Resource(r) => Some(r.get_text()),
                                         _ => None,
                                     })
                                     .collect::<Vec<_>>()
                                     .join("\n");
-                                if !tool_content.is_empty() {
-                                    if text.is_empty() {
-                                        text = "Tool call is done.".to_string();
-                                    }
-                                    parts.push(json!({
-                                        "functionResponse": {
-                                            "name": response.id,
-                                            "response": {"content": {"text": text}},
-                                        }}
-                                    ));
+
+                                if text.is_empty() {
+                                    text = "Tool call is done.".to_string();
                                 }
+                                parts.push(json!({
+                                    "functionResponse": {
+                                        "name": response.id,
+                                        "response": {"content": {"text": text}},
+                                    }}
+                                ));
                             }
                             Err(e) => {
                                 parts.push(json!({"text":format!("Error: {}", e)}));
@@ -333,6 +339,19 @@ mod tests {
         }
     }
 
+    fn set_up_tool_confirmation_message(id: &str, tool_call: ToolCall) -> Message {
+        Message {
+            role: Role::User,
+            created: 0,
+            content: vec![MessageContent::tool_confirmation_request(
+                id.to_string(),
+                tool_call.name.clone(),
+                tool_call.arguments.clone(),
+                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+            )],
+        }
+    }
+
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
         Message {
             role: Role::Assistant,
@@ -351,6 +370,7 @@ mod tests {
             input_schema: json!({
                 "properties": params
             }),
+            annotations: None,
         }
     }
 
@@ -388,10 +408,10 @@ mod tests {
         let arguments = json!({
             "param1": "value1"
         });
-        let messages = vec![set_up_tool_request_message(
-            "id",
-            ToolCall::new("tool_name", json!(arguments)),
-        )];
+        let messages = vec![
+            set_up_tool_request_message("id", ToolCall::new("tool_name", json!(arguments))),
+            set_up_tool_confirmation_message("id2", ToolCall::new("tool_name_2", json!(arguments))),
+        ];
         let payload = format_messages(&messages);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
@@ -420,7 +440,7 @@ mod tests {
         let tool_result: Vec<Content> = vec![
             Content::text("Hello"),
             Content::text("World"),
-            Content::text("This is a test."),
+            Content::embedded_text("test_uri", "This is a test."),
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
@@ -494,6 +514,7 @@ mod tests {
             input_schema: json!({
                 "properties": {}
             }),
+            annotations: None,
         }];
         let result = format_tools(&tools);
         assert_eq!(result.len(), 1);
@@ -580,5 +601,31 @@ mod tests {
         } else {
             panic!("Expected valid tool request");
         }
+    }
+
+    #[test]
+    fn test_response_to_message_with_empty_content() {
+        let tool_result: Vec<Content> = Vec::new();
+
+        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let payload = format_messages(&messages);
+
+        let expected_payload = vec![json!({
+            "role": "model",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "response_id",
+                        "response": {
+                            "content": {
+                                "text": "Tool call is done."
+                            }
+                        }
+                    }
+                }
+            ]
+        })];
+
+        assert_eq!(payload, expected_payload);
     }
 }

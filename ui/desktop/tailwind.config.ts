@@ -2,11 +2,12 @@
 export default {
   darkMode: ['class'],
   content: ['./src/**/*.{js,jsx,ts,tsx}', './index.html'],
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography'), require('@tailwindcss/line-clamp') ],
   theme: {
     extend: {
       fontFamily: {
         sans: ['Cash Sans', 'sans-serif'],
+        mono: ['Cash Sans Mono', 'monospace'],
       },
       keyframes: {
         shimmer: {
@@ -43,24 +44,36 @@ export default {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
+        indeterminate: {
+          '0%': { left: '-40%', width: '40%' },
+          '50%': { left: '20%', width: '60%' },
+          '100%': { left: '100%', width: '80%' },
+        },
       },
       animation: {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
         'gradient-loader': 'loader 750ms ease-in-out infinite',
+        indeterminate: 'indeterminate 1.5s infinite linear',
       },
       colors: {
         bgApp: 'var(--background-app)',
         bgSubtle: 'var(--background-subtle)',
         bgStandard: 'var(--background-standard)',
         bgProminent: 'var(--background-prominent)',
+        bgAppInverse: 'var(--background-app-inverse)',
+        bgSubtleInverse: 'var(--background-subtle-inverse)',
+        bgStandardInverse: 'var(--background-standard-inverse)',
+        bgProminentInverse: 'var(--background-prominent-inverse)',
 
         borderSubtle: 'var(--border-subtle)',
         borderStandard: 'var(--border-standard)',
+        borderProminent: 'var(--border-prominent)',
 
         textProminent: 'var(--text-prominent)',
         textStandard: 'var(--text-standard)',
         textSubtle: 'var(--text-subtle)',
         textPlaceholder: 'var(--text-placeholder)',
+        textProminentInverse: 'var(--text-prominent-inverse)',
 
         iconProminent: 'var(--icon-prominent)',
         iconStandard: 'var(--icon-standard)',
@@ -69,6 +82,13 @@ export default {
         slate: 'var(--slate)',
         blockTeal: 'var(--block-teal)',
         blockOrange: 'var(--block-orange)',
+      },
+      typography: {
+        DEFAULT: {
+          css: {
+            color: 'var(--text-standard)',
+          },
+        },
       },
     },
   },

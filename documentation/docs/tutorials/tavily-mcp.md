@@ -9,19 +9,24 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
-This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/RamXX/mcp-tavily) as a Goose extension to enable AI-powered web search functionality.
+This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a Goose extension to enable AI-powered web search functionality.
 
 :::tip TLDR
-
-**Command**
-```sh
-uvx mcp-tavily
-```
-
-**Environment Variable**
-```
-TAVILY_API_KEY: <YOUR_API_KEY>
-```
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y tavily-mcp
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  TAVILY_API_KEY: <YOUR_API_KEY>
+  ```
 :::
 
 ## Configuration
@@ -31,7 +36,14 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [TAVILY_API_KEY](https://tavily.com/) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
   goose configure
@@ -42,7 +54,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
@@ -58,7 +70,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -75,7 +87,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -85,7 +97,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │
     // highlight-start
     ◆  What command should be run?
-    │  uvx mcp-tavily
+    │  npx -y tavily-mcp
     // highlight-end
     └ 
   ```  
@@ -95,7 +107,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -104,7 +116,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │  tavily
     │
     ◇  What command should be run?
-    │  uvx mcp-tavily
+    │  npx -y tavily-mcp
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -113,16 +125,12 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     └ 
   ```  
 
-  6. Obtain a [Tavily API Key](https://tavily.com/) and paste it in.
-  :::info
-  You can get your API key by signing up at [tavily.com](https://app.tavily.com/) and navigating to your account settings.
-  :::
-
+  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
     ┌   goose-configure 
     │
     ◇  What would you like to configure?
-    │  Add Extension 
+    │  Add Extension (Connect to a new extension) 
     │
     ◇  What type of extension would you like to add?
     │  Command-line Extension 
@@ -131,10 +139,43 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │  tavily
     │
     ◇  What command should be run?
-    │  uvx mcp-tavily
+    │  npx -y tavily-mcp
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
+    │
+    // highlight-start
+    ◇  Would you like to add a description?
+    │  No
+    // highlight-end
+    └ 
+  ```  
+
+  7. Obtain a [Tavily API Key](https://tavily.com/) and paste it in.
+  :::info
+  You can get your API key by signing up at [tavily.com](https://app.tavily.com/) and navigating to your account settings.
+  :::
+
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension (Connect to a new extension) 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  tavily
+    │
+    ◇  What command should be run?
+    │  npx -y tavily-mcp
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
+    ◇  Would you like to add a description?
+    │  No
     │
     // highlight-start
     ◆  Would you like to add environment variables?
@@ -152,13 +193,6 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     └  Added tavily extension
   ```  
 
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-tavily&id=tavily&name=Tavily%20Web%20Search&description=Web%20search%20capabilities%20powered%20by%20Tavily&env=TAVILY_API_KEY%3DAPI%20key%20for%20Tavily%20web%20search%20service)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [TAVILY_API_KEY](hhttps://tavily.com/) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
@@ -213,5 +247,5 @@ Would you like me to search for more specific information about any of these dev
 ```
 
 :::tip
-You can adjust the [search parameters](https://github.com/RamXX/mcp-tavily?tab=readme-ov-file#prompts) for different types of queries and depths of information. The extension supports both quick searches and comprehensive research.
+You can adjust the [search parameters](https://github.com/tavily-ai/tavily-mcp#tavily-search-examples) for different types of queries and depths of information. The extension supports both quick searches and comprehensive research.
 :::

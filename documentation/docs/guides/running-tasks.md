@@ -1,7 +1,8 @@
 ---
-sidebar_position: 7
+sidebar_position: 13
+title: Running Tasks
+sidebar_label: Run Tasks
 ---
-# Running Tasks
 
 When working with the Goose CLI, you can pass files and instructions to the `goose run` command to execute tasks and workflows. This could be a simple one-liner command or a complex set of instructions stored in a file.
 
@@ -90,9 +91,16 @@ goose run -n my-project -t "initial instructions"
 goose run -n my-project -r
 ```
 
+You can also run commands without creating or storing a session file by using the `--no-session` flag. This is useful for automated scripts, or one-off tasks where you don't need to maintain the conversation history or state. This flag routes the session output to a temporary null path (`/dev/null` on Unix or `NUL` on Windows), and discards it when complete.
+
+```bash
+# Run a command without creating a session file
+goose run --no-session -t "your command here"
+```
+
 ### Working with Extensions
 
-If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension` or `--with-builtin` flags:
+If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension`, `--with-remote-extension`, or `--with-builtin` flags:
 
 - Using built-in extensions e.g developer and computercontroller extensions
 
@@ -104,6 +112,33 @@ goose run --with-builtin "developer,computercontroller" -t "your instructions"
 
 ```bash
 goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
+```
+
+- Using remote extensions
+
+```bash
+goose run --with-remote-extension "url" -t "your instructions"
+```
+
+### Debug Mode
+
+When troubleshooting or developing complex workflows, you can enable debug mode to get more detailed information about tool execution. The `--debug` flag provides:
+
+- Complete tool responses
+- Detailed parameter values
+- Full file paths
+
+Debug mode can be useful when:
+- Developing new automation scripts
+- Troubleshooting extension behavior
+- Verifying tool parameters and responses
+
+```bash
+# Run a task with debug output enabled
+goose run --debug -t "your instructions"
+
+# Debug a recipe execution
+goose run --debug --recipe recipe.yaml
 ```
 
 ## Common Use Cases

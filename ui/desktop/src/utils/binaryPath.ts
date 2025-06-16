@@ -4,52 +4,97 @@ import Electron from 'electron';
 import log from './logger';
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
-  const isDev = process.env.NODE_ENV === 'development';
-  const isPackaged = app.isPackaged;
-  const isWindows = process.platform === 'win32';
-
-  // On Windows, use .cmd for npx and .exe for uvx
-  const executableName = isWindows
-    ? binaryName === 'npx'
-      ? 'npx.cmd'
-      : `${binaryName}.exe`
-    : binaryName;
-
-  // List of possible paths to check
-  const possiblePaths = [];
-
-  if (isDev && !isPackaged) {
-    // In development, check multiple possible locations
-    possiblePaths.push(
-      path.join(process.cwd(), 'src', 'bin', executableName),
-      path.join(process.cwd(), 'bin', executableName),
-      path.join(process.cwd(), '..', '..', 'target', 'release', executableName)
-    );
-  } else {
-    // In production, check resources paths
-    possiblePaths.push(
-      path.join(process.resourcesPath, 'bin', executableName),
-      path.join(app.getAppPath(), 'resources', 'bin', executableName)
-    );
+  // Security validation: Ensure binaryName doesn't contain suspicious characters
+  if (
+    !binaryName ||
+    typeof binaryName !== 'string' ||
+    binaryName.includes('..') ||
+    binaryName.includes('/') ||
+    binaryName.includes('\\') ||
+    binaryName.includes(';') ||
+    binaryName.includes('|') ||
+    binaryName.includes('&') ||
+    binaryName.includes('`') ||
+    binaryName.includes('$') ||
+    binaryName.length > 50
+  ) {
+    // Reasonable length limit
+    throw new Error(`Invalid binary name: ${binaryName}`);
   }
 
-  // Log all paths we're checking
-  log.info('Checking binary paths:', possiblePaths);
+  const isWindows = process.platform === 'win32';
 
-  // Try each path and return the first one that exists
+  const possiblePaths: string[] = [];
+  if (isWindows) {
+    addPaths(isWindows, possiblePaths, `${binaryName}.exe`, app);
+    addPaths(isWindows, possiblePaths, `${binaryName}.cmd`, app);
+  } else {
+    addPaths(isWindows, possiblePaths, binaryName, app);
+  }
+
   for (const binPath of possiblePaths) {
     try {
-      if (fs.existsSync(binPath)) {
-        log.info(`Found binary at: ${binPath}`);
-        return binPath;
+      // Security: Resolve the path and validate it's within expected directories
+      const resolvedPath = path.resolve(binPath);
+
+      // Ensure the resolved path doesn't contain suspicious sequences
+      if (
+        resolvedPath.includes('..') ||
+        resolvedPath.includes(';') ||
+        resolvedPath.includes('|') ||
+        resolvedPath.includes('&')
+      ) {
+        log.error(`Suspicious path detected, skipping: ${resolvedPath}`);
+        continue;
+      }
+
+      if (fs.existsSync(resolvedPath)) {
+        // Additional security check: ensure it's a regular file
+        const stats = fs.statSync(resolvedPath);
+        if (stats.isFile()) {
+          return resolvedPath;
+        } else {
+          log.error(`Path exists but is not a regular file: ${resolvedPath}`);
+        }
       }
     } catch (error) {
       log.error(`Error checking path ${binPath}:`, error);
     }
   }
 
-  // If we get here, we couldn't find the binary
-  const error = `Could not find ${binaryName} binary in any of the expected locations: ${possiblePaths.join(', ')}`;
-  log.error(error);
-  throw new Error(error);
+  throw new Error(
+    `Could not find ${binaryName} binary in any of the expected locations: ${possiblePaths.join(
+      ', '
+    )}`
+  );
+};
+
+const addPaths = (
+  isWindows: boolean,
+  possiblePaths: string[],
+  executableName: string,
+  app: Electron.App
+): void => {
+  const isDev = process.env.NODE_ENV === 'development';
+  const isPackaged = app.isPackaged;
+  if (isDev && !isPackaged) {
+    possiblePaths.push(
+      path.join(process.cwd(), 'src', 'bin', executableName),
+      path.join(process.cwd(), 'bin', executableName),
+      path.join(process.cwd(), '..', '..', 'target', 'release', executableName)
+    );
+  } else {
+    possiblePaths.push(
+      path.join(process.resourcesPath, 'bin', executableName),
+      path.join(app.getAppPath(), 'resources', 'bin', executableName)
+    );
+
+    if (isWindows) {
+      possiblePaths.push(
+        path.join(process.resourcesPath, executableName),
+        path.join(app.getAppPath(), 'resources', executableName),
+        path.join(app.getPath('exe'), '..', 'bin', executableName)
+      );
+    }
+  }
 };

@@ -12,11 +12,18 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a Goose extension, enabling powerful code analysis and file management. With this extension, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 
 :::tip TLDR
-**Command**
-```sh
-npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
-```
-You can specify multiple allowed directories by separating them with a space.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
+  ```
+  </TabItem>
+</Tabs>
+    You can specify multiple allowed directories by separating them with a space.
 :::
 
 ## Configuration
@@ -26,7 +33,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="ui" label="Goose Desktop" default>
+    1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-filesystem&arg=/path/to/allowed/directory&id=filesystem-mcp&name=Filesystem%20MCP%20Server&description=Filesystem%20MCP%20Server)
+    2. Press `Yes` to confirm the installation
+    3. Add additional allowed directories if desired, separated by a space.
+    4. Click `Save Configuration`
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
     1. Run the `configure` command:
     ```sh
     goose configure
@@ -37,7 +51,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◆  What type of extension would you like to add?
         │  ○ Built-in Extension 
@@ -53,7 +67,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Command-line Extension 
@@ -70,7 +84,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Command-line Extension 
@@ -93,7 +107,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Command-line Extension 
@@ -111,12 +125,12 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         └ 
     ``` 
 
-    6. Choose No when asked to add environment variables
+    6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
     ```sh
         ┌   goose-configure 
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
         │  Command-line Extension 
@@ -129,6 +143,35 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         │
         ◇  Please set the timeout for this tool (in secs):
         │  300
+        │
+        // highlight-start
+        ◆  Would you like to add a description?
+        │  No
+        // highlight-end
+        └ 
+    ```
+
+    7. Choose No when asked to add environment variables
+    ```sh
+        ┌   goose-configure 
+        │
+        ◇  What would you like to configure?
+        │  Add Extension (Connect to a new extension) 
+        │
+        ◇  What type of extension would you like to add?
+        │  Command-line Extension 
+        │
+        ◇  What would you like to call this extension?
+        │  filesystem
+        │
+        ◇  What command should be run?
+        │  npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory
+        │
+        ◇  Please set the timeout for this tool (in secs):
+        │  300
+        │
+        ◇  Would you like to add a description?
+        │  No
         │    
         // highlight-start
         ◆  Would you like to add environment variables?
@@ -137,25 +180,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         // highlight-end
         └  Added filesystem extension
     ```  
-  </TabItem>
-
-  <TabItem value="ui" label="Goose Desktop">
-
-    1. Click `...` in the upper right corner
-    2. Click `Settings`
-    3. Under `Extensions`, click the `Add` link
-    4. On the `Add Extension Manually` modal, enter the following:
-            * **Type**: `Standard IO`
-            * **ID**: `filesystem-mcp` (_set this to whatever you want_)
-            * **Name**: `filesystem` (_set this to whatever you want_)
-            * **Description**: `filesystem MCP Server` (_set this to whatever you want_)
-            * **Command**: `npx -y @modelcontextprotocol/server-filesystem /path/to/allowed/directory`
-    5. Click `Add Extension` button
-
-        :::tip Multiple Directories
-        You can specify multiple directories by separating them with a space.
-        ::: 
-
   </TabItem>
 </Tabs>
 
