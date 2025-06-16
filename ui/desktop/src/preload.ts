@@ -1,17 +1,26 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { Recipe } from './recipe';
 
-interface RecipeConfig {
-  id: string;
-  name: string;
-  description: string;
-  instructions?: string;
-  activities?: string[];
-  [key: string]: unknown;
-}
+// RecipeConfig is used for window creation and should match Recipe interface
+type RecipeConfig = Recipe;
 
 interface NotificationData {
   title: string;
   body: string;
+}
+
+interface MessageBoxOptions {
+  type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+  buttons?: string[];
+  defaultId?: number;
+  title?: string;
+  message: string;
+  detail?: string;
+}
+
+interface MessageBoxResponse {
+  response: number;
+  checkboxChecked?: boolean;
 }
 
 interface FileResponse {
@@ -51,6 +60,7 @@ type ElectronAPI = {
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
+  showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
@@ -121,6 +131,7 @@ const electronAPI: ElectronAPI = {
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
+  showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),

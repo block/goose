@@ -1112,6 +1112,12 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
   });
 });
 
+// Handle message box dialogs
+ipcMain.handle('show-message-box', async (_event, options) => {
+  const result = await dialog.showMessageBox(options);
+  return result;
+});
+
 // Handle allowed extensions list fetching
 ipcMain.handle('get-allowed-extensions', async () => {
   try {
