@@ -19,7 +19,6 @@ pub fn load_recipe_content_as_template(
 ) -> Result<String> {
     let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
     let recipe_parameters = extract_parameters_from_content(&recipe_file_content)?;
-
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, recipe_parent_dir, true)?;
     if !missing_params.is_empty() {
@@ -92,7 +91,7 @@ pub fn explain_recipe_with_parameters(
     Ok(())
 }
 
-fn extract_parameters_block(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
+fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
     let mut lines = content.lines().peekable();
     let mut params_block = String::new();
     let mut collecting = false;
@@ -109,6 +108,14 @@ fn extract_parameters_block(content: &str) -> Result<Option<Vec<RecipeParameter>
             }
             params_block.push_str(line);
             params_block.push('\n');
+        }
+    }
+    // If we didn't find a parameter block it might be because it is defined in json style or some such:
+    let result: Result<Recipe, serde_yaml::Error> = serde_yaml::from_str(content);
+    if result.is_ok() {
+        let recipe: Recipe = result.unwrap();
+        if let Some(parameters) = recipe.parameters {
+            return Ok(Some(parameters));
         }
     }
     Ok(None)
@@ -270,15 +277,9 @@ fn render_content_with_params(content: &str, params: &HashMap<String, String>) -
         .map_err(|e| anyhow::anyhow!("Failed to render the recipe {}", e))
 }
 
-fn extract_parameters_from_content(
-    recipe_file_content: &str,
-) -> Result<Option<Vec<RecipeParameter>>> {
-    extract_parameters_block(recipe_file_content)
-}
-
 fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Recipe> {
     let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
-    let parameters = extract_parameters_block(recipe_file_content)?;
+    let parameters = extract_parameters_from_content(recipe_file_content)?;
     validate_optional_parameters(&parameters)?;
     validate_parameters_in_template(&parameters, recipe_file_content)?;
     Ok(recipe_from_recipe_file)
@@ -303,9 +304,9 @@ mod tests {
         }}"#,
             instructions_and_parameters
         );
-        // Create a temporary file
         let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.json");
+        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+
         std::fs::write(&recipe_path, recipe_content).unwrap();
         (temp_dir, recipe_path)
     }
@@ -552,5 +553,49 @@ mod tests {
         let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
+    }
+
+    #[test]
+    fn test_template_inheritance() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        let parent_content = r#"
+            version: 1.0.0
+            title: Parent
+            description: Parent recipe
+            prompt: |
+              {% block prompt -%}
+              What is the capital of France?
+              {%- endblock -%}
+        "#
+        .trim_start();
+
+        let parent_path = temp_path.join("parent.yaml");
+        std::fs::write(&parent_path, parent_content).unwrap();
+
+        let child_content = r#"
+            {% extends "parent.yaml" -%}
+            {%- block prompt -%}
+            What is the capital of Germany?
+            {%- endblock -%}
+        "#
+        .trim_start();
+
+        let child_path = temp_path.join("child.yaml");
+        std::fs::write(&child_path, child_content).unwrap();
+
+        let params = vec![];
+        let result = load_recipe_as_template(child_path.to_str().unwrap(), params);
+
+        assert!(result.is_ok());
+        let recipe = result.unwrap();
+
+        assert_eq!(recipe.title, "Parent");
+        assert_eq!(recipe.description, "Parent recipe");
+        assert_eq!(
+            recipe.prompt.unwrap().trim(),
+            "What is the capital of Germany?"
+        );
     }
 }
