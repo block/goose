@@ -255,15 +255,17 @@ impl Session {
     /// Test if URL supports streamable-http by attempting POST with InitializeRequest
     async fn try_streamable_http(&self, url: &str) -> Result<()> {
         use reqwest::Client;
-        use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest, InitializeRequest, ClientInfo, ClientCapabilities};
+        use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+        use mcp_client::{ClientInfo, ClientCapabilities};
+        use mcp_client::client::InitializeParams;
 
         let client = Client::new();
         let init_request = JsonRpcMessage::Request(JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
-            id: Some(serde_json::Value::Number(1.into())),
+            id: Some(1),
             method: "initialize".to_string(),
-            params: Some(serde_json::to_value(InitializeRequest {
-                protocol_version: "2024-11-05".to_string(),
+            params: Some(serde_json::to_value(InitializeParams {
+                protocol_version: "2025-03-26".to_string(),
                 capabilities: ClientCapabilities::default(),
                 client_info: ClientInfo {
                     name: "goose-cli".to_string(),
