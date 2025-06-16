@@ -796,6 +796,62 @@ ipcMain.handle('get-dock-icon-state', () => {
   }
 });
 
+// Handle opening system notifications preferences
+ipcMain.handle('open-notifications-settings', async () => {
+  try {
+    if (process.platform === 'darwin') {
+      spawn('open', ['x-apple.systempreferences:com.apple.preference.notifications']);
+      return true;
+    } else if (process.platform === 'win32') {
+      // Windows: Open notification settings in Settings app
+      spawn('ms-settings:notifications', { shell: true });
+      return true;
+    } else if (process.platform === 'linux') {
+      // Linux: Try different desktop environments
+      // GNOME
+      try {
+        spawn('gnome-control-center', ['notifications']);
+        return true;
+      } catch (gnomeError) {
+        console.log('GNOME control center not found, trying other options');
+      }
+
+      // KDE Plasma
+      try {
+        spawn('systemsettings5', ['kcm_notifications']);
+        return true;
+      } catch (kdeError) {
+        console.log('KDE systemsettings5 not found, trying other options');
+      }
+
+      // XFCE
+      try {
+        spawn('xfce4-settings-manager', ['--socket-id=notifications']);
+        return true;
+      } catch (xfceError) {
+        console.log('XFCE settings manager not found, trying other options');
+      }
+
+      // Fallback: Try to open general settings
+      try {
+        spawn('gnome-control-center');
+        return true;
+      } catch (fallbackError) {
+        console.warn('Could not find a suitable settings application for Linux');
+        return false;
+      }
+    } else {
+      console.warn(
+        `Opening notification settings is not supported on platform: ${process.platform}`
+      );
+      return false;
+    }
+  } catch (error) {
+    console.error('Error opening notification settings:', error);
+    return false;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
