@@ -1,0 +1,84 @@
+{
+  "month": "May 2025",
+  "communityStars": [
+    {
+      "name": "GitMurf",
+      "handle": "GitMurf"
+    },
+    {
+      "name": "Anil Muppalla",
+      "handle": "anilmuppalla"
+    },
+    {
+      "name": "Ben Walding",
+      "handle": "bwalding"
+    },
+    {
+      "name": "Gustavo Hoirisch",
+      "handle": "gugahoi"
+    },
+    {
+      "name": "Antonio Cheong",
+      "handle": "acheong08"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "Oliver",
+      "handle": "opdich"
+    },
+    {
+      "name": "Jack Amadeo",
+      "handle": "jamadeo"
+    },
+    {
+      "name": "Shea Craig",
+      "handle": "sheagcraig"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "blackgirlbytes", "rank": 1, "medal": "🥇" },
+    { "handle": "zanesq", "rank": 2, "medal": "🥈" },
+    { "handle": "michaelneale", "rank": 3, "medal": "🥉" },
+    { "handle": "angiejones", "rank": 4 },
+    { "handle": "Kvadratni", "rank": 5 },
+    { "handle": "lifeizhou-ap", "rank": 6 },
+    { "handle": "dianed-square", "rank": 7 },
+    { "handle": "yingjiehe-xyz", "rank": 8 },
+    { "handle": "salman1993", "rank": 9 },
+    { "handle": "ahau-square", "rank": 10 },
+    { "handle": "iandouglas", "rank": 11 },
+    { "handle": "emma-squared", "rank": 12 },
+    { "handle": "dbraduan", "rank": 13 },
+    { "handle": "lily-de", "rank": 14 },
+    { "handle": "alexhancock", "rank": 15 },
+    { "handle": "EbonyLouis", "rank": 16 },
+    { "handle": "wendytang", "rank": 17 },
+    { "handle": "The-Best-Codes", "rank": 18 },
+    { "handle": "opdich", "rank": 19 },
+    { "handle": "agiuliano-square", "rank": 20 },
+    { "handle": "patrickReiis", "rank": 21 },
+    { "handle": "kalvinnchau", "rank": 22 },
+    { "handle": "acekyd", "rank": 23 },
+    { "handle": "nahiyankhan", "rank": 24 },
+    { "handle": "taniashiba", "rank": 25 },
+    { "handle": "JohnMAustin78", "rank": 26 },
+    { "handle": "sheagcraig", "rank": 27 },
+    { "handle": "alicehau", "rank": 28 },
+    { "handle": "bwalding", "rank": 29 },
+    { "handle": "jamadeo", "rank": 30 },
+    { "handle": "rockwotj", "rank": 31 },
+    { "handle": "danielzayas", "rank": 32 },
+    { "handle": "svenstaro", "rank": 33 },
+    { "handle": "adaug", "rank": 34 },
+    { "handle": "loganmoseley", "rank": 35 },
+    { "handle": "tiborvass", "rank": 36 },
+    { "handle": "xuv", "rank": 37 },
+    { "handle": "anilmuppalla", "rank": 38 },
+    { "handle": "spencrmartin", "rank": 39 },
+    { "handle": "gknoblauch", "rank": 40 },
+    { "handle": "acheong08", "rank": 41 },
+    { "handle": "faces-of-eth", "rank": 42 },
+    { "handle": "wesbillman", "rank": 43 }
+  ]
+}
