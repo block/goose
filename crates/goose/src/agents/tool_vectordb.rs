@@ -18,6 +18,7 @@ pub struct ToolRecord {
     pub description: String,
     pub schema: String,
     pub vector: Vec<f32>,
+    pub extension_name: String,
 }
 
 pub struct ToolVectorDB {
@@ -84,12 +85,14 @@ impl ToolVectorDB {
                     ),
                     false,
                 ),
+                Field::new("extension_name", DataType::Utf8, false),
             ]));
 
             // Create empty table
             let tool_names = StringArray::from(vec![] as Vec<&str>);
             let descriptions = StringArray::from(vec![] as Vec<&str>);
             let schemas = StringArray::from(vec![] as Vec<&str>);
+            let extension_names = StringArray::from(vec![] as Vec<&str>);
 
             // Create empty fixed size list array for vectors
             let mut vectors_builder =
@@ -103,6 +106,7 @@ impl ToolVectorDB {
                     Arc::new(descriptions),
                     Arc::new(schemas),
                     Arc::new(vectors),
+                    Arc::new(extension_names),
                 ],
             )
             .context("Failed to create record batch")?;
@@ -163,6 +167,7 @@ impl ToolVectorDB {
         let tool_names: Vec<&str> = tools.iter().map(|t| t.tool_name.as_str()).collect();
         let descriptions: Vec<&str> = tools.iter().map(|t| t.description.as_str()).collect();
         let schemas: Vec<&str> = tools.iter().map(|t| t.schema.as_str()).collect();
+        let extension_names: Vec<&str> = tools.iter().map(|t| t.extension_name.as_str()).collect();
 
         let vectors_data: Vec<Option<Vec<Option<f32>>>> = tools
             .iter()
@@ -181,11 +186,13 @@ impl ToolVectorDB {
                 ),
                 false,
             ),
+            Field::new("extension_name", DataType::Utf8, false),
         ]));
 
         let tool_names_array = StringArray::from(tool_names);
         let descriptions_array = StringArray::from(descriptions);
         let schemas_array = StringArray::from(schemas);
+        let extension_names_array = StringArray::from(extension_names);
         // Build vectors array
         let mut vectors_builder =
             FixedSizeListBuilder::new(arrow::array::Float32Builder::new(), 1536);
@@ -213,6 +220,7 @@ impl ToolVectorDB {
                 Arc::new(descriptions_array),
                 Arc::new(schemas_array),
                 Arc::new(vectors_array),
+                Arc::new(extension_names_array),
             ],
         )
         .context("Failed to create record batch")?;
@@ -239,7 +247,12 @@ impl ToolVectorDB {
         Ok(())
     }
 
-    pub async fn search_tools(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<ToolRecord>> {
+    pub async fn search_tools(
+        &self,
+        query_vector: Vec<f32>,
+        k: usize,
+        extension_name: Option<&str>,
+    ) -> Result<Vec<ToolRecord>> {
         let connection = self.connection.read().await;
 
         let table = connection
@@ -248,9 +261,11 @@ impl ToolVectorDB {
             .await
             .context("Failed to open tools table")?;
 
-        let results = table
+        let search = table
             .vector_search(query_vector)
-            .context("Failed to create vector search")?
+            .context("Failed to create vector search")?;
+
+        let results = search
             .limit(k)
             .execute()
             .await
@@ -281,6 +296,13 @@ impl ToolVectorDB {
                 .downcast_ref::<StringArray>()
                 .context("Invalid schema column type")?;
 
+            let extension_names = batch
+                .column_by_name("extension_name")
+                .context("Missing extension_name column")?
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .context("Invalid extension_name column type")?;
+
             // Get the distance scores
             let distances = batch
                 .column_by_name("_distance")
@@ -292,12 +314,21 @@ impl ToolVectorDB {
             for i in 0..batch.num_rows() {
                 let tool_name = tool_names.value(i).to_string();
                 let _distance = distances.value(i);
+                let ext_name = extension_names.value(i).to_string();
+
+                // Filter by extension name if provided
+                if let Some(filter_ext) = extension_name {
+                    if ext_name != filter_ext {
+                        continue;
+                    }
+                }
 
                 tools.push(ToolRecord {
                     tool_name,
                     description: descriptions.value(i).to_string(),
                     schema: schemas.value(i).to_string(),
                     vector: vec![], // We don't need to return the vector
+                    extension_name: ext_name,
                 });
             }
         }
@@ -356,6 +387,7 @@ mod tests {
                 schema: r#"{"type": "object", "properties": {"path": {"type": "string"}}}"#
                     .to_string(),
                 vector: vec![0.1; 1536], // Mock embedding vector
+                extension_name: "test_extension".to_string(),
             },
             ToolRecord {
                 tool_name: "test_tool_2".to_string(),
@@ -363,6 +395,7 @@ mod tests {
                 schema: r#"{"type": "object", "properties": {"path": {"type": "string"}}}"#
                     .to_string(),
                 vector: vec![0.2; 1536], // Different mock embedding vector
+                extension_name: "test_extension".to_string(),
             },
         ];
 
@@ -371,7 +404,7 @@ mod tests {
 
         // Search for tools using a query vector similar to test_tool_1
         let query_vector = vec![0.1; 1536];
-        let results = db.search_tools(query_vector, 2).await?;
+        let results = db.search_tools(query_vector.clone(), 2, None).await?;
 
         // Verify results
         assert_eq!(results.len(), 2, "Should find both tools");
@@ -382,6 +415,25 @@ mod tests {
         assert_eq!(
             results[1].tool_name, "test_tool_2",
             "Second result should be test_tool_2"
+        );
+
+        // Test filtering by extension name
+        let results = db
+            .search_tools(query_vector.clone(), 2, Some("test_extension"))
+            .await?;
+        assert_eq!(
+            results.len(),
+            2,
+            "Should find both tools with test_extension"
+        );
+
+        let results = db
+            .search_tools(query_vector.clone(), 2, Some("nonexistent_extension"))
+            .await?;
+        assert_eq!(
+            results.len(),
+            0,
+            "Should find no tools with nonexistent_extension"
         );
 
         Ok(())
@@ -397,7 +449,7 @@ mod tests {
 
         // Search in empty database
         let query_vector = vec![0.1; 1536];
-        let results = db.search_tools(query_vector, 2).await?;
+        let results = db.search_tools(query_vector, 2, None).await?;
 
         // Verify no results returned
         assert_eq!(results.len(), 0, "Empty database should return no results");
@@ -419,20 +471,21 @@ mod tests {
             description: "A test tool that will be deleted".to_string(),
             schema: r#"{"type": "object", "properties": {"path": {"type": "string"}}}"#.to_string(),
             vector: vec![0.1; 1536],
+            extension_name: "test_extension".to_string(),
         };
 
         db.index_tools(vec![test_tool]).await?;
 
         // Verify tool exists
         let query_vector = vec![0.1; 1536];
-        let results = db.search_tools(query_vector.clone(), 1).await?;
+        let results = db.search_tools(query_vector.clone(), 1, None).await?;
         assert_eq!(results.len(), 1, "Tool should exist before deletion");
 
         // Delete the tool
         db.remove_tool("test_tool_to_delete").await?;
 
         // Verify tool is gone
-        let results = db.search_tools(query_vector.clone(), 1).await?;
+        let results = db.search_tools(query_vector.clone(), 1, None).await?;
         assert_eq!(results.len(), 0, "Tool should be deleted");
 
         Ok(())

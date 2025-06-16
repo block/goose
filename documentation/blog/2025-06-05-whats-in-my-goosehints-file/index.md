@@ -1,4 +1,5 @@
 ---
+unlisted: true
 title: "What's in my .goosehints file (and why it probably shouldn't be)"
 description: A deep dive into .goosehints vs Memory Extension, and how to optimize your Goose configuration for better performance
 authors:

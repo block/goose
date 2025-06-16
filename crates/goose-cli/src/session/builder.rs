@@ -34,6 +34,8 @@ pub struct SessionBuilderConfig {
     pub extensions_override: Option<Vec<ExtensionConfig>>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
+    /// Settings to override the global Goose settings
+    pub settings: Option<SessionSettings>,
     /// Enable debug printing
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
@@ -136,23 +138,51 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct SessionSettings {
+    pub goose_model: Option<String>,
+    pub goose_provider: Option<String>,
+    pub temperature: Option<f32>,
+}
+
 pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Load config and get provider/model
     let config = Config::global();
 
-    let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
+    let provider_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_provider.clone())
+        .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
         .expect("No provider configured. Run 'goose configure' first");
 
-    let model: String = config
-        .get_param("GOOSE_MODEL")
+    let model_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_model.clone())
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
         .expect("No model configured. Run 'goose configure' first");
-    let model_config = goose::model::ModelConfig::new(model.clone());
+
+    let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+
+    let model_config =
+        goose::model::ModelConfig::new(model_name.clone()).with_temperature(temperature);
 
     // Create the agent
     let agent: Agent = Agent::new();
-    let new_provider = create(&provider_name, model_config).unwrap();
-
+    let new_provider = match create(&provider_name, model_config) {
+        Ok(provider) => provider,
+        Err(e) => {
+            output::render_error(&format!(
+                "Error {}.\n\
+                Please check your system keychain and run 'goose configure' again.\n\
+                If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
+                For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
+                e
+            ));
+            process::exit(1);
+        }
+    };
     // Keep a reference to the provider for display_session_info
     let provider_for_display = Arc::clone(&new_provider);
 
@@ -165,7 +195,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", model);
+        tracing::info!("🤖 Using model: {}", model_name);
     }
 
     agent
@@ -430,7 +460,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     output::display_session_info(
         session_config.resume,
         &provider_name,
-        &model,
+        &model_name,
         &session_file,
         Some(&provider_for_display),
     );
@@ -452,6 +482,7 @@ mod tests {
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
+            settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
             interactive: true,

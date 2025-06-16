@@ -490,6 +490,17 @@ async fn test_snowflake_provider() -> Result<()> {
     .await
 }
 
+#[tokio::test]
+async fn test_sagemaker_tgi_provider() -> Result<()> {
+    test_provider(
+        "SageMakerTgi",
+        &["SAGEMAKER_ENDPOINT_NAME"],
+        None,
+        goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
+    )
+    .await
+}
+
 // Print the final test report
 #[ctor::dtor]
 fn print_test_report() {

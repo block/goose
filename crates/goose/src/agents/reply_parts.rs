@@ -29,6 +29,7 @@ impl Agent {
 
         let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "llm" => Some(RouterToolSelectionStrategy::Llm),
             _ => None,
         };
 
@@ -36,6 +37,10 @@ impl Agent {
         let mut tools = match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
                 self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
+                    .await
+            }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
                     .await
             }
             _ => self.list_tools(None).await,

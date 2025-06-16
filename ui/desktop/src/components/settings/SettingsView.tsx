@@ -14,6 +14,7 @@ import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
+  section?: string;
 };
 
 export default function SettingsView({
@@ -55,7 +56,7 @@ export default function SettingsView({
               {/* Tool Selection Strategy */}
               <ToolSelectionStrategySection setView={setView} />
               {/* App Settings */}
-              <AppSettingsSection />
+              <AppSettingsSection scrollToSection={viewOptions.section} />
             </div>
           </div>
         </div>
