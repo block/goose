@@ -106,9 +106,12 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
         const { file, error, found } = await getGoosehintsFile(goosehintsFilePath);
         setGoosehintsFile(file);
         setGoosehintsFileFound(found);
-        setGoosehintsFileReadError(error || '');
+        // Only set error if file was found but there was an actual read error
+        // If file is not found, treat it as creating a new file (no error)
+        setGoosehintsFileReadError(found && error ? error : '');
       } catch (error) {
         console.error('Error fetching .goosehints file:', error);
+        setGoosehintsFileReadError('Failed to access .goosehints file');
       }
     };
     if (directory) fetchGoosehintsFile();
