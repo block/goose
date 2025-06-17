@@ -26,7 +26,13 @@ export interface ExtensionFormData {
   endpoint?: string;
   enabled: boolean;
   timeout?: number;
-  envVars: { key: string; value: string }[];
+  envVars: {
+    key: string;
+    value: string;
+    isEdited?: boolean;
+  }[];
+  // Store the original extension config to preserve unknown fields
+  _originalConfig?: ExtensionConfig;
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -39,6 +45,7 @@ export function getDefaultFormData(): ExtensionFormData {
     enabled: true,
     timeout: 300,
     envVars: [],
+    _originalConfig: undefined,
   };
 }
 
@@ -46,13 +53,30 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   // Type guard: Check if 'envs' property exists for this variant
   const hasEnvs = extension.type === 'sse' || extension.type === 'stdio';
 
-  const envVars =
-    hasEnvs && extension.envs
-      ? Object.entries(extension.envs).map(([key, value]) => ({
-          key,
-          value: value as string,
-        }))
-      : [];
+  // Handle both envs (legacy) and env_keys (new secrets)
+  let envVars = [];
+
+  // Add legacy envs with their values
+  if (hasEnvs && extension.envs) {
+    envVars.push(
+      ...Object.entries(extension.envs).map(([key, value]) => ({
+        key,
+        value: value as string,
+        isEdited: true, // We want to submit legacy values as secrets to migrate forward
+      }))
+    );
+  }
+
+  // Add env_keys with placeholder values
+  if (hasEnvs && extension.env_keys) {
+    envVars.push(
+      ...extension.env_keys.map((key) => ({
+        key,
+        value: '••••••••', // Placeholder for secret values
+        isEdited: false, // Mark as not edited initially
+      }))
+    );
+  }
 
   return {
     name: extension.name,
@@ -64,50 +88,70 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     enabled: extension.enabled,
     timeout: extension.timeout,
     envVars,
+    // Store the original config to preserve unknown fields
+    _originalConfig: extractExtensionConfig(extension),
   };
 }
 
+/**
+ * Convert an ExtensionConfig (without enabled field) to form data
+ * This is used for deeplink configurations
+ */
+export function extensionConfigToFormData(config: ExtensionConfig, enabled: boolean = true): ExtensionFormData {
+  // Create a temporary FixedExtensionEntry-like object
+  const tempExtension = { ...config, enabled } as FixedExtensionEntry;
+  return extensionToFormData(tempExtension);
+}
+
 export function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
-  const envs = formData.envVars.reduce(
-    (acc, { key, value }) => {
-      if (key) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, string>
-  );
+  // Extract just the keys from env vars
+  const env_keys = formData.envVars.map(({ key }) => key).filter((key) => key.length > 0);
+
+  let newConfig: ExtensionConfig;
 
   if (formData.type === 'stdio') {
     // we put the cmd + args all in the form cmd field but need to split out into cmd + args
     const { cmd, args } = splitCmdAndArgs(formData.cmd);
 
-    return {
+    newConfig = {
       type: 'stdio',
       name: formData.name,
       description: formData.description,
       cmd: cmd,
       args: args,
       timeout: formData.timeout,
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
+      ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else if (formData.type === 'sse') {
-    return {
+    newConfig = {
       type: 'sse',
       name: formData.name,
       description: formData.description,
       timeout: formData.timeout,
-      uri: formData.endpoint, // Assuming endpoint maps to uri for SSE type
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
+      uri: formData.endpoint,
+      ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else {
-    // For other types
-    return {
+    // For other types (builtin, frontend, etc.)
+    newConfig = {
       type: formData.type,
       name: formData.name,
       timeout: formData.timeout,
     };
   }
+
+  // If we have an original config, merge it with the new config to preserve unknown fields
+  if (formData._originalConfig) {
+    // Start with the original config to preserve all fields
+    const mergedConfig = { ...formData._originalConfig };
+    
+    // Override with the new values from the form
+    Object.assign(mergedConfig, newConfig);
+    
+    return mergedConfig;
+  }
+
+  return newConfig;
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
@@ -131,8 +175,8 @@ export function combineCmdAndArgs(cmd: string, args: string[]): string {
  * @returns The ExtensionConfig portion of the object
  */
 export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): ExtensionConfig {
-  // todo: enabled not used?
-  const { ...extensionConfig } = fixedEntry;
+  // Remove the enabled field to get a clean ExtensionConfig
+  const { enabled, ...extensionConfig } = fixedEntry;
   return extensionConfig;
 }
 

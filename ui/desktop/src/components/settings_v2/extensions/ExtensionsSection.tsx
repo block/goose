@@ -9,6 +9,7 @@ import {
   createExtensionConfig,
   ExtensionFormData,
   extensionToFormData,
+  extensionConfigToFormData,
   extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
@@ -256,7 +257,7 @@ export default function ExtensionsSection({
         {deepLinkConfigStateVar && showEnvVarsStateVar && (
           <ExtensionModal
             title="Add custom extension"
-            initialData={extensionToFormData({ ...deepLinkConfig, enabled: true })}
+            initialData={extensionConfigToFormData(deepLinkConfig, true)}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
             submitLabel="Add Extension"
