@@ -391,12 +391,7 @@ impl Provider for GithubCopilotProvider {
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
             vec![
-                ConfigKey::new(
-                    "GITHUB_COPILOT_TOKEN",
-                    true,  
-                    true, 
-                    None,  
-                ),
+                ConfigKey::new("GITHUB_COPILOT_TOKEN",true,true, None),
             ],
         )
     }
