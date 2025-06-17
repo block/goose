@@ -12,15 +12,15 @@ on:
         required: false
         type: boolean
         default: false
+      ref:
+        type: string
+        required: false
+        default: 'refs/heads/main'
     secrets:
       WINDOWS_CERTIFICATE:
         required: false
       WINDOWS_CERTIFICATE_PASSWORD:
         required: false
-    ref:
-      type: string
-      required: false
-      default: 'refs/heads/main'
 
 jobs:
   build-desktop-windows:
