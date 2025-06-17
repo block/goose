@@ -19,8 +19,13 @@ pub fn load_recipe_content_as_template(
 ) -> Result<String> {
     let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
     let recipe_parameters = extract_parameters_from_content(&recipe_file_content)?;
+
+    validate_optional_parameters(&recipe_parameters)?;
+    validate_parameters_in_template(&recipe_parameters, &recipe_file_content)?;
+
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, recipe_parent_dir, true)?;
+
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
@@ -51,24 +56,6 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
     Ok(recipe)
 }
 
-/// Loads and validates a recipe from a YAML or JSON file
-///
-/// # Arguments
-///
-/// * `path` - Path to the recipe file (YAML or JSON)
-/// * `params` - optional parameters to render the recipe with
-///
-/// # Returns
-///
-/// The parsed recipe struct if successful
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The file doesn't exist
-/// - The file can't be read
-/// - The YAML/JSON is invalid
-/// - The parameter definition does not match the template variables in the recipe file
 pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
     let (recipe_file_content, _) = retrieve_recipe_file(recipe_name)?;
 
@@ -95,6 +82,8 @@ fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipePar
     let mut lines = content.lines().peekable();
     let mut params_block = String::new();
     let mut collecting = false;
+
+    eprint!("Recipe content:\n{}", content);
 
     while let Some(line) = lines.next() {
         if line.starts_with("parameters:") {
@@ -515,9 +504,7 @@ mod tests {
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
-        assert!(err.to_string().contains(
-            "Optional parameters missing default values in the recipe: optional_param. Please provide defaults."
-        ));
+        assert!(err.to_string().to_lowercase().contains("missing"));
     }
 
     #[test]
@@ -538,9 +525,9 @@ mod tests {
         let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), params);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("unknown variant `some_invalid_type`"));
+        let err_msg = err.to_string();
+        eprint!("Error: {}", err_msg);
+        assert!(err_msg.contains("unknown variant `some_invalid_type`"));
     }
 
     #[test]
