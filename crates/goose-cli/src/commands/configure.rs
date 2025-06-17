@@ -442,10 +442,13 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     }
 
     // Create a list of extension names and their enabled status
-    let extension_status: Vec<(String, bool)> = extensions
+    let mut extension_status: Vec<(String, bool)> = extensions
         .iter()
         .map(|entry| (entry.config.name().to_string(), entry.enabled))
         .collect();
+
+    // Sort extensions alphabetically by name
+    extension_status.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Get currently enabled extensions for the selection
     let enabled_extensions: Vec<&String> = extension_status
@@ -773,10 +776,13 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
     let extensions = ExtensionConfigManager::get_all()?;
 
     // Create a list of extension names and their enabled status
-    let extension_status: Vec<(String, bool)> = extensions
+    let mut extension_status: Vec<(String, bool)> = extensions
         .iter()
         .map(|entry| (entry.config.name().to_string(), entry.enabled))
         .collect();
+
+    // Sort extensions alphabetically by name
+    extension_status.sort_by(|a, b| a.0.cmp(&b.0));
 
     if extensions.is_empty() {
         cliclack::outro(
@@ -887,7 +893,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     let mode = cliclack::select("Which Goose mode would you like to configure?")
         .item(
             "auto",
-            "Auto Mode", 
+            "Auto Mode",
             "Full file modification, extension usage, edit, create and delete files freely"
         )
         .item(
@@ -1051,6 +1057,9 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .map(|ext| ext.config.name().clone())
         .collect();
     extensions.push("platform".to_string());
+
+    // Sort extensions alphabetically by name
+    extensions.sort();
 
     let selected_extension_name = cliclack::select("Choose an extension to configure tools")
         .items(
