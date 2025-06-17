@@ -65,6 +65,7 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, JsonRpcMessage)),
+    ModelChange { model: String, mode: String },
 }
 
 impl Agent {
@@ -582,6 +583,26 @@ impl Agent {
                     &toolshim_tools,
                 ).await {
                     Ok((response, usage)) => {
+                        // Emit model change event if provider is lead-worker
+                        let provider = self.provider().await?;
+                        if let Some(lead_worker) = provider.as_lead_worker() {
+                            // The actual model used is in the usage
+                            let active_model = usage.model.clone();
+                            let (lead_model, worker_model) = lead_worker.get_model_info();
+                            let mode = if active_model == lead_model {
+                                "lead"
+                            } else if active_model == worker_model {
+                                "worker"
+                            } else {
+                                "unknown"
+                            };
+
+                            yield AgentEvent::ModelChange {
+                                model: active_model,
+                                mode: mode.to_string(),
+                            };
+                        }
+
                         // record usage for the session in the session file
                         if let Some(session_config) = session.clone() {
                             Self::update_session_metrics(session_config, &usage, messages.len()).await?;

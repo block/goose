@@ -165,6 +165,9 @@ async fn execute_recipe(job_id: &str, recipe_path: &str) -> Result<String> {
             Ok(AgentEvent::McpNotification(_)) => {
                 // Handle notifications if needed
             }
+            Ok(AgentEvent::ModelChange { .. }) => {
+                // Model change events are informational, just continue
+            }
             Err(e) => {
                 return Err(anyhow!("Error receiving message from agent: {}", e));
             }
