@@ -206,15 +206,11 @@ impl Session {
             .map(char::from)
             .collect();
 
-        let config = ExtensionConfig::Sse {
-            name,
-            uri: extension_url,
-            envs: Envs::new(HashMap::new()),
-            env_keys: Vec::new(),
-            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
-            // TODO: should set timeout
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
+        // Auto-detect transport type per MCP backwards compatibility guidelines
+        // https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility
+        let config = match self.detect_transport_type(&extension_url, &name).await {
+            Ok(config) => config,
+            Err(e) => return Err(anyhow::anyhow!("Failed to detect transport type: {}", e)),
         };
 
         self.agent
@@ -226,6 +222,73 @@ impl Session {
         self.invalidate_completion_cache().await;
 
         Ok(())
+    }
+
+    /// Detect transport type following MCP specification backwards compatibility guidelines
+    async fn detect_transport_type(&self, url: &str, name: &str) -> Result<ExtensionConfig> {
+        // Try streamable-http first
+        if self.try_streamable_http(url).await.is_ok() {
+            return Ok(ExtensionConfig::StreamableHttp {
+                name: name.to_string(),
+                uri: url.to_string(),
+                envs: Envs::new(HashMap::new()),
+                env_keys: Vec::new(),
+                headers: HashMap::new(),
+                description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                bundled: None,
+            });
+        }
+
+        // Fallback to SSE
+        Ok(ExtensionConfig::Sse {
+            name: name.to_string(),
+            uri: url.to_string(),
+            envs: Envs::new(HashMap::new()),
+            env_keys: Vec::new(),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+        })
+    }
+
+    /// Test if URL supports streamable-http by attempting POST with InitializeRequest
+    async fn try_streamable_http(&self, url: &str) -> Result<()> {
+        use reqwest::Client;
+        use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+        use mcp_client::{ClientInfo, ClientCapabilities};
+        use mcp_client::client::InitializeParams;
+
+        let client = Client::new();
+        let init_request = JsonRpcMessage::Request(JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(1),
+            method: "initialize".to_string(),
+            params: Some(serde_json::to_value(InitializeParams {
+                protocol_version: "2025-03-26".to_string(),
+                capabilities: ClientCapabilities::default(),
+                client_info: ClientInfo {
+                    name: "goose-cli".to_string(),
+                    version: "detect".to_string(),
+                },
+            })?),
+        });
+
+        let response = client
+            .post(url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .json(&init_request)
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else if response.status() == 405 || response.status() == 404 {
+            Err(anyhow::anyhow!("Server does not support streamable-http"))
+        } else {
+            Err(anyhow::anyhow!("HTTP error: {}", response.status()))
+        }
     }
 
     /// Add a builtin extension to the session

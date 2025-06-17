@@ -30,6 +30,12 @@ pub enum Error {
 
     #[error("HTTP error: {status} - {message}")]
     HttpError { status: u16, message: String },
+
+    #[error("Streamable HTTP error: {0}")]
+    StreamableHttpError(String),
+
+    #[error("Session error: {0}")]
+    SessionError(String),
 }
 
 /// A message that can be sent through the transport
@@ -78,3 +84,6 @@ pub use stdio::StdioTransport;
 
 pub mod sse;
 pub use sse::SseTransport;
+
+pub mod streamable_http;
+pub use streamable_http::StreamableHttpTransport;

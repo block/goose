@@ -33,7 +33,7 @@ interface CreateScheduleModalProps {
 // Interface for clean extension in YAML
 interface CleanExtension {
   name: string;
-  type: 'stdio' | 'sse' | 'builtin' | 'frontend';
+  type: 'stdio' | 'sse' | 'builtin' | 'frontend' | 'streamable_http';
   cmd?: string;
   args?: string[];
   uri?: string;
@@ -144,6 +144,8 @@ function recipeToYaml(recipe: Recipe): string {
 
         if (ext.type === 'sse' && extAny.uri) {
           cleanExt.uri = extAny.uri as string;
+        } else if (ext.type === 'streamable_http' && extAny.uri) {
+          cleanExt.uri = extAny.uri as string;
         } else if (ext.type === 'stdio') {
           if (extAny.cmd) {
             cleanExt.cmd = extAny.cmd as string;
@@ -179,7 +181,8 @@ function recipeToYaml(recipe: Recipe): string {
           cleanExt.type = 'stdio';
           cleanExt.cmd = extAny.command as string;
         } else if (extAny.uri) {
-          cleanExt.type = 'sse';
+          // Default to streamable_http for URI-based extensions for forward compatibility
+          cleanExt.type = 'streamable_http';
           cleanExt.uri = extAny.uri as string;
         } else if (extAny.tools) {
           cleanExt.type = 'frontend';

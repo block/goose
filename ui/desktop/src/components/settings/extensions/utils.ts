@@ -21,12 +21,17 @@ import { ExtensionConfig } from '../../../api/types.gen';
 export interface ExtensionFormData {
   name: string;
   description: string;
-  type: 'stdio' | 'sse' | 'builtin';
+  type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';
   cmd?: string;
   endpoint?: string;
   enabled: boolean;
   timeout?: number;
   envVars: {
+    key: string;
+    value: string;
+    isEdited?: boolean;
+  }[];
+  headers: {
     key: string;
     value: string;
     isEdited?: boolean;
@@ -43,12 +48,14 @@ export function getDefaultFormData(): ExtensionFormData {
     enabled: true,
     timeout: 300,
     envVars: [],
+    headers: [],
   };
 }
 
 export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFormData {
   // Type guard: Check if 'envs' property exists for this variant
-  const hasEnvs = extension.type === 'sse' || extension.type === 'stdio';
+  const hasEnvs =
+    extension.type === 'sse' || extension.type === 'streamable_http' || extension.type === 'stdio';
 
   // Handle both envs (legacy) and env_keys (new secrets)
   let envVars = [];
@@ -75,16 +82,32 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     );
   }
 
+  // Handle headers for streamable_http
+  let headers = [];
+  if (extension.type === 'streamable_http' && 'headers' in extension && extension.headers) {
+    headers.push(
+      ...Object.entries(extension.headers).map(([key, value]) => ({
+        key,
+        value: value as string,
+        isEdited: false, // Mark as not edited initially
+      }))
+    );
+  }
+
   return {
     name: extension.name || '',
     description:
-      extension.type === 'stdio' || extension.type === 'sse' ? extension.description || '' : '',
+      extension.type === 'stdio' || extension.type === 'sse' || extension.type === 'streamable_http'
+        ? extension.description || ''
+        : '',
     type: extension.type === 'frontend' ? 'stdio' : extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
-    endpoint: extension.type === 'sse' ? extension.uri : undefined,
+    endpoint:
+      extension.type === 'sse' || extension.type === 'streamable_http' ? extension.uri : undefined,
     enabled: extension.enabled,
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
+    headers,
   };
 }
 
@@ -113,6 +136,27 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       timeout: formData.timeout,
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
+    };
+  } else if (formData.type === 'streamable_http') {
+    // Extract headers
+    const headers = formData.headers
+      .filter(({ key, value }) => key.length > 0 && value.length > 0)
+      .reduce(
+        (acc, header) => {
+          acc[header.key] = header.value;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+
+    return {
+      type: 'streamable_http',
+      name: formData.name,
+      description: formData.description,
+      timeout: formData.timeout,
+      uri: formData.endpoint || '',
+      ...(env_keys.length > 0 ? { env_keys } : {}),
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
     };
   } else {
     // For other types
