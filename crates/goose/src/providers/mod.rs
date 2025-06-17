@@ -24,5 +24,6 @@ pub mod toolshim;
 pub mod utils;
 pub mod utils_universal_openai_stream;
 pub mod venice;
+pub mod xai;
 
 pub use factory::{create, providers};
