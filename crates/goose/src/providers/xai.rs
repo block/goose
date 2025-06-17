@@ -79,6 +79,9 @@ impl XaiProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
+        tracing::debug!("xAI API URL: {}", url);
+        tracing::debug!("xAI request model: {:?}", self.model.model_name);
+
         let response = self
             .client
             .post(url)

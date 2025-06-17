@@ -24,3 +24,24 @@ Successfully added xAI provider support for Grok models to Goose:
 **Branch:** feature/add-grok-models
 **Commit:** ff54e6d576
 
+# ["xai", "fix", "endpoint", "url", "api"]
+Fixed critical issue with xAI provider endpoint URL:
+
+**Problem:** 
+Getting 404 error when using xAI provider because of incorrect API endpoint construction.
+
+**Root Cause:**
+The code was constructing URL as: `https://api.x.ai` + `v1/chat/completions` = `https://api.x.ai/v1/chat/completions`
+But x.ai API documentation shows the base URL should be `https://api.x.ai/v1` and then append `chat/completions`.
+
+**Solution:**
+1. Changed `XAI_API_HOST` from `"https://api.x.ai"` to `"https://api.x.ai/v1"`
+2. Updated URL joining to append `"chat/completions"` instead of `"v1/chat/completions"`
+3. Updated UI provider registry default host to match
+4. Tested with curl - now returns proper 400 auth error instead of 404
+
+**Additional Issue Found:**
+User had `GOOSE_LEAD_MODEL: claude-opus-4-20250514` in config which was triggering lead/worker mode. This model doesn't exist, causing cascade failures. Recommend removing or updating to valid model.
+
+**Status:** Fixed and committed (commit 30dbcba3e4)
+
