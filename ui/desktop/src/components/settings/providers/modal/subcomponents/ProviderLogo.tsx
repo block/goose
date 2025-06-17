@@ -32,10 +32,19 @@ export default function ProviderLogo({ providerName }: ProviderLogoProps) {
   const logoKey = providerName.toLowerCase();
   const logo = providerLogos[logoKey] || DefaultLogo;
 
+  // Apply invert filter for xAI logo since it's black on transparent
+  const imageStyle = logoKey === 'xai' 
+    ? { 
+        filter: 'invert(1)', 
+        opacity: 0.9 
+      } 
+    : {};
+
   return (
     <div className="flex justify-center mb-2">
       <div className="w-12 h-12 bg-black rounded-full overflow-hidden flex items-center justify-center">
-        <img src={logo} alt={`${providerName} logo`} className="w-16 h-16 object-contain" />
+        <img src={logo} alt={`${providerName} logo`} className="w-16 h-16 object-contain" 
+             style={imageStyle} />
       </div>
     </div>
   );
