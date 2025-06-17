@@ -12,15 +12,16 @@ on:
         required: false
         type: boolean
         default: false
+      ref:
+        description: 'Git ref to checkout'
+        required: false
+        type: string
+        default: 'refs/heads/main'
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE:
         required: false
       WINDOWS_CERTIFICATE_PASSWORD:
         required: false
-    ref:
-      type: string
-      required: false
-      default: 'refs/heads/main'
 
 # Permissions required for OIDC authentication with AWS
 permissions:
@@ -46,7 +47,7 @@ jobs:
         if: inputs.signing && inputs.signing == true
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # ratchet:aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::897729142994:role/squareup-goose-releases-codesign
+          role-to-assume: ${{ inputs.ref && inputs.ref != 'refs/heads/main' && 'arn:aws:iam::897729142994:role/block-goose-codesign-test-branch-delete-when-done' || 'arn:aws:iam::897729142994:role/squareup-goose-releases-codesign' }}
           aws-region: us-west-2
 
       # 2) Set up Node.js
