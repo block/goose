@@ -507,20 +507,21 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         "built-in" => {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
-                    "developer",
-                    "Developer Tools",
-                    "Code editing and shell access",
-                )
-                .item(
                     "computercontroller",
                     "Computer Controller",
                     "controls for webscraping, file caching, and automations",
+                )
+                .item(
+                    "developer",
+                    "Developer Tools",
+                    "Code editing and shell access",
                 )
                 .item(
                     "googledrive",
                     "Google Drive",
                     "Search and read content from google drive - additional config required",
                 )
+                .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .item(
                     "memory",
                     "Memory",
@@ -531,7 +532,6 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Tutorial",
                     "Access interactive tutorials and guides",
                 )
-                .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .interact()?
                 .to_string();
 
