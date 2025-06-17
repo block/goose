@@ -37,6 +37,21 @@ export interface SessionDetails {
 }
 
 /**
+ * Deletes a session file
+ * @param sessionId The ID of the session to delete
+ * @returns Promise that resolves when the session is deleted
+ */
+export async function deleteSession(sessionId: string): Promise<void> {
+  try {
+    // Use Electron IPC to delete the session file
+    await window.electron.deleteSessionFile(sessionId);
+  } catch (error) {
+    console.error(`Error deleting session ${sessionId}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Generate a session ID in the format yyyymmdd_hhmmss
  */
 export function generateSessionId(): string {
