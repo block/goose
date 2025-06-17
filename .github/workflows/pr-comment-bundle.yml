@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   trigger-on-command:
+    if: github.event.issue.pull_request
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     outputs:
@@ -48,7 +49,7 @@ jobs:
           echo "Actor: ${ACTOR}"
           echo "Repository: ${REPOSITORY}"
 
-      - if: ${{ github.event_name == 'issue_comment' }}
+      - name: Run command action
         uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
         id: command
         with:

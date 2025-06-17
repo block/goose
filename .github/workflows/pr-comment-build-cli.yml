@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   trigger-on-command:
+    if: github.event.issue.pull_request
     name: Trigger on ".build-cli" PR comment
     runs-on: ubuntu-latest
     outputs:
@@ -29,7 +30,7 @@ jobs:
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
       head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
-      - if: ${{ github.event_name == 'issue_comment' }}
+      - name: Run command action
         uses: github/command@v1.3.0
         id: command
         with:
