@@ -7,6 +7,10 @@ on:
 #    branches: [ "main" ]
   workflow_call:
     inputs:
+      version:
+        description: 'Version to build'
+        required: false
+        type: string
       signing:
         description: 'Whether to sign the Windows executable'
         required: false
