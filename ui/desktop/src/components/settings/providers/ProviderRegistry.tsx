@@ -111,7 +111,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         {
           name: 'XAI_HOST',
           is_secret: false,
-          default: 'https://api.x.ai',
+          default: 'https://api.x.ai/v1',
         },
       ],
     },

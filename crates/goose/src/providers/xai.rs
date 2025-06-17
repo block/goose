@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::time::Duration;
 use url::Url;
 
-pub const XAI_API_HOST: &str = "https://api.x.ai";
+pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
 pub const XAI_DEFAULT_MODEL: &str = "grok-3";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
     "grok-3",
@@ -75,7 +75,7 @@ impl XaiProvider {
     async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("v1/chat/completions").map_err(|e| {
+        let url = base_url.join("chat/completions").map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
