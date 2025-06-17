@@ -61,10 +61,10 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: false  # false for now as we don't have a cert yet
+      signing: false  # Keep PR builds unsigned for faster iteration
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
     secrets:
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
   pr-comment-windows:
