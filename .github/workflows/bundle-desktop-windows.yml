@@ -54,7 +54,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
         with:
-          node-version: 18
+          node-version: 22
 
       # 3) Cache dependencies
       - name: Cache node_modules
@@ -63,9 +63,9 @@ jobs:
           path: |
             node_modules
             ui/desktop/node_modules
-          key: ${{ runner.os }}-build-desktop-windows-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-build-desktop-windows-node22-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-build-desktop-windows-
+            ${{ runner.os }}-build-desktop-windows-node22-
 
       # Cache Cargo registry and git dependencies
       - name: Cache Cargo registry
@@ -263,7 +263,18 @@ jobs:
       - name: Build desktop UI with npm
         run: |
           cd ui/desktop
+          
+          # Fix for rollup native module issue (npm optional dependencies bug)
+          echo "🔧 Fixing npm optional dependencies issue..."
+          rm -rf node_modules package-lock.json
           npm install
+          
+          # Verify rollup native module is installed
+          if [ ! -d "node_modules/@rollup/rollup-linux-x64-gnu" ]; then
+            echo "⚠️ Rollup native module missing, installing manually..."
+            npm install @rollup/rollup-linux-x64-gnu --save-optional
+          fi
+          
           npm run bundle:windows
 
       # 7) Copy exe/dll to final out folder and prepare flat distribution
