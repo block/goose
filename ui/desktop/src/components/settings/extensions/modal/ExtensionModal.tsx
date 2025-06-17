@@ -282,10 +282,7 @@ export default function ExtensionModal({
 
   return (
     <>
-      <Modal 
-        footer={footerContent} 
-        onClose={handleBackdropClose}
-      >
+      <Modal footer={footerContent} onClose={handleBackdropClose}>
         {/* Title and Icon */}
         <div className="flex flex-col mb-6">
           <div>{getModalIcon()}</div>
