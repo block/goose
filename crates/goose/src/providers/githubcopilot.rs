@@ -393,9 +393,9 @@ impl Provider for GithubCopilotProvider {
             vec![
                 ConfigKey::new(
                     "GITHUB_COPILOT_TOKEN",
-                    true,  // required
-                    true,  // secret
-                    None,  // no default value
+                    true,  
+                    true, 
+                    None,  
                 ),
             ],
         )
