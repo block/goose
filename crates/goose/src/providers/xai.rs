@@ -79,7 +79,8 @@ impl XaiProvider {
         } else {
             format!("{}/", self.host)
         };
-        let base_url = Url::parse(&host).map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let base_url = Url::parse(&host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("chat/completions").map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
