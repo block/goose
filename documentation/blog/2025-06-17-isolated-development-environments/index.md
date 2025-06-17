@@ -15,6 +15,8 @@ Underlying these containers was interesting tech around "copy on write" filesyst
 Dagger (the project and company!) followed on from Docker (by Solomon Hykes, creator of Docker) which furthered the reach of containers for developers.
 A project that has come out of that is an MCP server called `container-use` - which provides a cli and tool which can be invaluable for coding agents to able to do work in isolated environments and branches with a clear lifecycle and ability to roll back, limit changes and risk (compared to running an agent direct on your system) but with the same ergonomics and convenience you are used to with agents. 
 
+The container use MCP is still an emerging and changing project and utility, so consider it early days for it but it is moving fast and can and will provide some really useful tools for easy isolation when you need it.
+
 
 Please take a look at **isolated development environments** in Goose, powered by **[Dagger's Container Use MCP server](https://github.com/dagger/container-use)**. This brings containerized, git-branch-isolated development directly into your Goose workflow.
 
