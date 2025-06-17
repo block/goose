@@ -12,23 +12,43 @@ pub enum SchedulerType {
 }
 
 impl SchedulerType {
-    /// Determine scheduler type from configuration
     pub fn from_config() -> Self {
         let config = Config::global();
+
+        // First check if alpha features are enabled
+        // If not, always use legacy scheduler regardless of GOOSE_SCHEDULER_TYPE
+        match config.get_param::<String>("ALPHA") {
+            Ok(alpha_value) => {
+                // Only proceed with temporal if alpha is explicitly enabled
+                if alpha_value.to_lowercase() != "true" {
+                    tracing::info!("Alpha features disabled, using legacy scheduler");
+                    return SchedulerType::Legacy;
+                }
+            }
+            Err(_) => {
+                // No ALPHA env var means alpha features are disabled
+                tracing::info!("No ALPHA environment variable found, using legacy scheduler");
+                return SchedulerType::Legacy;
+            }
+        }
+
+        // Alpha is enabled, now check scheduler type preference
         match config.get_param::<String>("GOOSE_SCHEDULER_TYPE") {
             Ok(scheduler_type) => match scheduler_type.to_lowercase().as_str() {
                 "temporal" => SchedulerType::Temporal,
                 "legacy" => SchedulerType::Legacy,
                 _ => {
                     tracing::warn!(
-                        "Unknown scheduler type '{}', defaulting to legacy",
+                        "Unknown scheduler type '{}', defaulting to legacy scheduler",
                         scheduler_type
                     );
                     SchedulerType::Legacy
                 }
             },
             Err(_) => {
-                // Default to temporal scheduler
+                // When alpha is enabled but no explicit scheduler type is set,
+                // default to temporal scheduler
+                tracing::info!("Alpha enabled, defaulting to temporal scheduler");
                 SchedulerType::Temporal
             }
         }
@@ -80,7 +100,7 @@ impl SchedulerFactory {
         }
     }
 
-    /// Create a specific scheduler type (for testing or explicit use)
+    /// Create a legacy scheduler (for testing or explicit use)
     pub async fn create_legacy(
         storage_path: PathBuf,
     ) -> Result<Arc<dyn SchedulerTrait>, SchedulerError> {
@@ -94,5 +114,71 @@ impl SchedulerFactory {
         tracing::info!("Creating Temporal scheduler (explicit)");
         let scheduler = TemporalScheduler::new().await?;
         Ok(scheduler as Arc<dyn SchedulerTrait>)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use temp_env::with_vars;
+
+    #[test]
+    fn test_scheduler_type_no_alpha_env() {
+        // Test that without ALPHA env var, we always get Legacy scheduler
+        with_vars(
+            [
+                ("ALPHA", None::<&str>),
+                ("GOOSE_SCHEDULER_TYPE", Some("temporal")),
+            ],
+            || {
+                let scheduler_type = SchedulerType::from_config();
+                assert!(matches!(scheduler_type, SchedulerType::Legacy));
+            },
+        );
+    }
+
+    #[test]
+    fn test_scheduler_type_alpha_false() {
+        // Test that with ALPHA=false, we always get Legacy scheduler
+        with_vars(
+            [
+                ("ALPHA", Some("false")),
+                ("GOOSE_SCHEDULER_TYPE", Some("temporal")),
+            ],
+            || {
+                let scheduler_type = SchedulerType::from_config();
+                assert!(matches!(scheduler_type, SchedulerType::Legacy));
+            },
+        );
+    }
+
+    #[test]
+    fn test_scheduler_type_alpha_true_legacy() {
+        // Test that with ALPHA=true and GOOSE_SCHEDULER_TYPE=legacy, we get Legacy scheduler
+        with_vars(
+            [
+                ("ALPHA", Some("true")),
+                ("GOOSE_SCHEDULER_TYPE", Some("legacy")),
+            ],
+            || {
+                let scheduler_type = SchedulerType::from_config();
+                assert!(matches!(scheduler_type, SchedulerType::Legacy));
+            },
+        );
+    }
+
+    #[test]
+    fn test_scheduler_type_alpha_true_unknown_scheduler_type() {
+        // Test that with ALPHA=true and unknown scheduler type, we default to Legacy
+        with_vars(
+            [
+                ("ALPHA", Some("true")),
+                ("GOOSE_SCHEDULER_TYPE", Some("unknown")),
+            ],
+            || {
+                let scheduler_type = SchedulerType::from_config();
+                assert!(matches!(scheduler_type, SchedulerType::Legacy));
+            },
+        );
     }
 }

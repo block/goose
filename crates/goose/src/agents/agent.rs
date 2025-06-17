@@ -16,7 +16,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe};
+use crate::recipe::{Author, Recipe, Settings};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
@@ -33,7 +33,7 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
-use crate::agents::router_tools::ROUTER_VECTOR_SEARCH_TOOL_NAME;
+use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
@@ -244,15 +244,33 @@ impl Agent {
             ToolCallResult::from(Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
             )))
-        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME {
+        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
+            || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
+        {
             let selector = self.router_tool_selector.lock().await.clone();
-            ToolCallResult::from(if let Some(selector) = selector {
-                selector.select_tools(tool_call.arguments.clone()).await
-            } else {
-                Err(ToolError::ExecutionError(
-                    "Encountered vector search error.".to_string(),
-                ))
-            })
+            let selected_tools = match selector.as_ref() {
+                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
+                    Ok(tools) => tools,
+                    Err(e) => {
+                        return (
+                            request_id,
+                            Err(ToolError::ExecutionError(format!(
+                                "Failed to select tools: {}",
+                                e
+                            ))),
+                        )
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ToolError::ExecutionError(
+                            "No tool selector available".to_string(),
+                        )),
+                    )
+                }
+            };
+            ToolCallResult::from(Ok(selected_tools))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
@@ -335,10 +353,11 @@ impl Agent {
         // Update vector index if operation was successful and vector routing is enabled
         if result.is_ok() {
             let selector = self.router_tool_selector.lock().await.clone();
-            if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
                     let extension_manager = self.extension_manager.lock().await;
+                    let selector = Arc::new(selector);
                     if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                         &selector,
                         &extension_manager,
@@ -398,9 +417,10 @@ impl Agent {
 
         // If vector tool selection is enabled, index the tools
         let selector = self.router_tool_selector.lock().await.clone();
-        if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.lock().await;
+                let selector = Arc::new(selector);
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector,
                     &extension_manager,
@@ -452,6 +472,9 @@ impl Agent {
             Some(RouterToolSelectionStrategy::Vector) => {
                 prefixed_tools.push(router_tools::vector_search_tool());
             }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                prefixed_tools.push(router_tools::llm_search_tool());
+            }
             None => {}
         }
 
@@ -484,7 +507,7 @@ impl Agent {
 
         // If vector tool selection is enabled, remove tools from the index
         let selector = self.router_tool_selector.lock().await.clone();
-        if ToolRouterIndexManager::vector_tool_router_enabled(&selector) {
+        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.lock().await;
                 ToolRouterIndexManager::update_extension_tools(
@@ -777,22 +800,29 @@ impl Agent {
 
         let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "llm" => Some(RouterToolSelectionStrategy::Llm),
             _ => None,
         };
 
-        if let Some(strategy) = strategy {
-            let table_name = generate_table_id();
-            let selector = create_tool_selector(Some(strategy), provider, table_name)
-                .await
-                .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-
-            let selector = Arc::new(selector);
-            *self.router_tool_selector.lock().await = Some(selector.clone());
-
-            let extension_manager = self.extension_manager.lock().await;
-            ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
-        }
-
+        let selector = match strategy {
+            Some(RouterToolSelectionStrategy::Vector) => {
+                let table_name = generate_table_id();
+                let selector = create_tool_selector(strategy, provider, Some(table_name))
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                let selector = create_tool_selector(strategy, provider, None)
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            None => return Ok(()),
+        };
+        let extension_manager = self.extension_manager.lock().await;
+        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
+        *self.router_tool_selector.lock().await = Some(selector.clone());
         Ok(())
     }
 
@@ -973,12 +1003,26 @@ impl Agent {
             metadata: None,
         };
 
+        // Ideally we'd get the name of the provider we are using from the provider itself
+        // but it doesn't know and the plumbing looks complicated.
+        let config = Config::global();
+        let provider_name: String = config
+            .get_param("GOOSE_PROVIDER")
+            .expect("No provider configured. Run 'goose configure' first");
+
+        let settings = Settings {
+            goose_provider: Some(provider_name.clone()),
+            goose_model: Some(model_name.clone()),
+            temperature: Some(model_config.temperature.unwrap_or(0.0)),
+        };
+
         let recipe = Recipe::builder()
             .title("Custom recipe from chat")
             .description("a custom recipe instance from this chat session")
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)
+            .settings(settings)
             .author(author)
             .build()
             .expect("valid recipe");

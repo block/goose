@@ -221,7 +221,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
     details: {
       id: 'snowflake',
       name: 'Snowflake',
-      description: 'Access Cortex models hosted on your Snowflake account',
+      description: 'Access the latest models using Snowflake Cortex services.',
       parameters: [
         {
           name: 'SNOWFLAKE_HOST',

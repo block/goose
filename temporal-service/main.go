@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +28,59 @@ const (
 	TaskQueueName = "goose-task-queue"
 	Namespace     = "default"
 )
+
+// PortConfig holds the port configuration for Temporal services
+type PortConfig struct {
+	TemporalPort int // Main Temporal server port
+	UIPort       int // Temporal UI port
+	HTTPPort     int // HTTP API port
+}
+
+// findAvailablePort finds an available port starting from the given port
+func findAvailablePort(startPort int) (int, error) {
+	for port := startPort; port < startPort+100; port++ {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err == nil {
+			ln.Close()
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no available port found starting from %d", startPort)
+}
+
+// findAvailablePorts finds available ports for all Temporal services
+func findAvailablePorts() (*PortConfig, error) {
+	// Try to find available ports starting from preferred defaults
+	temporalPort, err := findAvailablePort(7233)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available port for Temporal server: %w", err)
+	}
+	
+	uiPort, err := findAvailablePort(8233)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available port for Temporal UI: %w", err)
+	}
+	
+	// For HTTP port, check environment variable first
+	httpPort := 8080
+	if portEnv := os.Getenv("PORT"); portEnv != "" {
+		if parsed, err := strconv.Atoi(portEnv); err == nil {
+			httpPort = parsed
+		}
+	}
+	
+	// Verify HTTP port is available, find alternative if not
+	finalHTTPPort, err := findAvailablePort(httpPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available port for HTTP server: %w", err)
+	}
+	
+	return &PortConfig{
+		TemporalPort: temporalPort,
+		UIPort:       uiPort,
+		HTTPPort:     finalHTTPPort,
+	}, nil
+}
 
 // Global service instance for activities to access
 var globalService *TemporalService
@@ -61,16 +116,16 @@ type RunNowResponse struct {
 }
 
 // ensureTemporalServerRunning checks if Temporal server is running and starts it if needed
-func ensureTemporalServerRunning() error {
+func ensureTemporalServerRunning(ports *PortConfig) error {
 	log.Println("Checking if Temporal server is running...")
 	
 	// Check if Temporal server is already running by trying to connect
-	if isTemporalServerRunning() {
-		log.Println("Temporal server is already running")
+	if isTemporalServerRunning(ports.TemporalPort) {
+		log.Printf("Temporal server is already running on port %d", ports.TemporalPort)
 		return nil
 	}
 	
-	log.Println("Temporal server not running, attempting to start it...")
+	log.Printf("Temporal server not running, attempting to start it on port %d...", ports.TemporalPort)
 	
 	// Find the temporal CLI binary
 	temporalCmd, err := findTemporalCLI()
@@ -83,8 +138,8 @@ func ensureTemporalServerRunning() error {
 	// Start Temporal server in background
 	cmd := exec.Command(temporalCmd, "server", "start-dev", 
 		"--db-filename", "temporal.db", 
-		"--port", "7233", 
-		"--ui-port", "8233", 
+		"--port", strconv.Itoa(ports.TemporalPort), 
+		"--ui-port", strconv.Itoa(ports.UIPort), 
 		"--log-level", "warn")
 	
 	// Start the process in background
@@ -92,7 +147,8 @@ func ensureTemporalServerRunning() error {
 		return fmt.Errorf("failed to start Temporal server: %w", err)
 	}
 	
-	log.Printf("Temporal server started with PID: %d", cmd.Process.Pid)
+	log.Printf("Temporal server started with PID: %d (port: %d, UI port: %d)", 
+		cmd.Process.Pid, ports.TemporalPort, ports.UIPort)
 	
 	// Wait for server to be ready (with timeout)
 	timeout := time.After(30 * time.Second)
@@ -104,8 +160,8 @@ func ensureTemporalServerRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timeout waiting for Temporal server to start")
 		case <-ticker.C:
-			if isTemporalServerRunning() {
-				log.Println("Temporal server is now ready")
+			if isTemporalServerRunning(ports.TemporalPort) {
+				log.Printf("Temporal server is now ready on port %d", ports.TemporalPort)
 				return nil
 			}
 		}
@@ -113,10 +169,10 @@ func ensureTemporalServerRunning() error {
 }
 
 // isTemporalServerRunning checks if Temporal server is accessible
-func isTemporalServerRunning() bool {
+func isTemporalServerRunning(port int) bool {
 	// Try to create a client connection to check if server is running
 	c, err := client.Dial(client.Options{
-		HostPort:  "127.0.0.1:7233",
+		HostPort:  fmt.Sprintf("127.0.0.1:%d", port),
 		Namespace: Namespace,
 	})
 	if err != nil {
@@ -140,6 +196,19 @@ func findTemporalCLI() (string, error) {
 		cmd := exec.Command(path, "--version")
 		if err := cmd.Run(); err == nil {
 			return path, nil
+		}
+	}
+	
+	// Try using 'which' command to find temporal
+	cmd := exec.Command("which", "temporal")
+	if output, err := cmd.Output(); err == nil {
+		path := strings.TrimSpace(string(output))
+		if path != "" {
+			// Verify it's the correct temporal CLI by checking version
+			cmd := exec.Command(path, "--version")
+			if err := cmd.Run(); err == nil {
+				return path, nil
+			}
 		}
 	}
 	
@@ -180,18 +249,28 @@ type TemporalService struct {
 	worker       worker.Worker
 	scheduleJobs map[string]*JobStatus // In-memory job tracking
 	runningJobs  map[string]bool       // Track which jobs are currently running
+	ports        *PortConfig           // Port configuration
 }
 
 // NewTemporalService creates a new Temporal service and ensures Temporal server is running
 func NewTemporalService() (*TemporalService, error) {
-	// First, ensure Temporal server is running
-	if err := ensureTemporalServerRunning(); err != nil {
+	// First, find available ports
+	ports, err := findAvailablePorts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available ports: %w", err)
+	}
+	
+	log.Printf("Using ports - Temporal: %d, UI: %d, HTTP: %d", 
+		ports.TemporalPort, ports.UIPort, ports.HTTPPort)
+
+	// Ensure Temporal server is running
+	if err := ensureTemporalServerRunning(ports); err != nil {
 		return nil, fmt.Errorf("failed to ensure Temporal server is running: %w", err)
 	}
 
 	// Create client (Temporal server should now be running)
 	c, err := client.Dial(client.Options{
-		HostPort:  "127.0.0.1:7233",
+		HostPort:  fmt.Sprintf("127.0.0.1:%d", ports.TemporalPort),
 		Namespace: Namespace,
 	})
 	if err != nil {
@@ -208,13 +287,14 @@ func NewTemporalService() (*TemporalService, error) {
 		return nil, fmt.Errorf("failed to start worker: %w", err)
 	}
 
-	log.Println("Connected to Temporal server successfully")
+	log.Printf("Connected to Temporal server successfully on port %d", ports.TemporalPort)
 
 	service := &TemporalService{
 		client:       c,
 		worker:       w,
 		scheduleJobs: make(map[string]*JobStatus),
 		runningJobs:  make(map[string]bool),
+		ports:        ports,
 	}
 	
 	// Set global service for activities
@@ -233,6 +313,21 @@ func (ts *TemporalService) Stop() {
 		ts.client.Close()
 	}
 	log.Println("Temporal service stopped")
+}
+
+// GetHTTPPort returns the HTTP port for this service
+func (ts *TemporalService) GetHTTPPort() int {
+	return ts.ports.HTTPPort
+}
+
+// GetTemporalPort returns the Temporal server port for this service
+func (ts *TemporalService) GetTemporalPort() int {
+	return ts.ports.TemporalPort
+}
+
+// GetUIPort returns the Temporal UI port for this service
+func (ts *TemporalService) GetUIPort() int {
+	return ts.ports.UIPort
 }
 
 // Workflow definition for executing Goose recipes
@@ -610,29 +705,45 @@ func (ts *TemporalService) handleHealth(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
-func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+// handlePorts returns the port configuration for this service
+func (ts *TemporalService) handlePorts(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	
+	portInfo := map[string]int{
+		"http_port":     ts.ports.HTTPPort,
+		"temporal_port": ts.ports.TemporalPort,
+		"ui_port":       ts.ports.UIPort,
 	}
+	
+	json.NewEncoder(w).Encode(portInfo)
+}
 
+func main() {
 	log.Println("Starting Temporal service...")
-	log.Println("Note: This service requires a running Temporal server at 127.0.0.1:7233")
-	log.Println("Start Temporal server with: temporal server start-dev")
 
-	// Create Temporal service
+	// Create Temporal service (this will find available ports automatically)
 	service, err := NewTemporalService()
 	if err != nil {
 		log.Fatalf("Failed to create Temporal service: %v", err)
 	}
 
+	// Use the dynamically assigned HTTP port
+	httpPort := service.GetHTTPPort()
+	temporalPort := service.GetTemporalPort()
+	uiPort := service.GetUIPort()
+
+	log.Printf("Temporal server running on port %d", temporalPort)
+	log.Printf("Temporal UI available at http://localhost:%d", uiPort)
+
 	// Set up HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/jobs", service.handleJobs)
 	mux.HandleFunc("/health", service.handleHealth)
+	mux.HandleFunc("/ports", service.handlePorts)
 
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    fmt.Sprintf(":%d", httpPort),
 		Handler: mux,
 	}
 
@@ -655,9 +766,10 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Printf("Temporal service starting on port %s", port)
-	log.Printf("Health endpoint: http://localhost:%s/health", port)
-	log.Printf("Jobs endpoint: http://localhost:%s/jobs", port)
+	log.Printf("Temporal service starting on port %d", httpPort)
+	log.Printf("Health endpoint: http://localhost:%d/health", httpPort)
+	log.Printf("Jobs endpoint: http://localhost:%d/jobs", httpPort)
+	log.Printf("Ports endpoint: http://localhost:%d/ports", httpPort)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("HTTP server failed: %v", err)

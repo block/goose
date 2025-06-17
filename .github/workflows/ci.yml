@@ -45,8 +45,19 @@ jobs:
             /usr/local/share/chromium \
             /usr/local/share/powershell \
             /usr/share/dotnet \
-            /usr/share/swift
-
+            /usr/share/swift \
+            /opt/ghc \
+            /opt/hostedtoolcache \
+            /usr/local/graalvm \
+            /usr/local/sqlpackage
+          
+          # Clean package manager caches
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+          
+          # Clean docker if present
+          docker system prune -af 2>/dev/null || true
+          
           df -h
 
       - name: Checkout Code
@@ -87,7 +98,6 @@ jobs:
           source ../bin/activate-hermit && cargo test
         working-directory: crates
 
-      # Add disk space cleanup before linting
       - name: Check disk space before cleanup
         run: df -h
 
@@ -98,16 +108,18 @@ jobs:
           rm -rf target/debug/deps
           rm -rf target/debug/build
           rm -rf target/debug/incremental
+          # Clean cargo cache more aggressively
+          cargo clean || true
           # Clean npm cache if it exists
-          npm cache clean --force || true
+          npm cache clean --force 2>/dev/null || true
           # Clean apt cache
           sudo apt-get clean
+          sudo apt-get autoremove -y
           # Remove unnecessary large directories
           rm -rf ~/.cargo/registry/index || true
+          rm -rf ~/.cargo/registry/cache || true
           # Remove docker images if any
-          docker system prune -af || true
-          # Remove unused packages
-          sudo apt-get autoremove -y || true
+          docker system prune -af 2>/dev/null || true
 
       - name: Check disk space after cleanup
         run: df -h

@@ -7,7 +7,7 @@ mod prompt;
 mod thinking;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, SessionBuilderConfig};
+pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -519,6 +519,17 @@ impl Session {
                 input::InputResult::EndPlan => {
                     self.run_mode = RunMode::Normal;
                     output::render_exit_plan_mode();
+                    continue;
+                }
+                input::InputResult::Clear => {
+                    save_history(&mut editor);
+
+                    self.messages.clear();
+                    tracing::info!("Chat context cleared by user.");
+                    output::render_message(
+                        &Message::assistant().with_text("Chat context cleared."),
+                        self.debug,
+                    );
                     continue;
                 }
                 input::InputResult::PromptCommand(opts) => {

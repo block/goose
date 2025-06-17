@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::{self, Deserializer, Serializer};
 
 use crate::message::tool_result_serde;
 use crate::types::core::{Content, ImageContent, TextContent, ToolCall, ToolResult};
@@ -52,22 +52,43 @@ impl From<Result<Vec<Content>, crate::types::core::ToolError>> for ToolResponseT
 // — Register the newtypes with UniFFI, converting via JSON strings —
 // UniFFI’s FFI layer supports only primitive buffers (here String), so we JSON-serialize
 // through our `tool_result_serde` to preserve the same success/error schema on both sides.
+// see https://github.com/mozilla/uniffi-rs/issues/2533
 
 uniffi::custom_type!(ToolRequestToolCall, String, {
-    lower: |obj| {
-        serde_json::to_string(&obj.0).unwrap()
+    lower: |wrapper: &ToolRequestToolCall| {
+        let mut buf = Vec::new();
+        {
+            let mut ser = Serializer::new(&mut buf);
+            // note the borrow on wrapper.0
+            tool_result_serde::serialize(&wrapper.0, &mut ser)
+                .expect("ToolRequestToolCall serialization failed");
+        }
+        String::from_utf8(buf).expect("ToolRequestToolCall produced invalid UTF-8")
     },
-    try_lift: |val| {
-        Ok(serde_json::from_str(&val).unwrap() )
+    try_lift: |s: String| {
+        let mut de = Deserializer::from_str(&s);
+        let result = tool_result_serde::deserialize(&mut de)
+            .map_err(anyhow::Error::new)?;
+        Ok(ToolRequestToolCall(result))
     },
 });
 
 uniffi::custom_type!(ToolResponseToolResult, String, {
-    lower: |obj| {
-        serde_json::to_string(&obj.0).unwrap()
+    lower: |wrapper: &ToolResponseToolResult| {
+        let mut buf = Vec::new();
+        {
+            let mut ser = Serializer::new(&mut buf);
+            // note the borrow on wrapper.0
+            tool_result_serde::serialize(&wrapper.0, &mut ser)
+                .expect("ToolResponseToolResult serialization failed");
+        }
+        String::from_utf8(buf).expect("ToolResponseToolResult produced invalid UTF-8")
     },
-    try_lift: |val| {
-        Ok(serde_json::from_str(&val).unwrap() )
+    try_lift: |s: String| {
+        let mut de = Deserializer::from_str(&s);
+        let result = tool_result_serde::deserialize(&mut de)
+            .map_err(anyhow::Error::new)?;
+        Ok(ToolResponseToolResult(result))
     },
 });
 
@@ -235,6 +256,210 @@ impl From<Content> for MessageContent {
         match content {
             Content::Text(text) => MessageContent::Text(text),
             Content::Image(image) => MessageContent::Image(image),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::core::{ToolCall, ToolError};
+    use crate::UniFfiTag;
+    use serde_json::json;
+    use uniffi::{FfiConverter, RustBuffer};
+
+    // ---------- ToolRequestToolCall ----------------------------------------------------------
+
+    #[test]
+    fn tool_request_tool_call_roundtrip_ok() {
+        // Build a valid ToolCall
+        let call = ToolCall::new("my_function", json!({"a": 1, "b": 2}));
+
+        // Wrap it in the new-type
+        let wrapper = ToolRequestToolCall::from(Ok(call.clone()));
+
+        // Serialize → JSON
+        let json_str = serde_json::to_string(&wrapper).expect("serialize OK");
+        assert!(
+            json_str.contains(r#""status":"success""#),
+            "must mark success"
+        );
+
+        // Deserialize ← JSON
+        let parsed: ToolRequestToolCall = serde_json::from_str(&json_str).expect("deserialize OK");
+
+        // Round-trip equality
+        assert_eq!(*parsed, Ok(call));
+    }
+
+    #[test]
+    fn tool_request_tool_call_roundtrip_err() {
+        // Typical failure variant that could come from `is_valid_function_name`
+        let err = ToolError::NotFound(
+            "The provided function name 'bad$name' had invalid characters".into(),
+        );
+
+        let wrapper = ToolRequestToolCall::from(Err(err.clone()));
+
+        let json_str = serde_json::to_string(&wrapper).expect("serialize OK");
+        assert!(
+            json_str.contains(r#""status":"error""#) && json_str.contains("invalid characters"),
+            "must mark error and carry message"
+        );
+
+        let parsed: ToolRequestToolCall = serde_json::from_str(&json_str).expect("deserialize OK");
+
+        match &*parsed {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("invalid characters"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
+        }
+    }
+
+    // ---------- ToolResponseToolResult -------------------------------------------------------
+
+    #[test]
+    fn tool_response_tool_result_roundtrip_ok() {
+        // Minimal content vector (one text item)
+        let content_vec = vec![Content::Text(TextContent {
+            text: "hello".into(),
+        })];
+
+        let wrapper = ToolResponseToolResult::from(Ok(content_vec.clone()));
+
+        let json_str = serde_json::to_string(&wrapper).expect("serialize OK");
+        assert!(json_str.contains(r#""status":"success""#));
+
+        let parsed: ToolResponseToolResult =
+            serde_json::from_str(&json_str).expect("deserialize OK");
+
+        assert_eq!(*parsed, Ok(content_vec));
+    }
+
+    #[test]
+    fn tool_response_tool_result_roundtrip_err() {
+        let err = ToolError::InvalidParameters("Could not interpret tool use parameters".into());
+
+        let wrapper = ToolResponseToolResult::from(Err(err.clone()));
+
+        let json_str = serde_json::to_string(&wrapper).expect("serialize OK");
+        assert!(json_str.contains(r#""status":"error""#));
+
+        let parsed: ToolResponseToolResult =
+            serde_json::from_str(&json_str).expect("deserialize OK");
+
+        match &*parsed {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("interpret tool use"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
+        }
+    }
+
+    // ---------- FFI (lower / lift) round-trips ----------------------------------------------
+    // https://mozilla.github.io/uniffi-rs/latest/internals/lifting_and_lowering.html
+
+    #[test]
+    fn ffi_roundtrip_tool_request_ok_and_err() {
+        // ---------- status: success ----------
+        let ok_call = ToolCall::new("echo", json!({"text": "hi"}));
+        let ok_wrapper = ToolRequestToolCall::from(Ok(ok_call.clone()));
+
+        // First lower → inspect JSON
+        let buf1: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+
+        let json_ok: String =
+            <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String OK");
+        println!("ToolReq - Lowered JSON (status: success): {:?}", json_ok);
+        assert!(json_ok.contains(r#""status":"success""#));
+
+        // Second lower → round-trip wrapper
+        let buf2: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+
+        let lifted_ok = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
+            .expect("lift wrapper OK");
+        println!(
+            "ToolReq - Lifted wrapper (status: success): {:?}",
+            lifted_ok
+        );
+        assert_eq!(lifted_ok, ok_wrapper);
+
+        // ---------- status: error ----------
+        let err_call = ToolError::NotFound("no such function".into());
+        let err_wrapper = ToolRequestToolCall::from(Err(err_call.clone()));
+
+        let buf1: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let json_err: String =
+            <String as FfiConverter<UniFfiTag>>::try_lift(buf1).expect("lift String ERR");
+        println!("ToolReq - Lowered JSON (status: error): {:?}", json_err);
+        assert!(json_err.contains(r#""status":"error""#));
+
+        let buf2: RustBuffer =
+            <ToolRequestToolCall as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let lifted_err = <ToolRequestToolCall as FfiConverter<UniFfiTag>>::try_lift(buf2)
+            .expect("lift wrapper ERR");
+        println!("ToolReq - Lifted wrapper (status: error): {:?}", lifted_err);
+
+        match &*lifted_err {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("no such function"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn ffi_roundtrip_tool_response_ok_and_err() {
+        // ---------- status: success ----------
+        let body = vec![Content::Text(TextContent {
+            text: "done".into(),
+        })];
+        let ok_wrapper = ToolResponseToolResult::from(Ok(body.clone()));
+
+        let buf1: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+        let json_ok: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        println!("ToolResp - Lowered JSON (status: success): {:?}", json_ok);
+        assert!(json_ok.contains(r#""status":"success""#));
+
+        let buf2: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(ok_wrapper.clone());
+        let lifted_ok =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+        println!(
+            "ToolResp - Lifted wrapper (status: success): {:?}",
+            lifted_ok
+        );
+        assert_eq!(lifted_ok, ok_wrapper);
+
+        // ---------- status: error ----------
+        let err_call = ToolError::InvalidParameters("bad params".into());
+        let err_wrapper = ToolResponseToolResult::from(Err(err_call.clone()));
+
+        let buf1: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let json_err: String = <String as FfiConverter<UniFfiTag>>::try_lift(buf1).unwrap();
+        println!("ToolResp - Lowered JSON (status: error): {:?}", json_err);
+        assert!(json_err.contains(r#""status":"error""#));
+
+        let buf2: RustBuffer =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::lower(err_wrapper.clone());
+        let lifted_err =
+            <ToolResponseToolResult as FfiConverter<UniFfiTag>>::try_lift(buf2).unwrap();
+        println!(
+            "ToolResp - Lifted wrapper (status: error): {:?}",
+            lifted_err
+        );
+
+        match &*lifted_err {
+            Err(ToolError::ExecutionError(msg)) => {
+                assert!(msg.contains("bad params"))
+            }
+            other => panic!("expected ExecutionError, got {:?}", other),
         }
     }
 }

@@ -140,6 +140,14 @@ Sessions are single, continuous conversations between you and Goose. Let's start
         ```sh
         goose session
         ```
+
+        :::tip Goose Web
+        CLI users can also start a session in [Goose Web](/docs/guides/goose-cli-commands#web), a web-based chat interface:
+        ```sh
+        goose web --open
+        ```
+        :::
+
     </TabItem>
     <TabItem value="ui" label="Goose Desktop" default>
         After choosing an LLM provider, you’ll see the session interface ready for use.

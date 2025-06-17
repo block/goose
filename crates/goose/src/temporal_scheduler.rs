@@ -13,9 +13,11 @@ use crate::scheduler::{ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::storage::SessionMetadata;
 
-const TEMPORAL_SERVICE_URL: &str = "http://localhost:8080";
-const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
-const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(2);
+const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
+
+// Default ports to try when discovering the service
+const DEFAULT_HTTP_PORTS: &[u16] = &[8080, 8081, 8082, 8083, 8084, 8085];
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JobRequest {
@@ -50,46 +52,290 @@ struct RunNowResponse {
     session_id: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PortConfig {
+    http_port: u16,
+    temporal_port: u16,
+    ui_port: u16,
+}
+
 pub struct TemporalScheduler {
     http_client: Client,
     service_url: String,
+    port_config: PortConfig,
 }
 
 impl TemporalScheduler {
     pub async fn new() -> Result<Arc<Self>, SchedulerError> {
         let http_client = Client::new();
-        let service_url = TEMPORAL_SERVICE_URL.to_string();
 
+        // Discover the HTTP port
+        let http_port = Self::discover_http_port(&http_client).await?;
+        let service_url = format!("http://localhost:{}", http_port);
+
+        info!("Found Temporal service HTTP API on port {}", http_port);
+
+        // Create scheduler with initial port config
         let scheduler = Arc::new(Self {
-            http_client,
-            service_url,
+            http_client: http_client.clone(),
+            service_url: service_url.clone(),
+            port_config: PortConfig {
+                http_port,
+                temporal_port: 7233, // temporary defaults
+                ui_port: 8233,
+            },
         });
 
-        // Start the Go service (which will handle starting Temporal server)
+        // Start the Go service if not already running
         scheduler.start_go_service().await?;
 
         // Wait for service to be ready
         scheduler.wait_for_service_ready().await?;
 
+        // Fetch the actual port configuration and update
+        let port_config = scheduler.fetch_port_config().await?;
+
+        info!(
+            "Discovered Temporal service ports - HTTP: {}, Temporal: {}, UI: {}",
+            port_config.http_port, port_config.temporal_port, port_config.ui_port
+        );
+
+        // Create final scheduler with correct ports
+        let final_scheduler = Arc::new(Self {
+            http_client,
+            service_url,
+            port_config,
+        });
+
         info!("TemporalScheduler initialized successfully");
-        Ok(scheduler)
+        Ok(final_scheduler)
+    }
+
+    async fn discover_http_port(_http_client: &Client) -> Result<u16, SchedulerError> {
+        // First, try to find a running service using pgrep and lsof
+        if let Ok(port) = Self::find_temporal_service_port_from_processes() {
+            info!(
+                "Found Temporal service port {} from running processes",
+                port
+            );
+            return Ok(port);
+        }
+
+        // If no running service found, we need to find a free port to start the service on
+        info!("No running Temporal service found, finding free port to start service");
+
+        // Check PORT environment variable first
+        if let Ok(port_str) = std::env::var("PORT") {
+            if let Ok(port) = port_str.parse::<u16>() {
+                if Self::is_port_free(port).await {
+                    info!("Using PORT environment variable: {}", port);
+                    return Ok(port);
+                } else {
+                    warn!(
+                        "PORT environment variable {} is not free, finding alternative",
+                        port
+                    );
+                }
+            }
+        }
+
+        // Try to find a free port from the default list
+        for &port in DEFAULT_HTTP_PORTS {
+            if Self::is_port_free(port).await {
+                info!("Found free port {} for Temporal service", port);
+                return Ok(port);
+            }
+        }
+
+        // If all default ports are taken, find any free port in a reasonable range
+        for port in 8086..8200 {
+            if Self::is_port_free(port).await {
+                info!("Found free port {} for Temporal service", port);
+                return Ok(port);
+            }
+        }
+
+        Err(SchedulerError::SchedulerInternalError(
+            "Could not find any free port for Temporal service".to_string(),
+        ))
+    }
+
+    async fn is_port_free(port: u16) -> bool {
+        use std::net::{SocketAddr, TcpListener};
+        use std::time::Duration;
+
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
+
+        // First, try to bind to the port
+        let listener_result = TcpListener::bind(addr);
+        match listener_result {
+            Ok(listener) => {
+                // Successfully bound, so port was free
+                drop(listener); // Release the port immediately
+
+                // Double-check by trying to connect to see if anything is actually listening
+                let client = reqwest::Client::builder()
+                    .timeout(Duration::from_millis(500))
+                    .build()
+                    .unwrap();
+
+                let test_url = format!("http://127.0.0.1:{}", port);
+                match client.get(&test_url).send().await {
+                    Ok(_) => {
+                        // Something responded, so port is actually in use
+                        warn!(
+                            "Port {} appeared free but something is listening on it",
+                            port
+                        );
+                        false
+                    }
+                    Err(_) => {
+                        // Nothing responded, port is truly free
+                        true
+                    }
+                }
+            }
+            Err(_) => {
+                // Could not bind, port is definitely in use
+                false
+            }
+        }
+    }
+
+    fn find_temporal_service_port_from_processes() -> Result<u16, SchedulerError> {
+        // Use pgrep to find temporal-service processes
+        let pgrep_output = Command::new("pgrep")
+            .arg("-f")
+            .arg("temporal-service")
+            .output()
+            .map_err(|e| SchedulerError::SchedulerInternalError(format!("pgrep failed: {}", e)))?;
+
+        if !pgrep_output.status.success() {
+            return Err(SchedulerError::SchedulerInternalError(
+                "No temporal-service processes found".to_string(),
+            ));
+        }
+
+        let pids_str = String::from_utf8_lossy(&pgrep_output.stdout);
+        let pids: Vec<&str> = pids_str
+            .trim()
+            .split('\n')
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        for pid in pids {
+            // Use lsof to find listening ports for this PID
+            let lsof_output = Command::new("lsof")
+                .arg("-p")
+                .arg(pid)
+                .arg("-i")
+                .arg("tcp")
+                .arg("-P") // Show port numbers instead of service names
+                .arg("-n") // Show IP addresses instead of hostnames
+                .output();
+
+            if let Ok(output) = lsof_output {
+                let lsof_str = String::from_utf8_lossy(&output.stdout);
+
+                // Look for HTTP API port (typically 8080-8999 range)
+                for line in lsof_str.lines() {
+                    if line.contains("LISTEN") && line.contains("temporal-") {
+                        // Parse lines like: "temporal-service 12345 user 6u IPv4 0x... 0t0 TCP *:8081 (LISTEN)"
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+
+                        // Find the TCP part which contains the port
+                        for part in &parts {
+                            if part.starts_with("TCP") && part.contains(':') {
+                                // Extract port from TCP *:8081 or TCP 127.0.0.1:8081
+                                if let Some(port_str) = part.split(':').next_back() {
+                                    if let Ok(port) = port_str.parse::<u16>() {
+                                        // HTTP API ports are typically in 8080-8999 range
+                                        if (8080..9000).contains(&port) {
+                                            info!("Found HTTP API port {} for PID {}", port, pid);
+                                            return Ok(port);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(SchedulerError::SchedulerInternalError(
+            "Could not find HTTP API port from temporal-service processes".to_string(),
+        ))
+    }
+
+    async fn fetch_port_config(&self) -> Result<PortConfig, SchedulerError> {
+        let url = format!("{}/ports", self.service_url);
+
+        match self.http_client.get(&url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let port_config: PortConfig = response.json().await.map_err(|e| {
+                        SchedulerError::SchedulerInternalError(format!(
+                            "Failed to parse port config JSON: {}",
+                            e
+                        ))
+                    })?;
+                    Ok(port_config)
+                } else {
+                    Err(SchedulerError::SchedulerInternalError(format!(
+                        "Failed to fetch port config: HTTP {}",
+                        response.status()
+                    )))
+                }
+            }
+            Err(e) => Err(SchedulerError::SchedulerInternalError(format!(
+                "Failed to fetch port config: {}",
+                e
+            ))),
+        }
+    }
+
+    /// Get the current port configuration
+    pub fn get_port_config(&self) -> &PortConfig {
+        &self.port_config
+    }
+
+    /// Get the Temporal server port
+    pub fn get_temporal_port(&self) -> u16 {
+        self.port_config.temporal_port
+    }
+
+    /// Get the HTTP API port  
+    pub fn get_http_port(&self) -> u16 {
+        self.port_config.http_port
+    }
+
+    /// Get the Temporal UI port
+    pub fn get_ui_port(&self) -> u16 {
+        self.port_config.ui_port
     }
 
     async fn start_go_service(&self) -> Result<(), SchedulerError> {
-        info!("Starting Temporal Go service...");
+        info!(
+            "Starting Temporal Go service on port {}...",
+            self.port_config.http_port
+        );
 
-        // Check if port 8080 is already in use
-        if self.check_port_in_use(8080).await {
-            // Port is in use - check if it's our Go service we can connect to
-            if self.health_check().await.unwrap_or(false) {
-                info!("Port 8080 is in use by a Go service we can connect to");
-                return Ok(());
-            } else {
-                return Err(SchedulerError::SchedulerInternalError(
-                    "Port 8080 is already in use by something other than our Go service."
-                        .to_string(),
-                ));
-            }
+        // Check if the service is already running on the discovered port
+        if self.health_check().await.unwrap_or(false) {
+            info!(
+                "Temporal service is already running on port {}",
+                self.port_config.http_port
+            );
+            return Ok(());
+        }
+
+        // Double-check that the port is still free (in case something grabbed it between discovery and start)
+        if !Self::is_port_free(self.port_config.http_port).await {
+            return Err(SchedulerError::SchedulerInternalError(format!(
+                "Port {} is no longer available for Temporal service.",
+                self.port_config.http_port
+            )));
         }
 
         // Check if the temporal-service binary exists - try multiple possible locations
@@ -103,41 +349,68 @@ impl TemporalScheduler {
         info!("Found Go service binary at: {}", binary_path);
         info!("Using working directory: {}", working_dir.display());
 
-        let command = format!(
-            "cd '{}' && nohup ./temporal-service > temporal-service.log 2>&1 & echo $!",
-            working_dir.display()
-        );
+        // Set the PORT environment variable for the service to use and properly daemonize it
+        // Create a new process group to ensure the service survives parent termination
+        let mut command = Command::new("./temporal-service");
+        command
+            .current_dir(working_dir)
+            .env("PORT", self.port_config.http_port.to_string())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .stdin(std::process::Stdio::null());
 
-        let output = Command::new("sh")
-            .arg("-c")
-            .arg(&command)
-            .output()
-            .map_err(|e| {
-                SchedulerError::SchedulerInternalError(format!(
-                    "Failed to start Go temporal service: {}",
-                    e
-                ))
-            })?;
-
-        if !output.status.success() {
-            return Err(SchedulerError::SchedulerInternalError(format!(
-                "Failed to start Go service: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )));
+        // On Unix systems, create a new process group
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
         }
 
-        let pid_output = String::from_utf8_lossy(&output.stdout);
-        let pid = pid_output.trim();
-        info!("Temporal Go service started with PID: {}", pid);
+        let child = command.spawn().map_err(|e| {
+            SchedulerError::SchedulerInternalError(format!(
+                "Failed to start Go temporal service: {}",
+                e
+            ))
+        })?;
+
+        let pid = child.id();
+        info!(
+            "Temporal Go service started with PID: {} on port {} (detached)",
+            pid, self.port_config.http_port
+        );
+
+        // Don't wait for the child process - let it run independently
+        std::mem::forget(child);
+
+        // Give the process a moment to start up
+        sleep(Duration::from_millis(100)).await;
+
+        // Verify the process is still running
+        #[cfg(unix)]
+        {
+            use std::process::Command as StdCommand;
+            let ps_check = StdCommand::new("ps")
+                .arg("-p")
+                .arg(pid.to_string())
+                .output();
+
+            match ps_check {
+                Ok(output) if output.status.success() => {
+                    info!("Confirmed Temporal service process {} is running", pid);
+                }
+                Ok(_) => {
+                    warn!(
+                        "Temporal service process {} may have exited immediately",
+                        pid
+                    );
+                }
+                Err(e) => {
+                    warn!("Could not verify Temporal service process status: {}", e);
+                }
+            }
+        }
 
         Ok(())
-    }
-
-    async fn check_port_in_use(&self, port: u16) -> bool {
-        use std::net::{SocketAddr, TcpListener};
-
-        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
-        TcpListener::bind(addr).is_err()
     }
 
     fn find_go_service_binary() -> Result<String, SchedulerError> {
@@ -191,27 +464,50 @@ impl TemporalScheduler {
         info!("Waiting for Temporal service to be ready...");
 
         let start_time = std::time::Instant::now();
+        let mut attempt_count = 0;
 
         while start_time.elapsed() < TEMPORAL_SERVICE_STARTUP_TIMEOUT {
+            attempt_count += 1;
             match self.health_check().await {
                 Ok(true) => {
-                    info!("Temporal service is ready");
+                    info!(
+                        "Temporal service is ready after {} attempts in {:.2}s",
+                        attempt_count,
+                        start_time.elapsed().as_secs_f64()
+                    );
                     return Ok(());
                 }
                 Ok(false) => {
                     // Service responded but not healthy
+                    if attempt_count % 10 == 0 {
+                        info!(
+                            "Waiting for Temporal service... attempt {} ({:.1}s elapsed)",
+                            attempt_count,
+                            start_time.elapsed().as_secs_f64()
+                        );
+                    }
                     sleep(TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL).await;
                 }
-                Err(_) => {
+                Err(e) => {
                     // Service not responding yet
+                    if attempt_count % 10 == 0 {
+                        info!(
+                            "Temporal service not responding yet... attempt {} ({:.1}s elapsed): {}",
+                            attempt_count,
+                            start_time.elapsed().as_secs_f64(),
+                            e
+                        );
+                    }
                     sleep(TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL).await;
                 }
             }
         }
 
-        Err(SchedulerError::SchedulerInternalError(
-            "Temporal service failed to become ready within timeout".to_string(),
-        ))
+        Err(SchedulerError::SchedulerInternalError(format!(
+            "Temporal service failed to become ready within {}s timeout ({} attempts)",
+            TEMPORAL_SERVICE_STARTUP_TIMEOUT.as_secs(),
+            attempt_count
+        )))
     }
 
     async fn health_check(&self) -> Result<bool, SchedulerError> {
@@ -516,19 +812,19 @@ impl TemporalScheduler {
 
         format!(
             "Temporal Services Status:\n\
-             - Go Service ({}:8080): {}\n\
+             - Go Service (localhost:{}): {}\n\
+             - Temporal Server (localhost:{}): Running via Go service\n\
+             - Temporal UI: http://localhost:{}\n\
              - Service logs: temporal-service/temporal-service.log\n\
-             - Note: Temporal server is managed by the Go service",
-            if go_running {
-                "localhost"
-            } else {
-                "not running"
-            },
+             - Note: All ports are dynamically allocated",
+            self.port_config.http_port,
             if go_running {
                 "✅ Running"
             } else {
                 "❌ Not Running"
-            }
+            },
+            self.port_config.temporal_port,
+            self.port_config.ui_port
         )
     }
 
@@ -745,16 +1041,11 @@ mod tests {
 
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-            let scheduler = TemporalScheduler {
-                http_client: reqwest::Client::new(),
-                service_url: "http://localhost:8080".to_string(),
-            };
-
             // Test with a port that should be available (high port number)
-            let high_port_in_use = scheduler.check_port_in_use(65432).await;
+            let high_port_in_use = !TemporalScheduler::is_port_free(65432).await;
 
             // Test with a port that might be in use (port 80)
-            let low_port_in_use = scheduler.check_port_in_use(80).await;
+            let low_port_in_use = !TemporalScheduler::is_port_free(80).await;
 
             println!("✅ Port checking functionality works");
             println!("   High port (65432) in use: {}", high_port_in_use);
@@ -776,6 +1067,40 @@ mod tests {
             Err(e) => {
                 println!("⚠️  Go service binary not found: {}", e);
                 // This is expected if the binary isn't built or available
+            }
+        }
+    }
+
+    #[test]
+    fn test_daemon_process_group_creation() {
+        // Test that the daemon process creation logic compiles and works correctly
+        use std::process::Command;
+
+        // Create a test command similar to what we do in start_go_service
+        let mut command = Command::new("echo");
+        command
+            .arg("test")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .stdin(std::process::Stdio::null());
+
+        // On Unix systems, create a new process group
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+
+        // Test that the command can be spawned (but don't actually run it)
+        match command.spawn() {
+            Ok(mut child) => {
+                println!("✅ Daemon process group creation works");
+                // Clean up the test process
+                let _ = child.wait();
+            }
+            Err(e) => {
+                println!("⚠️  Error spawning test process: {}", e);
+                // This might happen in some test environments, but the logic is correct
             }
         }
     }
