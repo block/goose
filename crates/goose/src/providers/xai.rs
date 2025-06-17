@@ -73,8 +73,13 @@ impl XaiProvider {
     }
 
     async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        // Ensure the host ends with a slash for proper URL joining
+        let host = if self.host.ends_with('/') {
+            self.host.clone()
+        } else {
+            format!("{}/", self.host)
+        };
+        let base_url = Url::parse(&host).map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("chat/completions").map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
