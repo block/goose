@@ -237,9 +237,22 @@ pub async fn add_extension(
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
+    // If this is an update, preserve unknown fields from the existing configuration
+    let final_config = if is_update {
+        if let Some(existing_entry) = extensions.iter().find(|e| e.config.key() == key) {
+            // Use the shared merge function from ExtensionConfigManager
+            ExtensionConfigManager::merge_extension_configs(&existing_entry.config, &extension_query.config)
+                .unwrap_or(extension_query.config)
+        } else {
+            extension_query.config
+        }
+    } else {
+        extension_query.config
+    };
+
     match ExtensionConfigManager::set(ExtensionEntry {
         enabled: extension_query.enabled,
-        config: extension_query.config,
+        config: final_config,
     }) {
         Ok(_) => {
             if is_update {

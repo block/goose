@@ -90,9 +90,47 @@ impl ExtensionConfigManager {
 
         let key = entry.config.key();
 
-        extensions.insert(key, entry);
+        // If this is an update, preserve unknown fields from the existing configuration
+        let final_entry = if let Some(existing_entry) = extensions.get(&key) {
+            ExtensionEntry {
+                enabled: entry.enabled, // Always use the new enabled state
+                config: Self::merge_extension_configs(&existing_entry.config, &entry.config)
+                    .unwrap_or(entry.config),
+            }
+        } else {
+            entry
+        };
+
+        extensions.insert(key, final_entry);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
+    }
+
+    /// Merge two ExtensionConfigs, preserving unknown fields from the original
+    /// while applying updates from the new config
+    pub fn merge_extension_configs(
+        original: &ExtensionConfig,
+        new: &ExtensionConfig,
+    ) -> Result<ExtensionConfig, serde_json::Error> {
+        // Only merge if they are the same type and name
+        if std::mem::discriminant(original) != std::mem::discriminant(new) 
+            || original.name() != new.name() {
+            return Ok(new.clone());
+        }
+
+        // Convert both configs to JSON Values for merging
+        let mut original_value = serde_json::to_value(original)?;
+        let new_value = serde_json::to_value(new)?;
+
+        // Merge the JSON objects - new values override original values
+        if let (Some(original_obj), Some(new_obj)) = (original_value.as_object_mut(), new_value.as_object()) {
+            for (key, value) in new_obj {
+                original_obj.insert(key.clone(), value.clone());
+            }
+        }
+
+        // Convert back to ExtensionConfig
+        serde_json::from_value(original_value)
     }
 
     /// Remove an extension configuration -- uses the key
