@@ -7,6 +7,13 @@ on:
       - "v1.*"
 
 name: Release
+
+# Permissions needed for AWS OIDC authentication in called workflows
+permissions:
+  id-token: write   # Required for AWS OIDC authentication in called workflow
+  contents: write   # Required for creating releases and by actions/checkout
+  actions: read     # May be needed for some workflows
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

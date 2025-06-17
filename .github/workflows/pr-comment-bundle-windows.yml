@@ -11,10 +11,13 @@ on:
         required: true
         type: string
 
-# permissions needed for reacting to IssueOps commands on PRs
+# permissions needed for reacting to IssueOps commands on PRs and AWS OIDC authentication
 permissions:
   pull-requests: write
   checks: read
+  id-token: write   # Required for AWS OIDC authentication in called workflow
+  contents: read    # Required by actions/checkout in called workflow
+  actions: read     # May be needed for some workflows
 
 name: Bundle Windows Desktop App
 
