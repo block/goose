@@ -15,6 +15,10 @@ Goose to a wide ecosystem of capabilities.
 Check out the [step-by-step tutorials](/docs/category/tutorials) for adding and using several Goose Extensions
 :::
 
+:::tip Featured Extension
+Looking for isolated development environments? Check out our guide on [Isolated Development Environments](/docs/guides/isolated-development-environments) using the new container-use extension.
+:::
+
 
 ## Built-in Extensions
 Out of the box, Goose is installed with a few extensions but with only the `Developer` extension enabled by default.
