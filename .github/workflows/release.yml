@@ -83,6 +83,7 @@ jobs:
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
       WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
+      WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
 
   # ------------------------------------
   # 7) Create/Update GitHub Release

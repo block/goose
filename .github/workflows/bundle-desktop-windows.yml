@@ -26,6 +26,8 @@ on:
         required: false
       WINDOW_SIGNING_ROLE:
         required: false
+      WINDOW_SIGNING_ROLE_TAG:
+        required: false
 
 # Permissions required for OIDC authentication with AWS
 permissions:
@@ -51,7 +53,7 @@ jobs:
         if: inputs.signing && inputs.signing == true
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # ratchet:aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.WINDOW_SIGNING_ROLE }}
+          role-to-assume: ${{ startsWith(inputs.ref, 'refs/tags/') && secrets.WINDOW_SIGNING_ROLE_TAG || secrets.WINDOW_SIGNING_ROLE }}
           aws-region: us-west-2
 
       # 2) Set up Node.js
