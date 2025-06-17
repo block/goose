@@ -20,6 +20,8 @@ on:
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE:
         required: false
+      WINDOW_SIGNING_ROLE:
+        required: false
 
 # Permissions required for OIDC authentication with AWS
 permissions:
@@ -45,7 +47,7 @@ jobs:
         if: inputs.signing && inputs.signing == true
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # ratchet:aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ inputs.ref && inputs.ref != 'refs/heads/main' && 'arn:aws:iam::195275635620:role/block-goose-codesign-test-branch-delete-when-done' || 'arn:aws:iam::195275635620:role/squareup-goose-releases-codesign' }}
+          role-to-assume: ${{ secrets.WINDOW_SIGNING_ROLE }}
           aws-region: us-west-2
 
       # 2) Set up Node.js
@@ -375,9 +377,25 @@ jobs:
           osslsigncode verify ui/desktop/dist-windows/resources/bin/goosed.exe
           echo "✅ Backend executable signature verification passed"
 
-      # 10) Upload the final Windows build
+      # 10) Create Windows zip package
+      - name: Create Windows zip package
+        run: |
+          cd ui/desktop
+          echo "📦 Creating Windows zip package..."
+          
+          # Create a zip file from the dist-windows directory
+          zip -r "Goose-win32-x64.zip" dist-windows/
+          
+          echo "✅ Windows zip package created:"
+          ls -la Goose-win32-x64.zip
+          
+          # Also create the zip in the expected output structure for consistency
+          mkdir -p out/Goose-win32-x64/
+          cp Goose-win32-x64.zip out/Goose-win32-x64/
+
+      # 11) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
-          name: desktop-windows-dist
-          path: ui/desktop/dist-windows/
+          name: Goose-win32-x64
+          path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip
