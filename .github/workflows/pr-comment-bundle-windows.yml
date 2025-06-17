@@ -64,7 +64,7 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: false  # Keep PR builds unsigned for faster iteration
+      signing: true  # Enable signing for testing
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
