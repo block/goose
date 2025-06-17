@@ -207,7 +207,7 @@ jobs:
           echo "Downloading temporal CLI for Windows..."
           TEMPORAL_VERSION="1.3.0"
           curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
-          unzip temporal-cli-windows.zip
+          unzip -o temporal-cli-windows.zip
           chmod +x temporal.exe
           echo "temporal CLI downloaded successfully"
 
