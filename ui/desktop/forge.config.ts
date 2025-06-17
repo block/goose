@@ -10,7 +10,6 @@ let cfg = {
   win32: {
     icon: 'src/images/icon.ico',
     certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
-    certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
     signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256'
   },

@@ -20,8 +20,6 @@ on:
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE:
         required: false
-      WINDOWS_CERTIFICATE_PASSWORD:
-        required: false
 
 # Permissions required for OIDC authentication with AWS
 permissions:
@@ -369,10 +367,13 @@ jobs:
           echo "📋 Verifying both signed executables in final distribution:"
           echo "Main executable:"
           ls -la ui/desktop/dist-windows/Goose.exe
-          osslsigncode verify ui/desktop/dist-windows/Goose.exe || echo "⚠️ Main executable signature verification failed"
+          osslsigncode verify ui/desktop/dist-windows/Goose.exe
+          echo "✅ Main executable signature verification passed"
+          
           echo "Backend executable:"
           ls -la ui/desktop/dist-windows/resources/bin/goosed.exe
-          osslsigncode verify ui/desktop/dist-windows/resources/bin/goosed.exe || echo "⚠️ Backend executable signature verification failed"
+          osslsigncode verify ui/desktop/dist-windows/resources/bin/goosed.exe
+          echo "✅ Backend executable signature verification passed"
 
       # 10) Upload the final Windows build
       - name: Upload Windows build artifacts

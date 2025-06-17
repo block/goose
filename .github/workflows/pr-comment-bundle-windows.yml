@@ -68,7 +68,6 @@ jobs:
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
   pr-comment-windows:
     name: PR Comment with Windows App
