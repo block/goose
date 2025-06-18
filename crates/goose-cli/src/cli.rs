@@ -782,7 +782,7 @@ pub async fn cli() -> Result<()> {
                 debug,
                 max_tool_repetitions,
                 interactive, // Use the interactive flag from the Run command
-                sub_recipes: sub_recipes,
+                sub_recipes,
             })
             .await;
 

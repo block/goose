@@ -21,7 +21,7 @@ extensions:
   name: fetch
   timeout: 300
   type: stdio
-prompt: "{{date}} is provided and generate a joke on that day . Mention the day on the first line then an empty line and then the joke. Don't just say the date, but figure out if there's any cultural significance, like national shelves day"
+prompt: "with provided date {{date}} generate a joke on that day . Mention the day on the first line then an empty line and then the joke. Don't just say the date, but figure out if there's any cultural significance, like national shelves day"
 parameters:
 - key: date
   input_type: string

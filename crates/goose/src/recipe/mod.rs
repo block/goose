@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
@@ -224,6 +225,17 @@ impl Recipe {
             author: None,
             parameters: None,
             sub_recipes: None,
+        }
+    }
+    pub fn from_content(content: &str) -> Result<Self> {
+        if serde_json::from_str::<serde_json::Value>(content).is_ok() {
+            Ok(serde_json::from_str(content)?)
+        } else if serde_yaml::from_str::<serde_yaml::Value>(content).is_ok() {
+            Ok(serde_yaml::from_str(content)?)
+        } else {
+            Err(anyhow::anyhow!(
+                "Unsupported format. Expected JSON or YAML."
+            ))
         }
     }
 }

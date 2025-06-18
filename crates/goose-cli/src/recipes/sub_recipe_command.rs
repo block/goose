@@ -1,6 +1,6 @@
 use goose::{
     config::ExtensionConfig,
-    recipe::{Recipe, SubRecipe},
+    recipe::Recipe,
 };
 
 pub fn create_sub_recipe_extensions(recipe: &Recipe) -> Vec<ExtensionConfig> {
