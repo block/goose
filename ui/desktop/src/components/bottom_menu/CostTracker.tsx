@@ -118,13 +118,29 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     );
   }
 
-  // If no cost info found, show $0.00
+  // If no cost info found, try to return a default
   if (!costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
-    console.log('CostTracker: No cost info, showing $0.00');
+    console.log('CostTracker: No cost info, checking for local/free model');
+    
+    // If it's a known free/local provider, show $0.00 without "not available" message
+    const freeProviders = ['ollama', 'local', 'localhost'];
+    if (freeProviders.includes(currentProvider.toLowerCase())) {
+      return (
+        <div
+          className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default px-2"
+          title={`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
+        >
+          <Coins className="w-3 h-3" />
+          <span className="text-xs">$0.00</span>
+        </div>
+      );
+    }
+    
+    // Otherwise show as unavailable
     return (
       <div
         className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default px-2"
-        title="Cost data not available for this model"
+        title={`Cost data not available for ${currentModel} (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
       >
         <Coins className="w-3 h-3" />
         <span className="text-xs">$0.00</span>
@@ -137,7 +153,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   return (
     <div
       className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default px-2"
-      title={`Input: ${inputTokens.toLocaleString()} tokens, Output: ${outputTokens.toLocaleString()} tokens`}
+      title={`Input: ${inputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((inputTokens / 1000) * (costInfo.input_token_cost || 0)).toFixed(4)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((outputTokens / 1000) * (costInfo.output_token_cost || 0)).toFixed(4)})`}
     >
       <Coins className="w-3 h-3" />
       <span className="text-xs">
@@ -260,6 +276,23 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
     deepseek: {
       'deepseek-chat': { input_token_cost: 0.00014, output_token_cost: 0.00028, currency: '$' },
       'deepseek-reasoner': { input_token_cost: 0.00055, output_token_cost: 0.00219, currency: '$' },
+    },
+    // Local and custom models - add common ones with estimated costs
+    ollama: {
+      'llama3.2': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'llama3.1': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'llama3': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'llama2': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'mistral': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'mixtral': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'codellama': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'deepseek-coder': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'phi': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+      'qwen': { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
+    },
+    local: {
+      // For local models, show $0.00 as they don't have usage costs
+      default: { input_token_cost: 0.0, output_token_cost: 0.0, currency: '$' },
     },
     // Add more providers and models as needed
   };

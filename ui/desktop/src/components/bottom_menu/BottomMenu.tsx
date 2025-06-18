@@ -218,6 +218,9 @@ export default function BottomMenu({
         {/* Cost Tracker - positioned after alerts */}
         <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
 
+        {/* Separator between cost and model */}
+        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+
         {/* Model Selector Dropdown */}
         <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
 
