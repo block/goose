@@ -873,6 +873,8 @@ impl Agent {
 
     async fn update_router_tool_selector(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let config = Config::global();
+        let extension_manager = self.extension_manager.lock().await;
+
         let router_tool_selection_strategy = config
             .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
             .unwrap_or_else(|_| "default".to_string());
@@ -886,21 +888,43 @@ impl Agent {
         let selector = match strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
                 let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider, Some(table_name))
+                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
                     .await
                     .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
                 Arc::new(selector)
             }
             Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider, None)
+                let selector = create_tool_selector(strategy, provider.clone(), None)
                     .await
                     .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
                 Arc::new(selector)
             }
             None => return Ok(()),
         };
-        let extension_manager = self.extension_manager.lock().await;
+
+        // First index platform tools
         ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
+
+        // Then index all currently enabled extensions
+        let enabled_extensions = extension_manager.list_extensions().await?;
+        for extension_name in enabled_extensions {
+            if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                &selector,
+                &extension_manager,
+                &extension_name,
+                "add",
+            )
+            .await
+            {
+                tracing::error!(
+                    "Failed to index tools for extension {}: {}",
+                    extension_name,
+                    e
+                );
+            }
+        }
+
+        // Update the selector
         *self.router_tool_selector.lock().await = Some(selector.clone());
         Ok(())
     }

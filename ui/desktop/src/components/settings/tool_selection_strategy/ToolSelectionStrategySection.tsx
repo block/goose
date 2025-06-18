@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, ViewOptions } from '../../../App';
 import { useConfig } from '../../ConfigContext';
+import { getApiUrl, getSecretKey } from '../../../config';
 
 interface ToolSelectionStrategySectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -46,16 +47,28 @@ export const ToolSelectionStrategySection = ({
 
       // Then update the backend
       try {
-        const response = await fetch('/api/agent/update_tool_selection_strategy', {
+        const response = await fetch(getApiUrl('/agent/update_tool_selection_strategy'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
           },
         });
-        
+
+        console.log('response', response);
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: 'Unknown error from backend' }));
           throw new Error(errorData.error || 'Unknown error from backend');
+        }
+
+        // Parse the success response
+        const data = await response
+          .json()
+          .catch(() => ({ message: 'Tool selection strategy updated successfully' }));
+        if (data.error) {
+          throw new Error(data.error);
         }
       } catch (error) {
         console.error('Error updating backend:', error);
