@@ -34,6 +34,13 @@ interface ChatInputProps {
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
+  sessionCosts?: {
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  };
 }
 
 export default function ChatInput({
@@ -49,6 +56,7 @@ export default function ChatInput({
   droppedFiles = [],
   messages = [],
   setMessages,
+  sessionCosts,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -566,6 +574,7 @@ export default function ChatInput({
             messages={messages}
             isLoading={isLoading}
             setMessages={setMessages}
+            sessionCosts={sessionCosts}
           />
         </div>
       </div>

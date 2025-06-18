@@ -28,6 +28,7 @@ export default function BottomMenu({
   messages = [],
   isLoading = false,
   setMessages,
+  sessionCosts,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
@@ -36,6 +37,13 @@ export default function BottomMenu({
   messages?: Message[];
   isLoading?: boolean;
   setMessages: (messages: Message[]) => void;
+  sessionCosts?: {
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  };
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { alerts, addAlert, clearAlerts } = useAlerts();
@@ -216,7 +224,7 @@ export default function BottomMenu({
 
         {/* Cost Tracker - no separator before it */}
         <div className="flex items-center h-full ml-1">
-          <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
+          <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} sessionCosts={sessionCosts} />
         </div>
 
         {/* Separator between cost and model */}

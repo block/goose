@@ -33,6 +33,8 @@ import {
 } from './context_management/ChatContextManager';
 import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
+import { useModelAndProvider } from './ModelAndProviderContext';
+import { getCostForModel } from '../utils/costDatabase';
 import {
   Message,
   createUserMessage,
@@ -112,8 +114,18 @@ function ChatContent({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [sessionCosts, setSessionCosts] = useState<{
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  }>({});
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const { currentModel, currentProvider } = useModelAndProvider();
+  const prevModelRef = useRef<string | undefined>();
+  const prevProviderRef = useRef<string | undefined>();
 
   const {
     summaryContent,
@@ -535,6 +547,53 @@ function ChatContent({
     }
   }, [sessionMetadata]);
 
+  // Handle model changes and accumulate costs
+  useEffect(() => {
+    if (prevModelRef.current !== undefined && prevProviderRef.current !== undefined &&
+        (prevModelRef.current !== currentModel || prevProviderRef.current !== currentProvider)) {
+      
+      // Model/provider has changed, save the costs for the previous model
+      const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
+      
+      // Get pricing info for the previous model
+      const prevCostInfo = getCostForModel(prevProviderRef.current, prevModelRef.current);
+      
+      if (prevCostInfo) {
+        const prevInputCost = (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
+        const prevOutputCost = (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
+        const prevTotalCost = prevInputCost + prevOutputCost;
+        
+        // Save the accumulated costs for this model
+        setSessionCosts(prev => ({
+          ...prev,
+          [prevKey]: {
+            inputTokens: sessionInputTokens || localInputTokens,
+            outputTokens: sessionOutputTokens || localOutputTokens,
+            totalCost: prevTotalCost
+          }
+        }));
+      }
+      
+      // Reset token counters for the new model
+      setSessionTokenCount(0);
+      setSessionInputTokens(0);
+      setSessionOutputTokens(0);
+      setLocalInputTokens(0);
+      setLocalOutputTokens(0);
+      
+      console.log(
+        'Model changed from',
+        `${prevProviderRef.current}/${prevModelRef.current}`,
+        'to',
+        `${currentProvider}/${currentModel}`,
+        '- saved costs and reset token counters'
+      );
+    }
+    
+    prevModelRef.current = currentModel;
+    prevProviderRef.current = currentProvider;
+  }, [currentModel, currentProvider, sessionInputTokens, sessionOutputTokens, localInputTokens, localOutputTokens]);
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const files = e.dataTransfer.files;
@@ -691,6 +750,7 @@ function ChatContent({
               droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
+              sessionCosts={sessionCosts}
             />
           </div>
         </Card>
