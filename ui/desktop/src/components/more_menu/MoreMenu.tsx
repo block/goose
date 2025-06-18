@@ -436,7 +436,7 @@ export default function MoreMenu({
                       className="mr-2"
                     />
                     <span className="text-sm text-textStandard">
-                      Global (~/.config/goose/recipes/) - Available across all projects
+                      Global - Available across all Goose sessions
                     </span>
                   </label>
                   <label className="flex items-center">
@@ -448,7 +448,7 @@ export default function MoreMenu({
                       className="mr-2"
                     />
                     <span className="text-sm text-textStandard">
-                      Project-specific (.goose/recipes/) - Only for this project
+                      Directory - Available in the working directory
                     </span>
                   </label>
                 </div>
