@@ -816,7 +816,6 @@ ipcMain.handle('get-dock-icon-state', () => {
   }
 });
 
-<<<<<<< HEAD
 // Handle opening system notifications preferences
 ipcMain.handle('open-notifications-settings', async () => {
   try {
@@ -873,8 +872,6 @@ ipcMain.handle('open-notifications-settings', async () => {
   }
 });
 
-||||||| parent of 6cb6756fd2 (Add a setting for the quit confirmation dialog)
-=======
 // Handle quit confirmation setting
 ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
   try {
@@ -898,7 +895,6 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   }
 });
 
->>>>>>> 6cb6756fd2 (Add a setting for the quit confirmation dialog)
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
