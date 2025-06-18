@@ -334,12 +334,12 @@ mod tests {
 #[cfg(test)]
 mod schedule_tool_tests {
     use super::*;
+    use async_trait::async_trait;
+    use chrono::{DateTime, Utc};
+    use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use goose::scheduler::{ScheduledJob, SchedulerError};
     use goose::scheduler_trait::SchedulerTrait;
     use goose::session::storage::SessionMetadata;
-    use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
-    use async_trait::async_trait;
-    use chrono::{DateTime, Utc};
     use std::sync::Arc;
 
     // Mock scheduler for testing
@@ -465,7 +465,7 @@ mod schedule_tool_tests {
         assert!(tool
             .description
             .contains("Manage scheduled recipe execution"));
-        
+
         // Verify the tool has the expected actions in its schema
         if let Some(properties) = tool.input_schema.get("properties") {
             if let Some(action_prop) = properties.get("action") {
@@ -476,7 +476,7 @@ mod schedule_tool_tests {
                         .iter()
                         .map(|v| v.as_str().unwrap().to_string())
                         .collect();
-                    
+
                     // Check that our session_content action is included
                     assert!(actions.contains(&"session_content".to_string()));
                     assert!(actions.contains(&"list".to_string()));
@@ -497,14 +497,21 @@ mod schedule_tool_tests {
         assert!(schedule_tool.is_some());
 
         let tool = schedule_tool.unwrap();
-        
+
         // Verify the tool schema has the session_id parameter for session_content action
         if let Some(properties) = tool.input_schema.get("properties") {
             assert!(properties.get("session_id").is_some());
-            
+
             if let Some(session_id_prop) = properties.get("session_id") {
-                assert_eq!(session_id_prop.get("type").unwrap().as_str().unwrap(), "string");
-                assert!(session_id_prop.get("description").unwrap().as_str().unwrap()
+                assert_eq!(
+                    session_id_prop.get("type").unwrap().as_str().unwrap(),
+                    "string"
+                );
+                assert!(session_id_prop
+                    .get("description")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
                     .contains("Session identifier for session_content action"));
             }
         }

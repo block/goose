@@ -800,17 +800,19 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
     let result = agent
         .handle_schedule_management(arguments, "test_req".to_string())
         .await;
-    
+
     // Clean up the test session file
     let _ = std::fs::remove_file(&session_path);
 
     // Verify the result
     assert!(result.is_ok());
-    
+
     if let Ok(content) = result {
         assert_eq!(content.len(), 1);
         if let mcp_core::Content::Text(text_content) = &content[0] {
-            assert!(text_content.text.contains("Session 'test_session_real' Content:"));
+            assert!(text_content
+                .text
+                .contains("Session 'test_session_real' Content:"));
             assert!(text_content.text.contains("Metadata:"));
             assert!(text_content.text.contains("Messages:"));
             assert!(text_content.text.contains("Hello"));
