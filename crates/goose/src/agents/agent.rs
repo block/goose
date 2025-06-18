@@ -20,7 +20,7 @@ use crate::recipe::{Author, Recipe, Settings};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
@@ -42,14 +42,22 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
+use crate::agents::subagent_tools::{
+    SUBAGENT_CHECK_PROGRESS_TOOL_NAME, SUBAGENT_LIST_TOOL_NAME,
+    SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME, SUBAGENT_SEND_MESSAGE_TOOL_NAME,
+};
+
 use super::platform_tools;
 use super::router_tools;
+use super::subagent_manager::SubAgentManager;
+use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) extension_manager: RwLock<ExtensionManager>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -59,6 +67,7 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    pub(super) subagent_manager: Mutex<Option<SubAgentManager>>,
 }
 
 #[derive(Clone, Debug)]
@@ -76,7 +85,7 @@ impl Agent {
 
         Self {
             provider: Mutex::new(None),
-            extension_manager: Mutex::new(ExtensionManager::new()),
+            extension_manager: RwLock::new(ExtensionManager::new()),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -86,6 +95,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
+            subagent_manager: Mutex::new(Some(SubAgentManager::new())),
         }
     }
 
@@ -169,7 +179,7 @@ impl Agent {
     pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = self
             .extension_manager
-            .lock()
+            .read()
             .await
             .get_prefixed_tools(None)
             .await?;
@@ -224,7 +234,7 @@ impl Agent {
             return (request_id, Ok(ToolCallResult::from(result)));
         }
 
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let result: ToolCallResult = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -240,6 +250,23 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
+        } else if tool_call.name == SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_spawn_subagent(tool_call.arguments.clone())
+                    .await,
+            )
+        } else if tool_call.name == SUBAGENT_LIST_TOOL_NAME {
+            ToolCallResult::from(self.handle_list_subagents().await)
+        } else if tool_call.name == SUBAGENT_CHECK_PROGRESS_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_get_subagent_status(tool_call.arguments.clone())
+                    .await,
+            )
+        } else if tool_call.name == SUBAGENT_SEND_MESSAGE_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_send_message_to_subagent(tool_call.arguments.clone())
+                    .await,
+            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ToolError::ExecutionError(
@@ -302,7 +329,7 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let mut extension_manager = self.extension_manager.write().await;
 
         if action == "disable" {
             let result = extension_manager
@@ -357,7 +384,7 @@ impl Agent {
             if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
-                    let extension_manager = self.extension_manager.lock().await;
+                    let extension_manager = self.extension_manager.read().await;
                     let selector = Arc::new(selector);
                     if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                         &selector,
@@ -365,7 +392,7 @@ impl Agent {
                         &extension_name,
                         vector_action,
                     )
-                    .await
+                        .await
                     {
                         return (
                             request_id,
@@ -411,7 +438,7 @@ impl Agent {
                 }
             }
             _ => {
-                let mut extension_manager = self.extension_manager.lock().await;
+                let mut extension_manager = self.extension_manager.write().await;
                 extension_manager.add_extension(extension.clone()).await?;
             }
         };
@@ -420,7 +447,7 @@ impl Agent {
         let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector,
@@ -428,7 +455,7 @@ impl Agent {
                     &extension.name(),
                     "add",
                 )
-                .await
+                    .await
                 {
                     return Err(ExtensionError::SetupError(format!(
                         "Failed to index tools for extension {}: {}",
@@ -443,7 +470,7 @@ impl Agent {
     }
 
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let mut prefixed_tools = extension_manager
             .get_prefixed_tools(extension_name.clone())
             .await
@@ -453,6 +480,12 @@ impl Agent {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
             prefixed_tools.push(platform_tools::manage_extensions_tool());
+
+            // Add subagent tools
+            prefixed_tools.push(subagent_tools::spawn_interactive_subagent_tool());
+            prefixed_tools.push(subagent_tools::list_subagents_tool());
+            prefixed_tools.push(subagent_tools::check_subagent_progress_tool());
+            prefixed_tools.push(subagent_tools::send_message_to_subagent_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -483,7 +516,7 @@ impl Agent {
         let selector = self.router_tool_selector.lock().await.clone();
         if let Some(selector) = selector {
             if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 // Add recent tool calls to the list, avoiding duplicates
                 for tool_name in recent_calls {
                     // Find the tool in the extension manager's tools
@@ -503,21 +536,21 @@ impl Agent {
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let mut extension_manager = self.extension_manager.write().await;
         extension_manager.remove_extension(name).await?;
 
         // If vector tool selection is enabled, remove tools from the index
         let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 ToolRouterIndexManager::update_extension_tools(
                     &selector,
                     &extension_manager,
                     name,
                     "remove",
                 )
-                .await?;
+                    .await?;
             }
         }
 
@@ -525,7 +558,7 @@ impl Agent {
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         extension_manager
             .list_extensions()
             .await
@@ -806,10 +839,10 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    /// Update the provider used by this agent
+    /// Update the provider
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
-        *self.provider.lock().await = Some(provider.clone());
-        self.update_router_tool_selector(provider).await?;
+        let mut current_provider = self.provider.lock().await;
+        *current_provider = Some(provider);
         Ok(())
     }
 
@@ -841,9 +874,10 @@ impl Agent {
             }
             None => return Ok(()),
         };
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
         *self.router_tool_selector.lock().await = Some(selector.clone());
+
         Ok(())
     }
 
@@ -854,7 +888,7 @@ impl Agent {
     }
 
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         extension_manager
             .list_prompts()
             .await
@@ -862,7 +896,7 @@ impl Agent {
     }
 
     pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
 
         // First find which extension has this prompt
         let prompts = extension_manager
@@ -885,7 +919,7 @@ impl Agent {
     }
 
     pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
         let tools_info = tools
             .into_iter()
@@ -911,7 +945,7 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
