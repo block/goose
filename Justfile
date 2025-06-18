@@ -152,6 +152,11 @@ run-server:
     cargo run -p goose-server
 
 # make GUI with latest binary
+lint-ui:
+    @just release-binary
+    cd ui/desktop && npm run lint:check
+
+# make GUI with latest binary
 make-ui:
     @just release-binary
     cd ui/desktop && npm run bundle:default
