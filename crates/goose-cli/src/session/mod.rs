@@ -521,6 +521,17 @@ impl Session {
                     output::render_exit_plan_mode();
                     continue;
                 }
+                input::InputResult::Clear => {
+                    save_history(&mut editor);
+
+                    self.messages.clear();
+                    tracing::info!("Chat context cleared by user.");
+                    output::render_message(
+                        &Message::assistant().with_text("Chat context cleared."),
+                        self.debug,
+                    );
+                    continue;
+                }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
                     self.handle_prompt_command(opts).await?;
@@ -915,6 +926,12 @@ impl Session {
                                     },
                                     _ => (),
                                 }
+                            }
+                        }
+                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                            // Log model change if in debug mode
+                            if self.debug {
+                                eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
                         Some(Err(e)) => {

@@ -88,6 +88,10 @@ enum MessageEvent {
     Finish {
         reason: String,
     },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
     Notification {
         request_id: String,
         message: JsonRpcMessage,
@@ -233,6 +237,17 @@ async fn handler(
                                 }
                             });
                         }
+                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
+                            if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
+                                tracing::error!("Error sending model change through channel: {}", e);
+                                let _ = stream_event(
+                                    MessageEvent::Error {
+                                        error: e.to_string(),
+                                    },
+                                    &tx,
+                                ).await;
+                            }
+                        }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
                             if let Err(e) = stream_event(MessageEvent::Notification{
                                 request_id: request_id.clone(),
@@ -351,6 +366,10 @@ async fn ask_handler(
                         response_message.content.push(content.clone());
                     }
                 }
+            }
+            Ok(AgentEvent::ModelChange { model, mode }) => {
+                // Log model change for non-streaming
+                tracing::info!("Model changed to {} in {} mode", model, mode);
             }
             Ok(AgentEvent::McpNotification(n)) => {
                 // Handle notifications if needed

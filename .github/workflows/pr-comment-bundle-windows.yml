@@ -11,10 +11,13 @@ on:
         required: true
         type: string
 
-# permissions needed for reacting to IssueOps commands on PRs
+# permissions needed for reacting to IssueOps commands on PRs and AWS OIDC authentication
 permissions:
   pull-requests: write
   checks: read
+  id-token: write   # Required for AWS OIDC authentication in called workflow
+  contents: read    # Required by actions/checkout in called workflow
+  actions: read     # May be needed for some workflows
 
 name: Bundle Windows Desktop App
 
@@ -61,11 +64,9 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: false  # false for now as we don't have a cert yet
+      signing: false
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
-    secrets:
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
 
   pr-comment-windows:
     name: PR Comment with Windows App

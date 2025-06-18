@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
+import fs from 'node:fs';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
 import { App } from 'electron';
@@ -77,6 +78,23 @@ export const startGoosed = async (
 
   // Sanitize and validate the directory path
   dir = path.resolve(path.normalize(dir));
+
+  // Validate that the directory actually exists and is a directory
+  try {
+    const stats = fs.lstatSync(dir);
+
+    // Reject symlinks for security - they could point outside intended directories
+    if (stats.isSymbolicLink()) {
+      log.warn(`Provided path is a symlink, falling back to home directory for security`);
+      dir = homeDir;
+    } else if (!stats.isDirectory()) {
+      log.warn(`Provided path is not a directory, falling back to home directory`);
+      dir = homeDir;
+    }
+  } catch (error) {
+    log.warn(`Directory does not exist, falling back to home directory`);
+    dir = homeDir;
+  }
 
   // Security check: Ensure the directory path doesn't contain suspicious characters
   if (dir.includes('..') || dir.includes(';') || dir.includes('|') || dir.includes('&')) {

@@ -136,6 +136,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::McpNotification(n)) => {
                 println!("MCP Notification: {n:?}");
             }
+            Ok(AgentEvent::ModelChange { .. }) => {
+                // Model change events are informational, just continue
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);

@@ -589,6 +589,10 @@ async fn process_message_streaming(
                         // For now, we'll just log them
                         tracing::info!("Received MCP notification in web interface");
                     }
+                    Ok(AgentEvent::ModelChange { model, mode }) => {
+                        // Log model change
+                        tracing::info!("Model changed to {} in {} mode", model, mode);
+                    }
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         let mut sender = sender.lock().await;

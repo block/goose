@@ -197,6 +197,10 @@ const config: Config = {
           title: "Community",
           items: [
             {
+              label: "Spotlight",
+              to: "community",
+            },
+            {
               label: "Discord",
               href: "https://discord.gg/block-opensource",
             },
