@@ -98,7 +98,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     return (
       <div className="flex items-center gap-1 text-textSubtle px-2">
         <Coins className="w-3 h-3" />
-        <span className="text-xs">...</span>
+        <span className="text-xs font-mono">...</span>
       </div>
     );
   }
@@ -116,7 +116,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
           title={`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
         >
           <Coins className="w-3 h-3" />
-          <span className="text-xs">$0.000000</span>
+          <span className="text-xs font-mono">$0.000000</span>
         </div>
       );
     }
@@ -128,7 +128,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
         title={`Cost data not available for ${currentModel} (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
       >
         <Coins className="w-3 h-3" />
-        <span className="text-xs">$0.000000</span>
+        <span className="text-xs font-mono">$0.000000</span>
       </div>
     );
   }
@@ -141,7 +141,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
       title={`Input: ${inputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((inputTokens / 1000) * (costInfo.input_token_cost || 0)).toFixed(4)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((outputTokens / 1000) * (costInfo.output_token_cost || 0)).toFixed(4)})`}
     >
       <Coins className="w-3 h-3" />
-      <span className="text-xs">
+      <span className="text-xs font-mono">
         {costInfo.currency || '$'}
         {formatCost(totalCost)}
       </span>
