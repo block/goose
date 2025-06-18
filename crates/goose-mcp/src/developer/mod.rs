@@ -873,18 +873,7 @@ impl DeveloperRouter {
         }
 
         // Traditional string replacement path (original logic)
-        // Show helpful message once per session when not using Editor API
-        static SHOWN_HELP: std::sync::Once = std::sync::Once::new();
-        SHOWN_HELP.call_once(|| {
-            eprintln!("Note: To enable AI-powered code editing, set these environment variables:");
-            eprintln!("  GOOSE_EDITOR_API_KEY - Your API key");
-            eprintln!("  GOOSE_EDITOR_HOST - The API host (e.g., https://api.openai.com/v1)");
-            eprintln!(
-                "  GOOSE_EDITOR_MODEL - The model name (e.g., gpt-4o, claude-3-5-sonnet-20241022)"
-            );
-        });
-
-        // Ensure 'old_str' appears exactly once (original validation logic)
+        // Ensure 'old_str' appears exactly once
         if content.matches(old_str).count() > 1 {
             return Err(ToolError::InvalidParameters(
                 "'old_str' must appear exactly once in the file, but it appears multiple times"
