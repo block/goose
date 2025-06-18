@@ -16,7 +16,7 @@ fi
 
 # Build the service
 echo "Compiling Go binary..."
-go build -o temporal-service main.go
+go build -o temporal-service .
 
 # Make it executable
 chmod +x temporal-service
