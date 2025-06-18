@@ -872,6 +872,29 @@ ipcMain.handle('open-notifications-settings', async () => {
   }
 });
 
+// Handle quit confirmation setting
+ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showQuitConfirmation = show;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting quit confirmation:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-quit-confirmation-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showQuitConfirmation ?? true;
+  } catch (error) {
+    console.error('Error getting quit confirmation state:', error);
+    return true;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
@@ -1820,6 +1843,12 @@ app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode
+  }
+
+  // Check if quit confirmation is enabled in settings
+  const settings = loadSettings();
+  if (!settings.showQuitConfirmation) {
+    return; // Allow normal quit behavior if confirmation is disabled
   }
 
   // Prevent the default quit behavior
