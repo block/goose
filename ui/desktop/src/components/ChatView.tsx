@@ -161,6 +161,7 @@ function ChatContent({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
+    sessionMetadata,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -523,6 +524,15 @@ function ChatContent({
       fetchSessionTokens();
     }
   }, [chat.id, messages]);
+
+  // Update token counts when sessionMetadata changes from the message stream
+  useEffect(() => {
+    if (sessionMetadata) {
+      setSessionTokenCount(sessionMetadata.totalTokens || 0);
+      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
+      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
+    }
+  }, [sessionMetadata]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
