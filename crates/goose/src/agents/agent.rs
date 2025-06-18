@@ -237,7 +237,7 @@ impl Agent {
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             ToolCallResult::from(
                 sub_recipe_manager
-                    .run_sub_recipe(&tool_call.name, tool_call.arguments.clone())
+                    .call_sub_recipe_tool(&tool_call.name, tool_call.arguments.clone())
                     .await,
             )
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {

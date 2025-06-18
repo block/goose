@@ -106,7 +106,7 @@ fn prepare_command_params(
     Ok(sub_recipe_params)
 }
 
-pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
+pub async fn run_sub_recipe(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
     let command_params = prepare_command_params(sub_recipe, params)?;
 
     let mut command = Command::new("goose");

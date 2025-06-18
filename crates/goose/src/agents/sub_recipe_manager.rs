@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     agents::recipe_tools::sub_recipe_tools::{
-        call_sub_recipe_tool, create_sub_recipe_tool, SUB_RECIPE_TOOL_NAME_PREFIX,
+        create_sub_recipe_tool, run_sub_recipe, SUB_RECIPE_TOOL_NAME_PREFIX,
     },
     recipe::SubRecipe,
 };
@@ -42,7 +42,7 @@ impl SubRecipeManager {
         tool_name.starts_with(SUB_RECIPE_TOOL_NAME_PREFIX)
     }
 
-    pub async fn run_sub_recipe(
+    pub async fn call_sub_recipe_tool(
         &self,
         tool_name: &str,
         params: Value,
@@ -61,11 +61,9 @@ impl SubRecipeManager {
             ToolError::InvalidParameters(format!("Sub-recipe '{}' not found", sub_recipe_name))
         })?;
 
-        let output = call_sub_recipe_tool(sub_recipe, params)
-            .await
-            .map_err(|e| {
-                ToolError::ExecutionError(format!("Sub-recipe execution failed: {}", e))
-            })?;
+        let output = run_sub_recipe(sub_recipe, params).await.map_err(|e| {
+            ToolError::ExecutionError(format!("Sub-recipe execution failed: {}", e))
+        })?;
         Ok(vec![Content::text(output)])
     }
 }
