@@ -217,6 +217,35 @@ async fn update_agent_provider(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/update_tool_selection_strategy",
+    responses(
+        (status = 200, description = "Tool selection strategy updated successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn update_tool_selection_strategy(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    agent.update_tool_selection_strategy().await.map_err(|e| {
+        tracing::error!("Failed to update tool selection strategy: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(
+        "Tool selection strategy updated successfully".to_string(),
+    ))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
@@ -224,5 +253,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
+        .route(
+            "/agent/update_tool_selection_strategy",
+            post(update_tool_selection_strategy),
+        )
         .with_state(state)
 }

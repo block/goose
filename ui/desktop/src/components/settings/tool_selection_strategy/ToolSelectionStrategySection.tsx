@@ -35,6 +35,18 @@ export const ToolSelectionStrategySection = ({
     try {
       await upsert('GOOSE_ROUTER_TOOL_SELECTION_STRATEGY', newStrategy, false);
       setCurrentStrategy(newStrategy);
+      
+      // Call backend to update tool selection strategy and re-index tools
+      const response = await fetch('/api/agent/update_tool_selection_strategy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update tool selection strategy in backend');
+      }
     } catch (error) {
       console.error('Error updating tool selection strategy:', error);
       throw new Error(`Failed to store new tool selection strategy: ${newStrategy}`);
