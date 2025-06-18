@@ -105,8 +105,9 @@ impl ModelRunner {
                     let cfg = config_copy
                         .to_string()
                         .context("Failed to serialize configuration")?;
-
-                    let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
+                    let mut eval_envs: Vec<_> = eval_selector.env.clone();
+                    eval_envs.extend(envs.clone());
+                    let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, eval_envs);
                     results_handles.get_mut(suite).unwrap().push(handle);
                 }
             }
@@ -119,8 +120,10 @@ impl ModelRunner {
                 let cfg = config_copy
                     .to_string()
                     .context("Failed to serialize configuration")?;
+                let mut eval_envs: Vec<_> = eval_selector.env.clone();
+                eval_envs.extend(envs.clone());
 
-                let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
+                let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, eval_envs);
 
                 // Wait for this process to complete before starting the next one
                 let mut child_procs = vec![handle];
@@ -201,9 +204,19 @@ impl ModelRunner {
     }
 
     fn collect_evals_for_run(&self) -> HashMap<String, Vec<BenchEval>> {
-        // convert suites map {suite_name => [eval_selector_str] to map suite_name => [BenchEval]
         let mut result: HashMap<String, Vec<BenchEval>> = HashMap::new();
-        for eval in self.config.evals.iter() {
+
+        let (dataset_evals, standard_evals): &(Vec<BenchEval>, Vec<BenchEval>) = &self
+            .config
+            .evals
+            .clone()
+            .into_iter()
+            .partition(|eval| eval.dataset.is_some());
+
+        result.insert("dataset_evals".to_string(), dataset_evals.clone());
+
+        // convert suites map {suite_name => [eval_selector_str] to map suite_name => [BenchEval]
+        for eval in standard_evals.iter() {
             let selected_suites = EvaluationSuite::select(vec![eval.selector.clone()]);
             for (suite, evals) in selected_suites {
                 let entry: &mut Vec<BenchEval> = result.entry(suite).or_default();

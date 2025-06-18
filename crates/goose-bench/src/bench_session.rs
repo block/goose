@@ -20,11 +20,12 @@ pub trait BenchBaseSession: Send + Sync {
     async fn headless(&mut self, message: String) -> anyhow::Result<()>;
     fn session_file(&self) -> PathBuf;
     fn message_history(&self) -> Vec<Message>;
+    async fn override_system_prompt(&self, override_prompt: String);
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>>;
 }
 // struct for managing agent-session-access. to be passed to evals for benchmarking
 pub struct BenchAgent {
-    session: Box<dyn BenchBaseSession>,
+    pub session: Box<dyn BenchBaseSession>,
     errors: Arc<Mutex<Vec<BenchAgentError>>>,
 }
 

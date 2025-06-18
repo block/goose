@@ -7,10 +7,24 @@ use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
 use std::process;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use super::output;
 use super::Session;
+
+// Cache for extension configurations to avoid repeated filesystem reads
+static CACHED_EXTENSIONS: OnceLock<Vec<ExtensionConfig>> = OnceLock::new();
+
+fn get_cached_extensions() -> &'static Vec<ExtensionConfig> {
+    CACHED_EXTENSIONS.get_or_init(|| {
+        ExtensionConfigManager::get_all()
+            .expect("should load extensions")
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect()
+    })
+}
 
 /// Configuration for building a new Goose session
 ///
@@ -294,12 +308,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         extensions.into_iter().collect()
     } else {
-        ExtensionConfigManager::get_all()
-            .expect("should load extensions")
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect()
+        get_cached_extensions().clone()
     };
 
     for extension in extensions_to_run {

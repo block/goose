@@ -49,3 +49,4 @@ benchconf.json
 scripts/fake.sh
 do_not_version/
 /ui/desktop/src/bin/temporal
+/.claude
