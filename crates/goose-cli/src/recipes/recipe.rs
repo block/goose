@@ -83,8 +83,6 @@ fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipePar
     let mut params_block = String::new();
     let mut collecting = false;
 
-    eprint!("Recipe content:\n{}", content);
-
     while let Some(line) = lines.next() {
         if line.starts_with("parameters:") {
             collecting = true;
@@ -99,15 +97,15 @@ fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipePar
             params_block.push('\n');
         }
     }
+
     // If we didn't find a parameter block it might be because it is defined in json style or some such:
-    let result: Result<Recipe, serde_yaml::Error> = serde_yaml::from_str(content);
-    if result.is_ok() {
-        let recipe: Recipe = result.unwrap();
-        if let Some(parameters) = recipe.parameters {
-            return Ok(Some(parameters));
-        }
+    if serde_yaml::from_str::<serde_yaml::Value>(content).is_err() {
+        return Ok(None);
     }
-    Ok(None)
+
+    let recipe: Recipe = serde_yaml::from_str(content)
+        .map_err(|e| anyhow::anyhow!("Valid YAML but invalid Recipe structure: {}", e))?;
+    Ok(recipe.parameters)
 }
 
 fn validate_parameters_in_template(
@@ -328,9 +326,8 @@ mod tests {
         let content = "Hello {{ missing }}!";
         let params = HashMap::new();
         let err = render_content_with_params(content, &params).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("please check if all required parameters"));
+        let error_msg = err.to_string();
+        assert!(error_msg.contains("please check if all required parameters"));
 
         // Test invalid template syntax results in error
         let content = "Hello {{ unclosed";
