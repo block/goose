@@ -4,6 +4,7 @@ use goose_llm::extractors::generate_tooltip;
 use goose_llm::message::{Message, MessageContent, ToolRequest};
 use goose_llm::providers::errors::ProviderError;
 use goose_llm::types::core::{Content, ToolCall};
+use rstest::rstest;
 use serde_json::json;
 
 fn should_run_test() -> Result<(), String> {
@@ -17,43 +18,52 @@ fn should_run_test() -> Result<(), String> {
     Ok(())
 }
 
-async fn _generate_tooltip(messages: &[Message]) -> Result<String, ProviderError> {
+async fn _generate_tooltip(
+    model_name: &str,
+    messages: &[Message],
+) -> Result<String, ProviderError> {
     let provider_name = "databricks";
     let provider_config = serde_json::json!({
         "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
+    let model_config = goose_llm::ModelConfig::new(model_name.to_string());
 
-    generate_tooltip(provider_name, provider_config, messages).await
+    generate_tooltip(provider_name, provider_config, model_config, messages).await
 }
 
+#[rstest]
+#[case("claude-3-5-haiku")]
+#[case("goose-gpt-4-1")]
+#[case("goose-gemini-2-5-pro")]
 #[tokio::test]
-async fn test_generate_tooltip_simple() {
+async fn test_generate_tooltip_simple(#[case] model_name: &str) {
     if should_run_test().is_err() {
-        println!("Skipping...");
+        eprintln!("Skipping…");
         return;
     }
 
-    // Two plain-text messages
     let messages = vec![
         Message::user().with_text("Hello, how are you?"),
         Message::assistant().with_text("I'm fine, thanks! How can I help?"),
     ];
 
-    let tooltip = _generate_tooltip(&messages)
+    let tooltip = _generate_tooltip(model_name, &messages)
         .await
         .expect("Failed to generate tooltip");
-    println!("Generated tooltip: {:?}", tooltip);
+
+    println!("[{}] Generated tooltip: {:?}", model_name, tooltip);
 
     assert!(!tooltip.trim().is_empty(), "Tooltip must not be empty");
-    assert!(
-        tooltip.len() < 100,
-        "Tooltip should be reasonably short (<100 chars)"
-    );
+    assert!(tooltip.len() < 100, "Tooltip too long (<100 chars)");
 }
 
+#[rstest]
+#[case("claude-3-5-haiku")]
+#[case("goose-gpt-4-1")]
+#[case("goose-gemini-2-5-pro")]
 #[tokio::test]
-async fn test_generate_tooltip_with_tools() {
+async fn test_generate_tooltip_with_tools(#[case] model_name: &str) {
     if should_run_test().is_err() {
         println!("Skipping...");
         return;
@@ -75,7 +85,7 @@ async fn test_generate_tooltip_with_tools() {
 
     let messages = vec![tool_req_msg, tool_resp_msg];
 
-    let tooltip = _generate_tooltip(&messages)
+    let tooltip = _generate_tooltip(model_name, &messages)
         .await
         .expect("Failed to generate tooltip");
     println!("Generated tooltip (tools): {:?}", tooltip);
