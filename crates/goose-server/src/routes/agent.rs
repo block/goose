@@ -67,6 +67,11 @@ pub struct GetToolsQuery {
     extension_name: Option<String>,
 }
 
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
 async fn get_versions() -> Json<VersionsResponse> {
     let versions = ["goose".to_string()];
     let default_version = "goose".to_string();
@@ -228,17 +233,28 @@ async fn update_agent_provider(
 async fn update_tool_selection_strategy(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
+) -> Result<Json<String>, Json<ErrorResponse>> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        Json(ErrorResponse {
+            error: "Unauthorized - Invalid or missing API key".to_string(),
+        })
+    })?;
 
     let agent = state
         .get_agent()
         .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+        .map_err(|e| {
+            tracing::error!("Failed to get agent: {}", e);
+            Json(ErrorResponse {
+                error: format!("Failed to get agent: {}", e),
+            })
+        })?;
 
     agent.update_tool_selection_strategy().await.map_err(|e| {
         tracing::error!("Failed to update tool selection strategy: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        Json(ErrorResponse {
+            error: format!("Failed to update tool selection strategy: {}", e),
+        })
     })?;
 
     Ok(Json(

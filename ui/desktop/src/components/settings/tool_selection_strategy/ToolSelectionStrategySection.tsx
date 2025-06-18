@@ -29,27 +29,45 @@ export const ToolSelectionStrategySection = ({
   setView: _setView,
 }: ToolSelectionStrategySectionProps) => {
   const [currentStrategy, setCurrentStrategy] = useState('default');
+  const [error, setError] = useState<string | null>(null);
   const { read, upsert } = useConfig();
 
   const handleStrategyChange = async (newStrategy: string) => {
+    setError(null); // Clear any previous errors
     try {
-      await upsert('GOOSE_ROUTER_TOOL_SELECTION_STRATEGY', newStrategy, false);
-      setCurrentStrategy(newStrategy);
-      
-      // Call backend to update tool selection strategy and re-index tools
-      const response = await fetch('/api/agent/update_tool_selection_strategy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update tool selection strategy in backend');
+      // First update the configuration
+      try {
+        await upsert('GOOSE_ROUTER_TOOL_SELECTION_STRATEGY', newStrategy, false);
+      } catch (error) {
+        console.error('Error updating configuration:', error);
+        setError(`Failed to update configuration: ${error}`);
+        return;
       }
+
+      // Then update the backend
+      try {
+        const response = await fetch('/api/agent/update_tool_selection_strategy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Unknown error from backend');
+        }
+      } catch (error) {
+        console.error('Error updating backend:', error);
+        setError(`Failed to update backend: ${error}`);
+        return;
+      }
+
+      // If both succeeded, update the UI
+      setCurrentStrategy(newStrategy);
     } catch (error) {
       console.error('Error updating tool selection strategy:', error);
-      throw new Error(`Failed to store new tool selection strategy: ${newStrategy}`);
+      setError(`Failed to update tool selection strategy: ${error}`);
     }
   };
 
@@ -61,6 +79,7 @@ export const ToolSelectionStrategySection = ({
       }
     } catch (error) {
       console.error('Error fetching current tool selection strategy:', error);
+      setError(`Failed to fetch current strategy: ${error}`);
     }
   }, [read]);
 
@@ -78,6 +97,11 @@ export const ToolSelectionStrategySection = ({
           Configure how Goose selects tools for your requests. Recommended when many extensions are
           enabled. Available only with Claude models served on Databricks for now.
         </p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
         <div>
           {all_tool_selection_strategies.map((strategy) => (
             <div className="group hover:cursor-pointer" key={strategy.key}>

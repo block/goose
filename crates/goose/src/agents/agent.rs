@@ -812,7 +812,9 @@ impl Agent {
 
     /// Update the tool selection strategy and re-index all tools
     pub async fn update_tool_selection_strategy(&self) -> Result<()> {
-        let provider = self.provider().await?;
+        let provider = self.provider().await.map_err(|e| {
+            anyhow!("Failed to get provider: {}", e)
+        })?;
         let extension_manager = self.extension_manager.lock().await;
 
         // Create new selector with current strategy
@@ -827,47 +829,65 @@ impl Agent {
             _ => None,
         };
 
+        // If no strategy is selected, clear the selector and return
+        if strategy.is_none() {
+            *self.router_tool_selector.lock().await = None;
+            return Ok(());
+        }
+
+        // Try to create the selector, but if it fails, fall back to no selector
         let selector = match strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
-                let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
+                match create_tool_selector(strategy, provider.clone(), Some(generate_table_id())).await {
+                    Ok(selector) => Some(Arc::new(selector)),
+                    Err(e) => {
+                        tracing::error!("Failed to create vector tool selector: {}", e);
+                        None
+                    }
+                }
             }
             Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider.clone(), None)
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
+                match create_tool_selector(strategy, provider.clone(), None).await {
+                    Ok(selector) => Some(Arc::new(selector)),
+                    Err(e) => {
+                        tracing::error!("Failed to create LLM tool selector: {}", e);
+                        None
+                    }
+                }
             }
-            None => return Ok(()),
+            None => None,
         };
 
-        // First index platform tools
-        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
+        // If we have a selector, try to index tools
+        if let Some(selector) = &selector {
+            // First index platform tools
+            if let Err(e) = ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await {
+                tracing::error!("Failed to index platform tools: {}", e);
+            }
 
-        // Then index all currently enabled extensions
-        let enabled_extensions = extension_manager.list_extensions().await?;
-        for extension_name in enabled_extensions {
-            if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                &selector,
-                &extension_manager,
-                &extension_name,
-                "add",
-            )
-            .await
-            {
-                tracing::error!(
-                    "Failed to index tools for extension {}: {}",
-                    extension_name,
-                    e
-                );
+            // Then index all currently enabled extensions
+            if let Ok(enabled_extensions) = extension_manager.list_extensions().await {
+                for extension_name in enabled_extensions {
+                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                        &selector,
+                        &extension_manager,
+                        &extension_name,
+                        "add",
+                    )
+                    .await
+                    {
+                        tracing::error!(
+                            "Failed to index tools for extension {}: {}",
+                            extension_name,
+                            e
+                        );
+                    }
+                }
             }
         }
 
-        // Update the selector
-        *self.router_tool_selector.lock().await = Some(selector.clone());
+        // Update the selector (even if it's None)
+        *self.router_tool_selector.lock().await = selector;
         Ok(())
     }
 
