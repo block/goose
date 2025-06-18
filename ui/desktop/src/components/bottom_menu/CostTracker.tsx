@@ -73,10 +73,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   };
 
   const formatCost = (cost: number): string => {
-    if (cost === 0) return '0.00';
-    if (cost < 0.01) return cost.toFixed(4);
-    if (cost < 1) return cost.toFixed(3);
-    return cost.toFixed(2);
+    // Always show 6 decimal places for consistency
+    return cost.toFixed(6);
   };
 
   // Debug logging
@@ -109,7 +107,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   if (!costInfo || (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)) {
     console.log('CostTracker: No cost info, checking for local/free model');
     
-    // If it's a known free/local provider, show $0.00 without "not available" message
+    // If it's a known free/local provider, show $0.000000 without "not available" message
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
@@ -118,7 +116,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
           title={`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
         >
           <Coins className="w-3 h-3" />
-          <span className="text-xs">$0.00</span>
+          <span className="text-xs">$0.000000</span>
         </div>
       );
     }
@@ -130,7 +128,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
         title={`Cost data not available for ${currentModel} (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
       >
         <Coins className="w-3 h-3" />
-        <span className="text-xs">$0.00</span>
+        <span className="text-xs">$0.000000</span>
       </div>
     );
   }
