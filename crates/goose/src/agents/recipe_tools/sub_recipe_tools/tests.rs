@@ -25,7 +25,6 @@ mod tests {
         #[test]
         fn test_prepare_command_params_basic() {
             let mut params = HashMap::new();
-            params.insert("key1".to_string(), "new_value".to_string());
             params.insert("key2".to_string(), "value2".to_string());
 
             let sub_recipe = setup_sub_recipe();
@@ -33,7 +32,7 @@ mod tests {
             let params_value = serde_json::to_value(params).unwrap();
             let result = prepare_command_params(&sub_recipe, params_value).unwrap();
             assert_eq!(result.len(), 2);
-            assert_eq!(result.get("key1"), Some(&"new_value".to_string()));
+            assert_eq!(result.get("key1"), Some(&"value1".to_string()));
             assert_eq!(result.get("key2"), Some(&"value2".to_string()));
         }
 
@@ -98,22 +97,14 @@ mod tests {
             assert!(result["properties"].is_object());
 
             let properties = result["properties"].as_object().unwrap();
-            assert_eq!(properties.len(), 2);
-
-            let key1_prop = &properties["key1"];
-            assert_eq!(key1_prop["type"], "string");
-            assert!(key1_prop["description"]
-                .as_str()
-                .unwrap()
-                .contains("currently the value is set to value1"));
+            assert_eq!(properties.len(), 1);
 
             let key2_prop = &properties["key2"];
             assert_eq!(key2_prop["type"], "number");
             assert_eq!(key2_prop["description"], "An optional parameter");
 
             let required = result["required"].as_array().unwrap();
-            assert_eq!(required.len(), 1);
-            assert_eq!(required[0], "key1");
+            assert_eq!(required.len(), 0);
         }
 
         #[test]
@@ -156,10 +147,9 @@ mod tests {
 
             let key1_prop = &properties["key1"];
             assert_eq!(key1_prop["type"], "string");
-            let description = key1_prop["description"].as_str().unwrap();
-            assert!(description.contains("A test parameter"));
-            assert!(!description.contains("currently the value is set to"));
+            assert_eq!(key1_prop["description"], "A test parameter");
             assert_eq!(result["required"].as_array().unwrap().len(), 1);
+            assert_eq!(result["required"][0], "key1");
         }
     }
 }

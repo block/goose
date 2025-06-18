@@ -50,15 +50,14 @@ fn get_input_schema(sub_recipe: &SubRecipe) -> Result<Value> {
         let mut properties = Map::new();
         let mut required = Vec::new();
         for param in parameters {
-            let mut description = param.description.clone();
             if sub_recipe_params_map.contains_key(&param.key) {
-                description = format!("{}, currently the value is set to {}. If you want to change the value, please provide a new value.", description, sub_recipe_params_map.get(&param.key).unwrap());
+                continue;
             }
             properties.insert(
                 param.key.clone(),
                 json!({
                     "type": param.input_type.to_string(),
-                    "description": description,
+                    "description": param.description.clone(),
                 }),
             );
             if !matches!(param.requirement, RecipeParameterRequirement::Optional) {
@@ -80,7 +79,7 @@ fn get_input_schema(sub_recipe: &SubRecipe) -> Result<Value> {
 
 fn prepare_command_params(
     sub_recipe: &SubRecipe,
-    params: Value,
+    params_from_tool_call: Value,
 ) -> Result<HashMap<String, String>> {
     let mut sub_recipe_params = HashMap::<String, String>::new();
     if let Some(params_with_value) = &sub_recipe.values {
@@ -88,7 +87,7 @@ fn prepare_command_params(
             sub_recipe_params.insert(param_name.clone(), param_value.clone());
         }
     }
-    if let Some(params_map) = params.as_object() {
+    if let Some(params_map) = params_from_tool_call.as_object() {
         for (key, value) in params_map {
             sub_recipe_params.insert(
                 key.to_string(),
