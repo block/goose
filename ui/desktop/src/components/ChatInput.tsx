@@ -82,7 +82,7 @@ export default function ChatInput({
     // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
-  }, [initialValue, draftText, updateDraft]); // Add missing dependencies
+  }, [initialValue, draftText, updateDraft]);
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -153,7 +153,7 @@ export default function ChatInput({
       textAreaRef.current?.focus();
       setProcessedFilePaths(droppedFiles);
     }
-  }, [droppedFiles, processedFilePaths, displayValue, updateDraft]); // Add missing dependency
+  }, [droppedFiles, processedFilePaths, displayValue, updateDraft]);
 
   // Debounced function to update draft
   const debouncedUpdateDraft = useMemo(
@@ -381,7 +381,7 @@ export default function ChatInput({
       );
 
       setDisplayValue('');
-      clearDraft(); // Clear the draft when message is sent
+      clearDraft();
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
