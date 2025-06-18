@@ -116,7 +116,11 @@ impl DeveloperRouter {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        // Create editor model if configured
+        // An editor model is optionally provided, if configured, for fast edit apply
+        // it will fall back to norma string replacement if not configured
+        //
+        // when there is an editor model, the prompts are slightly changed as it takes
+        // a load off the main LLM making the tool calls and you get faster more correct applies
         let editor_model = create_editor_model();
 
         // Get OS-specific shell tool description
@@ -824,9 +828,7 @@ impl DeveloperRouter {
         old_str: &str,
         new_str: &str,
     ) -> Result<Vec<Content>, ToolError> {
-        eprintln!("text_editor_replace called ");
-
-        // Check if file exists first
+        // Check if file exists and is active
         if !path.exists() {
             return Err(ToolError::InvalidParameters(format!(
                 "File '{}' does not exist, you can write a new file with the `write` command",
