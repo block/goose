@@ -10,7 +10,7 @@ tags: [extensions, containers, development, isolation, mcp, dagger]
 
 Over 10 years ago Docker came on the scene and introduced masses of developers to the concept and practice of containers.
 These containers were useful to solve deployment and buildtime problems (and in some cases development environments) and rapidly became mainstream. 
-Underlying these containers was interesting tech around "copy on write" filesystems and isolated "not quite" virtual machine like environments (certainly helped to contain processes and clean up after).
+Underlying these containers was interesting tech around "copy on write" filesystems and isolated "not quite" virtual-machine-like environments (certainly helped to contain processes and clean up after).
 
 Dagger (the project and company!) followed on from Docker (by [Solomon Hykes](https://www.linkedin.com/in/solomonhykes/), creator of Docker) which furthered the reach of containers for developers.
 A project that has come out of that is an MCP server called `container-use` - which provides a cli and tool which can be invaluable for coding agents to able to do work in isolated environments and branches with a clear lifecycle and ability to roll back, limit changes and risk (compared to running an agent directly on your system) but with the same ergonomics and convenience you are used to with agents. 
