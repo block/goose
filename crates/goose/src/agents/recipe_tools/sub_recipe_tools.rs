@@ -82,7 +82,10 @@ fn get_input_schema(sub_recipe: &SubRecipe) -> Result<Value> {
     }
 }
 
-pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<String, String> {
+fn prepare_command_params(
+    sub_recipe: &SubRecipe,
+    params: Value,
+) -> Result<HashMap<String, String>> {
     let mut sub_recipe_params = HashMap::<String, String>::new();
     if let Some(params_with_value) = &sub_recipe.params {
         for param_with_value in params_with_value {
@@ -100,10 +103,16 @@ pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Resu
             );
         }
     }
+    Ok(sub_recipe_params)
+}
+
+pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
+    let command_params = prepare_command_params(sub_recipe, params)?;
+
     let mut command = Command::new("goose");
     command.arg("run").arg("--recipe").arg(&sub_recipe.path);
 
-    for (key, value) in sub_recipe_params {
+    for (key, value) in command_params {
         command.arg("--params").arg(format!("{}={}", key, value));
     }
 
@@ -112,7 +121,7 @@ pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Resu
 
     let mut child = command
         .spawn()
-        .map_err(|e| format!("Failed to spawn: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to spawn: {}", e))?;
 
     let stdout = child.stdout.take().expect("Failed to capture stdout");
     let stderr = child.stderr.take().expect("Failed to capture stderr");
@@ -149,7 +158,7 @@ pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Resu
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Failed to wait for process: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to wait for process: {}", e))?;
 
     let stdout_output = stdout_task.await.unwrap();
     let stderr_output = stderr_task.await.unwrap();
@@ -157,6 +166,6 @@ pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Resu
     if status.success() {
         Ok(stdout_output)
     } else {
-        Err(format!("Command failed:\n{}", stderr_output))
+        Err(anyhow::anyhow!("Command failed:\n{}", stderr_output))
     }
 }
