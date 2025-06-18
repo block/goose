@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { useConfig } from '../ConfigContext';
-import { Coins } from '../icons';
 import { getCostForModel, initializeCostDatabase, updateAllModelCosts } from '../../utils/costDatabase';
 
 interface CostTrackerProps {
@@ -96,8 +95,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   // If still loading, show a placeholder
   if (isLoading) {
     return (
-      <div className="flex items-center gap-1 text-textSubtle">
-        <Coins className="w-3 h-3" />
+      <div className="flex items-center text-textSubtle">
         <span className="text-xs font-mono">...</span>
       </div>
     );
@@ -112,10 +110,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
         <div
-          className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default"
+          className="flex items-center text-textSubtle hover:text-textStandard transition-colors cursor-default"
           title={`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
         >
-          <Coins className="w-3 h-3" />
           <span className="text-xs font-mono">$0.000000</span>
         </div>
       );
@@ -124,10 +121,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     // Otherwise show as unavailable
     return (
       <div
-        className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default"
+        className="flex items-center text-textSubtle hover:text-textStandard transition-colors cursor-default"
         title={`Cost data not available for ${currentModel} (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
       >
-        <Coins className="w-3 h-3" />
         <span className="text-xs font-mono">$0.000000</span>
       </div>
     );
@@ -137,10 +133,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
 
   return (
     <div
-      className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default"
+      className="flex items-center text-textSubtle hover:text-textStandard transition-colors cursor-default"
       title={`Input: ${inputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((inputTokens / 1000) * (costInfo.input_token_cost || 0)).toFixed(4)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo.currency || '$'}${((outputTokens / 1000) * (costInfo.output_token_cost || 0)).toFixed(4)})`}
     >
-      <Coins className="w-3 h-3" />
       <span className="text-xs font-mono">
         {costInfo.currency || '$'}
         {formatCost(totalCost)}
