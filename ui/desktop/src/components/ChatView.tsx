@@ -527,6 +527,7 @@ function ChatContent({
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {
+    console.log('Session metadata received:', sessionMetadata);
     if (sessionMetadata) {
       setSessionTokenCount(sessionMetadata.totalTokens || 0);
       setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);

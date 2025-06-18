@@ -212,7 +212,10 @@ export default function BottomMenu({
         {/* Tool and Token count */}
         {<BottomMenuAlertPopover alerts={alerts} />}
 
-        {/* Cost Tracker - Add this before Model Selector */}
+        {/* Separator */}
+        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+
+        {/* Cost Tracker - positioned after alerts */}
         <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
 
         {/* Model Selector Dropdown */}

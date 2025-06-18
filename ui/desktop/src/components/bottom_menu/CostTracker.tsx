@@ -21,6 +21,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   const [costInfo, setCostInfo] = useState<ModelCostInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Debug log props
+  console.log('CostTracker props:', { inputTokens, outputTokens });
+
   useEffect(() => {
     const loadCostInfo = async () => {
       if (!currentModel || !currentProvider) {
@@ -89,16 +92,31 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     return cost.toFixed(2);
   };
 
+  // Debug logging
+  console.log('CostTracker state:', {
+    isLoading,
+    costInfo,
+    inputTokens,
+    outputTokens,
+    currentModel,
+    currentProvider,
+  });
+
   // Always show the cost tracker if we have cost info, even with 0 tokens
   if (isLoading || !costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
-    return null; // Don't show anything if we don't have cost data
+    // Show a debug element when not showing cost
+    return (
+      <div className="text-xs text-textSubtle px-2" title="Cost tracker - no cost data available">
+        {/* Hidden debug element */}
+      </div>
+    );
   }
 
   const totalCost = calculateCost();
 
   return (
     <div
-      className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default"
+      className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default px-2"
       title={`Input: ${inputTokens.toLocaleString()} tokens, Output: ${outputTokens.toLocaleString()} tokens`}
     >
       <Coins className="w-3 h-3" />
