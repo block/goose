@@ -16,7 +16,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe, Settings};
+use crate::recipe::{Author, Recipe, Settings, SubRecipe};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
@@ -59,6 +59,7 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    pub(super) sub_recipes: Mutex<Vec<SubRecipe>>,
 }
 
 #[derive(Clone, Debug)]
@@ -85,6 +86,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
+            sub_recipes: Mutex::new(Vec::new()),
         }
     }
 
@@ -102,6 +104,11 @@ impl Agent {
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
         }
+    }
+
+    pub async fn add_sub_recipes(&self, new_sub_recipes: Vec<SubRecipe>) {
+        let mut sub_recipes = self.sub_recipes.lock().await;
+        sub_recipes.extend(new_sub_recipes);
     }
 }
 

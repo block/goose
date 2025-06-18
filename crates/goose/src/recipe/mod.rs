@@ -89,6 +89,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -110,6 +113,19 @@ pub struct Settings {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SubRecipe {
+    pub name: String,
+    pub path: String,
+    pub params: Option<Vec<SubRecipeParams>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SubRecipeParams {
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -176,6 +192,7 @@ pub struct RecipeBuilder {
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
+    sub_recipes: Option<Vec<SubRecipe>>,
 }
 
 impl Recipe {
@@ -206,6 +223,7 @@ impl Recipe {
             activities: None,
             author: None,
             parameters: None,
+            sub_recipes: None,
         }
     }
 }
@@ -274,6 +292,10 @@ impl RecipeBuilder {
         self.parameters = Some(parameters);
         self
     }
+    pub fn sub_recipes(mut self, sub_recipes: Vec<SubRecipe>) -> Self {
+        self.sub_recipes = Some(sub_recipes);
+        self
+    }
 
     /// Builds the Recipe instance
     ///
@@ -298,6 +320,7 @@ impl RecipeBuilder {
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
+            sub_recipes: self.sub_recipes,
         })
     }
 }
