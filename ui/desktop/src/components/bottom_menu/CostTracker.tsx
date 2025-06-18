@@ -237,6 +237,16 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
         output_token_cost: 0.075,
         currency: '$',
       },
+      'claude-opus-4-20250514': {
+        input_token_cost: 0.015,
+        output_token_cost: 0.075,
+        currency: '$',
+      },
+      'claude-opus-4': {
+        input_token_cost: 0.015,
+        output_token_cost: 0.075,
+        currency: '$',
+      },
       'claude-3-sonnet-20240229': {
         input_token_cost: 0.003,
         output_token_cost: 0.015,
@@ -336,6 +346,12 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
       console.log('Partial match found:', key, 'for model:', model);
       return value;
     }
+  }
+
+  // Special handling for opus models
+  if (modelLower.includes('opus')) {
+    console.log('Opus model detected, using claude-3-opus pricing');
+    return providerData['claude-3-opus'] || providerData['claude-opus-4'] || null;
   }
 
   console.log('No cost data found for model:', model);
