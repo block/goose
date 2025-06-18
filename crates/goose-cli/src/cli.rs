@@ -491,6 +491,14 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        /// Quiet mode - suppress non-response output
+        #[arg(
+            short = 'q',
+            long = "quiet",
+            help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
+        )]
+        quiet: bool,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -644,7 +652,8 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
-                        interactive: true, // Session command is always interactive
+                        interactive: true,
+                        quiet: false,
                     })
                     .await;
                     setup_logging(
@@ -688,6 +697,7 @@ pub async fn cli() -> Result<()> {
             builtins,
             params,
             explain,
+            quiet,
         }) => {
             let (input_config, session_settings) = match (instructions, input_text, recipe, explain)
             {
@@ -773,6 +783,7 @@ pub async fn cli() -> Result<()> {
                 debug,
                 max_tool_repetitions,
                 interactive, // Use the interactive flag from the Run command
+                quiet,
             })
             .await;
 
@@ -889,6 +900,7 @@ pub async fn cli() -> Result<()> {
                     debug: false,
                     max_tool_repetitions: None,
                     interactive: true, // Default case is always interactive
+                    quiet: false,
                 })
                 .await;
                 setup_logging(
