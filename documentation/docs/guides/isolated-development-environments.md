@@ -169,11 +169,6 @@ Goose will automatically:
 - Ensure your user has permission to run Docker commands
 - On Linux, add user to docker group: `sudo usermod -aG docker $USER`
 
-**Extension not working:**
-- Verify Container Use is installed: `cu --version`
-- Check your Goose configuration file syntax
-- Restart Goose after adding the extension
-
 **Git issues:**
 - Ensure Git is properly configured with user name and email
 - Check that you're in a Git repository when starting isolated work
@@ -184,8 +179,7 @@ If you encounter issues:
 
 1. Check the **[Container Use GitHub repository](https://github.com/dagger/container-use)** for documentation
 2. Verify all prerequisites are installed and working
-3. Check Goose logs for error messages
-4. Join our [Discord community](https://discord.gg/block-opensource) for support
+3. Join our [Discord community](https://discord.gg/block-opensource) for support
 
 ## Next Steps
 
