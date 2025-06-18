@@ -27,24 +27,9 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 ## Installation
 
-### Step 1: Install Container Use
+### Install Container Use
 
-<Tabs groupId="platform">
-  <TabItem value="macos" label="macOS (Homebrew - Recommended)" default>
-
-```bash
-brew install dagger/tap/container-use
-```
-
-  </TabItem>
-  <TabItem value="universal" label="All Platforms (Shell Script)">
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/dagger/container-use/main/install.sh | bash
-```
-
-  </TabItem>
-</Tabs>
+Head on over to the [Container Use README](https://github.com/dagger/container-use/blob/main/README.md) for up to date install instructions for this fast moving project.
 
 ## Adding to Goose
 
@@ -201,20 +186,6 @@ If you encounter issues:
 2. Verify all prerequisites are installed and working
 3. Check Goose logs for error messages
 4. Join our [Discord community](https://discord.gg/block-opensource) for support
-
-## Advanced Configuration
-
-### Custom Container Images
-
-You can configure container-use to use specific base images for different types of projects by setting environment variables in your extension configuration.
-
-### Persistent Volumes
-
-For projects that need persistent data across container sessions, you can configure volume mounts in your container-use setup.
-
-### Network Configuration
-
-If your development requires specific network settings or port mappings, these can be configured through container-use options.
 
 ## Next Steps
 
