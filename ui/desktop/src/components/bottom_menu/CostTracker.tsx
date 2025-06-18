@@ -56,13 +56,20 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
             } else {
               // Fallback: Try to get cost info from a local cost database
               const costData = await getCostDataForModel(currentProvider, currentModel);
+              console.log('Got cost data from local database:', costData);
               setCostInfo(costData);
             }
           } else {
             // Fallback: Try to get cost info from a local cost database
             const costData = await getCostDataForModel(currentProvider, currentModel);
+            console.log('Got cost data from local database (no model config):', costData);
             setCostInfo(costData);
           }
+        } else {
+          // No known models, use local database
+          const costData = await getCostDataForModel(currentProvider, currentModel);
+          console.log('Got cost data from local database (no known models):', costData);
+          setCostInfo(costData);
         }
       } catch (error) {
         console.error('Error loading cost info:', error);
@@ -75,14 +82,25 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   }, [currentModel, currentProvider, getProviders]);
 
   const calculateCost = (): number => {
-    if (!costInfo || !costInfo.input_token_cost || !costInfo.output_token_cost) {
+    if (!costInfo || (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)) {
       return 0;
     }
 
-    const inputCost = (inputTokens / 1000) * costInfo.input_token_cost;
-    const outputCost = (outputTokens / 1000) * costInfo.output_token_cost;
+    const inputCost = (inputTokens / 1000) * (costInfo.input_token_cost || 0);
+    const outputCost = (outputTokens / 1000) * (costInfo.output_token_cost || 0);
+    const total = inputCost + outputCost;
+    
+    console.log('Cost calculation:', {
+      inputTokens,
+      outputTokens,
+      inputCostPer1k: costInfo.input_token_cost,
+      outputCostPer1k: costInfo.output_token_cost,
+      inputCost,
+      outputCost,
+      total
+    });
 
-    return inputCost + outputCost;
+    return total;
   };
 
   const formatCost = (cost: number): string => {
@@ -119,7 +137,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   }
 
   // If no cost info found, try to return a default
-  if (!costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
+  if (!costInfo || (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)) {
     console.log('CostTracker: No cost info, checking for local/free model');
     
     // If it's a known free/local provider, show $0.00 without "not available" message
