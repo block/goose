@@ -9,7 +9,8 @@ tags: [extensions, containers, development, isolation, mcp, dagger]
 ![Dagger Logo](https://avatars.githubusercontent.com/u/78824383?v=4)
 
 Over ten years ago, Docker came onto the scene and introduced developers en masse to the concept and practice of containers.
-These containers were useful to solve deployment and buildtime problems (and in some cases development environments) and rapidly became mainstream. 
+These containers helped solve deployment and build-time problems, and in some cases, issues with development environments. They quickly became mainstream.
+
 Underlying these containers was interesting tech around "copy on write" filesystems and isolated "not quite" virtual-machine-like environments (certainly helped to contain processes and clean up after).
 
 Dagger (the project and company!) followed on from Docker (by [Solomon Hykes](https://www.linkedin.com/in/solomonhykes/), creator of Docker) and furthered the reach of containers for developers.
