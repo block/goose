@@ -29,6 +29,8 @@ interface ChatInputProps {
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
@@ -42,6 +44,8 @@ export default function ChatInput({
   initialValue = '',
   setView,
   numTokens,
+  inputTokens,
+  outputTokens,
   droppedFiles = [],
   messages = [],
   setMessages,
@@ -557,6 +561,8 @@ export default function ChatInput({
           <BottomMenu
             setView={setView}
             numTokens={numTokens}
+            inputTokens={inputTokens}
+            outputTokens={outputTokens}
             messages={messages}
             isLoading={isLoading}
             setMessages={setMessages}

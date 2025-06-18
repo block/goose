@@ -9,6 +9,7 @@ import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
+import { CostTracker } from './CostTracker';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
@@ -22,12 +23,16 @@ interface ModelLimit {
 export default function BottomMenu({
   setView,
   numTokens = 0,
+  inputTokens = 0,
+  outputTokens = 0,
   messages = [],
   isLoading = false,
   setMessages,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   messages?: Message[];
   isLoading?: boolean;
   setMessages: (messages: Message[]) => void;
@@ -206,6 +211,14 @@ export default function BottomMenu({
       <div className="flex items-center pl-2">
         {/* Tool and Token count */}
         {<BottomMenuAlertPopover alerts={alerts} />}
+
+        {/* Cost Tracker - Add this before Model Selector */}
+        <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
+
+        {/* Separator between cost and model selector */}
+        {(inputTokens > 0 || outputTokens > 0) && (
+          <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+        )}
 
         {/* Model Selector Dropdown */}
         <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />

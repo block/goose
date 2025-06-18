@@ -1,4 +1,12 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback, createContext, useContext } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  createContext,
+  useContext,
+} from 'react';
 import { getApiUrl } from '../config';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -98,6 +106,8 @@ function ChatContent({
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
+  const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
+  const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
@@ -475,6 +485,8 @@ function ChatContent({
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
         setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
+        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -512,148 +524,150 @@ function ChatContent({
   return (
     <CurrentModelContext.Provider value={currentModelInfo}>
       <div className="flex flex-col w-full h-screen items-center justify-center">
-      {/* Loader when generating recipe */}
-      {isGeneratingRecipe && <LayingEggLoader />}
-      <MoreMenuLayout
-        hasMessages={hasMessages}
-        setView={setView}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      />
+        {/* Loader when generating recipe */}
+        {isGeneratingRecipe && <LayingEggLoader />}
+        <MoreMenuLayout
+          hasMessages={hasMessages}
+          setView={setView}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
 
-      <Card
-        className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-      >
-        {recipeConfig?.title && messages.length > 0 && (
-          <AgentHeader
-            title={recipeConfig.title}
-            profileInfo={
-              recipeConfig.profile
-                ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                : undefined
-            }
-            onChangeProfile={() => {
-              // Handle profile change
-              console.log('Change profile clicked');
-            }}
-          />
-        )}
-        {messages.length === 0 ? (
-          <Splash
-            append={append}
-            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig!.activities : null}
-            title={recipeConfig?.title}
-          />
-        ) : (
-          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-            <SearchView>
-              {filteredMessages.map((message, index) => (
-                <div
-                  key={message.id || index}
-                  className="mt-4 px-4"
-                  data-testid="message-container"
-                >
-                  {isUserMessage(message) ? (
-                    <>
-                      {hasContextHandlerContent(message) ? (
-                        <ContextHandler
-                          messages={messages}
-                          messageId={message.id ?? message.created.toString()}
-                          chatId={chat.id}
-                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                          contextType={getContextHandlerType(message)}
-                        />
-                      ) : (
-                        <UserMessage message={message} />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* Only render GooseMessage if it's not a message invoking some context management */}
-                      {hasContextHandlerContent(message) ? (
-                        <ContextHandler
-                          messages={messages}
-                          messageId={message.id ?? message.created.toString()}
-                          chatId={chat.id}
-                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                          contextType={getContextHandlerType(message)}
-                        />
-                      ) : (
-                        <GooseMessage
-                          messageHistoryIndex={chat?.messageHistoryIndex}
-                          message={message}
-                          messages={messages}
-                          append={append}
-                          appendMessage={(newMessage) => {
-                            const updatedMessages = [...messages, newMessage];
-                            setMessages(updatedMessages);
-                          }}
-                          toolCallNotifications={toolCallNotifications}
-                        />
-                      )}
-                    </>
-                  )}
+        <Card
+          className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          {recipeConfig?.title && messages.length > 0 && (
+            <AgentHeader
+              title={recipeConfig.title}
+              profileInfo={
+                recipeConfig.profile
+                  ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                  : undefined
+              }
+              onChangeProfile={() => {
+                // Handle profile change
+                console.log('Change profile clicked');
+              }}
+            />
+          )}
+          {messages.length === 0 ? (
+            <Splash
+              append={append}
+              activities={Array.isArray(recipeConfig?.activities) ? recipeConfig!.activities : null}
+              title={recipeConfig?.title}
+            />
+          ) : (
+            <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+              <SearchView>
+                {filteredMessages.map((message, index) => (
+                  <div
+                    key={message.id || index}
+                    className="mt-4 px-4"
+                    data-testid="message-container"
+                  >
+                    {isUserMessage(message) ? (
+                      <>
+                        {hasContextHandlerContent(message) ? (
+                          <ContextHandler
+                            messages={messages}
+                            messageId={message.id ?? message.created.toString()}
+                            chatId={chat.id}
+                            workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                            contextType={getContextHandlerType(message)}
+                          />
+                        ) : (
+                          <UserMessage message={message} />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Only render GooseMessage if it's not a message invoking some context management */}
+                        {hasContextHandlerContent(message) ? (
+                          <ContextHandler
+                            messages={messages}
+                            messageId={message.id ?? message.created.toString()}
+                            chatId={chat.id}
+                            workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                            contextType={getContextHandlerType(message)}
+                          />
+                        ) : (
+                          <GooseMessage
+                            messageHistoryIndex={chat?.messageHistoryIndex}
+                            message={message}
+                            messages={messages}
+                            append={append}
+                            appendMessage={(newMessage) => {
+                              const updatedMessages = [...messages, newMessage];
+                              setMessages(updatedMessages);
+                            }}
+                            toolCallNotifications={toolCallNotifications}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </SearchView>
+
+              {error && (
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                    {error.message || 'Honk! Goose experienced an error while responding'}
+                  </div>
+                  <div
+                    className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                    onClick={async () => {
+                      // Find the last user message
+                      const lastUserMessage = messages.reduceRight(
+                        (found, m) => found || (m.role === 'user' ? m : null),
+                        null as Message | null
+                      );
+                      if (lastUserMessage) {
+                        append(lastUserMessage);
+                      }
+                    }}
+                  >
+                    Retry Last Message
+                  </div>
                 </div>
-              ))}
-            </SearchView>
+              )}
+              <div className="block h-8" />
+            </ScrollArea>
+          )}
 
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                </div>
-                <div
-                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                  onClick={async () => {
-                    // Find the last user message
-                    const lastUserMessage = messages.reduceRight(
-                      (found, m) => found || (m.role === 'user' ? m : null),
-                      null as Message | null
-                    );
-                    if (lastUserMessage) {
-                      append(lastUserMessage);
-                    }
-                  }}
-                >
-                  Retry Last Message
-                </div>
-              </div>
-            )}
-            <div className="block h-8" />
-          </ScrollArea>
-        )}
+          <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
+            {isLoading && <LoadingGoose />}
+            <ChatInput
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              initialValue={_input || (hasMessages ? _input : initialPrompt)}
+              setView={setView}
+              hasMessages={hasMessages}
+              numTokens={sessionTokenCount}
+              inputTokens={sessionInputTokens}
+              outputTokens={sessionOutputTokens}
+              droppedFiles={droppedFiles}
+              messages={messages}
+              setMessages={setMessages}
+            />
+          </div>
+        </Card>
 
-        <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
-          {isLoading && <LoadingGoose />}
-          <ChatInput
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={_input || (hasMessages ? _input : initialPrompt)}
-            setView={setView}
-            hasMessages={hasMessages}
-            numTokens={sessionTokenCount}
-            droppedFiles={droppedFiles}
-            messages={messages}
-            setMessages={setMessages}
-          />
-        </div>
-      </Card>
+        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
 
-      {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-
-      <SessionSummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={closeSummaryModal}
-        onSave={(editedContent) => {
-          updateSummary(editedContent);
-          closeSummaryModal();
-        }}
-        summaryContent={summaryContent}
-      />
-    </div>
+        <SessionSummaryModal
+          isOpen={isSummaryModalOpen}
+          onClose={closeSummaryModal}
+          onSave={(editedContent) => {
+            updateSummary(editedContent);
+            closeSummaryModal();
+          }}
+          summaryContent={summaryContent}
+        />
+      </div>
     </CurrentModelContext.Provider>
   );
 }

@@ -141,7 +141,7 @@ export interface UseMessageStreamHelpers {
   updateMessageStreamBody?: (newBody: object) => void;
 
   notifications: NotificationEvent[];
-  
+
   /** Current model info from the backend */
   currentModelInfo: { model: string; mode: string } | null;
 }
@@ -172,7 +172,9 @@ export function useMessageStream({
   });
 
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
-  const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(null);
+  const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(
+    null
+  );
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
