@@ -359,3 +359,201 @@ impl RecipeBuilder {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_content_with_json() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "prompt": "Test prompt",
+            "instructions": "Test instructions",
+            "extensions": [
+                {
+                    "type": "stdio",
+                    "name": "test_extension",
+                    "cmd": "test_cmd",
+                    "args": ["arg1", "arg2"],
+                    "timeout": 300,
+                    "description": "Test extension"
+                }
+            ],
+            "parameters": [
+                {
+                    "key": "test_param",
+                    "input_type": "string",
+                    "requirement": "required",
+                    "description": "A test parameter"
+                }
+            ],
+            "sub_recipes": [
+                {
+                    "name": "test_sub_recipe",
+                    "path": "test_sub_recipe.yaml",
+                    "values": {
+                        "sub_recipe_param": "sub_recipe_value"
+                    }
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.version, "1.0.0");
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        assert!(recipe.parameters.is_some());
+        let parameters = recipe.parameters.unwrap();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(parameters[0].key, "test_param");
+        assert!(matches!(
+            parameters[0].input_type,
+            RecipeParameterInputType::String
+        ));
+        assert!(matches!(
+            parameters[0].requirement,
+            RecipeParameterRequirement::Required
+        ));
+
+        assert!(recipe.sub_recipes.is_some());
+        let sub_recipes = recipe.sub_recipes.unwrap();
+        assert_eq!(sub_recipes.len(), 1);
+        assert_eq!(sub_recipes[0].name, "test_sub_recipe");
+        assert_eq!(sub_recipes[0].path, "test_sub_recipe.yaml");
+        assert_eq!(
+            sub_recipes[0].values,
+            Some(HashMap::from([(
+                "sub_recipe_param".to_string(),
+                "sub_recipe_value".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn test_from_content_with_yaml() {
+        let content = r#"version: 1.0.0
+title: Test Recipe
+description: A test recipe
+prompt: Test prompt
+instructions: Test instructions
+extensions:
+  - type: stdio
+    name: test_extension
+    cmd: test_cmd
+    args: [arg1, arg2]
+    timeout: 300
+    description: Test extension
+parameters:
+  - key: test_param
+    input_type: string
+    requirement: required
+    description: A test parameter
+sub_recipes:
+  - name: test_sub_recipe
+    path: test_sub_recipe.yaml
+    values:
+      sub_recipe_param: sub_recipe_value"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.version, "1.0.0");
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        assert!(recipe.parameters.is_some());
+        let parameters = recipe.parameters.unwrap();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(parameters[0].key, "test_param");
+        assert!(matches!(
+            parameters[0].input_type,
+            RecipeParameterInputType::String
+        ));
+        assert!(matches!(
+            parameters[0].requirement,
+            RecipeParameterRequirement::Required
+        ));
+
+        assert!(recipe.sub_recipes.is_some());
+        let sub_recipes = recipe.sub_recipes.unwrap();
+        assert_eq!(sub_recipes.len(), 1);
+        assert_eq!(sub_recipes[0].name, "test_sub_recipe");
+        assert_eq!(sub_recipes[0].path, "test_sub_recipe.yaml");
+        assert_eq!(
+            sub_recipes[0].values,
+            Some(HashMap::from([(
+                "sub_recipe_param".to_string(),
+                "sub_recipe_value".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn test_from_content_invalid_json() {
+        let content = "{ invalid json }";
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_content_missing_required_fields() {
+        let content = r#"{
+            "version": "1.0.0",
+            "description": "A test recipe"
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_content_with_author() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "author": {
+                "contact": "test@example.com"
+            }
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.author.is_some());
+        let author = recipe.author.unwrap();
+        assert_eq!(author.contact, Some("test@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_from_content_with_activities() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "activities": ["activity1", "activity2"]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.activities.is_some());
+        let activities = recipe.activities.unwrap();
+        assert_eq!(activities, vec!["activity1", "activity2"]);
+    }
+}

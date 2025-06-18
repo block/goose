@@ -162,3 +162,6 @@ pub async fn run_sub_recipe(sub_recipe: &SubRecipe, params: Value) -> Result<Str
         Err(anyhow::anyhow!("Command failed:\n{}", stderr_output))
     }
 }
+
+#[cfg(test)]
+mod tests;
