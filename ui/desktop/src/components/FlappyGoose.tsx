@@ -1,11 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
-declare var requestAnimationFrame: (callback: FrameRequestCallback) => number;
-declare class HTMLCanvasElement {}
-declare class HTMLImageElement {}
-declare class DOMHighResTimeStamp {}
-declare class Image {}
-declare type FrameRequestCallback = (time: DOMHighResTimeStamp) => void;
 import svg1 from '../images/loading-goose/1.svg';
 import svg7 from '../images/loading-goose/7.svg';
 
@@ -20,9 +14,11 @@ interface FlappyGooseProps {
 }
 
 const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // eslint-disable-next-line no-undef
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);
+  // eslint-disable-next-line no-undef
   const gooseImages = useRef<HTMLImageElement[]>([]);
   const framesLoaded = useRef(0);
   const [imagesReady, setImagesReady] = useState(false);
@@ -51,7 +47,7 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
   const OBSTACLE_WIDTH = 40;
   const FLAP_DURATION = 150;
 
-  const safeRequestAnimationFrame = useCallback((callback: FrameRequestCallback) => {
+  const safeRequestAnimationFrame = useCallback((callback: (time: number) => void) => {
     if (typeof window !== 'undefined' && typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(callback);
     }
@@ -216,7 +212,8 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
   useEffect(() => {
     const frames = [svg1, svg7];
     frames.forEach((src, index) => {
-      const img = new Image();
+      // eslint-disable-next-line no-undef
+      const img = new Image() as HTMLImageElement;
       img.src = src;
       img.onload = () => {
         framesLoaded.current += 1;
@@ -272,7 +269,9 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
       onClick={flap}
     >
       <canvas
-        ref={canvasRef}
+        ref={(el) => {
+          canvasRef.current = el;
+        }}
         style={{
           border: '2px solid #333',
           borderRadius: '8px',

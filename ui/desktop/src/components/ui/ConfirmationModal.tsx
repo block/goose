@@ -1,5 +1,4 @@
 import { BaseModal } from './BaseModal';
-import React from 'react';
 
 export function ConfirmationModal({
   isOpen,
@@ -24,7 +23,6 @@ export function ConfirmationModal({
     <BaseModal
       isOpen={isOpen}
       title={title}
-      onClose={onCancel}
       actions={
         <>
           <button

@@ -1,3 +1,4 @@
+mod editor_models;
 mod lang;
 mod shell;
 
@@ -13,13 +14,17 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
 };
-use tokio::process::Command;
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    process::Command,
+    sync::mpsc,
+};
 use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
     resource::Resource,
     tool::Tool,
     Content,
@@ -33,6 +38,7 @@ use mcp_server::Router;
 
 use mcp_core::role::Role;
 
+use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{
     expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
     normalize_line_endings,
@@ -96,6 +102,7 @@ pub struct DeveloperRouter {
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
+    editor_model: Option<EditorModel>,
 }
 
 impl Default for DeveloperRouter {
@@ -108,6 +115,13 @@ impl DeveloperRouter {
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
+
+        // An editor model is optionally provided, if configured, for fast edit apply
+        // it will fall back to norma string replacement if not configured
+        //
+        // when there is an editor model, the prompts are slightly changed as it takes
+        // a load off the main LLM making the tool calls and you get faster more correct applies
+        let editor_model = create_editor_model();
 
         // Get OS-specific shell tool description
         let shell_tool_desc = match std::env::consts::OS {
@@ -167,9 +181,27 @@ impl DeveloperRouter {
             None,
         );
 
-        let text_editor_tool = Tool::new(
-            "text_editor".to_string(),
-            indoc! {r#"
+        // Create text editor tool with different descriptions based on editor API configuration
+        let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
+            (
+                formatdoc! {r#"
+                Perform text editing operations on files.
+
+                The `command` parameter specifies the operation to perform. Allowed options are:
+                - `view`: View the content of a file.
+                - `write`: Create or overwrite a file with the given content
+                - `edit_file`: Edit the file with the new content.
+                - `undo_edit`: Undo the last edit made to a file.
+
+                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+
+                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+            "#, editor.get_str_replace_description()},
+                "edit_file",
+            )
+        } else {
+            (indoc! {r#"
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
@@ -184,7 +216,12 @@ impl DeveloperRouter {
                 To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
-            "#}.to_string(),
+            "#}.to_string(), "str_replace")
+        };
+
+        let text_editor_tool = Tool::new(
+            "text_editor".to_string(),
+            text_editor_desc.to_string(),
             json!({
                 "type": "object",
                 "required": ["command", "path"],
@@ -195,8 +232,8 @@ impl DeveloperRouter {
                     },
                     "command": {
                         "type": "string",
-                        "enum": ["view", "write", "str_replace", "undo_edit"],
-                        "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
+                        "enum": ["view", "write", str_replace_command, "undo_edit"],
+                        "description": format!("Allowed options are: `view`, `write`, `{}`, `undo_edit`.", str_replace_command)
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
@@ -404,10 +441,20 @@ impl DeveloperRouter {
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
+        } else {
+            // If no .gooseignore exists, check for .gitignore as fallback
+            let gitignore_path = cwd.join(".gitignore");
+            if gitignore_path.is_file() {
+                tracing::debug!(
+                    "No .gooseignore found, using .gitignore as fallback for ignore patterns"
+                );
+                let _ = builder.add(gitignore_path);
+                has_ignore_file = true;
+            }
         }
 
         // Only use default patterns if no .gooseignore files were found
-        // If the file is empty, we will not ignore any file
+        // AND no .gitignore was used as fallback
         if !has_ignore_file {
             // Add some sensible defaults
             let _ = builder.add_line(None, "**/.env");
@@ -429,6 +476,7 @@ impl DeveloperRouter {
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model,
         }
     }
 
@@ -456,7 +504,11 @@ impl DeveloperRouter {
     }
 
     // Shell command execution with platform-specific handling
-    async fn bash(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn bash(
+        &self,
+        params: Value,
+        notifier: mpsc::Sender<JsonRpcMessage>,
+    ) -> Result<Vec<Content>, ToolError> {
         let command =
             params
                 .get("command")
@@ -488,27 +540,102 @@ impl DeveloperRouter {
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
-        let cmd_with_redirect = format_command_for_platform(command);
+        let cmd_str = format_command_for_platform(command);
 
         // Execute the command using platform-specific shell
-        let child = Command::new(&shell_config.executable)
+        let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
             .arg(&shell_config.arg)
-            .arg(cmd_with_redirect)
+            .arg(cmd_str)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        let mut stdout_reader = BufReader::new(stdout);
+        let mut stderr_reader = BufReader::new(stderr);
+
+        let output_task = tokio::spawn(async move {
+            let mut combined_output = String::new();
+
+            let mut stdout_buf = Vec::new();
+            let mut stderr_buf = Vec::new();
+
+            let mut stdout_done = false;
+            let mut stderr_done = false;
+
+            loop {
+                tokio::select! {
+                    n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
+                        if n? == 0 {
+                            stdout_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stdout_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stdout",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stdout_buf.clear();
+                        }
+                    }
+
+                    n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
+                        if n? == 0 {
+                            stderr_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stderr_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: "2.0".to_string(),
+                                method: "notifications/message".to_string(),
+                                params: Some(json!({
+                                    "data": {
+                                        "type": "shell",
+                                        "stream": "stderr",
+                                        "output": line.to_string(),
+                                    }
+                                })),
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stderr_buf.clear();
+                        }
+                    }
+
+                    else => break,
+                }
+
+                if stdout_done && stderr_done {
+                    break;
+                }
+            }
+            Ok::<_, std::io::Error>(combined_output)
+        });
+
         // Wait for the command to complete and get output
-        let output = child
-            .wait_with_output()
+        child
+            .wait()
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let output_str = stdout_str;
+        let output_str = match output_task.await {
+            Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
+            Err(e) => return Err(ToolError::ExecutionError(e.to_string())),
+        };
 
         // Check the character count of the output
         const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
@@ -565,7 +692,7 @@ impl DeveloperRouter {
 
                 self.text_editor_write(&path, file_text).await
             }
-            "str_replace" => {
+            "str_replace" | "edit_file" => {
                 let old_str = params
                     .get("old_str")
                     .and_then(|v| v.as_str())
@@ -660,21 +787,27 @@ impl DeveloperRouter {
         file_text: &str,
     ) -> Result<Vec<Content>, ToolError> {
         // Normalize line endings based on platform
-        let normalized_text = normalize_line_endings(file_text);
+        let mut normalized_text = normalize_line_endings(file_text); // Make mutable
+
+        // Ensure the text ends with a newline
+        if !normalized_text.ends_with('\n') {
+            normalized_text.push('\n');
+        }
 
         // Write to the file
-        std::fs::write(path, normalized_text)
+        std::fs::write(path, &normalized_text) // Write the potentially modified text
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
 
         // The assistant output does not show the file again because the content is already in the tool request
-        // but we do show it to the user here
+        // but we do show it to the user here, using the final written content
         Ok(vec![
             Content::text(format!("Successfully wrote to {}", path.display()))
                 .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {r#"
+            Content::text(formatdoc! {
+                r#"
                 ### {path}
                 ```{language}
                 {content}
@@ -682,7 +815,7 @@ impl DeveloperRouter {
                 "#,
                 path=path.display(),
                 language=language,
-                content=file_text,
+                content=&normalized_text // Use the final normalized_text for user feedback
             })
             .with_audience(vec![Role::User])
             .with_priority(0.2),
@@ -707,6 +840,39 @@ impl DeveloperRouter {
         let content = std::fs::read_to_string(path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
 
+        // Check if Editor API is configured and use it as the primary path
+        if let Some(ref editor) = self.editor_model {
+            // Editor API path - save history then call API directly
+            self.save_file_history(path)?;
+
+            match editor.edit_code(&content, old_str, new_str).await {
+                Ok(updated_content) => {
+                    // Write the updated content directly
+                    let normalized_content = normalize_line_endings(&updated_content);
+                    std::fs::write(path, &normalized_content).map_err(|e| {
+                        ToolError::ExecutionError(format!("Failed to write file: {}", e))
+                    })?;
+
+                    // Simple success message for Editor API
+                    return Ok(vec![
+                        Content::text(format!("Successfully edited {}", path.display()))
+                            .with_audience(vec![Role::Assistant]),
+                        Content::text(format!("File {} has been edited", path.display()))
+                            .with_audience(vec![Role::User])
+                            .with_priority(0.2),
+                    ]);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Editor API call failed: {}, falling back to string replacement",
+                        e
+                    );
+                    // Fall through to traditional path below
+                }
+            }
+        }
+
+        // Traditional string replacement path (original logic)
         // Ensure 'old_str' appears exactly once
         if content.matches(old_str).count() > 1 {
             return Err(ToolError::InvalidParameters(
@@ -720,10 +886,9 @@ impl DeveloperRouter {
             ));
         }
 
-        // Save history for undo
+        // Save history for undo (original behavior - after validation)
         self.save_file_history(path)?;
 
-        // Replace and write back with platform-specific line endings
         let new_content = content.replace(old_str, new_str);
         let normalized_content = normalize_line_endings(&new_content);
         std::fs::write(path, &normalized_content)
@@ -745,7 +910,7 @@ impl DeveloperRouter {
 
         // Calculate start and end lines for the snippet
         let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
-        let end_line = replacement_line + SNIPPET_LINES + new_str.matches('\n').count();
+        let end_line = replacement_line + SNIPPET_LINES + new_content.matches('\n').count();
 
         // Get the relevant lines for our snippet
         let lines: Vec<&str> = new_content.lines().collect();
@@ -782,7 +947,6 @@ impl DeveloperRouter {
                 .with_priority(0.2),
         ])
     }
-
     async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
         let mut history = self.file_history.lock().unwrap();
         if let Some(contents) = history.get_mut(path) {
@@ -1048,12 +1212,13 @@ impl Router for DeveloperRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
         Box::pin(async move {
             match tool_name.as_str() {
-                "shell" => this.bash(arguments).await,
+                "shell" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
@@ -1115,6 +1280,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
+            editor_model: create_editor_model(), // Recreate the editor model since it's not Clone
         }
     }
 }
@@ -1195,6 +1361,10 @@ mod tests {
             .await
     }
 
+    fn dummy_sender() -> mpsc::Sender<JsonRpcMessage> {
+        mpsc::channel(1).0
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_shell_missing_parameters() {
@@ -1202,7 +1372,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let router = get_router().await;
-        let result = router.call_tool("shell", json!({})).await;
+        let result = router.call_tool("shell", json!({}), dummy_sender()).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -1263,6 +1433,7 @@ mod tests {
                         "command": "view",
                         "path": large_file_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1288,6 +1459,7 @@ mod tests {
                         "command": "view",
                         "path": many_chars_str
                     }),
+                    dummy_sender(),
                 )
                 .await;
 
@@ -1319,6 +1491,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1331,6 +1504,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1369,6 +1543,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1383,6 +1558,7 @@ mod tests {
                     "old_str": "world",
                     "new_str": "Rust"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1407,6 +1583,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1420,7 +1597,14 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("Hello, Rust!"));
+
+        // Check that the file has been modified and contains some form of "Rust"
+        // The Editor API might transform the content differently than simple string replacement
+        assert!(
+            text.contains("Rust") || text.contains("Hello, Rust!"),
+            "Expected content to contain 'Rust', but got: {}",
+            text
+        );
 
         temp_dir.close().unwrap();
     }
@@ -1444,6 +1628,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "First line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1458,6 +1643,7 @@ mod tests {
                     "old_str": "First line",
                     "new_str": "Second line"
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1470,6 +1656,7 @@ mod tests {
                     "command": "undo_edit",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1485,6 +1672,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                dummy_sender(),
             )
             .await
             .unwrap();
@@ -1522,6 +1710,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Test basic file matching
@@ -1572,6 +1761,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Try to write to an ignored file
@@ -1583,6 +1773,7 @@ mod tests {
                     "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1601,6 +1792,7 @@ mod tests {
                     "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
                     "file_text": "test content"
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1629,6 +1821,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Create an ignored file
@@ -1642,6 +1835,7 @@ mod tests {
                 json!({
                     "command": format!("cat {}", secret_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
             )
             .await;
 
@@ -1658,6 +1852,234 @@ mod tests {
                 json!({
                     "command": format!("cat {}", allowed_file_path.to_str().unwrap())
                 }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should be able to cat non-ignored file");
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gitignore_fallback_when_no_gooseignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\n*.tmp\n.env").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test that gitignore patterns are respected
+        assert!(
+            router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env pattern from .gitignore should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "test.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gooseignore_takes_precedence_over_gitignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create both .gooseignore and .gitignore files with different patterns
+        std::fs::write(temp_dir.path().join(".gooseignore"), "*.secret").unwrap();
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\ntarget/").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // .gooseignore patterns should be used
+        assert!(
+            router.is_ignored(Path::new("test.secret")),
+            "*.secret pattern from .gooseignore should be ignored"
+        );
+
+        // .gitignore patterns should NOT be used when .gooseignore exists
+        assert!(
+            !router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+        assert!(
+            !router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_default_patterns_when_no_ignore_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Don't create any ignore files
+        let router = DeveloperRouter::new();
+
+        // Default patterns should be used
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env.local")),
+            ".env.local should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new("secrets.txt")),
+            "secrets.txt should be ignored by default patterns"
+        );
+        assert!(
+            !router.is_ignored(Path::new("normal.txt")),
+            "normal.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_descriptions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Test without editor API configured (should be the case in tests due to cfg!(test))
+        let router = DeveloperRouter::new();
+        let tools = router.list_tools();
+        let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
+
+        // Should use traditional description with str_replace command
+        assert!(text_editor_tool
+            .description
+            .contains("Replace a string in a file with a new string"));
+        assert!(text_editor_tool
+            .description
+            .contains("the `old_str` needs to exactly match one"));
+        assert!(text_editor_tool.description.contains("str_replace"));
+
+        // Should not contain editor API description or edit_file command
+        assert!(!text_editor_tool
+            .description
+            .contains("Edit the file with the new content"));
+        assert!(!text_editor_tool.description.contains("edit_file"));
+        assert!(!text_editor_tool
+            .description
+            .contains("work out how to place old_str with it intelligently"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Try to write to a file ignored by .gitignore
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("test.log").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to write to file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to write to a non-ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Create a file that would be ignored by .gitignore
+        let log_file_path = temp_dir.path().join("test.log");
+        std::fs::write(&log_file_path, "log content").unwrap();
+
+        // Try to cat the ignored file
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", log_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to cat file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to cat a non-ignored file
+        let allowed_file_path = temp_dir.path().join("allowed.txt");
+        std::fs::write(&allowed_file_path, "allowed content").unwrap();
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
             )
             .await;
 

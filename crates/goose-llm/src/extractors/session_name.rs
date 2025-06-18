@@ -38,7 +38,7 @@ fn build_system_prompt() -> String {
     You are an assistant that crafts a concise session title.
     Given the first couple user messages in the conversation so far, 
     reply with only a short name (up to 4 words) that best describes 
-    this session’s goal.
+    this session's goal.
 
     Examples:
     "#}

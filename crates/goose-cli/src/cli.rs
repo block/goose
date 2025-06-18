@@ -9,12 +9,18 @@ use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_validate};
+// Import the new handlers from commands::schedule
+use crate::commands::schedule::{
+    handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
+    handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
+    handle_schedule_sessions,
+};
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::commands::tools::handle_tools;
 use crate::logging::setup_logging;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
 use crate::session;
-use crate::session::{build_session, SessionBuilderConfig};
+use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -30,7 +36,7 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 #[group(required = false, multiple = false)]
 struct Identifier {
     #[arg(
@@ -91,18 +97,79 @@ enum SessionCommand {
         )]
         ascending: bool,
     },
-    #[command(about = "Remove sessions")]
+    #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
-        #[arg(short, long, help = "session id to be removed", default_value = "")]
-        id: String,
+        #[arg(short, long, help = "Session ID to be removed (optional)")]
+        id: Option<String>,
+        #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
+        regex: Option<String>,
+    },
+    #[command(about = "Export a session to Markdown format")]
+    Export {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
+
         #[arg(
             short,
             long,
-            help = "regex for removing matched session",
-            default_value = ""
+            help = "Output file path (default: stdout)",
+            long_help = "Path to save the exported Markdown. If not provided, output will be sent to stdout"
         )]
-        regex: String,
+        output: Option<PathBuf>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum SchedulerCommand {
+    #[command(about = "Add a new scheduled job")]
+    Add {
+        #[arg(long, help = "Unique ID for the job")]
+        id: String,
+        #[arg(
+            long,
+            help = "Cron expression for the schedule",
+            long_help = "Cron expression for when to run the job. Examples:\n  '0 * * * *'     - Every hour at minute 0\n  '0 */2 * * *'   - Every 2 hours\n  '@hourly'       - Every hour (shorthand)\n  '0 9 * * *'     - Every day at 9:00 AM\n  '0 9 * * 1'     - Every Monday at 9:00 AM\n  '0 0 1 * *'     - First day of every month at midnight"
+        )]
+        cron: String,
+        #[arg(
+            long,
+            help = "Recipe source (path to file, or base64 encoded recipe string)"
+        )]
+        recipe_source: String,
+    },
+    #[command(about = "List all scheduled jobs")]
+    List {},
+    #[command(about = "Remove a scheduled job by ID")]
+    Remove {
+        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
+        id: String,
+    },
+    /// List sessions created by a specific schedule
+    #[command(about = "List sessions created by a specific schedule")]
+    Sessions {
+        /// ID of the schedule
+        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
+        id: String,
+        /// Maximum number of sessions to return
+        #[arg(long, help = "Maximum number of sessions to return")]
+        limit: Option<u32>,
+    },
+    /// Run a scheduled job immediately
+    #[command(about = "Run a scheduled job immediately")]
+    RunNow {
+        /// ID of the schedule to run
+        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
+        id: String,
+    },
+    /// Check status of Temporal services (temporal scheduler only)
+    #[command(about = "Check status of Temporal services")]
+    ServicesStatus {},
+    /// Stop Temporal services (temporal scheduler only)
+    #[command(about = "Stop Temporal services")]
+    ServicesStop {},
+    /// Show cron expression examples and help
+    #[command(about = "Show cron expression examples and help")]
+    CronHelp {},
 }
 
 #[derive(Subcommand)]
@@ -309,13 +376,23 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Additional system prompt to customize agent behavior
+        #[arg(
+            long = "system",
+            value_name = "TEXT",
+            help = "Additional system prompt to customize agent behavior",
+            long_help = "Provide additional system instructions to customize the agent's behavior",
+            conflicts_with = "recipe"
+        )]
+        system: Option<String>,
+
         /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
             long = "recipe",
             value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
-            help = "Recipe name to get recipe file or the full path of the recipe file",
-            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration",
+            help = "Recipe name to get recipe file or the full path of the recipe file (use --explain to see recipe details)",
+            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration. Use --explain to see the recipe's title, description, and parameters.",
             conflicts_with = "instructions",
             conflicts_with = "input_text"
         )]
@@ -415,6 +492,14 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        /// Quiet mode - suppress non-response output
+        #[arg(
+            short = 'q',
+            long = "quiet",
+            help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
+        )]
+        quiet: bool,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -422,6 +507,13 @@ enum Command {
     Recipe {
         #[command(subcommand)]
         command: RecipeCommand,
+    },
+
+    /// Manage scheduled jobs
+    #[command(about = "Manage scheduled jobs", visible_alias = "sched")]
+    Schedule {
+        #[command(subcommand)]
+        command: SchedulerCommand,
     },
 
     /// Update the Goose CLI version
@@ -457,6 +549,31 @@ enum Command {
         )]
         extension: Option<String>,
     },
+
+    /// Start a web server with a chat interface
+    #[command(about = "Start a web server with a chat interface", hide = true)]
+    Web {
+        /// Port to run the web server on
+        #[arg(
+            short,
+            long,
+            default_value = "3000",
+            help = "Port to run the web server on"
+        )]
+        port: u16,
+
+        /// Host to bind the web server to
+        #[arg(
+            long,
+            default_value = "127.0.0.1",
+            help = "Host to bind the web server to"
+        )]
+        host: String,
+
+        /// Open browser automatically
+        #[arg(long, help = "Open browser automatically when server starts")]
+        open: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -466,6 +583,7 @@ enum CliProviderVariant {
     Ollama,
 }
 
+#[derive(Debug)]
 struct InputConfig {
     contents: Option<String>,
     extensions_override: Option<Vec<ExtensionConfig>>,
@@ -516,6 +634,23 @@ pub async fn cli() -> Result<()> {
                     handle_session_remove(id, regex)?;
                     return Ok(());
                 }
+                Some(SessionCommand::Export { identifier, output }) => {
+                    let session_identifier = if let Some(id) = identifier {
+                        extract_identifier(id)
+                    } else {
+                        // If no identifier is provided, prompt for interactive selection
+                        match crate::commands::session::prompt_interactive_session_selection() {
+                            Ok(id) => id,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return Ok(());
+                            }
+                        }
+                    };
+
+                    crate::commands::session::handle_session_export(session_identifier, output)?;
+                    Ok(())
+                }
                 None => {
                     // Run session command by default
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
@@ -527,8 +662,11 @@ pub async fn cli() -> Result<()> {
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
+                        settings: None,
                         debug,
                         max_tool_repetitions,
+                        interactive: true,
+                        quiet: false,
                     })
                     .await;
                     setup_logging(
@@ -560,6 +698,7 @@ pub async fn cli() -> Result<()> {
             instructions,
             input_text,
             recipe,
+            system,
             interactive,
             identifier,
             resume,
@@ -571,19 +710,24 @@ pub async fn cli() -> Result<()> {
             builtins,
             params,
             explain,
+            quiet,
         }) => {
-            let input_config = match (instructions, input_text, recipe, explain) {
+            let (input_config, session_settings) = match (instructions, input_text, recipe, explain)
+            {
                 (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
 
-                    InputConfig {
-                        contents: Some(input),
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                    }
+                    (
+                        InputConfig {
+                            contents: Some(input),
+                            extensions_override: None,
+                            additional_system_prompt: system,
+                        },
+                        None,
+                    )
                 }
                 (Some(file), _, _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
@@ -593,17 +737,23 @@ pub async fn cli() -> Result<()> {
                         );
                         std::process::exit(1);
                     });
-                    InputConfig {
-                        contents: Some(contents),
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                    }
+                    (
+                        InputConfig {
+                            contents: Some(contents),
+                            extensions_override: None,
+                            additional_system_prompt: None,
+                        },
+                        None,
+                    )
                 }
-                (_, Some(text), _, _) => InputConfig {
-                    contents: Some(text),
-                    extensions_override: None,
-                    additional_system_prompt: None,
-                },
+                (_, Some(text), _, _) => (
+                    InputConfig {
+                        contents: Some(text),
+                        extensions_override: None,
+                        additional_system_prompt: system,
+                    },
+                    None,
+                ),
                 (_, _, Some(recipe_name), explain) => {
                     if explain {
                         explain_recipe_with_parameters(&recipe_name, params)?;
@@ -614,11 +764,18 @@ pub async fn cli() -> Result<()> {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
-                    InputConfig {
-                        contents: recipe.prompt,
-                        extensions_override: recipe.extensions,
-                        additional_system_prompt: recipe.instructions,
-                    }
+                    (
+                        InputConfig {
+                            contents: recipe.prompt,
+                            extensions_override: recipe.extensions,
+                            additional_system_prompt: recipe.instructions,
+                        },
+                        recipe.settings.map(|s| SessionSettings {
+                            goose_provider: s.goose_provider,
+                            goose_model: s.goose_model,
+                            temperature: s.temperature,
+                        }),
+                    )
                 }
                 (None, None, None, _) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -635,8 +792,11 @@ pub async fn cli() -> Result<()> {
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
+                settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                interactive, // Use the interactive flag from the Run command
+                quiet,
             })
             .await;
 
@@ -654,6 +814,41 @@ pub async fn cli() -> Result<()> {
                 std::process::exit(1);
             }
 
+            return Ok(());
+        }
+        Some(Command::Schedule { command }) => {
+            match command {
+                SchedulerCommand::Add {
+                    id,
+                    cron,
+                    recipe_source,
+                } => {
+                    handle_schedule_add(id, cron, recipe_source).await?;
+                }
+                SchedulerCommand::List {} => {
+                    handle_schedule_list().await?;
+                }
+                SchedulerCommand::Remove { id } => {
+                    handle_schedule_remove(id).await?;
+                }
+                SchedulerCommand::Sessions { id, limit } => {
+                    // New arm
+                    handle_schedule_sessions(id, limit).await?;
+                }
+                SchedulerCommand::RunNow { id } => {
+                    // New arm
+                    handle_schedule_run_now(id).await?;
+                }
+                SchedulerCommand::ServicesStatus {} => {
+                    handle_schedule_services_status().await?;
+                }
+                SchedulerCommand::ServicesStop {} => {
+                    handle_schedule_services_stop().await?;
+                }
+                SchedulerCommand::CronHelp {} => {
+                    handle_schedule_cron_help().await?;
+                }
+            }
             return Ok(());
         }
         Some(Command::Update {
@@ -699,6 +894,10 @@ pub async fn cli() -> Result<()> {
             handle_tools(extension).await?;
             return Ok(());
         }
+        Some(Command::Web { port, host, open }) => {
+            crate::commands::web::handle_web(port, host, open).await?;
+            return Ok(());
+        }
         None => {
             return if !Config::global().exists() {
                 let _ = handle_configure().await;
@@ -714,8 +913,11 @@ pub async fn cli() -> Result<()> {
                     builtins: Vec::new(),
                     extensions_override: None,
                     additional_system_prompt: None,
+                    settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    interactive: true, // Default case is always interactive
+                    quiet: false,
                 })
                 .await;
                 setup_logging(

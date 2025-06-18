@@ -31,6 +31,10 @@ The Goose CLI plan mode uses two configuration values:
 - `GOOSE_PLANNER_PROVIDER`: Which provider to use for planning
 - `GOOSE_PLANNER_MODEL`: Which model to use for planning
 
+:::tip Use Lead/Worker Mode For Automatic Model Switching
+[Lead/worker mode](/docs/guides/environment-variables#leadworker-model-configuration) is an alternative to plan mode. It allows you to configure a powerful lead model for initial planning and reasoning before automatically switching to a faster and/or cheaper worker model for execution. Both modes help you achieve optimal results by balancing model capabilities with cost and speed.
+:::
+
 ### Set Goose planner environment variables
 You might add these lines to your bash shell config file (.bashrc) to add the planner environment variables:
 ```bash

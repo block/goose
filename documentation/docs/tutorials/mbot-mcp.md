@@ -1,5 +1,5 @@
 ---
-title: mbot MCP Extension
+title: mbot Extension
 description: Control a MakeBlock mbot2 rover through MQTT and MCP as a Goose Extension
 ---
 

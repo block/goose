@@ -1,12 +1,15 @@
 mod builder;
 mod completion;
+mod export;
 mod input;
 mod output;
 mod prompt;
 mod thinking;
 
-pub use builder::{build_session, SessionBuilderConfig};
+pub use self::export::message_to_markdown;
+pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
+use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -15,8 +18,7 @@ pub use goose::session::Identifier;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
-use etcetera::choose_app_strategy;
-use etcetera::AppStrategy;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
@@ -25,6 +27,8 @@ use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
+use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::protocol::JsonRpcNotification;
 
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
@@ -351,9 +355,10 @@ impl Session {
         // Create and use a global history file in ~/.config/goose directory
         // This allows command history to persist across different chat sessions
         // instead of being tied to each individual session's messages
-        let history_file = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("history.txt");
+        let strategy =
+            choose_app_strategy(crate::APP_STRATEGY.clone()).expect("goose requires a home dir");
+        let config_dir = strategy.config_dir();
+        let history_file = config_dir.join("history.txt");
 
         // Ensure config directory exists
         if let Some(parent) = history_file.parent() {
@@ -379,6 +384,9 @@ impl Session {
 
         output::display_greeting();
         loop {
+            // Display context usage before each prompt
+            self.display_context_usage().await?;
+
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
                     match self.run_mode {
@@ -513,6 +521,17 @@ impl Session {
                     output::render_exit_plan_mode();
                     continue;
                 }
+                input::InputResult::Clear => {
+                    save_history(&mut editor);
+
+                    self.messages.clear();
+                    tracing::info!("Chat context cleared by user.");
+                    output::render_message(
+                        &Message::assistant().with_text("Chat context cleared."),
+                        self.debug,
+                    );
+                    continue;
+                }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
                     self.handle_prompt_command(opts).await?;
@@ -555,7 +574,16 @@ impl Session {
 
                     let prompt = "Are you sure you want to summarize this conversation? This will condense the message history.";
                     let should_summarize =
-                        cliclack::confirm(prompt).initial_value(true).interact()?;
+                        match cliclack::confirm(prompt).initial_value(true).interact() {
+                            Ok(choice) => choice,
+                            Err(e) => {
+                                if e.kind() == std::io::ErrorKind::Interrupted {
+                                    false // If interrupted, set should_summarize to false
+                                } else {
+                                    return Err(e.into());
+                                }
+                            }
+                        };
 
                     if should_summarize {
                         println!("{}", console::style("Summarizing conversation...").yellow());
@@ -632,10 +660,21 @@ impl Session {
         match planner_response_type {
             PlannerResponseType::Plan => {
                 println!();
-                let should_act =
-                    cliclack::confirm("Do you want to clear message history & act on this plan?")
-                        .initial_value(true)
-                        .interact()?;
+                let should_act = match cliclack::confirm(
+                    "Do you want to clear message history & act on this plan?",
+                )
+                .initial_value(true)
+                .interact()
+                {
+                    Ok(choice) => choice,
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::Interrupted {
+                            false // If interrupted, set should_act to false
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                };
                 if should_act {
                     output::render_act_on_plan();
                     self.run_mode = RunMode::Normal;
@@ -696,16 +735,19 @@ impl Session {
                     id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
+                    schedule_id: None,
                 }),
             )
             .await?;
+
+        let mut progress_bars = output::McpSpinners::new();
 
         use futures::StreamExt;
         loop {
             tokio::select! {
                 result = stream.next() => {
                     match result {
-                        Some(Ok(message)) => {
+                        Some(Ok(AgentEvent::Message(message))) => {
                             // If it's a confirmation request, get approval but otherwise do not render/persist
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
@@ -755,41 +797,68 @@ impl Session {
                             } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
                                 output::hide_thinking();
 
-                                if interactive {
-                                    // In interactive mode, ask the user what to do
-                                    let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
-                                    let selected = cliclack::select(prompt)
-                                        .item("clear", "Clear Session", "Removes all messages from Goose's memory")
-                                        .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
-                                        .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
-                                        .interact()?;
+                                // Check for user-configured default context strategy
+                                let config = Config::global();
+                                let context_strategy = config.get_param::<String>("GOOSE_CONTEXT_STRATEGY")
+                                    .unwrap_or_else(|_| if interactive { "prompt".to_string() } else { "summarize".to_string() });
 
-                                    match selected {
-                                        "clear" => {
-                                            self.messages.clear();
-                                            let msg = format!("Session cleared.\n{}", "-".repeat(50));
-                                            output::render_text(&msg, Some(Color::Yellow), true);
-                                            break;  // exit the loop to hand back control to the user
-                                        }
-                                        "truncate" => {
-                                            // Truncate messages to fit within context length
-                                            let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
-                                            let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50));
-                                            output::render_text("", Some(Color::Yellow), true);
-                                            output::render_text(&msg, Some(Color::Yellow), true);
-                                            self.messages = truncated_messages;
-                                        }
-                                        "summarize" => {
-                                            // Use the helper function to summarize context
-                                            Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose summarized messages for you.").await?;
-                                        }
-                                        _ => {
-                                            unreachable!()
+                                let selected = match context_strategy.as_str() {
+                                    "clear" => "clear",
+                                    "truncate" => "truncate",
+                                    "summarize" => "summarize",
+                                    _ => {
+                                        if interactive {
+                                            // In interactive mode with no default, ask the user what to do
+                                            let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
+                                            cliclack::select(prompt)
+                                                .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                                .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
+                                                .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                                .interact()?
+                                        } else {
+                                            // In headless mode, default to summarize
+                                            "summarize"
                                         }
                                     }
-                                } else {
-                                    // In headless mode (goose run), automatically use summarize
-                                    Self::summarize_context_messages(&mut self.messages, &self.agent, "Goose automatically summarized messages to continue processing.").await?;
+                                };
+
+                                match selected {
+                                    "clear" => {
+                                        self.messages.clear();
+                                        let msg = if context_strategy == "clear" {
+                                            format!("Context maxed out - automatically cleared session.\n{}", "-".repeat(50))
+                                        } else {
+                                            format!("Session cleared.\n{}", "-".repeat(50))
+                                        };
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        break;  // exit the loop to hand back control to the user
+                                    }
+                                    "truncate" => {
+                                        // Truncate messages to fit within context length
+                                        let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
+                                        let msg = if context_strategy == "truncate" {
+                                            format!("Context maxed out - automatically truncated messages.\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
+                                        } else {
+                                            format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
+                                        };
+                                        output::render_text("", Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = truncated_messages;
+                                    }
+                                    "summarize" => {
+                                        // Use the helper function to summarize context
+                                        let message_suffix = if context_strategy == "summarize" {
+                                            "Goose automatically summarized messages for you."
+                                        } else if interactive {
+                                            "Goose summarized messages for you."
+                                        } else {
+                                            "Goose automatically summarized messages to continue processing."
+                                        };
+                                        Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await?;
+                                    }
+                                    _ => {
+                                        unreachable!()
+                                    }
                                 }
 
                                 // Restart the stream after handling ContextLengthExceeded
@@ -801,6 +870,7 @@ impl Session {
                                             id: session_id.clone(),
                                             working_dir: std::env::current_dir()
                                                 .expect("failed to get current session working directory"),
+                                            schedule_id: None,
                                         }),
                                     )
                                     .await?;
@@ -813,8 +883,63 @@ impl Session {
                                 session::persist_messages(&self.session_file, &self.messages, None).await?;
 
                                 if interactive {output::hide_thinking()};
+                                let _ = progress_bars.hide();
                                 output::render_message(&message, self.debug);
                                 if interactive {output::show_thinking()};
+                            }
+                        }
+                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                                if let JsonRpcMessage::Notification(JsonRpcNotification{
+                                    method,
+                                    params: Some(Value::Object(o)),
+                                    ..
+                                }) = message {
+                                match method.as_str() {
+                                    "notifications/message" => {
+                                        let data = o.get("data").unwrap_or(&Value::Null);
+                                        let message = match data {
+                                            Value::String(s) => s.clone(),
+                                            Value::Object(o) => {
+                                                if let Some(Value::String(output)) = o.get("output") {
+                                                    output.to_owned()
+                                                } else {
+                                                    data.to_string()
+                                                }
+                                            },
+                                            v => {
+                                                    v.to_string()
+                                            },
+                                        };
+                                        if interactive {
+                                            output::set_thinking_message(&message);
+                                        } else {
+                                            progress_bars.log(&message);
+                                        }
+                                    },
+                                    "notifications/progress" => {
+                                        let progress = o.get("progress").and_then(|v| v.as_f64());
+                                        let token = o.get("progressToken").map(|v| v.to_string());
+                                        let message = o.get("message").and_then(|v| v.as_str());
+                                        let total = o
+                                            .get("total")
+                                            .and_then(|v| v.as_f64());
+                                        if let (Some(progress), Some(token)) = (progress, token) {
+                                            progress_bars.update(
+                                                token.as_str(),
+                                                progress,
+                                                total,
+                                                message,
+                                            );
+                                        }
+                                    },
+                                    _ => (),
+                                }
+                            }
+                        }
+                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                            // Log model change if in debug mode
+                            if self.debug {
+                                eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
                         Some(Err(e)) => {
@@ -843,6 +968,7 @@ impl Session {
                 }
             }
         }
+
         Ok(())
     }
 
@@ -1023,6 +1149,26 @@ impl Session {
     pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
+    }
+
+    /// Display enhanced context usage with session totals
+    pub async fn display_context_usage(&self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit.unwrap_or(32000);
+
+        match self.get_metadata() {
+            Ok(metadata) => {
+                let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+
+                output::display_context_usage(total_tokens, context_limit);
+            }
+            Err(_) => {
+                output::display_context_usage(0, context_limit);
+            }
+        }
+
+        Ok(())
     }
 
     /// Handle prompt command execution

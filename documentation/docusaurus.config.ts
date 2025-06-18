@@ -160,8 +160,8 @@ const config: Config = {
               label: 'Prompt Library',
             },
             {
-              href: 'https://block.github.io/goose/install-link-generator/',
-              label: 'Install Link Generator',
+              to: 'deeplink-generator',
+              label: 'Deeplink Generator',
             },
           ],
         },
@@ -196,6 +196,10 @@ const config: Config = {
         {
           title: "Community",
           items: [
+            {
+              label: "Spotlight",
+              to: "community",
+            },
             {
               label: "Discord",
               href: "https://discord.gg/block-opensource",

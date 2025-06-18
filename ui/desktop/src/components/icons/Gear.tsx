@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function Gear({ className = '' }: { className?: string }) {
   return (
     <svg

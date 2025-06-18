@@ -6,6 +6,7 @@ export interface Recipe {
   title: string;
   description: string;
   instructions: string;
+  prompt?: string;
   activities?: string[];
   author?: {
     contact?: string;
@@ -14,6 +15,8 @@ export interface Recipe {
   extensions?: FullExtensionConfig[];
   goosehints?: string;
   context?: string[];
+  profile?: string;
+  mcps?: number;
 }
 
 export interface CreateRecipeRequest {

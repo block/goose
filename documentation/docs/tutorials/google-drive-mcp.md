@@ -19,18 +19,22 @@ This tutorial covers how to add the [Google Drive MCP Server](https://github.com
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
-  GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
-  npx -y @modelcontextprotocol/server-gdrive auth
+  GDRIVE_OAUTH_PATH=$USER_HOME/.config/gcp-oauth.keys.json \ 
+  GDRIVE_CREDENTIALS_PATH=$USER_HOME/.config/.gdrive-server-credentials.json \ 
+  npx -y @modelcontextprotocol/server-gdrive auth \
   npx -y @modelcontextprotocol/server-gdrive 
   ```
   </TabItem>
 </Tabs>
   **Environment Variable**
   ```
-  GDRIVE_CREDENTIALS_PATH: ~/.config/.gdrive-server-credentials.json
-  GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json  
+  GDRIVE_CREDENTIALS_PATH: $USER_HOME/.config/.gdrive-server-credentials.json
+  GDRIVE_OAUTH_PATH: $USER_HOME/.config/gcp-oauth.keys.json  
   ```
+:::
+
+:::info
+Note that you *must* use absolute paths in the environment variables. Make sure you replace `$USER_HOME` with your home directory.
 :::
 
 ## Configuration
@@ -72,10 +76,14 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
   
      To connect your Google account, run the following authentication command in your terminal:
           ```sh
-          GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
-          GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
+          GDRIVE_OAUTH_PATH=$USER_HOME/.config/gcp-oauth.keys.json \ 
+          GDRIVE_CREDENTIALS_PATH=$USER_HOME/.config/.gdrive-server-credentials.json \ 
           npx -y @modelcontextprotocol/server-gdrive auth
           ```
+         :::info
+         Replace `$USER_HOME` with your home directory.
+         :::
+
       A browser window will open for authentication. Follow the prompts to connect your Google account and complete the OAuth process. At this stage, your environment variable `GDRIVE_CREDENTIALS_PATH` will be set with the saved credentials.
 
 :::tip
@@ -87,13 +95,19 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
   1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
   2. Press `Yes` to confirm the installation
   3. For `GDRIVE_CREDENTIALS_PATH`, enter the following:
+  ```sh
+  $USER_HOME/.config/.gdrive-server-credentials.json
   ```
-  ~/.config/.gdrive-server-credentials.json
-  ```
+    :::info
+    Replace `$USER_HOME` with your home directory. You must specify an absolute path for this extension to work.
+    :::
   4. For `GDRIVE_OAUTH_PATH`, enter the following:
+  ```sh
+  $USER_HOME/.config/gcp-oauth.keys.json
   ```
-  ~/.config/gcp-oauth.keys.json
-  ```
+    :::info
+    Replace `$USER_HOME` with your home directory. You must specify an absolute path for this extension to work.
+    :::
   5. Click `Save Configuration`
   6. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
