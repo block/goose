@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
-use serde::de::{Deserializer, Error as DeError};
 
 fn default_version() -> String {
     "1.0.0".to_string()
