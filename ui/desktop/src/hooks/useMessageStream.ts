@@ -24,6 +24,7 @@ type MessageEvent =
   | { type: 'Message'; message: Message }
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
+  | { type: 'ModelChange'; model: string; mode: string }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -140,6 +141,9 @@ export interface UseMessageStreamHelpers {
   updateMessageStreamBody?: (newBody: object) => void;
 
   notifications: NotificationEvent[];
+  
+  /** Current model info from the backend */
+  currentModelInfo: { model: string; mode: string } | null;
 }
 
 /**
@@ -168,6 +172,7 @@ export function useMessageStream({
   });
 
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
+  const [currentModelInfo, setCurrentModelInfo] = useState<{ model: string; mode: string } | null>(null);
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -270,6 +275,16 @@ export function useMessageStream({
                       ...parsedEvent,
                     };
                     setNotifications((prev) => [...prev, newNotification]);
+                    break;
+                  }
+
+                  case 'ModelChange': {
+                    // Update the current model in the frontend
+                    const modelInfo = {
+                      model: parsedEvent.model,
+                      mode: parsedEvent.mode,
+                    };
+                    setCurrentModelInfo(modelInfo);
                     break;
                   }
 
@@ -543,5 +558,6 @@ export function useMessageStream({
     addToolResult,
     updateMessageStreamBody,
     notifications,
+    currentModelInfo,
   };
 }

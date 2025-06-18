@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, createContext, useContext } from 'react';
 import { getApiUrl } from '../config';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -36,6 +36,10 @@ import {
   getTextContent,
   TextContent,
 } from '../types/message';
+
+// Context for sharing current model info
+const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
+export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
 export interface ChatType {
   id: string;
@@ -144,6 +148,7 @@ function ChatContent({
     handleSubmit: _submitMessage,
     updateMessageStreamBody,
     notifications,
+    currentModelInfo,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -504,7 +509,8 @@ function ChatContent({
   }, new Map());
 
   return (
-    <div className="flex flex-col w-full h-screen items-center justify-center">
+    <CurrentModelContext.Provider value={currentModelInfo}>
+      <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
       <MoreMenuLayout
@@ -647,5 +653,6 @@ function ChatContent({
         summaryContent={summaryContent}
       />
     </div>
+    </CurrentModelContext.Provider>
   );
 }
