@@ -215,7 +215,7 @@ export default function BottomMenu({
         {/* Cost Tracker - Add this before Model Selector */}
         <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
 
-        {/* Separator between cost and model selector */}
+        {/* Separator between cost and model selector - only show if we have cost data */}
         {(inputTokens > 0 || outputTokens > 0) && (
           <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
         )}
