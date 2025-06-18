@@ -20,6 +20,7 @@ import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
+import ShareDeveloperView from './components/ShareDeveloperView';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -45,7 +46,8 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
-  | 'permission';
+  | 'permission'
+  | 'shareDeveloper';
 
 export type ViewOptions = {
   // Settings view options
@@ -555,6 +557,7 @@ export default function App() {
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}
             />
           )}
+          {view === 'shareDeveloper' && <ShareDeveloperView onClose={() => setView('chat')} />}
         </div>
       </div>
       {isGoosehintsModalOpen && (

@@ -185,7 +185,7 @@ impl Agent {
 
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
-    pub(super) async fn dispatch_tool_call(
+    pub async fn dispatch_tool_call(
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,

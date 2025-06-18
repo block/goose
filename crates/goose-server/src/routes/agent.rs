@@ -14,7 +14,9 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
+use mcp_core::{tool::ToolCall, Content};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -65,6 +67,21 @@ struct UpdateProviderRequest {
 #[derive(Deserialize)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CallToolRequest {
+    tool_name: String,
+    arguments: Value,
+    request_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CallToolResponse {
+    request_id: String,
+    success: bool,
+    result: Option<Vec<Content>>,
+    error: Option<String>,
 }
 
 async fn get_versions() -> Json<VersionsResponse> {
@@ -175,6 +192,72 @@ async fn get_tools(
 
 #[utoipa::path(
     post,
+    path = "/agent/call_tool",
+    request_body = CallToolRequest,
+    responses(
+        (status = 200, description = "Tool called successfully", body = CallToolResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn call_tool(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Create a ToolCall from the request
+    let tool_call = ToolCall::new(payload.tool_name, payload.arguments);
+
+    // Generate a request ID if not provided
+    let request_id = payload.request_id.unwrap_or_else(|| {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        format!("tool_call_{}", timestamp)
+    });
+
+    // Dispatch the tool call
+    let (returned_id, result) = agent.dispatch_tool_call(tool_call, request_id).await;
+
+    match result {
+        Ok(tool_call_result) => {
+            // Wait for the result future to complete
+            match tool_call_result.result.await {
+                Ok(contents) => Ok(Json(CallToolResponse {
+                    request_id: returned_id,
+                    success: true,
+                    result: Some(contents),
+                    error: None,
+                })),
+                Err(tool_error) => Ok(Json(CallToolResponse {
+                    request_id: returned_id,
+                    success: false,
+                    result: None,
+                    error: Some(tool_error.to_string()),
+                })),
+            }
+        }
+        Err(tool_error) => Ok(Json(CallToolResponse {
+            request_id: returned_id,
+            success: false,
+            result: None,
+            error: Some(tool_error.to_string()),
+        })),
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/agent/update_provider",
     responses(
         (status = 200, description = "Update provider completed", body = String),
@@ -223,6 +306,101 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, http::Request};
+    use goose::{
+        agents::Agent,
+        model::ModelConfig,
+        providers::{
+            base::{Provider, ProviderUsage, Usage},
+            errors::ProviderError,
+        },
+    };
+    use mcp_core::tool::Tool;
+    use tower::ServiceExt;
+
+    #[derive(Clone)]
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for MockProvider {
+        fn metadata() -> goose::providers::base::ProviderMetadata {
+            goose::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[goose::message::Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(goose::message::Message, ProviderUsage), ProviderError> {
+            Ok((
+                goose::message::Message::assistant().with_text("Mock response"),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_call_tool_endpoint() {
+        let mock_model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockProvider {
+            model_config: mock_model_config,
+        });
+        let agent = Agent::new();
+        let _ = agent.update_provider(mock_provider).await;
+        let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
+        let scheduler_path = goose::scheduler::get_default_scheduler_storage_path()
+            .expect("Failed to get default scheduler storage path");
+        let scheduler = goose::scheduler_factory::SchedulerFactory::create_legacy(scheduler_path)
+            .await
+            .unwrap();
+        state.set_scheduler(scheduler).await;
+
+        let app = routes(state);
+
+        // Test calling a platform tool (search_available_extensions)
+        let request = Request::builder()
+            .uri("/agent/call_tool")
+            .method("POST")
+            .header("content-type", "application/json")
+            .header("x-secret-key", "test-secret")
+            .body(Body::from(
+                serde_json::to_string(&CallToolRequest {
+                    tool_name: "platform__search_available_extensions".to_string(),
+                    arguments: serde_json::json!({}),
+                    request_id: Some("test-request-123".to_string()),
+                })
+                .unwrap(),
+            ))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Parse the response
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let response_json: CallToolResponse = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(response_json.request_id, "test-request-123");
+        assert!(response_json.success);
+        assert!(response_json.result.is_some());
+        assert!(response_json.error.is_none());
+    }
 }
