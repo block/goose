@@ -327,7 +327,7 @@ mod tests {
         let params = HashMap::new();
         let err = render_content_with_params(content, &params).unwrap_err();
         let error_msg = err.to_string();
-        assert!(error_msg.contains("please check if all required parameters"));
+        assert!(error_msg.contains("Failed to render the recipe"));
 
         // Test invalid template syntax results in error
         let content = "Hello {{ unclosed";
@@ -544,27 +544,27 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
-        let parent_content = r#"
-            version: 1.0.0
-            title: Parent
-            description: Parent recipe
-            prompt: |
-              {% block prompt -%}
-              What is the capital of France?
-              {%- endblock -%}
-        "#
-        .trim_start();
+        let parent_content = [
+            "version: 1.0.0",
+            "title: Parent",
+            "description: Parent recipe",
+            "prompt: |",
+            "  {% block prompt -%}",
+            "  What is the capital of France?",
+            "  {%- endblock -%}",
+        ]
+        .join("\n");
 
         let parent_path = temp_path.join("parent.yaml");
         std::fs::write(&parent_path, parent_content).unwrap();
 
-        let child_content = r#"
-            {% extends "parent.yaml" -%}
-            {%- block prompt -%}
-            What is the capital of Germany?
-            {%- endblock -%}
-        "#
-        .trim_start();
+        let child_content = [
+            "{% extends \"parent.yaml\" -%}",
+            "{%- block prompt -%}",
+            "  What is the capital of Germany?",
+            "{%- endblock -%}",
+        ]
+        .join("\n");
 
         let child_path = temp_path.join("child.yaml");
         std::fs::write(&child_path, child_content).unwrap();
