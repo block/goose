@@ -247,7 +247,8 @@ function ChatContent({
         console.log('Opening recipe editor with config:', response.recipe);
         const recipeConfig = {
           id: response.recipe.title || 'untitled',
-          name: response.recipe.title || 'Untitled Recipe',
+          name: response.recipe.title || 'Untitled Recipe', // Does not exist on recipe type
+          title: response.recipe.title || 'Untitled Recipe',
           description: response.recipe.description || '',
           instructions: response.recipe.instructions || '',
           activities: response.recipe.activities || [],

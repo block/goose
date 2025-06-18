@@ -1168,7 +1168,12 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
-    const cat = spawn('cat', [filePath]);
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    const cat = spawn('cat', [expandedPath]);
     let output = '';
     let errorOutput = '';
 
@@ -1183,32 +1188,77 @@ ipcMain.handle('read-file', (_event, filePath) => {
     cat.on('close', (code) => {
       if (code !== 0) {
         // File not found or error
-        resolve({ file: '', filePath, error: errorOutput || null, found: false });
+        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
         return;
       }
-      resolve({ file: output, filePath, error: null, found: true });
+      resolve({ file: output, filePath: expandedPath, error: null, found: true });
     });
 
     cat.on('error', (error) => {
       console.error('Error reading file:', error);
-      resolve({ file: '', filePath, error, found: false });
+      resolve({ file: '', filePath: expandedPath, error, found: false });
     });
   });
 });
 
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fsNode = require('fs'); // Using require for fs in this specific handler from original
     try {
-      fsNode.writeFileSync(filePath, content, { encoding: 'utf8' });
+      fsNode.writeFileSync(expandedPath, content, { encoding: 'utf8' });
       resolve(true);
     } catch (error) {
       console.error('Error writing to file:', error);
       resolve(false);
     }
   });
+});
+
+// Enhanced file operations
+ipcMain.handle('ensure-directory', async (_event, dirPath) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    await fs.mkdir(expandedPath, { recursive: true });
+    return true;
+  } catch (error) {
+    console.error('Error creating directory:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('list-files', async (_event, dirPath, extension) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    const files = await fs.readdir(expandedPath);
+    if (extension) {
+      return files.filter((file) => file.endsWith(extension));
+    }
+    return files;
+  } catch (error) {
+    console.error('Error listing files:', error);
+    return [];
+  }
+});
+
+// Handle message box dialogs
+ipcMain.handle('show-message-box', async (_event, options) => {
+  const result = await dialog.showMessageBox(options);
+  return result;
 });
 
 // Handle allowed extensions list fetching
