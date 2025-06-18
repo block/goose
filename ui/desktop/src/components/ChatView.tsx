@@ -590,8 +590,8 @@ function ChatContent({
       );
     }
     
-    prevModelRef.current = currentModel;
-    prevProviderRef.current = currentProvider;
+    prevModelRef.current = currentModel || undefined;
+    prevProviderRef.current = currentProvider || undefined;
   }, [currentModel, currentProvider, sessionInputTokens, sessionOutputTokens, localInputTokens, localOutputTokens]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
