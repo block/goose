@@ -153,7 +153,6 @@ run-server:
 
 # make GUI with latest binary
 lint-ui:
-    @just release-binary
     cd ui/desktop && npm run lint:check
 
 # make GUI with latest binary
