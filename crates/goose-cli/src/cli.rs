@@ -18,6 +18,9 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
+use crate::recipes::sub_recipe_command::{
+    create_sub_recipe_extensions, create_sub_recipe_instructions,
+};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -262,7 +265,16 @@ enum Command {
 
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp { name: String },
+    Mcp {
+        name: String,
+
+        #[arg(
+            long = "extra-args",
+            help = "Extra arguments to pass to the mcp server",
+            long_help = "Extra arguments in json format to pass to the mcp server. Format: '{\"arg1\": \"value1\", \"arg2\": \"value2\"}'"
+        )]
+        extra_args: Option<String>,
+    },
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -594,8 +606,8 @@ pub async fn cli() -> Result<()> {
             handle_info(verbose)?;
             return Ok(());
         }
-        Some(Command::Mcp { name }) => {
-            let _ = run_server(&name).await;
+        Some(Command::Mcp { name, extra_args }) => {
+            let _ = run_server(&name, extra_args).await;
         }
         Some(Command::Session {
             command,
@@ -751,11 +763,18 @@ pub async fn cli() -> Result<()> {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
+                    let recipe_runner_instructions_str = create_sub_recipe_instructions(&recipe);
+                    let sub_recipe_extensions = create_sub_recipe_extensions(&recipe);
+                    let mut recipe_extensions = recipe.extensions.unwrap_or_default();
+                    recipe_extensions.extend(sub_recipe_extensions);
                     (
                         InputConfig {
                             contents: recipe.prompt,
-                            extensions_override: recipe.extensions,
-                            additional_system_prompt: recipe.instructions,
+                            extensions_override: Some(recipe_extensions),
+                            additional_system_prompt: Some(
+                                recipe.instructions.unwrap_or_default()
+                                    + &recipe_runner_instructions_str,
+                            ),
                         },
                         recipe.settings.map(|s| SessionSettings {
                             goose_provider: s.goose_provider,

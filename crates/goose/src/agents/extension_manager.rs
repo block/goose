@@ -221,15 +221,31 @@ impl ExtensionManager {
                 display_name: _,
                 timeout,
                 bundled: _,
+                args,
             } => {
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
                     .to_str()
                     .expect("should resolve executable to string path")
                     .to_string();
+                let args_json = if let Some(args) = args {
+                    if args.is_empty() {
+                        "".to_string()
+                    } else {
+                        serde_json::to_string(&args).expect("Failed to serialize args")
+                    }
+                } else {
+                    "".to_string()
+                };
                 let transport = StdioTransport::new(
                     &cmd,
-                    vec!["mcp".to_string(), name.clone()],
+                    {
+                        let mut args = vec!["mcp".to_string(), name.clone()];
+                        if !args_json.is_empty() {
+                            args.extend(vec!["--extra-args".to_string(), args_json.clone()]);
+                        }
+                        args
+                    },
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;

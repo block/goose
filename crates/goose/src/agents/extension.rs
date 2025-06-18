@@ -167,6 +167,7 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        args: Option<Vec<String>>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -190,6 +191,7 @@ impl Default for ExtensionConfig {
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            args: None,
         }
     }
 }

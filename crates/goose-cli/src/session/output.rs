@@ -672,7 +672,7 @@ impl McpSpinners {
         }
     }
 
-    pub fn log(&mut self, message: &str) {
+    pub fn log(&mut self, message: &str, show_message_history: bool) {
         let spinner = self.log_spinner.get_or_insert_with(|| {
             let bar = self.multi_bar.add(
                 ProgressBar::new_spinner()
@@ -688,6 +688,10 @@ impl McpSpinners {
         });
 
         spinner.set_message(message.to_string());
+        if show_message_history {
+            spinner.inc(0);
+            let _ = self.multi_bar.println(message); 
+        }
     }
 
     pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {

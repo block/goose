@@ -55,6 +55,7 @@ enum ExtensionConfigRequest {
         name: String,
         display_name: Option<String>,
         timeout: Option<u64>,
+        args: Option<Vec<String>>,
     },
     /// Frontend extension that provides tools to be executed by the frontend.
     #[serde(rename = "frontend")]
@@ -211,11 +212,13 @@ async fn add_extension(
             name,
             display_name,
             timeout,
+            args,
         } => ExtensionConfig::Builtin {
             name,
             display_name,
             timeout,
             bundled: None,
+            args,
         },
         ExtensionConfigRequest::Frontend {
             name,

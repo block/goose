@@ -1,0 +1,29 @@
+version: 1.0.0
+title: Joke of the day
+author:
+  contact: douwe
+description: Will tell you a joke fo the day based on the current day
+instructions: Your job is to tell a joke of the day
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+- args:
+  - mcp-server-fetch
+  bundled: null
+  cmd: uvx
+  description: ''
+  enabled: false
+  env_keys: []
+  envs: {}
+  name: fetch
+  timeout: 300
+  type: stdio
+prompt: "{{date}} is provided and generate a joke on that day . Mention the day on the first line then an empty line and then the joke. Don't just say the date, but figure out if there's any cultural significance, like national shelves day"
+parameters:
+- key: date
+  input_type: string
+  requirement: required
+  description: date provided by the user

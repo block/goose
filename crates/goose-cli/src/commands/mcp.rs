@@ -1,7 +1,7 @@
 use anyhow::Result;
 use goose_mcp::{
     ComputerControllerRouter, DeveloperRouter, GoogleDriveRouter, JetBrainsRouter, MemoryRouter,
-    TutorialRouter,
+    SubRecipeRouter, TutorialRouter,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -17,7 +17,7 @@ use nix::unistd::getpgrp;
 #[cfg(unix)]
 use nix::unistd::Pid;
 
-pub async fn run_server(name: &str) -> Result<()> {
+pub async fn run_server(name: &str, extra_args: Option<String>) -> Result<()> {
     // Initialize logging
     crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
 
@@ -33,6 +33,9 @@ pub async fn run_server(name: &str) -> Result<()> {
         }
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
         "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
+        name if name.starts_with("sub-recipe") => {
+            Some(Box::new(RouterService(SubRecipeRouter::new(extra_args))))
+        }
         _ => None,
     };
 
