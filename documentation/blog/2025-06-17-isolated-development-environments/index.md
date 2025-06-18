@@ -1,6 +1,6 @@
 ---
 title: "Isolated Dev Environments in Goose with container-use"
-description: cNever worry about breaking your development setup again with containerized, git-branch-isolated development environments powered by container-use
+description: Never worry about breaking your development setup again with containerized, git-branch-isolated development environments powered by container-use
 authors:
     - mic
 tags: [extensions, containers, development, isolation, mcp, dagger]
