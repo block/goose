@@ -102,12 +102,32 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     currentProvider,
   });
 
-  // Always show the cost tracker if we have cost info, even with 0 tokens
-  if (isLoading || !costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
-    // Show a debug element when not showing cost
+  // Show loading state or when we don't have model/provider info
+  if (!currentModel || !currentProvider) {
+    console.log('CostTracker: No model or provider');
+    return null;
+  }
+
+  // If still loading, show a placeholder
+  if (isLoading) {
     return (
-      <div className="text-xs text-textSubtle px-2" title="Cost tracker - no cost data available">
-        {/* Hidden debug element */}
+      <div className="flex items-center gap-1 text-textSubtle px-2">
+        <Coins className="w-3 h-3" />
+        <span className="text-xs">...</span>
+      </div>
+    );
+  }
+
+  // If no cost info found, show $0.00
+  if (!costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
+    console.log('CostTracker: No cost info, showing $0.00');
+    return (
+      <div
+        className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default px-2"
+        title="Cost data not available for this model"
+      >
+        <Coins className="w-3 h-3" />
+        <span className="text-xs">$0.00</span>
       </div>
     );
   }
@@ -153,7 +173,22 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
         output_token_cost: 0.015,
         currency: '$',
       },
+      'claude-3-5-sonnet': {
+        input_token_cost: 0.003,
+        output_token_cost: 0.015,
+        currency: '$',
+      },
+      'claude-3.5-sonnet': {
+        input_token_cost: 0.003,
+        output_token_cost: 0.015,
+        currency: '$',
+      },
       'claude-3-5-haiku-20241022': {
+        input_token_cost: 0.001,
+        output_token_cost: 0.005,
+        currency: '$',
+      },
+      'claude-3-5-haiku': {
         input_token_cost: 0.001,
         output_token_cost: 0.005,
         currency: '$',
@@ -163,12 +198,27 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
         output_token_cost: 0.075,
         currency: '$',
       },
+      'claude-3-opus': {
+        input_token_cost: 0.015,
+        output_token_cost: 0.075,
+        currency: '$',
+      },
       'claude-3-sonnet-20240229': {
         input_token_cost: 0.003,
         output_token_cost: 0.015,
         currency: '$',
       },
+      'claude-3-sonnet': {
+        input_token_cost: 0.003,
+        output_token_cost: 0.015,
+        currency: '$',
+      },
       'claude-3-haiku-20240307': {
+        input_token_cost: 0.00025,
+        output_token_cost: 0.00125,
+        currency: '$',
+      },
+      'claude-3-haiku': {
         input_token_cost: 0.00025,
         output_token_cost: 0.00125,
         currency: '$',
@@ -214,11 +264,17 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
     // Add more providers and models as needed
   };
 
+  console.log('getCostDataForModel called with:', { provider, model });
+
   const providerData = costDatabase[provider.toLowerCase()];
-  if (!providerData) return null;
+  if (!providerData) {
+    console.log('No provider data found for:', provider);
+    return null;
+  }
 
   // Try exact match first
   if (providerData[model]) {
+    console.log('Exact match found for model:', model);
     return providerData[model];
   }
 
@@ -226,9 +282,11 @@ async function getCostDataForModel(provider: string, model: string): Promise<Mod
   const modelLower = model.toLowerCase();
   for (const [key, value] of Object.entries(providerData)) {
     if (modelLower.includes(key.toLowerCase()) || key.toLowerCase().includes(modelLower)) {
+      console.log('Partial match found:', key, 'for model:', model);
       return value;
     }
   }
 
+  console.log('No cost data found for model:', model);
   return null;
 }
