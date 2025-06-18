@@ -89,6 +89,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
     return cost.toFixed(2);
   };
 
+  // Always show the cost tracker if we have cost info, even with 0 tokens
   if (isLoading || !costInfo || (!costInfo.input_token_cost && !costInfo.output_token_cost)) {
     return null; // Don't show anything if we don't have cost data
   }
@@ -96,7 +97,10 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0 }: CostTrackerPr
   const totalCost = calculateCost();
 
   return (
-    <div className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default">
+    <div
+      className="flex items-center gap-1 text-textSubtle hover:text-textStandard transition-colors cursor-default"
+      title={`Input: ${inputTokens.toLocaleString()} tokens, Output: ${outputTokens.toLocaleString()} tokens`}
+    >
       <Coins className="w-3 h-3" />
       <span className="text-xs">
         {costInfo.currency || '$'}

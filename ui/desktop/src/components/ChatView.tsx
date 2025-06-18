@@ -108,6 +108,8 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
+  const [localInputTokens, setLocalInputTokens] = useState<number>(0);
+  const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
 
@@ -479,6 +481,32 @@ function ChatContent({
       .reverse();
   }, [filteredMessages]);
 
+  // Simple token estimation function (roughly 4 characters per token)
+  const estimateTokens = (text: string): number => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Calculate token counts from messages
+  useEffect(() => {
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    messages.forEach((message) => {
+      const textContent = getTextContent(message);
+      if (textContent) {
+        const tokens = estimateTokens(textContent);
+        if (message.role === 'user') {
+          inputTokens += tokens;
+        } else if (message.role === 'assistant') {
+          outputTokens += tokens;
+        }
+      }
+    });
+
+    setLocalInputTokens(inputTokens);
+    setLocalOutputTokens(outputTokens);
+  }, [messages]);
+
   // Fetch session metadata to get token count
   useEffect(() => {
     const fetchSessionTokens = async () => {
@@ -647,8 +675,8 @@ function ChatContent({
               setView={setView}
               hasMessages={hasMessages}
               numTokens={sessionTokenCount}
-              inputTokens={sessionInputTokens}
-              outputTokens={sessionOutputTokens}
+              inputTokens={sessionInputTokens || localInputTokens}
+              outputTokens={sessionOutputTokens || localOutputTokens}
               droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
