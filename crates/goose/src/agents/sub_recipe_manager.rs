@@ -61,9 +61,11 @@ impl SubRecipeManager {
             ToolError::InvalidParameters(format!("Sub-recipe '{}' not found", sub_recipe_name))
         })?;
 
-        let output = call_sub_recipe_tool(sub_recipe, params).map_err(|e| {
-            ToolError::ExecutionError(format!("Sub-recipe execution failed: {}", e))
-        })?;
+        let output = call_sub_recipe_tool(sub_recipe, params)
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Sub-recipe execution failed: {}", e))
+            })?;
         Ok(vec![Content::text(output)])
     }
 }

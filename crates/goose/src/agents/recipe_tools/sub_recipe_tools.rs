@@ -1,8 +1,10 @@
-use std::{collections::HashMap, fs, process::Command};
+use std::{collections::HashMap, fs};
 
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
@@ -80,8 +82,7 @@ fn get_input_schema(sub_recipe: &SubRecipe) -> Result<Value> {
     }
 }
 
-pub fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<String, String> {
-    println!("======= params: {:?}", params);
+pub async fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<String, String> {
     let mut sub_recipe_params = HashMap::<String, String>::new();
     if let Some(params_with_value) = &sub_recipe.params {
         for param_with_value in params_with_value {
@@ -91,36 +92,71 @@ pub fn call_sub_recipe_tool(sub_recipe: &SubRecipe, params: Value) -> Result<Str
             );
         }
     }
-    println!(
-        "======= existing sub_recipe_params: {:?}",
-        sub_recipe_params
-    );
     if let Some(params_map) = params.as_object() {
         for (key, value) in params_map {
-            println!("======= key: {:?}, value: {:?}", key, value);
             sub_recipe_params.insert(
                 key.to_string(),
                 value.as_str().unwrap_or(&value.to_string()).to_string(),
             );
         }
     }
-    println!(
-        "======= overridden sub_recipe_params: {:?}",
-        sub_recipe_params
-    );
     let mut command = Command::new("goose");
     command.arg("run").arg("--recipe").arg(&sub_recipe.path);
+
     for (key, value) in sub_recipe_params {
-        command.arg("--params");
-        command.arg(format!("{}={}", key, value));
+        command.arg("--params").arg(format!("{}={}", key, value));
     }
-    println!("======= command: {:?}", command);
-    let output = command
-        .output()
-        .map_err(|e| format!("Failed to execute: {e}"))?;
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+
+    command.stdout(std::process::Stdio::piped());
+    command.stderr(std::process::Stdio::piped());
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn: {}", e))?;
+
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut stderr_reader = BufReader::new(stderr).lines();
+    let stdout_sub_recipe_name = sub_recipe.name.clone();
+    let stderr_sub_recipe_name = sub_recipe.name.clone();
+
+    // Spawn background tasks to read from stdout and stderr
+    let stdout_task = tokio::spawn(async move {
+        let mut buffer = String::new();
+        while let Ok(Some(line)) = stdout_reader.next_line().await {
+            println!("[sub-recipe {}] {}", stdout_sub_recipe_name, line);
+            buffer.push_str(&line);
+            buffer.push('\n');
+        }
+        buffer
+    });
+
+    let stderr_task = tokio::spawn(async move {
+        let mut buffer = String::new();
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            eprintln!(
+                "[stderr for sub-recipe {}] {}",
+                stderr_sub_recipe_name, line
+            );
+            buffer.push_str(&line);
+            buffer.push('\n');
+        }
+        buffer
+    });
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for process: {}", e))?;
+
+    let stdout_output = stdout_task.await.unwrap();
+    let stderr_output = stderr_task.await.unwrap();
+
+    if status.success() {
+        Ok(stdout_output)
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        Err(format!("Command failed:\n{}", stderr_output))
     }
 }

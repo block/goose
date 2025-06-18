@@ -5,7 +5,7 @@ author:
 description: Will do multiple things
 instructions: Your job is to do multiple things
 prompt: |
-  1. use weather sub-recipe to get the weather
+  1. use weather sub-recipe to get the weather for sydney
 sub_recipes:
 - name: joke-of-the-day
   path: "{{recipe_dir}}/joke-of-the-day.yaml"
