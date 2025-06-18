@@ -690,8 +690,12 @@ pub async fn cli() -> Result<()> {
             params,
             explain,
         }) => {
-            let (input_config, session_settings, sub_recipes) = match (instructions, input_text, recipe, explain)
-            {
+            let (input_config, session_settings, sub_recipes) = match (
+                instructions,
+                input_text,
+                recipe,
+                explain,
+            ) {
                 (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()

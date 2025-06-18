@@ -1,0 +1,26 @@
+version: 1.0.0
+title: Find weather
+description: Get weather data for a city
+instructions: You are a weather expert. You will be given a city and you will need to return the weather data for that city.
+prompt: |
+  Get the weather for {{ city }} for today
+parameters:
+  - key: city
+    input_type: string
+    requirement: required
+    description: city name
+extensions:
+  - type: stdio
+    name: weather
+    cmd: uvx
+    args:
+      - mcp_weather@latest
+    timeout: 300
+    description: "Weather data for trip planning"
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+author:
+  contact: dkatz

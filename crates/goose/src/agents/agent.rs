@@ -10,6 +10,8 @@ use futures_util::stream;
 use futures_util::stream::StreamExt;
 use mcp_core::protocol::JsonRpcMessage;
 
+use crate::agents::recipe_tools::sub_recipe_tools::SUB_RECIPE_TOOL_NAME_PREFIX;
+use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
 use crate::permission::permission_judge::check_tool_permissions;
@@ -50,6 +52,7 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -59,7 +62,6 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
-    pub(super) sub_recipes: Mutex<Vec<SubRecipe>>,
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +79,7 @@ impl Agent {
         Self {
             provider: Mutex::new(None),
             extension_manager: Mutex::new(ExtensionManager::new()),
+            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -86,7 +89,6 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
-            sub_recipes: Mutex::new(Vec::new()),
         }
     }
 
@@ -104,11 +106,6 @@ impl Agent {
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
         }
-    }
-
-    pub async fn add_sub_recipes(&self, new_sub_recipes: Vec<SubRecipe>) {
-        let mut sub_recipes = self.sub_recipes.lock().await;
-        sub_recipes.extend(new_sub_recipes);
     }
 }
 
@@ -189,6 +186,11 @@ impl Agent {
         Ok(tools)
     }
 
+    pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
+        let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
+        sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub(super) async fn dispatch_tool_call(
@@ -231,7 +233,11 @@ impl Agent {
         }
 
         let extension_manager = self.extension_manager.lock().await;
-        let result: ToolCallResult = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
+        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+        
+        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+            ToolCallResult::from(sub_recipe_manager.run_sub_recipe(&tool_call.name, tool_call.arguments.clone()).await)
+        } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
@@ -457,14 +463,23 @@ impl Agent {
 
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
-            prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::manage_extensions_tool());
+            prefixed_tools.extend([
+                platform_tools::search_available_extensions_tool(),
+                platform_tools::manage_extensions_tool(),
+            ]);
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
-                prefixed_tools.push(platform_tools::read_resource_tool());
-                prefixed_tools.push(platform_tools::list_resources_tool());
+                prefixed_tools.extend([
+                    platform_tools::read_resource_tool(),
+                    platform_tools::list_resources_tool(),
+                ]);
             }
+        }
+
+        if extension_name.is_none() {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+            prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
         }
 
         prefixed_tools
