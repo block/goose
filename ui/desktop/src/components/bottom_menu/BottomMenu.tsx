@@ -212,10 +212,7 @@ export default function BottomMenu({
         {/* Tool and Token count */}
         {<BottomMenuAlertPopover alerts={alerts} />}
 
-        {/* Separator */}
-        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
-
-        {/* Cost Tracker - positioned after alerts */}
+        {/* Cost Tracker - no separator before it */}
         <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
 
         {/* Separator between cost and model */}
