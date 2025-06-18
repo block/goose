@@ -3,8 +3,9 @@
 use mcp_core::{Content, ToolError};
 use serde_json::json;
 
-use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
-use crate::agents::test_support::{
+use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
+mod test_support;
+use test_support::{
     create_temp_recipe, create_test_session_metadata, MockBehavior, ScheduleToolTestBuilder,
 };
 
@@ -775,19 +776,19 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
     let (agent, _) = ScheduleToolTestBuilder::new().build().await;
 
     // Create a temporary session file in the proper session directory
-    let session_dir = crate::session::storage::ensure_session_dir().unwrap();
+    let session_dir = goose::session::storage::ensure_session_dir().unwrap();
     let session_id = "test_session_real";
     let session_path = session_dir.join(format!("{}.jsonl", session_id));
 
     // Create test metadata and messages
     let metadata = create_test_session_metadata(2, "/tmp");
     let messages = vec![
-        crate::message::Message::user().with_text("Hello"),
-        crate::message::Message::assistant().with_text("Hi there!"),
+        goose::message::Message::user().with_text("Hello"),
+        goose::message::Message::assistant().with_text("Hi there!"),
     ];
 
     // Save the session file
-    crate::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
+    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
         .unwrap();
 
     // Test the session_content action

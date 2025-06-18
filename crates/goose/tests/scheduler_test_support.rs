@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::providers::base::Provider as GooseProvider;
+use goose::providers::base::Provider as GooseProvider;
 
 static TEST_PROVIDER: Lazy<Mutex<Option<Arc<dyn GooseProvider>>>> = Lazy::new(|| Mutex::new(None));
 

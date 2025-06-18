@@ -9,10 +9,10 @@ use chrono::{DateTime, Utc};
 use tempfile::TempDir;
 use tokio::sync::Mutex;
 
-use crate::agents::Agent;
-use crate::scheduler::{ScheduledJob, SchedulerError};
-use crate::scheduler_trait::SchedulerTrait;
-use crate::session::storage::SessionMetadata;
+use goose::agents::Agent;
+use goose::scheduler::{ScheduledJob, SchedulerError};
+use goose::scheduler_trait::SchedulerTrait;
+use goose::session::storage::SessionMetadata;
 
 #[derive(Debug, Clone)]
 pub enum MockBehavior {
