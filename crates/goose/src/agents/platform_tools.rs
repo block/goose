@@ -130,6 +130,7 @@ pub fn manage_schedule_tool() -> Tool {
             - "kill": Terminate a currently running job
             - "inspect": Get details about a running job
             - "sessions": List execution history for a job
+            - "session_content": Get the full content (messages) of a specific session
         "#}
         .to_string(),
         json!({
@@ -138,12 +139,13 @@ pub fn manage_schedule_tool() -> Tool {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "create", "run_now", "pause", "unpause", "delete", "kill", "inspect", "sessions"]
+                    "enum": ["list", "create", "run_now", "pause", "unpause", "delete", "kill", "inspect", "sessions", "session_content"]
                 },
                 "job_id": {"type": "string", "description": "Job identifier for operations on existing jobs"},
                 "recipe_path": {"type": "string", "description": "Path to recipe file for create action"},
                 "cron_expression": {"type": "string", "description": "A six field cron expression for create action"},
-                "limit": {"type": "integer", "description": "Limit for sessions list", "default": 50}
+                "limit": {"type": "integer", "description": "Limit for sessions list", "default": 50},
+                "session_id": {"type": "string", "description": "Session identifier for session_content action"}
             }
         }),
         Some(ToolAnnotations {

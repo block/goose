@@ -749,6 +749,102 @@ async fn test_schedule_tool_sessions_action_empty() {
 }
 
 #[tokio::test]
+async fn test_schedule_tool_session_content_action() {
+    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
+
+    // Test with a non-existent session
+    let arguments = json!({
+        "action": "session_content",
+        "session_id": "non_existent_session"
+    });
+
+    let result = agent
+        .handle_schedule_management(arguments, "test_req".to_string())
+        .await;
+    assert!(result.is_err());
+
+    if let Err(ToolError::ExecutionError(msg)) = result {
+        assert!(msg.contains("Session 'non_existent_session' not found"));
+    } else {
+        panic!("Expected ExecutionError");
+    }
+}
+
+#[tokio::test]
+async fn test_schedule_tool_session_content_action_with_real_session() {
+    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
+
+    // Create a temporary session file in the proper session directory
+    let session_dir = crate::session::storage::ensure_session_dir().unwrap();
+    let session_id = "test_session_real";
+    let session_path = session_dir.join(format!("{}.jsonl", session_id));
+
+    // Create test metadata and messages
+    let metadata = create_test_session_metadata(2, "/tmp");
+    let messages = vec![
+        crate::message::Message::user().with_text("Hello"),
+        crate::message::Message::assistant().with_text("Hi there!"),
+    ];
+
+    // Save the session file
+    crate::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
+        .unwrap();
+
+    // Test the session_content action
+    let arguments = json!({
+        "action": "session_content",
+        "session_id": session_id
+    });
+
+    let result = agent
+        .handle_schedule_management(arguments, "test_req".to_string())
+        .await;
+    
+    // Clean up the test session file
+    let _ = std::fs::remove_file(&session_path);
+
+    // Verify the result
+    assert!(result.is_ok());
+    
+    if let Ok(content) = result {
+        assert_eq!(content.len(), 1);
+        if let mcp_core::Content::Text(text_content) = &content[0] {
+            assert!(text_content.text.contains("Session 'test_session_real' Content:"));
+            assert!(text_content.text.contains("Metadata:"));
+            assert!(text_content.text.contains("Messages:"));
+            assert!(text_content.text.contains("Hello"));
+            assert!(text_content.text.contains("Hi there!"));
+            assert!(text_content.text.contains("Test session"));
+        } else {
+            panic!("Expected text content");
+        }
+    } else {
+        panic!("Expected successful result");
+    }
+}
+
+#[tokio::test]
+async fn test_schedule_tool_session_content_action_missing_session_id() {
+    let (agent, _) = ScheduleToolTestBuilder::new().build().await;
+
+    // Test session_content action with missing session_id
+    let arguments = json!({
+        "action": "session_content"
+    });
+
+    let result = agent
+        .handle_schedule_management(arguments, "test_req".to_string())
+        .await;
+    assert!(result.is_err());
+
+    if let Err(ToolError::ExecutionError(msg)) = result {
+        assert!(msg.contains("Missing 'session_id' parameter"));
+    } else {
+        panic!("Expected ExecutionError");
+    }
+}
+
+#[tokio::test]
 async fn test_schedule_tool_unknown_action() {
     let (agent, _) = ScheduleToolTestBuilder::new().build().await;
 

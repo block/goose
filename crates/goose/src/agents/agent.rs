@@ -429,6 +429,7 @@ impl Agent {
             "kill" => self.handle_kill_job(scheduler, arguments).await,
             "inspect" => self.handle_inspect_job(scheduler, arguments).await,
             "sessions" => self.handle_list_sessions(scheduler, arguments).await,
+            "session_content" => self.handle_session_content(arguments).await,
             _ => Err(ToolError::ExecutionError(format!(
                 "Unknown action: {}",
                 action
@@ -717,6 +718,79 @@ impl Agent {
                 e
             ))),
         }
+    }
+
+    async fn handle_session_content(
+        &self,
+        arguments: serde_json::Value,
+    ) -> ToolResult<Vec<Content>> {
+        let session_id = arguments
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ToolError::ExecutionError("Missing 'session_id' parameter".to_string())
+            })?;
+
+        // Get the session file path
+        let session_path = crate::session::storage::get_path(
+            crate::session::storage::Identifier::Name(session_id.to_string()),
+        );
+
+        // Check if session file exists
+        if !session_path.exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "Session '{}' not found",
+                session_id
+            )));
+        }
+
+        // Read session metadata
+        let metadata = match crate::session::storage::read_metadata(&session_path) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                return Err(ToolError::ExecutionError(format!(
+                    "Failed to read session metadata: {}",
+                    e
+                )));
+            }
+        };
+
+        // Read session messages
+        let messages = match crate::session::storage::read_messages(&session_path) {
+            Ok(messages) => messages,
+            Err(e) => {
+                return Err(ToolError::ExecutionError(format!(
+                    "Failed to read session messages: {}",
+                    e
+                )));
+            }
+        };
+
+        // Format the response with metadata and messages
+        let metadata_json = match serde_json::to_string_pretty(&metadata) {
+            Ok(json) => json,
+            Err(e) => {
+                return Err(ToolError::ExecutionError(format!(
+                    "Failed to serialize metadata: {}",
+                    e
+                )));
+            }
+        };
+
+        let messages_json = match serde_json::to_string_pretty(&messages) {
+            Ok(json) => json,
+            Err(e) => {
+                return Err(ToolError::ExecutionError(format!(
+                    "Failed to serialize messages: {}",
+                    e
+                )));
+            }
+        };
+
+        Ok(vec![Content::text(format!(
+            "Session '{}' Content:\n\nMetadata:\n{}\n\nMessages:\n{}",
+            session_id, metadata_json, messages_json
+        ))])
     }
 
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
