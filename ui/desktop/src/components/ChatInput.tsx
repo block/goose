@@ -7,6 +7,7 @@ import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
+import { useChatDraft } from '../hooks/useChatDraft';
 
 interface PastedImage {
   id: string;
@@ -46,15 +47,26 @@ export default function ChatInput({
   messages = [],
   setMessages,
 }: ChatInputProps) {
-  const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  // Use the draft hook to manage persistent input state
+  const { draftText, updateDraft, clearDraft, isInitialized } = useChatDraft(initialValue);
+
+  const [displayValue, setDisplayValue] = useState(''); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
-  // Update internal value when initialValue changes
+  // Update display value when draft is initialized or changes
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    if (isInitialized) {
+      setDisplayValue(draftText);
+    }
+  }, [draftText, isInitialized]);
+
+  // Update internal value when initialValue changes (but only if no draft exists)
+  useEffect(() => {
+    if (initialValue && !draftText) {
+      setDisplayValue(initialValue);
+      updateDraft(initialValue);
+    }
 
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
@@ -70,7 +82,7 @@ export default function ChatInput({
     // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+  }, [initialValue, draftText, updateDraft]); // Add missing dependencies
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
@@ -137,19 +149,19 @@ export default function ChatInput({
         : droppedFiles.join(' ');
 
       setDisplayValue(joinedPaths);
-      setValue(joinedPaths);
+      updateDraft(joinedPaths);
       textAreaRef.current?.focus();
       setProcessedFilePaths(droppedFiles);
     }
-  }, [droppedFiles, processedFilePaths, displayValue]);
+  }, [droppedFiles, processedFilePaths, displayValue, updateDraft]); // Add missing dependency
 
-  // Debounced function to update actual value
-  const debouncedSetValue = useMemo(
+  // Debounced function to update draft
+  const debouncedUpdateDraft = useMemo(
     () =>
       debounce((value: string) => {
-        setValue(value);
+        updateDraft(value);
       }, 150),
-    [setValue]
+    [updateDraft]
   );
 
   // Debounced autosize function
@@ -172,7 +184,7 @@ export default function ChatInput({
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     setDisplayValue(val); // Update display immediately
-    debouncedSetValue(val); // Debounce the actual state update
+    debouncedUpdateDraft(val); // Debounce the draft update
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -261,10 +273,10 @@ export default function ChatInput({
   // Cleanup debounced functions on unmount
   useEffect(() => {
     return () => {
-      debouncedSetValue.cancel?.();
+      debouncedUpdateDraft.cancel?.();
       debouncedAutosize.cancel?.();
     };
-  }, [debouncedSetValue, debouncedAutosize]);
+  }, [debouncedUpdateDraft, debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -335,11 +347,12 @@ export default function ChatInput({
     if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
       if (newIndex === -1) {
-        setDisplayValue(savedInput || '');
-        setValue(savedInput || '');
+        const textToRestore = savedInput || '';
+        setDisplayValue(textToRestore);
+        updateDraft(textToRestore);
       } else {
         setDisplayValue(newValue || '');
-        setValue(newValue || '');
+        updateDraft(newValue || '');
       }
     }
   };
@@ -368,7 +381,7 @@ export default function ChatInput({
       );
 
       setDisplayValue('');
-      setValue('');
+      clearDraft(); // Clear the draft when message is sent
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
@@ -390,7 +403,7 @@ export default function ChatInput({
       if (evt.altKey) {
         const newValue = displayValue + '\n';
         setDisplayValue(newValue);
-        setValue(newValue);
+        updateDraft(newValue);
         return;
       }
 
@@ -421,7 +434,7 @@ export default function ChatInput({
     if (path) {
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
       setDisplayValue(newValue);
-      setValue(newValue);
+      updateDraft(newValue);
       textAreaRef.current?.focus();
     }
   };
