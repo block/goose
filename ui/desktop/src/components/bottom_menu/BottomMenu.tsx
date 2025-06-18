@@ -207,35 +207,45 @@ export default function BottomMenu({
   }, [isModelMenuOpen]);
 
   return (
-    <div className="flex justify-between items-center transition-colors text-textSubtle relative text-xs align-middle">
-      <div className="flex items-center pl-2">
+    <div className="flex justify-between items-center transition-colors text-textSubtle relative text-xs h-6">
+      <div className="flex items-center h-full">
         {/* Tool and Token count */}
-        {<BottomMenuAlertPopover alerts={alerts} />}
+        <div className="flex items-center h-full pl-2">
+          {<BottomMenuAlertPopover alerts={alerts} />}
+        </div>
 
         {/* Cost Tracker - no separator before it */}
-        <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
+        <div className="flex items-center h-full ml-1">
+          <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} />
+        </div>
 
         {/* Separator between cost and model */}
-        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+        <div className="w-[1px] h-4 bg-borderSubtle mx-1.5" />
 
         {/* Model Selector Dropdown */}
-        <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
+        <div className="flex items-center h-full">
+          <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
+        </div>
 
         {/* Separator */}
-        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
+        <div className="w-[1px] h-4 bg-borderSubtle mx-1.5" />
 
         {/* Goose Mode Selector Dropdown */}
-        <BottomMenuModeSelection setView={setView} />
+        <div className="flex items-center h-full">
+          <BottomMenuModeSelection setView={setView} />
+        </div>
 
-        {/* Summarize Context Button - ADD THIS */}
+        {/* Summarize Context Button */}
         {messages.length > 0 && (
           <>
-            <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
-            <ManualSummarizeButton
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-            />
+            <div className="w-[1px] h-4 bg-borderSubtle mx-1.5" />
+            <div className="flex items-center h-full">
+              <ManualSummarizeButton
+                messages={messages}
+                isLoading={isLoading}
+                setMessages={setMessages}
+              />
+            </div>
           </>
         )}
       </div>
