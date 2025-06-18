@@ -103,6 +103,7 @@ fn prepare_command_params(
             );
         }
     }
+    println!("======= sub_recipe_params: {:?}", sub_recipe_params);
     Ok(sub_recipe_params)
 }
 
