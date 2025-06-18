@@ -5,15 +5,18 @@ author:
 description: Will do multiple things
 instructions: Your job is to do multiple things
 prompt: |
-  1. use weather sub-recipe to get the weather for sydney
+  1. use weather sub-recipe to get the weather
+  3. use joke-of-the-day sub-recipe
 sub_recipes:
 - name: joke-of-the-day
   path: "{{recipe_dir}}/joke-of-the-day.yaml"
-  params:
-    - name: date
-      value: "{{date}}"
+  values:
+    date: "{{date}}"
 - name: weather
   path: "{{recipe_dir}}/weather.yaml"
+  values:
+    city: "{{city}}"
+    forecast: true
 extensions:
 - type: builtin
   name: developer
@@ -25,3 +28,7 @@ parameters:
   input_type: string
   requirement: required
   description: date provided by the user
+- key: city
+  input_type: string
+  requirement: required
+  description: city provided by the user

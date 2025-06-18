@@ -40,15 +40,14 @@ fn get_sub_recipe_parameter_definition(
 
 fn get_input_schema(sub_recipe: &SubRecipe) -> Result<Value> {
     let mut sub_recipe_params_map = HashMap::<String, String>::new();
-    if let Some(params_with_value) = &sub_recipe.params {
-        for param_with_value in params_with_value {
+    if let Some(params_with_value) = &sub_recipe.values {
+        for (param_name, param_value) in params_with_value {
             sub_recipe_params_map.insert(
-                param_with_value.name.clone(),
-                param_with_value.value.clone(),
+                param_name.clone(),
+                param_value.clone(),
             );
         }
     }
-
     let parameter_definition = get_sub_recipe_parameter_definition(sub_recipe)?;
     if let Some(parameters) = parameter_definition {
         let mut properties = Map::new();
@@ -87,11 +86,11 @@ fn prepare_command_params(
     params: Value,
 ) -> Result<HashMap<String, String>> {
     let mut sub_recipe_params = HashMap::<String, String>::new();
-    if let Some(params_with_value) = &sub_recipe.params {
-        for param_with_value in params_with_value {
+    if let Some(params_with_value) = &sub_recipe.values {
+        for (param_name, param_value) in params_with_value {
             sub_recipe_params.insert(
-                param_with_value.name.clone(),
-                param_with_value.value.clone(),
+                param_name.clone(),
+                param_value.clone(),
             );
         }
     }
@@ -103,7 +102,6 @@ fn prepare_command_params(
             );
         }
     }
-    println!("======= sub_recipe_params: {:?}", sub_recipe_params);
     Ok(sub_recipe_params)
 }
 

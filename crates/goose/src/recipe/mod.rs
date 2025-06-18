@@ -1,8 +1,11 @@
 use anyhow::Result;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
 use serde::{Deserialize, Serialize};
+use serde::de::{Deserializer, Error as DeError};
 
 fn default_version() -> String {
     "1.0.0".to_string()
@@ -120,13 +123,33 @@ pub struct Settings {
 pub struct SubRecipe {
     pub name: String,
     pub path: String,
-    pub params: Option<Vec<SubRecipeParams>>,
+    #[serde(default, deserialize_with = "deserialize_value_map_as_string")]
+    pub values: Option<HashMap<String, String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SubRecipeParams {
-    pub name: String,
-    pub value: String,
+fn deserialize_value_map_as_string<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<String, String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // First, try to deserialize a map of values
+    let opt_raw: Option<HashMap<String, Value>> = Option::deserialize(deserializer)?;
+
+    match opt_raw {
+        Some(raw_map) => {
+            let mut result = HashMap::new();
+            for (k, v) in raw_map {
+                let s = match v {
+                    Value::String(s) => s,
+                    _ => serde_json::to_string(&v).map_err(serde::de::Error::custom)?,
+                };
+                result.insert(k, s);
+            }
+            Ok(Some(result))
+        }
+        None => Ok(None),
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

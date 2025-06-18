@@ -3,12 +3,16 @@ title: Find weather
 description: Get weather data for a city
 instructions: You are a weather expert. You will be given a city and you will need to return the weather data for that city.
 prompt: |
-  Get the weather for {{ city }} for today
+  Get the weather for {{ city }} for today. If {{ forecast }} is true, get the forecast for the city for next 3 days.
 parameters:
   - key: city
     input_type: string
     requirement: required
     description: city name
+  - key: forecast
+    input_type: boolean
+    requirement: required
+    description: whether to get the forecast for the city
 extensions:
   - type: stdio
     name: weather
