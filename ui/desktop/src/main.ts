@@ -15,6 +15,7 @@ import {
 import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { spawn } from 'child_process';
@@ -681,9 +682,28 @@ const openDirectoryDialog = async (
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
-    addRecentDir(result.filePaths[0]);
+    const selectedPath = result.filePaths[0];
+
+    // If a file was selected, use its parent directory
+    let dirToAdd = selectedPath;
+    try {
+      const stats = fsSync.lstatSync(selectedPath);
+
+      // Reject symlinks for security
+      if (stats.isSymbolicLink()) {
+        console.warn(`Selected path is a symlink, using parent directory for security`);
+        dirToAdd = path.dirname(selectedPath);
+      } else if (stats.isFile()) {
+        dirToAdd = path.dirname(selectedPath);
+      }
+    } catch (error) {
+      console.warn(`Could not stat selected path, using parent directory`);
+      dirToAdd = path.dirname(selectedPath); // Fallback to parent directory
+    }
+
+    addRecentDir(dirToAdd);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, result.filePaths[0]);
+    await createChat(app, undefined, dirToAdd);
     if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
@@ -793,6 +813,62 @@ ipcMain.handle('get-dock-icon-state', () => {
   } catch (error) {
     console.error('Error getting dock icon state:', error);
     return true;
+  }
+});
+
+// Handle opening system notifications preferences
+ipcMain.handle('open-notifications-settings', async () => {
+  try {
+    if (process.platform === 'darwin') {
+      spawn('open', ['x-apple.systempreferences:com.apple.preference.notifications']);
+      return true;
+    } else if (process.platform === 'win32') {
+      // Windows: Open notification settings in Settings app
+      spawn('ms-settings:notifications', { shell: true });
+      return true;
+    } else if (process.platform === 'linux') {
+      // Linux: Try different desktop environments
+      // GNOME
+      try {
+        spawn('gnome-control-center', ['notifications']);
+        return true;
+      } catch (gnomeError) {
+        console.log('GNOME control center not found, trying other options');
+      }
+
+      // KDE Plasma
+      try {
+        spawn('systemsettings5', ['kcm_notifications']);
+        return true;
+      } catch (kdeError) {
+        console.log('KDE systemsettings5 not found, trying other options');
+      }
+
+      // XFCE
+      try {
+        spawn('xfce4-settings-manager', ['--socket-id=notifications']);
+        return true;
+      } catch (xfceError) {
+        console.log('XFCE settings manager not found, trying other options');
+      }
+
+      // Fallback: Try to open general settings
+      try {
+        spawn('gnome-control-center');
+        return true;
+      } catch (fallbackError) {
+        console.warn('Could not find a suitable settings application for Linux');
+        return false;
+      }
+    } else {
+      console.warn(
+        `Opening notification settings is not supported on platform: ${process.platform}`
+      );
+      return false;
+    }
+  } catch (error) {
+    console.error('Error opening notification settings:', error);
+    return false;
   }
 });
 
@@ -1164,11 +1240,8 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
-  // Register update IPC handlers once
+  // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
-
-  // Setup auto-updater if enabled
-  shouldSetupUpdater() && setupAutoUpdater();
 
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -1239,6 +1312,18 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
 
   await createNewWindow(app, dirPath);
+
+  // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
+  setTimeout(() => {
+    if (shouldSetupUpdater()) {
+      log.info('Setting up auto-updater after window creation...');
+      try {
+        setupAutoUpdater();
+      } catch (error) {
+        log.error('Error setting up auto-updater:', error);
+      }
+    }
+  }, 2000); // 2 second delay after window is shown
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -1755,8 +1840,10 @@ app.on('before-quit', async (event) => {
       // User clicked "Quit"
       // Set a flag to avoid showing the dialog again
       app.removeAllListeners('before-quit');
-      // Actually quit the app
-      app.quit();
+      // Force quit the app
+      process.nextTick(() => {
+        app.exit(0);
+      });
     }
   } catch (error) {
     console.error('Error showing quit dialog:', error);
