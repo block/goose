@@ -24,7 +24,7 @@ jobs:
   trigger-on-command:
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request && contains(github.event.comment.body, ".build-cli"))
+      (github.event.issue.pull_request && contains(github.event.comment.body, '.build-cli'))
     name: Trigger on ".build-cli" PR comment
     runs-on: ubuntu-latest
     outputs:
