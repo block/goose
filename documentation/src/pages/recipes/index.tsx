@@ -7,6 +7,7 @@ import Admonition from "@theme/Admonition";
 import { Button } from "@site/src/components/ui/button";
 import { SidebarFilter, type SidebarFilterGroup } from "@site/src/components/ui/sidebar-filter";
 import { Menu, X } from "lucide-react";
+import Link from '@docusaurus/Link';
 
 export default function RecipePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -98,10 +99,14 @@ export default function RecipePage() {
       <div className="container mx-auto px-4 py-8 md:p-24">
         <div className="pb-8 md:pb-16">
           <h1 className="text-4xl md:text-[64px] font-medium text-textProminent">
-            👨🏼‍🍳 Recipes Cookbook
+            Recipes Cookbook
           </h1>
           <p className="text-textProminent">
-            Browse community-submitted Goose agent recipes that you can use without any setup.
+            Save time and skip setup — launch any{" "}
+            <Link to="docs/guides/session-recipes" className="text-purple-600 hover:underline">
+              Goose agent recipe
+            </Link>{" "}
+            shared by the community with a single click.
           </p>
         </div>
 
