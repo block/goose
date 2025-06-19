@@ -6,7 +6,7 @@ authors:
 tags: [extensions, containers, development, isolation, mcp, dagger]
 ---
 
-![Dagger Logo](https://avatars.githubusercontent.com/u/78824383?v=4)
+![blog cover](sandbox.png)
 
 Over ten years ago, Docker came onto the scene and introduced developers en masse to the concept and practice of containers. These containers helped solve deployment and build-time problems, and in some cases, issues with development environments. They quickly became mainstream. The technology underlying containers included copy-on-write filesystems and lightweight, virtual-machine-like environments that helped isolate processes and simplify cleanup.
 
@@ -29,7 +29,7 @@ Traditionally, developers build directly on their local machines, but that appro
 - Processes are left running, resources consumed that aren't freed
 - Changes are made which can't easily be undone
 
-## A Safer Alternative: Isolated Developer Environments
+## A Safer Alternative: Isolated Development Environments
 
 Container Use solves these problems by giving Goose the ability to work in completely isolated environments. Every experiment gets its own sandbox where nothing can affect your main development setup.
 
@@ -91,6 +91,11 @@ extensions:
 
 - **Result**: Experiment in a pre-configured container with all the tools you need. Learn at your own pace without cluttering your host system or worrying about version conflicts.
 
+### Split Testing Features
+
+- **Prompt**: "I want to test two different approaches to this feature - one using a REST API and another with GraphQL. Can you run both experiments simultaneously?"
+
+- **Result**: Goose spins up two isolated environments, each with its own git branch and container. One agent works on the REST implementation while another tackles GraphQL, both running in parallel without interfering with each other or your main codebase. Compare results and merge the winner.
 
 ## Guide
 
@@ -101,12 +106,14 @@ extensions:
 *Questions? Join our [GitHub discussions](https://github.com/block/goose) or [Discord](https://discord.gg/block-opensource). Learn more about Dagger at [dagger.io](https://dagger.io/).*
 
 <head>
-  <meta property="og:title" content="Supercharge Your Development with Isolated Environments in Goose" />
+  <meta property="og:title" content="Isolated Dev Environments in Goose with container-use" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/17/isolated-development-environments" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/19/isolated-development-environments" />
   <meta property="og:description" content="Never worry about breaking your development setup again with containerized, git-branch-isolated development environments powered by container-use" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/sandbox-0b0f5e6f871cbf48ea1a0be243440aa1.png" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Supercharge Your Development with Isolated Environments in Goose" />
+  <meta name="twitter:title" content="Isolated Dev Environments in Goose with container-use" />
   <meta name="twitter:description" content="Never worry about breaking your development setup again with containerized, git-branch-isolated development environments powered by container-use" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/sandbox-0b0f5e6f871cbf48ea1a0be243440aa1.png" />
 </head>
