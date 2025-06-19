@@ -690,7 +690,7 @@ pub async fn cli() -> Result<()> {
             handle_projects_interactive()?;
             return Ok(());
         }
-        
+
         Some(Command::Run {
             instructions,
             input_text,
@@ -710,7 +710,13 @@ pub async fn cli() -> Result<()> {
             render_recipe,
             quiet,
         }) => {
-            let (input_config, session_settings) = match (instructions, input_text, recipe, explain, render_recipe) {
+            let (input_config, session_settings) = match (
+                instructions,
+                input_text,
+                recipe,
+                explain,
+                render_recipe,
+            ) {
                 (Some(file), _, _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
@@ -765,10 +771,11 @@ pub async fn cli() -> Result<()> {
                         println!("{}", recipe);
                         return Ok(());
                     }
-                    let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
-                        eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                        std::process::exit(1);
-                    });
+                    let recipe =
+                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        });
                     (
                         InputConfig {
                             contents: recipe.prompt,
