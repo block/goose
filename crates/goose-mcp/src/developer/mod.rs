@@ -1,3 +1,4 @@
+mod editor_models;
 mod lang;
 mod screen_capture;
 mod shell;
@@ -13,11 +14,12 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
 };
+use tokio::sync::mpsc;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::Tool,
     Content,
@@ -29,6 +31,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+use self::editor_models::{create_editor_model, EditorModel};
 use self::screen_capture::{
     capture_screen, create_list_windows_tool, create_screen_capture_tool, list_windows,
     process_image,
@@ -92,6 +95,7 @@ pub struct DeveloperRouter {
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
+    editor_model: Option<EditorModel>,
 }
 
 impl Default for DeveloperRouter {
@@ -104,6 +108,13 @@ impl DeveloperRouter {
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
+
+        // An editor model is optionally provided, if configured, for fast edit apply
+        // it will fall back to norma string replacement if not configured
+        //
+        // when there is an editor model, the prompts are slightly changed as it takes
+        // a load off the main LLM making the tool calls and you get faster more correct applies
+        let editor_model = create_editor_model();
 
         let bash_tool = create_shell_tool();
         let text_editor_tool = create_text_editor_tool();
@@ -278,6 +289,7 @@ impl DeveloperRouter {
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model,
         }
     }
 
@@ -360,6 +372,7 @@ impl Router for DeveloperRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
@@ -427,6 +440,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
+            editor_model: self.editor_model.clone(),
         }
     }
 }
@@ -509,6 +523,8 @@ mod tests {
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
 
+        let (_tx, _rx) = mpsc::channel(1);
+
         // Create a new file
         router
             .call_tool(
@@ -518,6 +534,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -530,6 +547,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -559,6 +577,8 @@ mod tests {
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
 
+        let (_tx, _rx) = mpsc::channel(1);
+
         // Create a new file
         router
             .call_tool(
@@ -568,6 +588,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "Hello, world!"
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -582,6 +603,7 @@ mod tests {
                     "old_str": "world",
                     "new_str": "Rust"
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -606,6 +628,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -634,6 +657,8 @@ mod tests {
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
 
+        let (_tx, _rx) = mpsc::channel(1);
+
         // Create a new file
         router
             .call_tool(
@@ -643,6 +668,7 @@ mod tests {
                     "path": file_path_str,
                     "file_text": "First line"
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -657,6 +683,7 @@ mod tests {
                     "old_str": "First line",
                     "new_str": "Second line"
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -669,6 +696,7 @@ mod tests {
                     "command": "undo_edit",
                     "path": file_path_str
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -684,6 +712,7 @@ mod tests {
                     "command": "view",
                     "path": file_path_str
                 }),
+                _tx.clone(),
             )
             .await
             .unwrap();
@@ -721,6 +750,7 @@ mod tests {
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
+            editor_model: None,
         };
 
         // Test basic file matching

@@ -4,7 +4,7 @@ use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter,
+    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake,
 };
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
@@ -475,6 +475,28 @@ async fn test_google_provider() -> Result<()> {
         &["GOOGLE_API_KEY"],
         None,
         google::GoogleProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_snowflake_provider() -> Result<()> {
+    test_provider(
+        "Snowflake",
+        &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
+        None,
+        snowflake::SnowflakeProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_sagemaker_tgi_provider() -> Result<()> {
+    test_provider(
+        "SageMakerTgi",
+        &["SAGEMAKER_ENDPOINT_NAME"],
+        None,
+        goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
     )
     .await
 }

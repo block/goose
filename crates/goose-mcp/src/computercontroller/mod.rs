@@ -6,12 +6,15 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
-use tokio::process::Command;
+use tokio::{process::Command, sync::mpsc};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
-    protocol::ServerCapabilities,
+    protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations},
     Content,
@@ -21,7 +24,6 @@ use mcp_server::Router;
 
 mod docx_tool;
 mod pdf_tool;
-mod presentation_tool;
 mod xlsx_tool;
 
 mod platform;
@@ -360,47 +362,6 @@ impl ComputerControllerRouter {
             None,
         );
 
-        let make_presentation_tool = Tool::new(
-            "make_presentation",
-            indoc! {r#"
-                Create and manage HTML presentations with a simple, modern design.
-                Operations:
-                - create: Create new presentation with template
-                - add_slide: Add a new slide with content
-
-                Open in a browser (using a command) to show the user: open <path> 
-
-                For advanced edits, use developer tools to modify the HTML directly.
-                A template slide is included in comments for reference.
-            "#},
-            json!({
-                "type": "object",
-                "required": ["path", "operation"],
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the presentation file"
-                    },
-                    "operation": {
-                        "type": "string",
-                        "enum": ["create", "add_slide"],
-                        "description": "Operation to perform"
-                    },
-                    "params": {
-                        "type": "object",
-                        "description": "Parameters for add_slide operation",
-                        "properties": {
-                            "content": {
-                                "type": "string",
-                                "description": "Content for the new slide"
-                            }
-                        }
-                    }
-                }
-            }),
-            None,
-        );
-
         let xlsx_tool = Tool::new(
             "xlsx_tool",
             indoc! {r#"
@@ -590,7 +551,6 @@ impl ComputerControllerRouter {
                 pdf_tool,
                 docx_tool,
                 xlsx_tool,
-                make_presentation_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -742,6 +702,23 @@ impl ComputerControllerRouter {
                 fs::write(&script_path, script).map_err(|e| {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
+
+                // Set execute permissions on Unix systems
+                #[cfg(unix)]
+                {
+                    let mut perms = fs::metadata(&script_path)
+                        .map_err(|e| {
+                            ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
+                        })?
+                        .permissions();
+                    perms.set_mode(0o755); // rwxr-xr-x
+                    fs::set_permissions(&script_path, perms).map_err(|e| {
+                        ToolError::ExecutionError(format!(
+                            "Failed to set execute permissions: {}",
+                            e
+                        ))
+                    })?;
+                }
 
                 script_path.display().to_string()
             }
@@ -1135,6 +1112,7 @@ impl Router for ComputerControllerRouter {
         &self,
         tool_name: &str,
         arguments: Value,
+        _notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
@@ -1147,24 +1125,6 @@ impl Router for ComputerControllerRouter {
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
-                "make_presentation" => {
-                    let path = arguments
-                        .get("path")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ToolError::InvalidParameters("Missing 'path' parameter".into())
-                        })?;
-
-                    let operation = arguments
-                        .get("operation")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ToolError::InvalidParameters("Missing 'operation' parameter".into())
-                        })?;
-
-                    presentation_tool::make_presentation(path, operation, arguments.get("params"))
-                        .await
-                }
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })

@@ -442,10 +442,13 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     }
 
     // Create a list of extension names and their enabled status
-    let extension_status: Vec<(String, bool)> = extensions
+    let mut extension_status: Vec<(String, bool)> = extensions
         .iter()
         .map(|entry| (entry.config.name().to_string(), entry.enabled))
         .collect();
+
+    // Sort extensions alphabetically by name
+    extension_status.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Get currently enabled extensions for the selection
     let enabled_extensions: Vec<&String> = extension_status
@@ -504,20 +507,21 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         "built-in" => {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
-                    "developer",
-                    "Developer Tools",
-                    "Code editing and shell access",
-                )
-                .item(
                     "computercontroller",
                     "Computer Controller",
                     "controls for webscraping, file caching, and automations",
+                )
+                .item(
+                    "developer",
+                    "Developer Tools",
+                    "Code editing and shell access",
                 )
                 .item(
                     "googledrive",
                     "Google Drive",
                     "Search and read content from google drive - additional config required",
                 )
+                .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .item(
                     "memory",
                     "Memory",
@@ -528,7 +532,6 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Tutorial",
                     "Access interactive tutorials and guides",
                 )
-                .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .interact()?
                 .to_string();
 
@@ -773,10 +776,13 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
     let extensions = ExtensionConfigManager::get_all()?;
 
     // Create a list of extension names and their enabled status
-    let extension_status: Vec<(String, bool)> = extensions
+    let mut extension_status: Vec<(String, bool)> = extensions
         .iter()
         .map(|entry| (entry.config.name().to_string(), entry.enabled))
         .collect();
+
+    // Sort extensions alphabetically by name
+    extension_status.sort_by(|a, b| a.0.cmp(&b.0));
 
     if extensions.is_empty() {
         cliclack::outro(
@@ -825,6 +831,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "Goose Mode", "Configure Goose mode")
         .item(
+            "goose_router_strategy",
+            "Router Tool Selection Strategy",
+            "Configure the strategy for selecting tools to use",
+        )
+        .item(
             "tool_permission",
             "Tool Permission",
             "Set permission for individual tool of enabled extensions",
@@ -849,6 +860,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
+        }
+        "goose_router_strategy" => {
+            configure_goose_router_strategy_dialog()?;
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
@@ -879,7 +893,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     let mode = cliclack::select("Which Goose mode would you like to configure?")
         .item(
             "auto",
-            "Auto Mode", 
+            "Auto Mode",
             "Full file modification, extension usage, edit, create and delete files freely"
         )
         .item(
@@ -915,6 +929,49 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         "chat" => {
             config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
             cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
+        }
+        _ => unreachable!(),
+    };
+    Ok(())
+}
+
+pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_ROUTER_STRATEGY is set as an environment variable
+    if std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.");
+    }
+
+    let strategy = cliclack::select("Which router strategy would you like to use?")
+        .item(
+            "vector",
+            "Vector Strategy",
+            "Use vector-based similarity to select tools",
+        )
+        .item(
+            "default",
+            "Default Strategy",
+            "Use the default tool selection strategy",
+        )
+        .interact()?;
+
+    match strategy {
+        "vector" => {
+            config.set_param(
+                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
+                Value::String("vector".to_string()),
+            )?;
+            cliclack::outro(
+                "Set to Vector Strategy - using vector-based similarity for tool selection",
+            )?;
+        }
+        "default" => {
+            config.set_param(
+                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
+                Value::String("default".to_string()),
+            )?;
+            cliclack::outro("Set to Default Strategy - using default tool selection")?;
         }
         _ => unreachable!(),
     };
@@ -1000,6 +1057,9 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .map(|ext| ext.config.name().clone())
         .collect();
     extensions.push("platform".to_string());
+
+    // Sort extensions alphabetically by name
+    extensions.sort();
 
     let selected_extension_name = cliclack::select("Choose an extension to configure tools")
         .items(

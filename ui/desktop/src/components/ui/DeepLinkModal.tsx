@@ -136,6 +136,10 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
                 onClick={() => {
                   // Open the deep link with the current bot config
                   const currentConfig = {
+                    id: 'deeplink-recipe',
+                    name: 'DeepLink Recipe',
+                    title: 'DeepLink Recipe',
+                    description: 'Recipe from deep link',
                     ...recipeConfig,
                     instructions,
                     activities,

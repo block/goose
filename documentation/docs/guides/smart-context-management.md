@@ -58,10 +58,28 @@ You can proactively summarize your conversation before reaching context limits:
 
 The CLI offers three context management options: summarize, truncate, or clear your session.
 
+### Default Context Strategy
+
+You can configure Goose to automatically handle context limits without prompting by setting the `GOOSE_CONTEXT_STRATEGY` environment variable:
+
+```bash
+# Set default strategy (choose one)
+export GOOSE_CONTEXT_STRATEGY=summarize  # Automatically summarize (recommended)
+export GOOSE_CONTEXT_STRATEGY=truncate   # Automatically remove oldest messages
+export GOOSE_CONTEXT_STRATEGY=clear      # Automatically clear session
+export GOOSE_CONTEXT_STRATEGY=prompt     # Always prompt user (default)
+```
+
+**Default behavior:**
+- **Interactive mode**: Prompts user to choose (equivalent to `prompt`)
+- **Headless mode** (`goose run`): Automatically summarizes (equivalent to `summarize`)
+
 <Tabs>
   <TabItem value="automatic" label="Automatic" default>
 
-When you hit the context limit, you'll see this prompt to choose a management option, allowing you to continue your session:
+When you hit the context limit, the behavior depends on your configuration:
+
+**With default settings (no `GOOSE_CONTEXT_STRATEGY` set)**, you'll see this prompt to choose a management option:
 
 ```sh
 ◇  The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?
@@ -76,6 +94,24 @@ final_summary: [A summary of your conversation will appear here]
 Context maxed out
 --------------------------------------------------
 Goose summarized messages for you.
+```
+
+**With `GOOSE_CONTEXT_STRATEGY` configured**, Goose will automatically apply your chosen strategy:
+
+```sh
+# Example with GOOSE_CONTEXT_STRATEGY=summarize
+Context maxed out - automatically summarized messages.
+--------------------------------------------------
+Goose automatically summarized messages for you.
+
+# Example with GOOSE_CONTEXT_STRATEGY=truncate
+Context maxed out - automatically truncated messages.
+--------------------------------------------------
+Goose tried its best to truncate messages for you.
+
+# Example with GOOSE_CONTEXT_STRATEGY=clear
+Context maxed out - automatically cleared session.
+--------------------------------------------------
 ```
 
   </TabItem>
@@ -100,22 +136,30 @@ Key information has been preserved while reducing context length.
 </Tabs>
 
 ### Token usage
+After sending your first message, Goose Desktop and Goose CLI display token usage.
+
 <Tabs>
     <TabItem value="ui" label="Goose Desktop" default>
-    After sending your first message to Goose, a colored circle appears next to the model name at the bottom of the session window. The color provides a visual indicator of your token usage for the session. 
+    The Desktop displays a colored circle next to the model name at the bottom of the session window. The color provides a visual indicator of your token usage for the session. 
       - **Green**: Normal usage - Plenty of context space available
       - **Orange**: Warning state - Approaching limit (80% of capacity)
       - **Red**: Error state - Context limit reached
     
     Hover over this circle to display:
-      - the number of tokens used
-      - the percentage of available tokens used
-      - the total available tokens
+      - The number of tokens used
+      - The percentage of available tokens used
+      - The total available tokens
       - A progress bar showing your current token usage
         
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-        This functionality is not available in the Goose CLI. 
+    The CLI displays a context label above each command prompt, showing:
+      - A visual indicator using dots (●○) and colors to represent your token usage:
+        - **Green**: Below 50% usage
+        - **Yellow**: Between 50-85% usage
+        - **Red**: Above 85% usage
+      - Usage percentage
+      - Current token count and context limit
 
     </TabItem>
 </Tabs>

@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useModel } from '../settings/models/ModelContext';
 import { AlertType, useAlerts } from '../alerts';
 import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import type { View, ViewOptions } from '../../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
+import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
-import { getCurrentModelAndProvider } from '../settings_v2/models';
+import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 
@@ -34,11 +33,11 @@ export default function BottomMenu({
   setMessages: (messages: Message[]) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const { currentModel } = useModel();
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
+  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
 
@@ -72,7 +71,7 @@ export default function BottomMenu({
       setIsTokenLimitLoaded(false);
 
       // Get current model and provider first to avoid unnecessary provider fetches
-      const { model, provider } = await getCurrentModelAndProvider({ readFromConfig: read });
+      const { model, provider } = await getCurrentModelAndProvider();
       if (!model || !provider) {
         console.log('No model or provider found');
         setIsTokenLimitLoaded(true);
@@ -117,7 +116,7 @@ export default function BottomMenu({
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel]);
+  }, [currentModel, currentProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {

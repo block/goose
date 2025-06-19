@@ -20,6 +20,8 @@ pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-3-opus-latest",
     "claude-3-7-sonnet-20250219",
     "claude-3-7-sonnet-latest",
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
 ];
 
 pub const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";

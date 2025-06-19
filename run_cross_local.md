@@ -29,7 +29,7 @@ docker pull arm64v8/ubuntu
 2. Run the container
 pwd is the directory which contains the binary built in the previous step on your host machine
 ```sh
-docker run -v $(pwd):/app -it arm64v8/ubuntu /bin/bash
+docker run --rm -v "$(pwd)":/app -it --platform linux/arm64 arm64v8/ubuntu /bin/bash
 ```
 
 3. Install dependencies in the container and set up api testing environment
@@ -63,7 +63,7 @@ docker pull --platform linux/amd64 debian:latest
 2. Run the container
 pwd is the directory contains the binary built in the previous step on your host machine
 ```sh
-docker run --platform linux/amd64 -it -v "$(pwd)":/app debian:latest /bin/bash
+docker run --rm -v "$(pwd)":/app -it --platform linux/amd64 ubuntu:latest /bin/bash
 ```
 
 3. Install dependencies in the container and set up api testing environment

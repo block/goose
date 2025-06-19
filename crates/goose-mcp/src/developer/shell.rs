@@ -10,7 +10,6 @@ use tokio::process::Command;
 pub struct ShellConfig {
     pub executable: String,
     pub arg: String,
-    pub redirect_syntax: String,
 }
 
 impl Default for ShellConfig {
@@ -20,13 +19,11 @@ impl Default for ShellConfig {
             Self {
                 executable: "powershell.exe".to_string(),
                 arg: "-NoProfile -NonInteractive -Command".to_string(),
-                redirect_syntax: "2>&1".to_string(),
             }
         } else {
             Self {
                 executable: "bash".to_string(),
                 arg: "-c".to_string(),
-                redirect_syntax: "2>&1".to_string(),
             }
         }
     }
@@ -37,13 +34,12 @@ pub fn get_shell_config() -> ShellConfig {
 }
 
 pub fn format_command_for_platform(command: &str) -> String {
-    let config = get_shell_config();
     if cfg!(windows) {
         // For PowerShell, wrap the command in braces to handle special characters
-        format!("{{ {} }} {}", command, config.redirect_syntax)
+        format!("{{ {} }}", command)
     } else {
         // For other shells, no braces needed
-        format!("{} {}", command, config.redirect_syntax)
+        command.to_string()
     }
 }
 

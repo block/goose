@@ -301,9 +301,17 @@ html[data-theme="light"] .hide-in-light {
   border-bottom: 1px solid var(--border-divider);
 }
 
+/* Smooth transitions for navbar items */
 .navbar__item {
   display: flex;
   align-items: center;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.navbar__toggle {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 0;
+  transform: scale(0.8);
 }
 
 /* Dropdown styles */
@@ -327,6 +335,42 @@ html[data-theme="light"] .hide-in-light {
 
 .iconExternalLink_nPIU {
   margin-left: 8px !important;
+}
+
+/* Force hamburger menu to appear earlier to prevent navbar overlap with smooth transitions */
+@media (max-width: 1350px) {
+  .navbar__item {
+    opacity: 0;
+    transform: translateX(-10px);
+    pointer-events: none;
+    /* Use visibility instead of display for smoother transitions */
+    visibility: hidden;
+  }
+  
+  .navbar__toggle {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    display: inherit !important;
+  }
+  
+  .navbar-sidebar {
+    display: block;
+  }
+}
+
+/* Ensure navbar items are visible above the breakpoint */
+@media (min-width: 1351px) {
+  .navbar__item {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+  
+  .navbar__toggle {
+    opacity: 0;
+    transform: scale(0.8);
+  }
 }
 
 .carousel-image {

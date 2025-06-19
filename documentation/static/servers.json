@@ -144,6 +144,18 @@
     "environmentVariables": []
   },
   {
+    "id": "speech_mcp",
+    "name": "Speech Interface",
+    "description": "Voice interaction with audio visualization for Goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
+    "command": "uvx -p 3.10.14 speech-mcp@latest",
+    "link": "https://github.com/Kvadratni/speech-mcp",
+    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 43,
+    "environmentVariables": []
+  },
+  {
     "id": "pieces",
     "name": "Pieces",
     "description": "Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this.",

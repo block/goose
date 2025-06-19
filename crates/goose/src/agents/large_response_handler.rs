@@ -3,8 +3,7 @@ use mcp_core::{Content, ToolError};
 use std::fs::File;
 use std::io::Write;
 
-// Constant for the size threshold (20K characters)
-const LARGE_TEXT_THRESHOLD: usize = 20_000;
+const LARGE_TEXT_THRESHOLD: usize = 200_000;
 
 /// Process tool response and handle large text content
 pub fn process_tool_response(
