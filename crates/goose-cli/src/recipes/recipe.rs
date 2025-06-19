@@ -79,11 +79,11 @@ pub fn explain_recipe_with_parameters(
 }
 
 fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
-    let mut lines = content.lines().peekable();
+    let lines = content.lines();
     let mut params_block = String::new();
     let mut collecting = false;
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         if line.starts_with("parameters:") {
             collecting = true;
         }
