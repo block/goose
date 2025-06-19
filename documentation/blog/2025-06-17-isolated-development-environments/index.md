@@ -8,24 +8,19 @@ tags: [extensions, containers, development, isolation, mcp, dagger]
 
 ![Dagger Logo](https://avatars.githubusercontent.com/u/78824383?v=4)
 
-Over ten years ago, Docker came onto the scene and introduced developers en masse to the concept and practice of containers.
-These containers helped solve deployment and build-time problems, and in some cases, issues with development environments. They quickly became mainstream.
-
-Underlying these containers was interesting tech around "copy on write" filesystems and isolated "not quite" virtual-machine-like environments (certainly helped to contain processes and clean up after).
+Over ten years ago, Docker came onto the scene and introduced developers en masse to the concept and practice of containers. These containers helped solve deployment and build-time problems, and in some cases, issues with development environments. They quickly became mainstream. The technology underlying containers included copy-on-write filesystems and lightweight, virtual-machine-like environments that helped isolate processes and simplify cleanup.
 
 Dagger, the project and company founded by Docker’s creator [Solomon Hykes](https://www.linkedin.com/in/solomonhykes), has furthered the reach of containers for developers.
-A project that has come out of that is an MCP server called `container-use` - which provides a cli and tool which can be invaluable for coding agents to able to do work in isolated environments and branches with a clear lifecycle and ability to roll back, limit changes and risk (compared to running an agent directly on your system) but with the same ergonomics and convenience you are used to with agents. 
 
-The container use MCP is still an emerging and changing project and utility, so consider it early days for it but it is moving fast and can and will provide some really useful tools for easy isolation when you need it.
+ One project that emerged from this work is [Container Use](https://github.com/dagger/container-use), an MCP server that gives agents an interface for working in isolated containers and git branches. It supports clear lifecycles, easy rollbacks, and safer experimentation, without sacrificing the ergonomics developers expect from local agents.
 
-
-Please take a look at **isolated development environments** in Goose, powered by **[Dagger's Container Use MCP server](https://github.com/dagger/container-use)**. This brings containerized, git-branch-isolated development directly into your Goose workflow.
+Container Use brings containerized, git-branch-isolated development directly into your [Goose](/) workflow. While still early in its development, it's evolving quickly and already offers helpful tools for lightweight, branch-specific isolation when you need it.
 
 <!-- truncate -->
 
-## The Problem
+## The Problem with Local-Only Development
 
-Traditional development often means working directly on your local machine, where:
+Traditionally, developers build directly on their local machines, but that approach carries risks such as:
 
 - Dependencies can conflict between projects
 - System changes might break other tools
@@ -34,13 +29,13 @@ Traditional development often means working directly on your local machine, wher
 - Processes are left running, resources consumed that aren't freed
 - Changes are made which can't easily be undone
 
-## The Solution: Isolated Environments
+## A Safer Alternative: Isolated Developer Environments
 
-**[Dagger's Container Use](https://github.com/dagger/container-use)** extension gives Goose the ability to work in completely isolated environments:
+Container Use solves these problems by giving Goose the ability to work in completely isolated environments. Every experiment gets its own sandbox where nothing can affect your main development setup.
 
-- **Git branch isolation**: Each experiment gets its own branch
-- **Container isolation**: Code runs in clean, reproducible containers
-- **Easy reset**: Start fresh anytime without cleanup
+- **Git branch isolation**:  Each experiment automatically gets its own git branch, keeping code changes separate from your main codebase.
+- **Container isolation**:  Your code runs in clean, reproducible containers with exactly the dependencies it needs—nothing more, nothing less.
+- **Easy reset**: When you're done experimenting, simply exit the environment. No cleanup required, no residual changes to worry about.
 
 ## Getting Started
 
@@ -80,21 +75,21 @@ extensions:
 
 ### Experimenting with New Dependencies
 
-"I want to try adding Redis to this project, but I'm not sure if it's the right fit. Can you set up an isolated environment?"
+- **Prompt**: "I want to try adding Redis to this project, but I'm not sure if it's the right fit. Can you set up an isolated environment?"
 
-Goose creates a new git branch, spins up a container with Redis, and lets you experiment. If it doesn't work out, simply exit—no cleanup needed.
+- **Result**: Goose creates a new git branch, spins up a container with Redis, and lets you experiment. If it doesn't work out, simply exit—no cleanup needed.
 
 ### Risky Refactors
 
-"I want to completely restructure this codebase, but need to be able to roll back easily."
+- **Prompt**: "I want to completely restructure this codebase, but I need to be able to roll back easily."
 
-Work in an isolated branch and container. If the refactor succeeds, merge it back. If not, delete the branch and container.
+- **Result**:  Work in an isolated branch and container where you can make sweeping changes without fear. Test your new architecture thoroughly. If the refactor succeeds, merge it back to main. If it fails, delete the branch and container.
 
 ### Learning New Technologies
 
-"I want to try this new framework without installing dependencies on my main system."
+- **Prompt**: "I want to try this new framework without installing dependencies on my main system."
 
-Experiment in a container with all tools pre-installed, without touching your host system.
+- **Result**: Experiment in a pre-configured container with all the tools you need. Learn at your own pace without cluttering your host system or worrying about version conflicts.
 
 
 ## Guide
