@@ -137,7 +137,7 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, mut payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
         use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
         use futures_util::StreamExt;
         // Detect gpt-4.1 and stream
@@ -159,7 +159,7 @@ impl GithubCopilotProvider {
             .post(url)
             .headers(self.get_github_headers())
             .header("Authorization", format!("Bearer {}", token))
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
         if stream_only_model {
@@ -408,13 +408,14 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let mut payload =
+            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&mut payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {

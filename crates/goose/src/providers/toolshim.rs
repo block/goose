@@ -88,12 +88,12 @@ impl OllamaInterpreter {
 
         // Format the URL correctly with http:// prefix if needed
         let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
+            &host
         } else {
-            format!("http://{}", host)
+            &format!("http://{}", host)
         };
 
-        let mut base_url = url::Url::parse(&base)
+        let mut base_url = url::Url::parse(base)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing

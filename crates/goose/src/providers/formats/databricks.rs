@@ -264,8 +264,8 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert Databricks' API response to internal Message format
-pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
-    let original = response["choices"][0]["message"].clone();
+pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
 
     // Handle array-based content
@@ -724,7 +724,7 @@ mod tests {
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
-            request.id.clone()
+            &request.id
         } else {
             panic!("should be tool request");
         };
@@ -757,7 +757,7 @@ mod tests {
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
-            request.id.clone()
+            &request.id
         } else {
             panic!("should be tool request");
         };
@@ -878,7 +878,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
         if let MessageContent::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
@@ -893,7 +893,7 @@ mod tests {
     #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
         if let MessageContent::ToolRequest(request) = &message.content[0] {
@@ -913,7 +913,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
             json!("invalid fn");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -935,7 +935,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             json!("invalid json {");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -957,7 +957,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             serde_json::Value::String("".to_string());
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
@@ -1097,7 +1097,7 @@ mod tests {
             }]
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::Thinking(thinking) = &message.content[0] {
@@ -1144,7 +1144,7 @@ mod tests {
             }]
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
