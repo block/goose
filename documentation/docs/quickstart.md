@@ -6,16 +6,13 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
-import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
 import RateLimits from '@site/src/components/RateLimits';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
+import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
 
 # Goose in 5 minutes
-
-<SupportedEnvironments />
-
 
 Goose is an open source AI agent that supercharges your software development by automating coding tasks. This quick tutorial will guide you through getting started with Goose!
 
@@ -47,7 +44,11 @@ Goose is an open source AI agent that supercharges your software development by 
   <TabItem value="linux" label="Linux">
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
-        Desktop version is currently unavailable for Linux.
+        <LinuxDesktopInstallButtons/>
+        <div style={{ marginTop: '1rem' }}>
+          1. Extract the downloaded tar.bz2 file.
+          2. Run the executable file to launch the Goose Desktop application.
+        </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
         Run the following command to install the Goose CLI on Linux:
