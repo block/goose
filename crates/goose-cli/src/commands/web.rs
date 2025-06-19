@@ -199,6 +199,16 @@ async fn serve_static(axum::extract::Path(path): axum::extract::Path<String>) ->
             include_str!("../../static/script.js"),
         )
             .into_response(),
+        "img/logo_dark.png" => (
+            [("content-type", "image/png")],
+            include_bytes!("../../../../documentation/static/img/logo_dark.png").to_vec(),
+        )
+            .into_response(),
+        "img/logo_light.png" => (
+            [("content-type", "image/png")],
+            include_bytes!("../../../../documentation/static/img/logo_light.png").to_vec(),
+        )
+            .into_response(),
         _ => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
     }
 }
