@@ -3,7 +3,6 @@ title: "Isolated Dev Environments in Goose with container-use"
 description: Never worry about breaking your development setup again with containerized, git-branch-isolated development environments powered by container-use
 authors:
     - mic
-tags: [extensions, containers, development, isolation, mcp, dagger]
 ---
 
 ![blog cover](sandbox.png)
@@ -104,6 +103,20 @@ extensions:
 ---
 
 *Questions? Join our [GitHub discussions](https://github.com/block/goose) or [Discord](https://discord.gg/block-opensource). Learn more about Dagger at [dagger.io](https://dagger.io/).*
+
+{/* Video Player */}
+<div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+  <iframe 
+    width="560" 
+    height="315" 
+    src="https://www.youtube.com/embed/pGce9T4E5Yw?si=1D3Aoa6oiFgJ0E5w" 
+    title="YouTube video player" 
+    frameBorder="0" 
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+    referrerPolicy="strict-origin-when-cross-origin" 
+    allowFullScreen>
+  </iframe>
+</div>
 
 <head>
   <meta property="og:title" content="Isolated Dev Environments in Goose with container-use" />
