@@ -24,6 +24,7 @@ import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
+import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
   createEnvironmentMenu,
@@ -1313,6 +1314,9 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Ensure Windows shims are available before any MCP processes are spawned
+  await ensureWinShims();
+
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
