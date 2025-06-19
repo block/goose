@@ -39,10 +39,7 @@ use mcp_server::Router;
 use mcp_core::role::Role;
 
 use self::editor_models::{create_editor_model, EditorModel};
-use self::shell::{
-    expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
-    normalize_line_endings,
-};
+use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -540,7 +537,6 @@ impl DeveloperRouter {
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
-        let cmd_str = format_command_for_platform(command);
 
         // Execute the command using platform-specific shell
         let mut child = Command::new(&shell_config.executable)
@@ -548,8 +544,8 @@ impl DeveloperRouter {
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
-            .arg(&shell_config.arg)
-            .arg(cmd_str)
+            .args(&shell_config.args)
+            .arg(command)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
