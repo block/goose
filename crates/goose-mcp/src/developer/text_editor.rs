@@ -438,6 +438,30 @@ mod tests {
         assert!(!tool.description.is_empty());
     }
 
+    #[test]
+    fn test_text_editor_descriptions() {
+        // Test without editor model (should use str_replace)
+        let tool_without_editor = create_text_editor_tool(&None);
+
+        // Should use traditional description with str_replace command
+        assert!(tool_without_editor
+            .description
+            .contains("Replace a string in a file with a new string"));
+        assert!(tool_without_editor
+            .description
+            .contains("the `old_str` needs to exactly match one"));
+        assert!(tool_without_editor.description.contains("str_replace"));
+
+        // Should not contain editor API description or edit_file command
+        assert!(!tool_without_editor
+            .description
+            .contains("Edit the file with the new content"));
+        assert!(!tool_without_editor.description.contains("edit_file"));
+        assert!(!tool_without_editor
+            .description
+            .contains("work out how to place old_str with it intelligently"));
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_text_editor_size_limits() {

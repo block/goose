@@ -245,29 +245,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    #[cfg(windows)]
-    async fn test_windows_specific_commands() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
-        let ignore_patterns = Arc::new(builder.build().unwrap());
-
-        // Test PowerShell command
-        let result = execute_shell_command(
-            json!({
-                "command": "Get-ChildItem"
-            }),
-            &ignore_patterns,
-        )
-        .await;
-        assert!(result.is_ok());
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_bash_respects_ignore_patterns() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
@@ -306,6 +283,29 @@ mod tests {
         .await;
 
         assert!(result.is_ok(), "Should be able to cat non-ignored file");
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    #[cfg(windows)]
+    async fn test_windows_specific_commands() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let ignore_patterns = Arc::new(builder.build().unwrap());
+
+        // Test PowerShell command
+        let result = execute_shell_command(
+            json!({
+                "command": "Get-ChildItem"
+            }),
+            &ignore_patterns,
+        )
+        .await;
+        assert!(result.is_ok());
 
         temp_dir.close().unwrap();
     }

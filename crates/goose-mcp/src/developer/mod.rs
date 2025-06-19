@@ -269,6 +269,12 @@ impl DeveloperRouter {
         // Only use default patterns if no .gooseignore files were found
         // If the file is empty, we will not ignore any file
         if !has_ignore_file {
+            // Check for .gitignore as fallback
+            let gitignore_path = cwd.join(".gitignore");
+            if gitignore_path.is_file() {
+                let _ = builder.add(gitignore_path);
+            }
+
             // Add some sensible defaults
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
@@ -454,6 +460,10 @@ mod tests {
     use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
+
+    fn dummy_sender() -> mpsc::Sender<JsonRpcMessage> {
+        mpsc::channel(1).0
+    }
 
     #[test]
     #[serial]
@@ -781,6 +791,201 @@ mod tests {
             !router.is_ignored(Path::new("test.txt")),
             "*.env pattern should not match test.txt"
         );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_default_patterns_when_no_ignore_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Don't create any ignore files
+        let router = DeveloperRouter::new();
+
+        // Default patterns should be used
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env.local")),
+            ".env.local should be ignored by default patterns"
+        );
+        assert!(
+            router.is_ignored(Path::new("secrets.txt")),
+            "secrets.txt should be ignored by default patterns"
+        );
+        assert!(
+            !router.is_ignored(Path::new("normal.txt")),
+            "normal.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gitignore_fallback_when_no_gooseignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\n*.tmp\n.env").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test that gitignore patterns are respected
+        assert!(
+            router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new(".env")),
+            ".env pattern from .gitignore should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "test.txt should not be ignored"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_gooseignore_takes_precedence_over_gitignore() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create both .gooseignore and .gitignore files with different patterns
+        std::fs::write(temp_dir.path().join(".gooseignore"), "*.secret").unwrap();
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log\ntarget/").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // .gooseignore patterns should be used
+        assert!(
+            router.is_ignored(Path::new("test.secret")),
+            "*.secret pattern from .gooseignore should be ignored"
+        );
+
+        // .gitignore patterns should NOT be used when .gooseignore exists
+        assert!(
+            !router.is_ignored(Path::new("test.log")),
+            "*.log pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+        assert!(
+            !router.is_ignored(Path::new("build.tmp")),
+            "*.tmp pattern from .gitignore should NOT be ignored when .gooseignore exists"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Try to write to a file ignored by .gitignore
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("test.log").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to write to file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to write to a non-ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_respects_gitignore_fallback() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a .gitignore file but no .gooseignore
+        std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Create a file that would be ignored by .gitignore
+        let log_file_path = temp_dir.path().join("test.log");
+        std::fs::write(&log_file_path, "log content").unwrap();
+
+        // Try to cat the ignored file
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", log_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to cat file ignored by .gitignore fallback"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to cat a non-ignored file
+        let allowed_file_path = temp_dir.path().join("allowed.txt");
+        std::fs::write(&allowed_file_path, "allowed content").unwrap();
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should be able to cat non-ignored file");
 
         temp_dir.close().unwrap();
     }
