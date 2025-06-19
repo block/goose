@@ -116,7 +116,7 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false);
+    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), None, false);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -350,7 +350,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             "vi" => Some(EditMode::Vi),
             _ => {
                 eprintln!("Invalid EDIT_MODE specified, defaulting to Emacs");
-                None 
+                None
             }
         });
 
