@@ -464,6 +464,7 @@ async fn process_message_streaming(
         id: session::Identifier::Path(session_file.clone()),
         working_dir: std::env::current_dir()?,
         schedule_id: None,
+        execution_mode: None,
     };
 
     // Get response from agent

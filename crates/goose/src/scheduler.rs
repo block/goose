@@ -1061,6 +1061,10 @@ async fn run_scheduled_job_internal(
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
 
+    // Log the execution mode
+    let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
+    tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
+
     let session_id_for_return = session::generate_session_id();
 
     // Update the job with the session ID if we have access to the jobs arc
@@ -1093,6 +1097,7 @@ async fn run_scheduled_job_internal(
             id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
+            execution_mode: job.execution_mode.clone(),
         };
 
         match agent

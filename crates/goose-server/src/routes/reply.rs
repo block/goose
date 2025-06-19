@@ -183,6 +183,7 @@ async fn handler(
                     id: session::Identifier::Name(session_id.clone()),
                     working_dir: PathBuf::from(session_working_dir),
                     schedule_id: request.scheduled_job_id.clone(),
+                    execution_mode: None,
                 }),
             )
             .await
@@ -342,6 +343,7 @@ async fn ask_handler(
                 id: session::Identifier::Name(session_id.clone()),
                 working_dir: PathBuf::from(session_working_dir),
                 schedule_id: request.scheduled_job_id.clone(),
+                execution_mode: None,
             }),
         )
         .await
