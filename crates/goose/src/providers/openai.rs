@@ -3,13 +3,15 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    build_http_client, emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat,
+    MutualTlsConfig,
+};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
@@ -65,9 +67,15 @@ impl OpenAiProvider {
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
-        let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_secs))
-            .build()?;
+
+        // Configure mutual TLS
+        let mtls_config = MutualTlsConfig {
+            client_cert_path: config.get_param("OPENAI_CLIENT_CERT_PATH").ok(),
+            client_key_path: config.get_param("OPENAI_CLIENT_KEY_PATH").ok(),
+            ca_cert_path: config.get_param("OPENAI_CA_CERT_PATH").ok(),
+        };
+
+        let client = build_http_client(timeout_secs, Some(&mtls_config))?;
 
         Ok(Self {
             client,
@@ -141,6 +149,9 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("OPENAI_CLIENT_CERT_PATH", false, false, None),
+                ConfigKey::new("OPENAI_CLIENT_KEY_PATH", false, false, None),
+                ConfigKey::new("OPENAI_CA_CERT_PATH", false, false, None),
             ],
         )
     }
