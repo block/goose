@@ -160,6 +160,10 @@ const config: Config = {
               label: 'Prompt Library',
             },
             {
+              to: '/recipes',
+              label: 'Recipe Cookbook',
+            },
+            {
               to: 'deeplink-generator',
               label: 'Deeplink Generator',
             },
