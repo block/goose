@@ -10,13 +10,30 @@ use std::{
 };
 use url::Url;
 
-use crate::developer::{lang, shell::normalize_line_endings};
+use crate::developer::{editor_models::EditorModel, lang, shell::normalize_line_endings};
 
-/// Creates the text_editor tool
-pub fn create_text_editor_tool() -> Tool {
-    Tool::new(
-        "text_editor".to_string(),
-        indoc! {r#"
+/// Creates the text_editor tool with conditional descriptions based on editor model availability  
+pub fn create_text_editor_tool(editor_model: &Option<EditorModel>) -> Tool {
+    let (text_editor_desc, str_replace_command) = if editor_model.is_some() {
+        (
+            formatdoc! {r#"
+                Perform text editing operations on files.
+
+                The `command` parameter specifies the operation to perform. Allowed options are:
+                - `view`: View the content of a file.
+                - `write`: Create or overwrite a file with the given content
+                - `edit_file`: Edit the file with the new content.
+                - `undo_edit`: Undo the last edit made to a file.
+
+                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+
+                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+            "#, editor_model.as_ref().unwrap().get_str_replace_description()},
+            "edit_file",
+        )
+    } else {
+        (indoc! {r#"
             Perform text editing operations on files.
 
             The `command` parameter specifies the operation to perform. Allowed options are:
@@ -31,7 +48,12 @@ pub fn create_text_editor_tool() -> Tool {
             To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
             unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
             ambiguous. The entire original string will be replaced with `new_str`.
-        "#}.to_string(),
+        "#}.to_string(), "str_replace")
+    };
+
+    Tool::new(
+        "text_editor".to_string(),
+        text_editor_desc.to_string(),
         json!({
             "type": "object",
             "required": ["command", "path"],
@@ -42,8 +64,8 @@ pub fn create_text_editor_tool() -> Tool {
                 },
                 "command": {
                     "type": "string",
-                    "enum": ["view", "write", "str_replace", "undo_edit"],
-                    "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
+                    "enum": ["view", "write", str_replace_command, "undo_edit"],
+                    "description": format!("Allowed options are: `view`, `write`, `{}`, `undo_edit`.", str_replace_command)
                 },
                 "old_str": {"type": "string"},
                 "new_str": {"type": "string"},
@@ -54,13 +76,14 @@ pub fn create_text_editor_tool() -> Tool {
     )
 }
 
-/// Execute a text editor command
+/// Execute a text editor command with optional AI editor model support
 pub async fn execute_text_editor_command(
     params: Value,
     _ignore_patterns: &Arc<Gitignore>,
     file_history: &Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     resolve_path_fn: impl Fn(&str) -> Result<PathBuf, ToolError>,
     is_ignored_fn: impl Fn(&PathBuf) -> bool,
+    editor_model: &Option<EditorModel>,
 ) -> Result<Vec<Content>, ToolError> {
     let command = params
         .get("command")
@@ -94,7 +117,7 @@ pub async fn execute_text_editor_command(
 
             text_editor_write(&path, file_text).await
         }
-        "str_replace" => {
+        "str_replace" | "edit_file" => {
             let old_str = params
                 .get("old_str")
                 .and_then(|v| v.as_str())
@@ -108,7 +131,7 @@ pub async fn execute_text_editor_command(
                     ToolError::InvalidParameters("Missing 'new_str' parameter".into())
                 })?;
 
-            text_editor_replace(&path, old_str, new_str, file_history).await
+            text_editor_replace_with_ai(&path, old_str, new_str, file_history, editor_model).await
         }
         "undo_edit" => text_editor_undo(&path, file_history).await,
         _ => Err(ToolError::InvalidParameters(format!(
@@ -343,6 +366,62 @@ fn save_file_history(
     Ok(())
 }
 
+/// Enhanced text_editor_replace that optionally uses AI editor model
+async fn text_editor_replace_with_ai(
+    path: &PathBuf,
+    old_str: &str,
+    new_str: &str,
+    file_history: &Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
+    editor_model: &Option<EditorModel>,
+) -> Result<Vec<Content>, ToolError> {
+    // Check if file exists
+    if !path.exists() {
+        return Err(ToolError::InvalidParameters(format!(
+            "File '{}' does not exist, you can write a new file with the `write` command",
+            path.display()
+        )));
+    }
+
+    // Read content
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+
+    // Check if Editor API is configured and use it as the primary path
+    if let Some(ref editor) = editor_model {
+        // Editor API path - save history then call API directly
+        save_file_history(path, file_history)?;
+
+        match editor.edit_code(&content, old_str, new_str).await {
+            Ok(updated_content) => {
+                // Write the updated content directly
+                let normalized_content = normalize_line_endings(&updated_content);
+                std::fs::write(path, &normalized_content).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to write file: {}", e))
+                })?;
+
+                // Simple success message for Editor API
+                return Ok(vec![
+                    Content::text(format!("Successfully edited {}", path.display()))
+                        .with_audience(vec![Role::Assistant]),
+                    Content::text(format!("File {} has been edited", path.display()))
+                        .with_audience(vec![Role::User])
+                        .with_priority(0.2),
+                ]);
+            }
+            Err(e) => {
+                eprintln!(
+                    "Editor API call failed: {}, falling back to string replacement",
+                    e
+                );
+                // Fall through to traditional path below
+            }
+        }
+    }
+
+    // Fall back to traditional string replacement
+    text_editor_replace(path, old_str, new_str, file_history).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_create_text_editor_tool() {
-        let tool = create_text_editor_tool();
+        let tool = create_text_editor_tool(&None);
         assert_eq!(tool.name, "text_editor");
         assert!(!tool.description.is_empty());
     }
@@ -390,6 +469,7 @@ mod tests {
                 &file_history,
                 resolve_path_fn,
                 &is_ignored_fn,
+                &None,
             )
             .await;
 
@@ -416,6 +496,7 @@ mod tests {
                 &file_history,
                 resolve_path_fn,
                 &is_ignored_fn,
+                &None,
             )
             .await;
 
@@ -453,6 +534,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -467,6 +549,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -511,6 +594,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -527,6 +611,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -553,6 +638,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -596,6 +682,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -612,6 +699,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -626,6 +714,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -643,6 +732,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await
         .unwrap();
@@ -689,6 +779,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await;
 
@@ -709,6 +800,7 @@ mod tests {
             &file_history,
             &resolve_path_fn,
             &is_ignored_fn,
+            &None,
         )
         .await;
 

@@ -117,7 +117,7 @@ impl DeveloperRouter {
         let editor_model = create_editor_model();
 
         let bash_tool = create_shell_tool();
-        let text_editor_tool = create_text_editor_tool();
+        let text_editor_tool = create_text_editor_tool(&editor_model);
 
         let list_windows_tool = create_list_windows_tool();
         let screen_capture_tool = create_screen_capture_tool();
@@ -328,6 +328,7 @@ impl DeveloperRouter {
             &self.file_history,
             |path_str| self.resolve_path(path_str),
             |path| self.is_ignored(path),
+            &self.editor_model,
         )
         .await
     }
