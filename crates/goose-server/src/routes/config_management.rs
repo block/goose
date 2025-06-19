@@ -441,6 +441,26 @@ pub async fn backup_config(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/config/current-model",
+    responses(
+        (status = 200, description = "Current model retrieved successfully", body = String),
+    )
+)]
+pub async fn get_current_model(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let current_model = goose::providers::base::get_current_model();
+
+    Ok(Json(serde_json::json!({
+        "model": current_model
+    })))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -454,6 +474,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/permissions", post(upsert_permissions))
+        .route("/config/current-model", get(get_current_model))
         .with_state(state)
 }
 

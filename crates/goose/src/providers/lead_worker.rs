@@ -291,6 +291,16 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
         let worker_model = self.worker_provider.get_model_config().model_name;
         (lead_model, worker_model)
     }
+
+    /// Get the currently active model name
+    fn get_active_model(&self) -> String {
+        // Read from the global store which was set during complete()
+        use super::base::get_current_model;
+        get_current_model().unwrap_or_else(|| {
+            // Fallback to lead model if no current model is set
+            self.lead_provider.get_model_config().model_name
+        })
+    }
 }
 
 #[async_trait]
@@ -336,19 +346,31 @@ impl Provider for LeadWorkerProvider {
             "worker"
         };
 
+        // Get the active model name and update the global store
+        let active_model_name = if turn_count < self.lead_turns || in_fallback {
+            self.lead_provider.get_model_config().model_name.clone()
+        } else {
+            self.worker_provider.get_model_config().model_name.clone()
+        };
+
+        // Update the global current model store
+        super::base::set_current_model(&active_model_name);
+
         if in_fallback {
             tracing::info!(
-                "🔄 Using {} provider for turn {} (FALLBACK MODE: {} turns remaining)",
+                "🔄 Using {} provider for turn {} (FALLBACK MODE: {} turns remaining) - Model: {}",
                 provider_type,
                 turn_count + 1,
-                fallback_remaining
+                fallback_remaining,
+                active_model_name
             );
         } else {
             tracing::info!(
-                "Using {} provider for turn {} (lead_turns: {})",
+                "Using {} provider for turn {} (lead_turns: {}) - Model: {}",
                 provider_type,
                 turn_count + 1,
-                self.lead_turns
+                self.lead_turns,
+                active_model_name
             );
         }
 

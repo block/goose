@@ -15,6 +15,7 @@ import {
 import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { spawn } from 'child_process';
@@ -681,9 +682,28 @@ const openDirectoryDialog = async (
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
-    addRecentDir(result.filePaths[0]);
+    const selectedPath = result.filePaths[0];
+
+    // If a file was selected, use its parent directory
+    let dirToAdd = selectedPath;
+    try {
+      const stats = fsSync.lstatSync(selectedPath);
+
+      // Reject symlinks for security
+      if (stats.isSymbolicLink()) {
+        console.warn(`Selected path is a symlink, using parent directory for security`);
+        dirToAdd = path.dirname(selectedPath);
+      } else if (stats.isFile()) {
+        dirToAdd = path.dirname(selectedPath);
+      }
+    } catch (error) {
+      console.warn(`Could not stat selected path, using parent directory`);
+      dirToAdd = path.dirname(selectedPath); // Fallback to parent directory
+    }
+
+    addRecentDir(dirToAdd);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, result.filePaths[0]);
+    await createChat(app, undefined, dirToAdd);
     if (replaceWindow && currentWindow) {
       currentWindow.close();
     }
@@ -849,6 +869,29 @@ ipcMain.handle('open-notifications-settings', async () => {
   } catch (error) {
     console.error('Error opening notification settings:', error);
     return false;
+  }
+});
+
+// Handle quit confirmation setting
+ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showQuitConfirmation = show;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting quit confirmation:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-quit-confirmation-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showQuitConfirmation ?? true;
+  } catch (error) {
+    console.error('Error getting quit confirmation state:', error);
+    return true;
   }
 });
 
@@ -1125,7 +1168,12 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
-    const cat = spawn('cat', [filePath]);
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    const cat = spawn('cat', [expandedPath]);
     let output = '';
     let errorOutput = '';
 
@@ -1140,32 +1188,77 @@ ipcMain.handle('read-file', (_event, filePath) => {
     cat.on('close', (code) => {
       if (code !== 0) {
         // File not found or error
-        resolve({ file: '', filePath, error: errorOutput || null, found: false });
+        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
         return;
       }
-      resolve({ file: output, filePath, error: null, found: true });
+      resolve({ file: output, filePath: expandedPath, error: null, found: true });
     });
 
     cat.on('error', (error) => {
       console.error('Error reading file:', error);
-      resolve({ file: '', filePath, error, found: false });
+      resolve({ file: '', filePath: expandedPath, error, found: false });
     });
   });
 });
 
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fsNode = require('fs'); // Using require for fs in this specific handler from original
     try {
-      fsNode.writeFileSync(filePath, content, { encoding: 'utf8' });
+      fsNode.writeFileSync(expandedPath, content, { encoding: 'utf8' });
       resolve(true);
     } catch (error) {
       console.error('Error writing to file:', error);
       resolve(false);
     }
   });
+});
+
+// Enhanced file operations
+ipcMain.handle('ensure-directory', async (_event, dirPath) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    await fs.mkdir(expandedPath, { recursive: true });
+    return true;
+  } catch (error) {
+    console.error('Error creating directory:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('list-files', async (_event, dirPath, extension) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    const files = await fs.readdir(expandedPath);
+    if (extension) {
+      return files.filter((file) => file.endsWith(extension));
+    }
+    return files;
+  } catch (error) {
+    console.error('Error listing files:', error);
+    return [];
+  }
+});
+
+// Handle message box dialogs
+ipcMain.handle('show-message-box', async (_event, options) => {
+  const result = await dialog.showMessageBox(options);
+  return result;
 });
 
 // Handle allowed extensions list fetching
@@ -1220,11 +1313,8 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
-  // Register update IPC handlers once
+  // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
-
-  // Setup auto-updater if enabled
-  shouldSetupUpdater() && setupAutoUpdater();
 
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -1295,6 +1385,18 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
 
   await createNewWindow(app, dirPath);
+
+  // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
+  setTimeout(() => {
+    if (shouldSetupUpdater()) {
+      log.info('Setting up auto-updater after window creation...');
+      try {
+        setupAutoUpdater();
+      } catch (error) {
+        log.error('Error setting up auto-updater:', error);
+      }
+    }
+  }, 2000); // 2 second delay after window is shown
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -1791,6 +1893,12 @@ app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode
+  }
+
+  // Check if quit confirmation is enabled in settings
+  const settings = loadSettings();
+  if (!settings.showQuitConfirmation) {
+    return; // Allow normal quit behavior if confirmation is disabled
   }
 
   // Prevent the default quit behavior

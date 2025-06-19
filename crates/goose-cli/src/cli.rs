@@ -377,6 +377,16 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Additional system prompt to customize agent behavior
+        #[arg(
+            long = "system",
+            value_name = "TEXT",
+            help = "Additional system prompt to customize agent behavior",
+            long_help = "Provide additional system instructions to customize the agent's behavior",
+            conflicts_with = "recipe"
+        )]
+        system: Option<String>,
+
         /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
@@ -490,6 +500,14 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        /// Quiet mode - suppress non-response output
+        #[arg(
+            short = 'q',
+            long = "quiet",
+            help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
+        )]
+        quiet: bool,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -643,7 +661,8 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
-                        interactive: true, // Session command is always interactive
+                        interactive: true,
+                        quiet: false,
                     })
                     .await;
                     setup_logging(
@@ -676,6 +695,7 @@ pub async fn cli() -> Result<()> {
             instructions,
             input_text,
             recipe,
+            system,
             interactive,
             identifier,
             resume,
@@ -688,6 +708,7 @@ pub async fn cli() -> Result<()> {
             params,
             explain,
             render_recipe,
+            quiet,
         }) => {
             let (input_config, session_settings) = match (instructions, input_text, recipe, explain, render_recipe) {
                 (Some(file), _, _, _, _) if file == "-" => {
@@ -700,7 +721,7 @@ pub async fn cli() -> Result<()> {
                         InputConfig {
                             contents: Some(input),
                             extensions_override: None,
-                            additional_system_prompt: None,
+                            additional_system_prompt: system,
                         },
                         None,
                     )
@@ -726,7 +747,7 @@ pub async fn cli() -> Result<()> {
                     InputConfig {
                         contents: Some(text),
                         extensions_override: None,
-                        additional_system_prompt: None,
+                        additional_system_prompt: system,
                     },
                     None,
                 ),
@@ -780,6 +801,7 @@ pub async fn cli() -> Result<()> {
                 debug,
                 max_tool_repetitions,
                 interactive, // Use the interactive flag from the Run command
+                quiet,
             })
             .await;
 
@@ -896,6 +918,7 @@ pub async fn cli() -> Result<()> {
                     debug: false,
                     max_tool_repetitions: None,
                     interactive: true, // Default case is always interactive
+                    quiet: false,
                 })
                 .await;
                 setup_logging(

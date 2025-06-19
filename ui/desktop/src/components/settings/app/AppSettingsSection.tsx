@@ -13,6 +13,7 @@ interface AppSettingsSectionProps {
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
+  const [quitConfirmationEnabled, setQuitConfirmationEnabled] = useState(true);
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -37,6 +38,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     window.electron.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);
+    });
+
+    window.electron.getQuitConfirmationState().then((enabled) => {
+      setQuitConfirmationEnabled(enabled);
     });
 
     if (isMacOS) {
@@ -83,6 +88,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setDockIcon(newState);
     if (success) {
       setDockIconEnabled(newState);
+    }
+  };
+
+  const handleQuitConfirmationToggle = async () => {
+    const newState = !quitConfirmationEnabled;
+    const success = await window.electron.setQuitConfirmation(newState);
+    if (success) {
+      setQuitConfirmationEnabled(newState);
     }
   };
 
@@ -159,6 +172,22 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               </div>
             </div>
           )}
+
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-textStandard">Quit Confirmation</h3>
+              <p className="text-xs text-textSubtle max-w-md mt-[2px]">
+                Show confirmation dialog when quitting the app
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={quitConfirmationEnabled}
+                onCheckedChange={handleQuitConfirmationToggle}
+                variant="mono"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Help & Feedback Section */}

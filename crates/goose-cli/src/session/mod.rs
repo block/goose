@@ -928,6 +928,12 @@ impl Session {
                                 }
                             }
                         }
+                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                            // Log model change if in debug mode
+                            if self.debug {
+                                eprintln!("Model changed to {} in {} mode", model, mode);
+                            }
+                        }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);
