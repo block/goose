@@ -348,6 +348,54 @@ impl DeveloperRouter {
             }),
         );
 
+        let list_checkpoints_tool = Tool::new(
+            "list_checkpoints",
+            "Return checkpoints for a file",
+            json!({
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to list checkpoints for"
+                    }
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("List file checkpoints".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
+            }),
+        );
+
+        let restore_checkpoint_tool = Tool::new(
+            "restore_checkpoint",
+            "Restore a file from a specific checkpoint",
+            json!({
+                "type": "object",
+                "required": ["path", "checkpoint_path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to restore"
+                    },
+                    "checkpoint_path": {
+                        "type": "string",
+                        "description": "Path to the checkpoint file to restore from"
+                    }
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Restore from checkpoint".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
@@ -495,6 +543,8 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
                 image_processor_tool,
+                list_checkpoints_tool,
+                restore_checkpoint_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
@@ -532,23 +582,134 @@ impl DeveloperRouter {
     // Helper function to create a checkpoint of a file
     fn create_checkpoint(&self, file: &Path) -> Result<(PathBuf, String), ToolError> {
         if !file.exists() {
-            return Err(ToolError::NotFound(format!("{} does not exist", file.display())));
+            return Err(ToolError::NotFound(format!(
+                "{} does not exist",
+                file.display()
+            )));
         }
         let ts = Utc::now().format("%Y%m%dT%H%M%S%3f").to_string();
-        let rel = file.strip_prefix(std::env::current_dir().unwrap()).unwrap_or(file);
+        let rel = file
+            .strip_prefix(std::env::current_dir().unwrap())
+            .unwrap_or(file);
         let dest = self.checkpoint_dir.join(&ts).join(rel);
-        if let Some(p) = dest.parent() { 
-            std::fs::create_dir_all(p).map_err(|e| ToolError::ExecutionError(format!("Failed to create checkpoint directory: {}", e)))?; 
+        if let Some(p) = dest.parent() {
+            std::fs::create_dir_all(p).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create checkpoint directory: {}", e))
+            })?;
         }
-        std::fs::copy(file, &dest).map_err(|e| ToolError::ExecutionError(format!("Failed to copy file to checkpoint: {}", e)))?;
-        self.checkpoint_index.lock().unwrap()
-            .entry(file.to_path_buf()).or_default().push(dest.clone());
+        std::fs::copy(file, &dest).map_err(|e| {
+            ToolError::ExecutionError(format!("Failed to copy file to checkpoint: {}", e))
+        })?;
+        self.checkpoint_index
+            .lock()
+            .unwrap()
+            .entry(file.to_path_buf())
+            .or_default()
+            .push(dest.clone());
         Ok((dest, ts))
     }
 
     // Helper function to generate diff string
     fn diff_string(&self, old_txt: &str, new_txt: &str) -> String {
         Changeset::new(old_txt, new_txt, "\n").to_string()
+    }
+
+    // List checkpoints for a file
+    async fn list_checkpoints(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let file = self.resolve_path(path_str)?;
+        let list = self
+            .checkpoint_index
+            .lock()
+            .unwrap()
+            .get(&file)
+            .cloned()
+            .unwrap_or_default();
+
+        Ok(vec![
+            Content::text(format!(
+                "Found {} checkpoints for {}",
+                list.len(),
+                file.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::text(serde_json::to_string_pretty(&json!({ "checkpoints": list })).unwrap())
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    // Restore a file from a checkpoint
+    async fn restore_checkpoint(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let checkpoint_path_str = params
+            .get("checkpoint_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ToolError::InvalidParameters("Missing 'checkpoint_path' parameter".into())
+            })?;
+
+        let file = self.resolve_path(path_str)?;
+        let checkpoint_path = Path::new(checkpoint_path_str);
+
+        // Check if checkpoint exists
+        if !checkpoint_path.exists() {
+            return Err(ToolError::NotFound(format!(
+                "Checkpoint {} does not exist",
+                checkpoint_path.display()
+            )));
+        }
+
+        // Read checkpoint content
+        let checkpoint_content = std::fs::read_to_string(checkpoint_path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e)))?;
+
+        // Create new checkpoint of current state before restore
+        let (new_ckpt_path, ts) = self.create_checkpoint(&file)?;
+
+        // Read current content for diff
+        let current_content = std::fs::read_to_string(&file).unwrap_or_default();
+
+        // Restore from checkpoint
+        std::fs::write(&file, &checkpoint_content)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to restore file: {}", e)))?;
+
+        // Generate diff and create payload
+        let diff = self.diff_string(&current_content, &checkpoint_content);
+        let payload = json!({
+            "file": file,
+            "checkpoint": new_ckpt_path,
+            "timestamp": ts,
+            "diff": diff,
+            "action": "restore"
+        });
+
+        Ok(vec![
+            Content::text(format!(
+                "Restored {} from checkpoint {}",
+                file.display(),
+                checkpoint_path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::text(format!(
+                "File {} has been restored from checkpoint",
+                file.display()
+            ))
+            .with_audience(vec![Role::User]),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
+        ])
     }
 
     // Shell command execution with platform-specific handling
@@ -939,7 +1100,7 @@ impl DeveloperRouter {
         let (ckpt_path, ts) = if path.exists() {
             self.create_checkpoint(path)?
         } else {
-            (PathBuf::new(), String::new())   // new file => no checkpoint
+            (PathBuf::new(), String::new()) // new file => no checkpoint
         };
 
         // Write to the file
@@ -950,9 +1111,12 @@ impl DeveloperRouter {
         let language = lang::get_language_identifier(path);
 
         // Generate diff (empty old content for new files)
-        let old_content = if ckpt_path.as_os_str().is_empty() { "" } else { 
-            &std::fs::read_to_string(&ckpt_path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e)))?
+        let old_content = if ckpt_path.as_os_str().is_empty() {
+            ""
+        } else {
+            &std::fs::read_to_string(&ckpt_path).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e))
+            })?
         };
         let diff = self.diff_string(old_content, &normalized_text);
 
@@ -981,8 +1145,11 @@ impl DeveloperRouter {
             })
             .with_audience(vec![Role::User])
             .with_priority(0.2),
-            Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
-                .with_audience(vec![Role::Assistant]),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
         ])
     }
 
@@ -1034,8 +1201,11 @@ impl DeveloperRouter {
                         Content::text(format!("File {} has been edited", path.display()))
                             .with_audience(vec![Role::User])
                             .with_priority(0.2),
-                        Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
-                            .with_audience(vec![Role::Assistant]),
+                        Content::embedded_text(
+                            "goose://checkpoint",
+                            serde_json::to_string(&payload).unwrap(),
+                        )
+                        .with_audience(vec![Role::Assistant]),
                     ]);
                 }
                 Err(e) => {
@@ -1131,8 +1301,11 @@ impl DeveloperRouter {
             Content::text(output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.2),
-            Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
-                .with_audience(vec![Role::Assistant]),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
         ])
     }
 
@@ -1521,6 +1694,8 @@ impl Router for DeveloperRouter {
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
+                "list_checkpoints" => this.list_checkpoints(arguments).await,
+                "restore_checkpoint" => this.restore_checkpoint(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
