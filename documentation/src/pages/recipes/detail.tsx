@@ -56,9 +56,9 @@ export default function RecipeDetailPage(): JSX.Element {
       <Layout>
         <div className="min-h-screen flex items-start justify-center py-16">
           <div className="container max-w-5xl mx-auto px-4 animate-pulse">
-            <div className="h-12 w-48 bg-bgSubtle rounded-lg mb-4"></div>
-            <div className="h-6 w-full bg-bgSubtle rounded-lg mb-2"></div>
-            <div className="h-6 w-2/3 bg-bgSubtle rounded-lg"></div>
+            <div className="h-12 w-48 bg-bgSubtle dark:bg-zinc-800 rounded-lg mb-4"></div>
+            <div className="h-6 w-full bg-bgSubtle dark:bg-zinc-800 rounded-lg mb-2"></div>
+            <div className="h-6 w-2/3 bg-bgSubtle dark:bg-zinc-800 rounded-lg"></div>
           </div>
         </div>
       </Layout>
@@ -105,21 +105,21 @@ export default function RecipeDetailPage(): JSX.Element {
             )}
           </div>
 
-          <div className="bg-white border border-border rounded-xl p-8 shadow-md">
-            <h1 className="text-4xl font-semibold mb-2 text-textProminent">
+          <div className="bg-white dark:bg-[#1A1A1A] border border-borderSubtle dark:border-zinc-700 rounded-xl p-8 shadow-md">
+            <h1 className="text-4xl font-semibold mb-2 text-textProminent dark:text-white">
               {recipe.title}
             </h1>
-            <p className="text-textSubtle text-lg mb-6">{recipe.description}</p>
+            <p className="text-textSubtle dark:text-zinc-400 text-lg mb-6">{recipe.description}</p>
 
             {/* Activities */}
             {recipe.activities?.length > 0 && (
-              <div className="mb-6 border-t border-borderSubtle pt-6">
-                <h2 className="text-2xl font-medium mb-2">Activities</h2>
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Activities</h2>
                 <div className="flex flex-wrap gap-2">
                   {recipe.activities.map((activity, index) => (
                     <span
                       key={index}
-                      className="bg-surfaceHighlight border border-border rounded-full px-3 py-1 text-sm text-textProminent"
+                      className="bg-surfaceHighlight dark:bg-zinc-900 border border-border dark:border-zinc-700 rounded-full px-3 py-1 text-sm text-textProminent dark:text-zinc-300"
                     >
                       {activity}
                     </span>
@@ -130,13 +130,16 @@ export default function RecipeDetailPage(): JSX.Element {
 
             {/* Extensions */}
             {recipe.extensions?.length > 0 && (
-              <div className="mb-6 border-t border-borderSubtle pt-6">
-                <h2 className="text-2xl font-medium mb-2">Extensions</h2>
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Extensions</h2>
                 <div className="flex flex-wrap gap-2">
                   {recipe.extensions.map((ext, index) => (
                     <span
                       key={index}
-                      className={`border rounded-full px-3 py-1 text-sm ${colorMap[ext] || "bg-gray-100 text-gray-800 border-gray-200"}`}
+                      className={`border rounded-full px-3 py-1 text-sm ${
+                        colorMap[ext] || 
+                        "bg-gray-100 text-gray-800 border-gray-200 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
+                      }`}
                     >
                       {ext}
                     </span>
@@ -147,9 +150,9 @@ export default function RecipeDetailPage(): JSX.Element {
 
             {/* Instructions */}
             {recipe.instructions && (
-              <div className="mb-6 border-t border-borderSubtle pt-6">
-                <h2 className="text-2xl font-medium mb-2">Instructions</h2>
-                <p className="text-textSubtle whitespace-pre-line">
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Instructions</h2>
+                <p className="text-textSubtle dark:text-zinc-400 whitespace-pre-line">
                   {recipe.instructions}
                 </p>
               </div>
@@ -157,8 +160,8 @@ export default function RecipeDetailPage(): JSX.Element {
 
             {/* Prompt */}
             {recipe.prompt && (
-              <div className="mb-6 border-t border-borderSubtle pt-6">
-                <h2 className="text-2xl font-medium mb-4">Initial Prompt</h2>
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <h2 className="text-2xl font-medium mb-4 text-textProminent dark:text-white">Initial Prompt</h2>
                 <Admonition type="info" className="mb-4">
                   This prompt auto-starts the recipe when launched in Goose.
                 </Admonition>
@@ -168,11 +171,11 @@ export default function RecipeDetailPage(): JSX.Element {
 
             {/* Launch Button */}
             {recipe.recipeUrl && (
-              <div className="pt-8 border-t border-borderSubtle mt-6">
+              <div className="pt-8 border-t border-borderSubtle dark:border-zinc-700 mt-6">
                 <Link
                   to={recipe.recipeUrl}
                   target="_blank"
-                  className="inline-block text-white bg-black px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-900 transition-colors"
+                  className="inline-block text-white bg-black dark:bg-white dark:text-black px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors"
                 >
                   Launch Recipe →
                 </Link>
