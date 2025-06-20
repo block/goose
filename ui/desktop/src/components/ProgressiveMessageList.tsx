@@ -37,6 +37,7 @@ interface ProgressiveMessageListProps {
   // Custom render function for messages
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
+  onRestore?: (files: { path: string; checkpoint: string; timestamp: string }[]) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -52,6 +53,9 @@ export default function ProgressiveMessageList({
   showLoadingThreshold = 30, // Only show progressive loading for 30+ messages (lower threshold)
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
+  onRestore = () => {
+    console.log('Restore not available in this view');
+  },
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -201,7 +205,7 @@ export default function ProgressiveMessageList({
                     }}
                   />
                 ) : (
-                  !hasOnlyToolResponses(message) && <UserMessage message={message} />
+                  !hasOnlyToolResponses(message) && <UserMessage message={message} onRestore={onRestore} />
                 )}
               </>
             ) : (
@@ -256,6 +260,7 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     onScrollToBottom,
     isStreamingMessage,
+    onRestore,
   ]);
 
   return (

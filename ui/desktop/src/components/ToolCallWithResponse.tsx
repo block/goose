@@ -2,12 +2,41 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { ChevronRight, LoaderCircle, FileDiff } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    pendingDiffContent?: string;
+  }
+}
+
+// Helper function to extract diff content from tool response
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!toolResponse) return null;
+
+  const result = toolResponse.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+
+  return diffContent !== undefined ? diffContent : null;
+}
+
+// Helper function to check if tool response has diff content
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  return extractDiffContent(toolResponse) !== null;
+}
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -126,10 +155,10 @@ const notificationToProgress = (notification: NotificationEvent): Progress =>
 const getExtensionTooltip = (toolCallName: string): string | null => {
   const lastIndex = toolCallName.lastIndexOf('__');
   if (lastIndex === -1) return null;
-  
+
   const extensionName = toolCallName.substring(0, lastIndex);
   if (!extensionName) return null;
-  
+
   return `${extensionName} extension`;
 };
 
@@ -169,6 +198,24 @@ function ToolCallView({
         return true;
     }
   })();
+
+  //extract resource content if present
+  const result = toolResponse?.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+  const hasDiffContent = diffContent !== undefined;
+  console.log(resourceContents);
+  console.log(checkpoint);
+  console.log(diffContent);
+
+  const handleShowDiff = () => {
+    // Store diff content globally so the new window can access it
+    window.pendingDiffContent = diffContent;
+
+    // Dispatch a custom event to open diff in a new window
+    window.dispatchEvent(new CustomEvent('open-diff-viewer'));
+  };
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
@@ -377,7 +424,7 @@ function ToolCallView({
         // This ensures any MCP tool works without explicit handling
         const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        
+
         if (entries.length === 0) {
           return `${toolDisplayName}`;
         }
@@ -423,22 +470,43 @@ function ToolCallView({
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <div className="w-2 flex items-center justify-center">
-            {loadingStatus === 'loading' ? (
-              <LoaderCircle className="animate-spin text-text-muted" size={3} />
-            ) : (
-              <Dot size={2} loadingStatus={loadingStatus} />
-            )}
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center">
+            <div className="w-2 flex items-center justify-center">
+              {loadingStatus === 'loading' ? (
+                <LoaderCircle className="animate-spin text-text-muted" size={3} />
+              ) : (
+                <Dot size={2} loadingStatus={loadingStatus} />
+              )}
+            </div>
+            {extensionTooltip ? (
+                <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+                {toolLabel}
+                  </TooltipWrapper>
+                ) : (
+                toolLabel
+                )}
           </div>
-          {extensionTooltip ? (
-            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
-              {toolLabel}
-            </TooltipWrapper>
-          ) : (
-            toolLabel
+          {/* Diff button */}
+          {hasDiffContent && (
+            <div className="relative group">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShowDiff();
+                }}
+                className="p-1 hover:bg-background-subtle rounded transition-colors flex items-center gap-1"
+                title="Show Diff"
+              >
+                <FileDiff size={16} className="text-textSubtle" />
+              </button>
+              {/* Tooltip */}
+              <div className="absolute right-0 top-full mt-1 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                Show Diff
+              </div>
+            </div>
           )}
-        </>
+        </div>
       }
     >
       {/* Tool Details */}

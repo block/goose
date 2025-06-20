@@ -18,7 +18,19 @@ export interface ImageContent {
   annotations?: Record<string, unknown>;
 }
 
-export type Content = TextContent | ImageContent;
+export interface ResourceContent {
+  type: 'resource';
+  resource: Resource;
+  annotations?: Record<string, unknown>;
+}
+
+export interface Resource {
+  uri: string;
+  text: string;
+  mimeType?: string;
+}
+
+export type Content = TextContent | ImageContent | ResourceContent;
 
 export interface ToolCall {
   name: string;
@@ -86,6 +98,7 @@ export interface SummarizationRequestedContent {
 export type MessageContent =
   | TextContent
   | ImageContent
+  | ResourceContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
@@ -202,6 +215,17 @@ export function getTextContent(message: Message): string {
       return '';
     })
     .join('');
+}
+
+export function getResourceContent(message: Message): ResourceContent[] {
+  return message.content.filter(
+    (content): content is ResourceContent => content.type === 'resource'
+  );
+}
+
+export function getCheckpointContent(message: Message): ResourceContent | null {
+  const resources = getResourceContent(message);
+  return resources.find((r) => r.resource.uri === 'goose://checkpoint') || null;
 }
 
 export function getToolRequests(message: Message): ToolRequestMessageContent[] {

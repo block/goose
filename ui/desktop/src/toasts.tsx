@@ -1,9 +1,17 @@
 import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
+import { useCallback } from 'react';
 
 export interface ToastServiceOptions {
   silent?: boolean;
   shouldThrow?: boolean;
+}
+
+export interface Toast {
+  message: string;
+  type: 'success' | 'error' | 'info';
+  title?: string;
+  traceback?: string;
 }
 
 export default class ToastService {
@@ -152,4 +160,30 @@ export function toastInfo({ title, msg, toastOptions }: ToastInfoProps) {
     </div>,
     { ...commonToastOptions, ...toastOptions }
   );
+}
+
+// Hook for using toasts in components
+export function useToasts() {
+  const addToast = useCallback(({ message, type, title, traceback }: Toast) => {
+    switch (type) {
+      case 'success':
+        toastSuccess({ title, msg: message });
+        break;
+      case 'error':
+        toastError({ title, msg: message, traceback });
+        break;
+      case 'info':
+        toastInfo({ title, msg: message });
+        break;
+    }
+  }, []);
+
+  const dismissToast = useCallback((toastId?: string | number) => {
+    toastService.dismiss(toastId);
+  }, []);
+
+  return {
+    addToast,
+    dismissToast,
+  };
 }

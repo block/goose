@@ -7,12 +7,14 @@ import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
+import CheckpointActions from './CheckpointActions';
 import {
   Message,
   getTextContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  getCheckpointContent,
   createToolErrorResponseMessage,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
@@ -90,6 +92,9 @@ export default function GooseMessage({
 
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
+
+  // Get checkpoint content if present
+  const checkpointContent = getCheckpointContent(message);
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -226,6 +231,9 @@ export default function GooseMessage({
           />
         )}
       </div>
+
+      {/* Render checkpoint actions if checkpoint content is present */}
+      {checkpointContent && <CheckpointActions checkpointContent={checkpointContent} />}
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
       {false && urls.length > 0 && (

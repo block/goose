@@ -13,6 +13,7 @@ import Copy from './Copy';
 import Discord from './Discord';
 import Document from './Document';
 import Edit from './Edit';
+import { History } from './History';
 import Idea from './Idea';
 import LinkedIn from './LinkedIn';
 import More from './More';
@@ -42,6 +43,7 @@ export {
   Discord,
   Document,
   Edit,
+  History,
   Idea,
   Gear,
   Microphone,
