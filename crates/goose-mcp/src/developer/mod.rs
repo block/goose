@@ -4,6 +4,8 @@ mod shell;
 
 use anyhow::Result;
 use base64::Engine;
+use chrono::Utc;
+use difference::Changeset;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
@@ -525,6 +527,28 @@ impl DeveloperRouter {
                 suggestion.to_string_lossy(),
             ))),
         }
+    }
+
+    // Helper function to create a checkpoint of a file
+    fn create_checkpoint(&self, file: &Path) -> Result<(PathBuf, String), ToolError> {
+        if !file.exists() {
+            return Err(ToolError::NotFound(format!("{} does not exist", file.display())));
+        }
+        let ts = Utc::now().format("%Y%m%dT%H%M%S%3f").to_string();
+        let rel = file.strip_prefix(std::env::current_dir().unwrap()).unwrap_or(file);
+        let dest = self.checkpoint_dir.join(&ts).join(rel);
+        if let Some(p) = dest.parent() { 
+            std::fs::create_dir_all(p).map_err(|e| ToolError::ExecutionError(format!("Failed to create checkpoint directory: {}", e)))?; 
+        }
+        std::fs::copy(file, &dest).map_err(|e| ToolError::ExecutionError(format!("Failed to copy file to checkpoint: {}", e)))?;
+        self.checkpoint_index.lock().unwrap()
+            .entry(file.to_path_buf()).or_default().push(dest.clone());
+        Ok((dest, ts))
+    }
+
+    // Helper function to generate diff string
+    fn diff_string(&self, old_txt: &str, new_txt: &str) -> String {
+        Changeset::new(old_txt, new_txt, "\n").to_string()
     }
 
     // Shell command execution with platform-specific handling
