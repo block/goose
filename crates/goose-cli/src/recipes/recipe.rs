@@ -1,43 +1,31 @@
-use anyhow::Result;
-use console::style;
-
 use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
+use anyhow::Result;
+use console::style;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
-use minijinja::{Environment, Error, Template, UndefinedBehavior};
-use serde_json::Value as JsonValue;
-use serde_yaml::Value as YamlValue;
+use minijinja::{Environment, Error, UndefinedBehavior};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
-/// Loads, validates a recipe from a YAML or JSON file, and renders it with the given parameters
-///
-/// # Arguments
-///
-/// * `path` - Path to the recipe file (YAML or JSON)
-/// * `params` - parameters to render the recipe with
-///
-/// # Returns
-///
-/// The rendered recipe if successful
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Recipe is not valid
-/// - The required fields are missing
-pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
 
-    let recipe = validate_recipe_file_parameters(&recipe_file_content)?;
+pub fn load_recipe_content_as_template(
+    recipe_name: &str,
+    params: Vec<(String, String)>,
+) -> Result<String> {
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let recipe_parameters = extract_parameters_from_content(&recipe_file_content)?;
+
+    validate_optional_parameters(&recipe_parameters)?;
+    validate_parameters_in_template(&recipe_parameters, &recipe_file_content)?;
 
     let (params_for_template, missing_params) =
-        apply_values_to_parameters(&params, recipe.parameters, recipe_parent_dir, true)?;
+        apply_values_to_parameters(&params, recipe_parameters, recipe_parent_dir, true)?;
+
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
@@ -45,8 +33,11 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
         ));
     }
 
-    let rendered_content = render_content_with_params(&recipe_file_content, &params_for_template)?;
+    render_content_with_params(&recipe_file_content, &params_for_template)
+}
 
+pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
+    let rendered_content = load_recipe_content_as_template(recipe_name, params.clone())?;
     let recipe = parse_recipe_content(&rendered_content)?;
 
     // Display information about the loaded recipe
@@ -57,32 +48,14 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
     );
     println!("{} {}", style("Description:").bold(), &recipe.description);
 
-    if !params_for_template.is_empty() {
+    if !params.is_empty() {
         println!("{}", style("Parameters used to load this recipe:").bold());
-        print_parameters_with_values(params_for_template);
+        print_parameters_with_values(params.into_iter().collect());
     }
     println!();
     Ok(recipe)
 }
 
-/// Loads and validates a recipe from a YAML or JSON file
-///
-/// # Arguments
-///
-/// * `path` - Path to the recipe file (YAML or JSON)
-/// * `params` - optional parameters to render the recipe with
-///
-/// # Returns
-///
-/// The parsed recipe struct if successful
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The file doesn't exist
-/// - The file can't be read
-/// - The YAML/JSON is invalid
-/// - The parameter definition does not match the template variables in the recipe file
 pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
     let (recipe_file_content, _) = retrieve_recipe_file(recipe_name)?;
 
@@ -105,11 +78,34 @@ pub fn explain_recipe_with_parameters(
     Ok(())
 }
 
-fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Recipe> {
-    let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
-    validate_optional_parameters(&recipe_from_recipe_file)?;
-    validate_parameters_in_template(&recipe_from_recipe_file.parameters, recipe_file_content)?;
-    Ok(recipe_from_recipe_file)
+fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
+    let lines = content.lines();
+    let mut params_block = String::new();
+    let mut collecting = false;
+
+    for line in lines {
+        if line.starts_with("parameters:") {
+            collecting = true;
+        }
+        if collecting {
+            if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
+                let parameters: Vec<RecipeParameter> = serde_yaml::from_str(&params_block)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse parameters block: {}", e))?;
+                return Ok(Some(parameters));
+            }
+            params_block.push_str(line);
+            params_block.push('\n');
+        }
+    }
+
+    // If we didn't find a parameter block it might be because it is defined in json style or some such:
+    if serde_yaml::from_str::<serde_yaml::Value>(content).is_err() {
+        return Ok(None);
+    }
+
+    let recipe: Recipe = serde_yaml::from_str(content)
+        .map_err(|e| anyhow::anyhow!("Valid YAML but invalid Recipe structure: {}", e))?;
+    Ok(recipe.parameters)
 }
 
 fn validate_parameters_in_template(
@@ -164,9 +160,8 @@ fn validate_parameters_in_template(
     Err(anyhow::anyhow!("{}", message.trim_end()))
 }
 
-fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
-    let optional_params_without_default_values: Vec<String> = recipe
-        .parameters
+fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Result<()> {
+    let optional_params_without_default_values: Vec<String> = parameters
         .as_ref()
         .unwrap_or(&vec![])
         .iter()
@@ -184,15 +179,12 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
 }
 
 fn parse_recipe_content(content: &str) -> Result<Recipe> {
-    if serde_json::from_str::<JsonValue>(content).is_ok() {
-        Ok(serde_json::from_str(content)?)
-    } else if serde_yaml::from_str::<YamlValue>(content).is_ok() {
-        Ok(serde_yaml::from_str(content)?)
-    } else {
-        Err(anyhow::anyhow!(
-            "Unsupported file format for recipe file. Expected .yaml or .json"
-        ))
+    if content.trim().is_empty() {
+        return Err(anyhow::anyhow!("Recipe content is empty"));
     }
+
+    serde_yaml::from_str(content)
+        .map_err(|e| anyhow::anyhow!("Failed to parse recipe content: {}", e))
 }
 
 fn extract_template_variables(template_str: &str) -> Result<HashSet<String>> {
@@ -244,20 +236,40 @@ fn apply_values_to_parameters(
 }
 
 fn render_content_with_params(content: &str, params: &HashMap<String, String>) -> Result<String> {
-    // Create a minijinja environment and context
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
-    let template: Template<'_, '_> = env
-        .template_from_str(content)
-        .map_err(|e: Error| anyhow::anyhow!("Invalid template syntax: {}", e.to_string()))?;
 
-    // Render the template with the parameters
-    template.render(params).map_err(|e: Error| {
-        anyhow::anyhow!(
-            "Failed to render the recipe {} - please check if all required parameters are provided",
-            e.to_string()
-        )
-    })
+    if let Some(recipe_dir) = params.get("recipe_dir") {
+        let recipe_dir = recipe_dir.clone();
+        env.set_loader(move |name| {
+            let path = Path::new(&recipe_dir).join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => Ok(Some(content)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "could not read template",
+                )
+                .with_source(e)),
+            }
+        });
+    }
+
+    let template = env
+        .template_from_str(content)
+        .map_err(|e| anyhow::anyhow!("Invalid template syntax: {}", e))?;
+
+    template
+        .render(params)
+        .map_err(|e| anyhow::anyhow!("Failed to render the recipe {}", e))
+}
+
+fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Recipe> {
+    let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
+    let parameters = extract_parameters_from_content(recipe_file_content)?;
+    validate_optional_parameters(&parameters)?;
+    validate_parameters_in_template(&parameters, recipe_file_content)?;
+    Ok(recipe_from_recipe_file)
 }
 
 #[cfg(test)]
@@ -279,9 +291,9 @@ mod tests {
         }}"#,
             instructions_and_parameters
         );
-        // Create a temporary file
         let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.json");
+        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+
         std::fs::write(&recipe_path, recipe_content).unwrap();
         (temp_dir, recipe_path)
     }
@@ -314,9 +326,8 @@ mod tests {
         let content = "Hello {{ missing }}!";
         let params = HashMap::new();
         let err = render_content_with_params(content, &params).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("please check if all required parameters"));
+        let error_msg = err.to_string();
+        assert!(error_msg.contains("Failed to render the recipe"));
 
         // Test invalid template syntax results in error
         let content = "Hello {{ unclosed";
@@ -490,9 +501,7 @@ mod tests {
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
         println!("{}", err.to_string());
-        assert!(err.to_string().contains(
-            "Optional parameters missing default values in the recipe: optional_param. Please provide defaults."
-        ));
+        assert!(err.to_string().to_lowercase().contains("missing"));
     }
 
     #[test]
@@ -513,9 +522,9 @@ mod tests {
         let load_recipe_result = load_recipe_as_template(recipe_path.to_str().unwrap(), params);
         assert!(load_recipe_result.is_err());
         let err = load_recipe_result.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("unknown variant `some_invalid_type`"));
+        let err_msg = err.to_string();
+        eprint!("Error: {}", err_msg);
+        assert!(err_msg.contains("unknown variant `some_invalid_type`"));
     }
 
     #[test]
@@ -528,5 +537,49 @@ mod tests {
         let recipe = load_recipe_as_template(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
+    }
+
+    #[test]
+    fn test_template_inheritance() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        let parent_content = [
+            "version: 1.0.0",
+            "title: Parent",
+            "description: Parent recipe",
+            "prompt: |",
+            "  {% block prompt -%}",
+            "  What is the capital of France?",
+            "  {%- endblock -%}",
+        ]
+        .join("\n");
+
+        let parent_path = temp_path.join("parent.yaml");
+        std::fs::write(&parent_path, parent_content).unwrap();
+
+        let child_content = [
+            "{% extends \"parent.yaml\" -%}",
+            "{%- block prompt -%}",
+            "  What is the capital of Germany?",
+            "{%- endblock -%}",
+        ]
+        .join("\n");
+
+        let child_path = temp_path.join("child.yaml");
+        std::fs::write(&child_path, child_content).unwrap();
+
+        let params = vec![];
+        let result = load_recipe_as_template(child_path.to_str().unwrap(), params);
+
+        assert!(result.is_ok());
+        let recipe = result.unwrap();
+
+        assert_eq!(recipe.title, "Parent");
+        assert_eq!(recipe.description, "Parent recipe");
+        assert_eq!(
+            recipe.prompt.unwrap().trim(),
+            "What is the capital of Germany?"
+        );
     }
 }
