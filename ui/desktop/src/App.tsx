@@ -111,7 +111,8 @@ export default function App() {
   const [modalMessage, setModalMessage] = useState<string>('');
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
   const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
-  const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
+  const [_history, setHistory] = useState<View[]>(['chat']);
+  const [{ view, viewOptions }, setCurrentView] = useState<ViewConfig>(getInitialView());
 
   const { getExtensions, addExtension, read } = useConfig();
   const initAttemptedRef = useRef(false);
@@ -130,7 +131,21 @@ export default function App() {
 
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
-    setInternalView({ view, viewOptions });
+    setHistory((prev) => [...prev, view]);
+    setCurrentView({ view, viewOptions });
+  };
+
+  const goBack = () => {
+    setHistory((prev) => {
+      if (prev.length <= 1) {
+        setCurrentView({ view: 'chat', viewOptions: {} });
+        return ['chat'];
+      }
+      const popped = prev.slice(0, -1);
+      const previousView = popped[popped.length - 1];
+      setCurrentView({ view: previousView, viewOptions: {} });
+      return popped;
+    });
   };
 
   useEffect(() => {
@@ -499,15 +514,13 @@ export default function App() {
           )}
           {view === 'settings' && (
             <SettingsView
-              onClose={() => {
-                setView('chat');
-              }}
+              onClose={goBack}
               setView={setView}
               viewOptions={viewOptions as SettingsViewOptions}
             />
           )}
           {view === 'ConfigureProviders' && (
-            <ProviderSettings onClose={() => setView('chat')} isOnboarding={false} />
+            <ProviderSettings onClose={goBack} isOnboarding={false} />
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
@@ -518,7 +531,7 @@ export default function App() {
             />
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
-          {view === 'schedules' && <SchedulesView onClose={() => setView('chat')} />}
+          {view === 'schedules' && <SchedulesView onClose={goBack} />}
           {view === 'sharedSession' && (
             <SharedSessionView
               session={
