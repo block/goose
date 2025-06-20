@@ -18,6 +18,7 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Settings, SubRecipe};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
@@ -28,7 +29,8 @@ use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult,
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::router_tool_selector::{
@@ -61,12 +63,14 @@ pub struct Agent {
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
 }
 
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, JsonRpcMessage)),
+    ModelChange { model: String, mode: String },
 }
 
 impl Agent {
@@ -88,6 +92,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
+            scheduler_service: Mutex::new(None),
         }
     }
 
@@ -105,6 +110,12 @@ impl Agent {
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
         }
+    }
+
+    /// Set the scheduler service for this agent
+    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
+        let mut scheduler_service = self.scheduler_service.lock().await;
+        *scheduler_service = Some(scheduler);
     }
 }
 
@@ -192,7 +203,7 @@ impl Agent {
 
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
-    pub(super) async fn dispatch_tool_call(
+    pub async fn dispatch_tool_call(
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
@@ -209,6 +220,13 @@ impl Agent {
                     )),
                 );
             }
+        }
+
+        if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
+            let result = self
+                .handle_schedule_management(tool_call.arguments, request_id.clone())
+                .await;
+            return (request_id, Ok(ToolCallResult::from(result)));
         }
 
         if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
@@ -427,7 +445,7 @@ impl Agent {
                 let mut extension_manager = self.extension_manager.lock().await;
                 extension_manager.add_extension(extension.clone()).await?;
             }
-        };
+        }
 
         // If vector tool selection is enabled, index the tools
         let selector = self.router_tool_selector.lock().await.clone();
@@ -467,6 +485,7 @@ impl Agent {
             prefixed_tools.extend([
                 platform_tools::search_available_extensions_tool(),
                 platform_tools::manage_extensions_tool(),
+                platform_tools::manage_schedule_tool(),
             ]);
 
             // Add resource tools if supported
@@ -605,6 +624,26 @@ impl Agent {
                     &toolshim_tools,
                 ).await {
                     Ok((response, usage)) => {
+                        // Emit model change event if provider is lead-worker
+                        let provider = self.provider().await?;
+                        if let Some(lead_worker) = provider.as_lead_worker() {
+                            // The actual model used is in the usage
+                            let active_model = usage.model.clone();
+                            let (lead_model, worker_model) = lead_worker.get_model_info();
+                            let mode = if active_model == lead_model {
+                                "lead"
+                            } else if active_model == worker_model {
+                                "worker"
+                            } else {
+                                "unknown"
+                            };
+
+                            yield AgentEvent::ModelChange {
+                                model: active_model,
+                                mode: mode.to_string(),
+                            };
+                        }
+
                         // record usage for the session in the session file
                         if let Some(session_config) = session.clone() {
                             Self::update_session_metrics(session_config, &usage, messages.len()).await?;

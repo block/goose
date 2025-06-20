@@ -199,6 +199,16 @@ async fn serve_static(axum::extract::Path(path): axum::extract::Path<String>) ->
             include_str!("../../static/script.js"),
         )
             .into_response(),
+        "img/logo_dark.png" => (
+            [("content-type", "image/png")],
+            include_bytes!("../../../../documentation/static/img/logo_dark.png").to_vec(),
+        )
+            .into_response(),
+        "img/logo_light.png" => (
+            [("content-type", "image/png")],
+            include_bytes!("../../../../documentation/static/img/logo_light.png").to_vec(),
+        )
+            .into_response(),
         _ => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
     }
 }
@@ -588,6 +598,10 @@ async fn process_message_streaming(
                         // Handle MCP notifications if needed
                         // For now, we'll just log them
                         tracing::info!("Received MCP notification in web interface");
+                    }
+                    Ok(AgentEvent::ModelChange { model, mode }) => {
+                        // Log model change
+                        tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
                     Err(e) => {
                         error!("Error in message stream: {}", e);

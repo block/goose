@@ -9,6 +9,7 @@ mod recipe_tools;
 mod reply_parts;
 mod router_tool_selector;
 mod router_tools;
+mod schedule_tool;
 pub mod sub_recipe_manager;
 mod tool_execution;
 mod tool_router_index_manager;

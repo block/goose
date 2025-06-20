@@ -24,6 +24,7 @@ import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
+import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
   createEnvironmentMenu,
@@ -872,6 +873,29 @@ ipcMain.handle('open-notifications-settings', async () => {
   }
 });
 
+// Handle quit confirmation setting
+ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.showQuitConfirmation = show;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting quit confirmation:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-quit-confirmation-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.showQuitConfirmation ?? true;
+  } catch (error) {
+    console.error('Error getting quit confirmation state:', error);
+    return true;
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
@@ -1145,7 +1169,12 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
-    const cat = spawn('cat', [filePath]);
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    const cat = spawn('cat', [expandedPath]);
     let output = '';
     let errorOutput = '';
 
@@ -1160,32 +1189,77 @@ ipcMain.handle('read-file', (_event, filePath) => {
     cat.on('close', (code) => {
       if (code !== 0) {
         // File not found or error
-        resolve({ file: '', filePath, error: errorOutput || null, found: false });
+        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
         return;
       }
-      resolve({ file: output, filePath, error: null, found: true });
+      resolve({ file: output, filePath: expandedPath, error: null, found: true });
     });
 
     cat.on('error', (error) => {
       console.error('Error reading file:', error);
-      resolve({ file: '', filePath, error, found: false });
+      resolve({ file: '', filePath: expandedPath, error, found: false });
     });
   });
 });
 
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fsNode = require('fs'); // Using require for fs in this specific handler from original
     try {
-      fsNode.writeFileSync(filePath, content, { encoding: 'utf8' });
+      fsNode.writeFileSync(expandedPath, content, { encoding: 'utf8' });
       resolve(true);
     } catch (error) {
       console.error('Error writing to file:', error);
       resolve(false);
     }
   });
+});
+
+// Enhanced file operations
+ipcMain.handle('ensure-directory', async (_event, dirPath) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    await fs.mkdir(expandedPath, { recursive: true });
+    return true;
+  } catch (error) {
+    console.error('Error creating directory:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('list-files', async (_event, dirPath, extension) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
+
+    const files = await fs.readdir(expandedPath);
+    if (extension) {
+      return files.filter((file) => file.endsWith(extension));
+    }
+    return files;
+  } catch (error) {
+    console.error('Error listing files:', error);
+    return [];
+  }
+});
+
+// Handle message box dialogs
+ipcMain.handle('show-message-box', async (_event, options) => {
+  const result = await dialog.showMessageBox(options);
+  return result;
 });
 
 // Handle allowed extensions list fetching
@@ -1240,6 +1314,9 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Ensure Windows shims are available before any MCP processes are spawned
+  await ensureWinShims();
+
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
@@ -1820,6 +1897,12 @@ app.on('before-quit', async (event) => {
   // Skip confirmation dialog in development mode
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     return; // Allow normal quit behavior in dev mode
+  }
+
+  // Check if quit confirmation is enabled in settings
+  const settings = loadSettings();
+  if (!settings.showQuitConfirmation) {
+    return; // Allow normal quit behavior if confirmation is disabled
   }
 
   // Prevent the default quit behavior

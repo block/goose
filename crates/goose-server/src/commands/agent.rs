@@ -29,7 +29,10 @@ pub async fn run() -> Result<()> {
         .join("schedules.json");
 
     let scheduler_instance = SchedulerFactory::create(schedule_file_path).await?;
-    app_state.set_scheduler(scheduler_instance).await;
+    app_state.set_scheduler(scheduler_instance.clone()).await;
+
+    // NEW: Provide scheduler access to the agent
+    agent_ref.set_scheduler(scheduler_instance).await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

@@ -20,6 +20,7 @@ import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
+import RecipesView from './components/RecipesView';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -45,6 +46,7 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
+  | 'recipes'
   | 'permission';
 
 export type ViewOptions = {
@@ -550,6 +552,7 @@ export default function App() {
               config={(viewOptions?.config as Recipe) || window.electron.getConfig().recipeConfig}
             />
           )}
+          {view === 'recipes' && <RecipesView onBack={() => setView('chat')} />}
           {view === 'permission' && (
             <PermissionSettingsView
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}

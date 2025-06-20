@@ -43,6 +43,8 @@ pub struct SessionBuilderConfig {
     pub max_tool_repetitions: Option<u32>,
     /// Whether this session will be used interactively (affects debugging prompts)
     pub interactive: bool,
+    /// Quiet mode - suppress non-response output
+    pub quiet: bool,
     /// Sub-recipes to add to the session
     pub sub_recipes: Option<Vec<SubRecipe>>,
 }
@@ -463,13 +465,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session.agent.override_system_prompt(override_prompt).await;
     }
 
-    output::display_session_info(
-        session_config.resume,
-        &provider_name,
-        &model_name,
-        &session_file,
-        Some(&provider_for_display),
-    );
+    // Display session information unless in quiet mode
+    if !session_config.quiet {
+        output::display_session_info(
+            session_config.resume,
+            &provider_name,
+            &model_name,
+            &session_file,
+            Some(&provider_for_display),
+        );
+    }
     session
 }
 
@@ -492,6 +497,7 @@ mod tests {
             debug: true,
             max_tool_repetitions: Some(5),
             interactive: true,
+            quiet: false,
             sub_recipes: None,
         };
 
@@ -501,6 +507,7 @@ mod tests {
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
         assert!(config.interactive);
+        assert!(!config.quiet);
     }
 
     #[test]
@@ -518,6 +525,7 @@ mod tests {
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
         assert!(!config.interactive);
+        assert!(!config.quiet);
     }
 
     #[tokio::test]

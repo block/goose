@@ -3,15 +3,13 @@ sidebar_position: 1
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
 import RateLimits from '@site/src/components/RateLimits';
-import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
-
+import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
+import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
+import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
 
 
 # Install Goose
-
-<SupportedEnvironments /> 
 
 <Tabs>
   <TabItem value="mac" label="macOS" default>
@@ -22,11 +20,11 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
         Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
         
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
-        <DesktopInstallButtons/>
+        <MacDesktopInstallButtons/>
 
         <div style={{ marginTop: '1rem' }}>
           1. Unzip the downloaded zip file.
-          2. Run the executable file to launch the Goose desktop application.
+          2. Run the executable file to launch the Goose Desktop application.
 
           :::tip Updating Goose
           It's best to keep Goose updated by periodically running the installation steps again.
@@ -40,7 +38,7 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
         ---
         <div style={{ marginTop: '1rem' }}>
           :::note Permissions
-          If you're on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
+          If you're on an Apple Mac M3 and the Goose Desktop app shows no window on launch, check and update the following:
 
           Ensure the `~/.config` directory has read and write access.
 
@@ -82,52 +80,101 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
   </TabItem>
 
   <TabItem value="linux" label="Linux" default>
-    Run the following command to install the Goose CLI on Linux:
+    Choose to install Goose on CLI and/or Desktop:
 
-    ```sh
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-    ```
-    This script will fetch the latest version of Goose and set it up on your system.
+    <Tabs groupId="interface">
+      <TabItem value="ui" label="Goose Desktop" default>
+        Install Goose Desktop directly from the browser.
+        
+        <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
+        <LinuxDesktopInstallButtons/>
 
-    If you'd like to install without interactive configuration, disable `CONFIGURE`:
+        <div style={{ marginTop: '1rem' }}>
+          1. Extract the downloaded tar.bz2 file.
+          2. Run the executable file to launch the Goose Desktop application.
 
-    ```sh
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-    ```   
+          :::tip Updating Goose
+          It's best to keep Goose updated by periodically running the installation steps again.
+          :::
+        </div>
+      </TabItem>
+      <TabItem value="cli" label="Goose CLI">
+        Run the following command to install the Goose CLI on Linux:
+
+        ```sh
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        ```
+        This script will fetch the latest version of Goose and set it up on your system.
+
+        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+
+        ```sh
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        ```
+
+        :::tip Updating Goose
+        It's best to keep Goose updated. To update Goose, run:
+        ```sh
+        goose update
+        ```
+        :::
+      </TabItem>
+    </Tabs>
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
+    Choose to install Goose on CLI and/or Desktop:
 
-    1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
+    <Tabs groupId="interface">
+      <TabItem value="ui" label="Goose Desktop" default>
+        Install Goose Desktop directly from the browser.
+        
+        <h3 style={{ marginTop: '1rem' }}>Install via Download</h3>
+        <WindowsDesktopInstallButtons/>
 
-    ```bash
-    wsl --install
-    ```
+        <div style={{ marginTop: '1rem' }}>
+          1. Unzip the downloaded zip file.
+          2. Run the executable file to launch the Goose Desktop application.
 
-    2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
+          :::tip Updating Goose
+          It's best to keep Goose updated by periodically running the installation steps again.
+          :::
+        </div>
+      </TabItem>
+      <TabItem value="cli" label="Goose CLI">
+        There isn't native installation support for Windows CLI, however you can run Goose using WSL (Windows Subsystem for Linux).
 
-    ```bash
-    wsl -d Ubuntu
-    ```
+        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
 
-    3. Run the Goose installation script:
-    ```bash
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-    ```
-    :::tip
-      If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+        ```bash
+        wsl --install
+        ```
 
-      ```bash
-      sudo apt update && sudo apt install bzip2 -y
-      ```
-    :::
+        2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
 
-    If you'd like to install without interactive configuration, disable `CONFIGURE`:
+        ```bash
+        wsl -d Ubuntu
+        ```
 
-    ```sh
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-    ```  
+        3. Run the Goose installation script:
+        ```bash
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        ```
+        :::tip
+          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+
+          ```bash
+          sudo apt update && sudo apt install bzip2 -y
+          ```
+        :::
+
+        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+
+        ```sh
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        ```  
+      </TabItem>
+    </Tabs>
   </TabItem>
 </Tabs>
 
