@@ -45,7 +45,8 @@ struct Identifier {
         long,
         value_name = "NAME",
         help = "Name for the chat session (e.g., 'project-x')",
-        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
+        alias = "id"
     )]
     name: Option<String>,
 
