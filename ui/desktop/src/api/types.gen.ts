@@ -911,6 +911,14 @@ export type CreateScheduleData = {
 
 export type CreateScheduleErrors = {
     /**
+     * Invalid cron expression or recipe file
+     */
+    400: unknown;
+    /**
+     * Job ID already exists
+     */
+    409: unknown;
+    /**
      * Internal server error
      */
     500: unknown;
