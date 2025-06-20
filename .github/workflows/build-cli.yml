@@ -83,7 +83,7 @@ jobs:
           echo "Building with explicit PROTOC path..."
           cross build --release --target ${TARGET} -p goose-cli -vv
 
-      - name: Build temporal-service for target platform
+      - name: Build temporal-service for target platform using build.sh script
         run: |
           source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
@@ -116,9 +116,12 @@ jobs:
               ;;
           esac
           
-          echo "Building temporal-service for ${GOOS}/${GOARCH}..."
+          echo "Building temporal-service for ${GOOS}/${GOARCH} using build.sh script..."
           cd temporal-service
-          go build -o "../target/${TARGET}/release/${BINARY_NAME}" main.go
+          # Run build.sh with cross-compilation environment
+          GOOS="${GOOS}" GOARCH="${GOARCH}" ./build.sh
+          # Move the built binary to the expected location
+          mv "${BINARY_NAME}" "../target/${TARGET}/release/${BINARY_NAME}"
           echo "temporal-service built successfully for ${TARGET}"
 
       - name: Package CLI with temporal-service

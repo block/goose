@@ -438,6 +438,19 @@ pub async fn persist_messages(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
+    persist_messages_with_schedule_id(session_file, messages, provider, None).await
+}
+
+/// Write messages to a session file with metadata, including an optional scheduled job ID
+///
+/// Overwrites the file with metadata as the first line, followed by all messages in JSONL format.
+/// If a provider is supplied, it will automatically generate a description when appropriate.
+pub async fn persist_messages_with_schedule_id(
+    session_file: &Path,
+    messages: &[Message],
+    provider: Option<Arc<dyn Provider>>,
+    schedule_id: Option<String>,
+) -> Result<()> {
     // Count user messages
     let user_message_count = messages
         .iter()
@@ -448,11 +461,16 @@ pub async fn persist_messages(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description(session_file, messages, provider).await
+            generate_description_with_schedule_id(session_file, messages, provider, schedule_id)
+                .await
         }
         _ => {
             // Read existing metadata
-            let metadata = read_metadata(session_file)?;
+            let mut metadata = read_metadata(session_file)?;
+            // Update the schedule_id if provided
+            if schedule_id.is_some() {
+                metadata.schedule_id = schedule_id;
+            }
             // Write the file with metadata and messages
             save_messages_with_metadata(session_file, &metadata, messages)
         }
@@ -493,6 +511,19 @@ pub async fn generate_description(
     messages: &[Message],
     provider: Arc<dyn Provider>,
 ) -> Result<()> {
+    generate_description_with_schedule_id(session_file, messages, provider, None).await
+}
+
+/// Generate a description for the session using the provider, including an optional scheduled job ID
+///
+/// This function is called when appropriate to generate a short description
+/// of the session based on the conversation history.
+pub async fn generate_description_with_schedule_id(
+    session_file: &Path,
+    messages: &[Message],
+    provider: Arc<dyn Provider>,
+    schedule_id: Option<String>,
+) -> Result<()> {
     // Create a special message asking for a 3-word description
     let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
 
@@ -527,8 +558,11 @@ pub async fn generate_description(
     // Read current metadata
     let mut metadata = read_metadata(session_file)?;
 
-    // Update description
+    // Update description and schedule_id
     metadata.description = description;
+    if schedule_id.is_some() {
+        metadata.schedule_id = schedule_id;
+    }
 
     // Update the file with the new metadata and existing messages
     save_messages_with_metadata(session_file, &metadata, messages)

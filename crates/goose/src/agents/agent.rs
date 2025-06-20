@@ -574,7 +574,25 @@ impl Agent {
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
 
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        // Get goose_mode from config, but override with execution_mode if provided in session config
+        let mut goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+
+        // If this is a scheduled job with an execution_mode, override the goose_mode
+        if let Some(session_config) = &session {
+            if let Some(execution_mode) = &session_config.execution_mode {
+                // Map "foreground" to "auto" and "background" to "chat"
+                goose_mode = match execution_mode.as_str() {
+                    "foreground" => "auto".to_string(),
+                    "background" => "chat".to_string(),
+                    _ => goose_mode,
+                };
+                tracing::info!(
+                    "Using execution_mode '{}' which maps to goose_mode '{}'",
+                    execution_mode,
+                    goose_mode
+                );
+            }
+        }
 
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);

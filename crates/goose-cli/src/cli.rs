@@ -509,6 +509,16 @@ enum Command {
             help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
         )]
         quiet: bool,
+
+        /// Scheduled job ID (used internally for scheduled executions)
+        #[arg(
+            long = "scheduled-job-id",
+            value_name = "ID",
+            help = "ID of the scheduled job that triggered this execution (internal use)",
+            long_help = "Internal parameter used when this run command is executed by a scheduled job. This associates the session with the schedule for tracking purposes.",
+            hide = true
+        )]
+        scheduled_job_id: Option<String>,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -662,6 +672,7 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
+                        scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
                     })
@@ -709,6 +720,7 @@ pub async fn cli() -> Result<()> {
             params,
             explain,
             render_recipe,
+            scheduled_job_id,
             quiet,
         }) => {
             let (input_config, session_settings) = match (
@@ -808,6 +820,7 @@ pub async fn cli() -> Result<()> {
                 settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
             })
@@ -925,6 +938,7 @@ pub async fn cli() -> Result<()> {
                     settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
                 })
