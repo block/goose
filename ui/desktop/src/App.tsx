@@ -3,6 +3,7 @@ import { IpcRendererEvent } from 'electron';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
+import { initializeCostDatabase } from './utils/costDatabase';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
@@ -158,6 +159,11 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
+        // Initialize cost database early to pre-load pricing data
+        initializeCostDatabase().catch((error) => {
+          console.error('Failed to initialize cost database:', error);
+        });
+
         await initConfig();
         try {
           await readAllConfig({ throwOnError: true });

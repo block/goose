@@ -43,7 +43,10 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   }, [read]);
 
   // Determine which model to display - activeModel takes priority when lead/worker is active
-  const displayModel = (isLeadWorkerActive && currentModelInfo?.model) ? currentModelInfo.model : (currentModel || 'Select Model');
+  const displayModel =
+    isLeadWorkerActive && currentModelInfo?.model
+      ? currentModelInfo.model
+      : currentModel || 'Select Model';
   const modelMode = currentModelInfo?.mode;
 
   // Update display provider when current provider changes
@@ -106,9 +109,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                 >
                   {displayModel}
                   {isLeadWorkerActive && modelMode && (
-                    <span className="ml-1 text-[10px] opacity-60">
-                      ({modelMode})
-                    </span>
+                    <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
                   )}
                 </span>
               </TooltipTrigger>
@@ -116,9 +117,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                 <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
                   {displayModel}
                   {isLeadWorkerActive && modelMode && (
-                    <span className="ml-1 text-[10px] opacity-60">
-                      ({modelMode})
-                    </span>
+                    <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
                   )}
                 </TooltipContent>
               )}
@@ -164,7 +163,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
       {isAddModelModalOpen ? (
         <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
       ) : null}
-      
+
       {isLeadWorkerModalOpen ? (
         <Modal onClose={() => setIsLeadWorkerModalOpen(false)}>
           <LeadWorkerSettings onClose={() => setIsLeadWorkerModalOpen(false)} />

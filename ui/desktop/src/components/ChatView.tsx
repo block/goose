@@ -1,4 +1,12 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback, createContext, useContext } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  createContext,
+  useContext,
+} from 'react';
 import { getApiUrl } from '../config';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -25,6 +33,8 @@ import {
 } from './context_management/ChatContextManager';
 import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
+import { useModelAndProvider } from './ModelAndProviderContext';
+import { getCostForModel } from '../utils/costDatabase';
 import {
   Message,
   createUserMessage,
@@ -98,10 +108,24 @@ function ChatContent({
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
+  const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
+  const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
+  const [localInputTokens, setLocalInputTokens] = useState<number>(0);
+  const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [sessionCosts, setSessionCosts] = useState<{
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  }>({});
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const { currentModel, currentProvider } = useModelAndProvider();
+  const prevModelRef = useRef<string | undefined>();
+  const prevProviderRef = useRef<string | undefined>();
 
   const {
     summaryContent,
@@ -149,6 +173,7 @@ function ChatContent({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
+    sessionMetadata,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -469,12 +494,40 @@ function ChatContent({
       .reverse();
   }, [filteredMessages]);
 
+  // Simple token estimation function (roughly 4 characters per token)
+  const estimateTokens = (text: string): number => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Calculate token counts from messages
+  useEffect(() => {
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    messages.forEach((message) => {
+      const textContent = getTextContent(message);
+      if (textContent) {
+        const tokens = estimateTokens(textContent);
+        if (message.role === 'user') {
+          inputTokens += tokens;
+        } else if (message.role === 'assistant') {
+          outputTokens += tokens;
+        }
+      }
+    });
+
+    setLocalInputTokens(inputTokens);
+    setLocalOutputTokens(outputTokens);
+  }, [messages]);
+
   // Fetch session metadata to get token count
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
         setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
+        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -483,6 +536,63 @@ function ChatContent({
       fetchSessionTokens();
     }
   }, [chat.id, messages]);
+
+  // Update token counts when sessionMetadata changes from the message stream
+  useEffect(() => {
+    console.log('Session metadata received:', sessionMetadata);
+    if (sessionMetadata) {
+      setSessionTokenCount(sessionMetadata.totalTokens || 0);
+      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
+      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
+    }
+  }, [sessionMetadata]);
+
+  // Handle model changes and accumulate costs
+  useEffect(() => {
+    if (prevModelRef.current !== undefined && prevProviderRef.current !== undefined &&
+        (prevModelRef.current !== currentModel || prevProviderRef.current !== currentProvider)) {
+      
+      // Model/provider has changed, save the costs for the previous model
+      const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
+      
+      // Get pricing info for the previous model
+      const prevCostInfo = getCostForModel(prevProviderRef.current, prevModelRef.current);
+      
+      if (prevCostInfo) {
+        const prevInputCost = (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
+        const prevOutputCost = (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
+        const prevTotalCost = prevInputCost + prevOutputCost;
+        
+        // Save the accumulated costs for this model
+        setSessionCosts(prev => ({
+          ...prev,
+          [prevKey]: {
+            inputTokens: sessionInputTokens || localInputTokens,
+            outputTokens: sessionOutputTokens || localOutputTokens,
+            totalCost: prevTotalCost
+          }
+        }));
+      }
+      
+      // Reset token counters for the new model
+      setSessionTokenCount(0);
+      setSessionInputTokens(0);
+      setSessionOutputTokens(0);
+      setLocalInputTokens(0);
+      setLocalOutputTokens(0);
+      
+      console.log(
+        'Model changed from',
+        `${prevProviderRef.current}/${prevModelRef.current}`,
+        'to',
+        `${currentProvider}/${currentModel}`,
+        '- saved costs and reset token counters'
+      );
+    }
+    
+    prevModelRef.current = currentModel || undefined;
+    prevProviderRef.current = currentProvider || undefined;
+  }, [currentModel, currentProvider, sessionInputTokens, sessionOutputTokens, localInputTokens, localOutputTokens]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -512,148 +622,151 @@ function ChatContent({
   return (
     <CurrentModelContext.Provider value={currentModelInfo}>
       <div className="flex flex-col w-full h-screen items-center justify-center">
-      {/* Loader when generating recipe */}
-      {isGeneratingRecipe && <LayingEggLoader />}
-      <MoreMenuLayout
-        hasMessages={hasMessages}
-        setView={setView}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      />
+        {/* Loader when generating recipe */}
+        {isGeneratingRecipe && <LayingEggLoader />}
+        <MoreMenuLayout
+          hasMessages={hasMessages}
+          setView={setView}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
 
-      <Card
-        className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-      >
-        {recipeConfig?.title && messages.length > 0 && (
-          <AgentHeader
-            title={recipeConfig.title}
-            profileInfo={
-              recipeConfig.profile
-                ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                : undefined
-            }
-            onChangeProfile={() => {
-              // Handle profile change
-              console.log('Change profile clicked');
-            }}
-          />
-        )}
-        {messages.length === 0 ? (
-          <Splash
-            append={append}
-            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig!.activities : null}
-            title={recipeConfig?.title}
-          />
-        ) : (
-          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-            <SearchView>
-              {filteredMessages.map((message, index) => (
-                <div
-                  key={message.id || index}
-                  className="mt-4 px-4"
-                  data-testid="message-container"
-                >
-                  {isUserMessage(message) ? (
-                    <>
-                      {hasContextHandlerContent(message) ? (
-                        <ContextHandler
-                          messages={messages}
-                          messageId={message.id ?? message.created.toString()}
-                          chatId={chat.id}
-                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                          contextType={getContextHandlerType(message)}
-                        />
-                      ) : (
-                        <UserMessage message={message} />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* Only render GooseMessage if it's not a message invoking some context management */}
-                      {hasContextHandlerContent(message) ? (
-                        <ContextHandler
-                          messages={messages}
-                          messageId={message.id ?? message.created.toString()}
-                          chatId={chat.id}
-                          workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                          contextType={getContextHandlerType(message)}
-                        />
-                      ) : (
-                        <GooseMessage
-                          messageHistoryIndex={chat?.messageHistoryIndex}
-                          message={message}
-                          messages={messages}
-                          append={append}
-                          appendMessage={(newMessage) => {
-                            const updatedMessages = [...messages, newMessage];
-                            setMessages(updatedMessages);
-                          }}
-                          toolCallNotifications={toolCallNotifications}
-                        />
-                      )}
-                    </>
-                  )}
+        <Card
+          className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          {recipeConfig?.title && messages.length > 0 && (
+            <AgentHeader
+              title={recipeConfig.title}
+              profileInfo={
+                recipeConfig.profile
+                  ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                  : undefined
+              }
+              onChangeProfile={() => {
+                // Handle profile change
+                console.log('Change profile clicked');
+              }}
+            />
+          )}
+          {messages.length === 0 ? (
+            <Splash
+              append={append}
+              activities={Array.isArray(recipeConfig?.activities) ? recipeConfig!.activities : null}
+              title={recipeConfig?.title}
+            />
+          ) : (
+            <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+              <SearchView>
+                {filteredMessages.map((message, index) => (
+                  <div
+                    key={message.id || index}
+                    className="mt-4 px-4"
+                    data-testid="message-container"
+                  >
+                    {isUserMessage(message) ? (
+                      <>
+                        {hasContextHandlerContent(message) ? (
+                          <ContextHandler
+                            messages={messages}
+                            messageId={message.id ?? message.created.toString()}
+                            chatId={chat.id}
+                            workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                            contextType={getContextHandlerType(message)}
+                          />
+                        ) : (
+                          <UserMessage message={message} />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Only render GooseMessage if it's not a message invoking some context management */}
+                        {hasContextHandlerContent(message) ? (
+                          <ContextHandler
+                            messages={messages}
+                            messageId={message.id ?? message.created.toString()}
+                            chatId={chat.id}
+                            workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                            contextType={getContextHandlerType(message)}
+                          />
+                        ) : (
+                          <GooseMessage
+                            messageHistoryIndex={chat?.messageHistoryIndex}
+                            message={message}
+                            messages={messages}
+                            append={append}
+                            appendMessage={(newMessage) => {
+                              const updatedMessages = [...messages, newMessage];
+                              setMessages(updatedMessages);
+                            }}
+                            toolCallNotifications={toolCallNotifications}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </SearchView>
+
+              {error && (
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                    {error.message || 'Honk! Goose experienced an error while responding'}
+                  </div>
+                  <div
+                    className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                    onClick={async () => {
+                      // Find the last user message
+                      const lastUserMessage = messages.reduceRight(
+                        (found, m) => found || (m.role === 'user' ? m : null),
+                        null as Message | null
+                      );
+                      if (lastUserMessage) {
+                        append(lastUserMessage);
+                      }
+                    }}
+                  >
+                    Retry Last Message
+                  </div>
                 </div>
-              ))}
-            </SearchView>
+              )}
+              <div className="block h-8" />
+            </ScrollArea>
+          )}
 
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                </div>
-                <div
-                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                  onClick={async () => {
-                    // Find the last user message
-                    const lastUserMessage = messages.reduceRight(
-                      (found, m) => found || (m.role === 'user' ? m : null),
-                      null as Message | null
-                    );
-                    if (lastUserMessage) {
-                      append(lastUserMessage);
-                    }
-                  }}
-                >
-                  Retry Last Message
-                </div>
-              </div>
-            )}
-            <div className="block h-8" />
-          </ScrollArea>
-        )}
+          <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
+            {isLoading && <LoadingGoose />}
+            <ChatInput
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              initialValue={_input || (hasMessages ? _input : initialPrompt)}
+              setView={setView}
+              hasMessages={hasMessages}
+              numTokens={sessionTokenCount}
+              inputTokens={sessionInputTokens || localInputTokens}
+              outputTokens={sessionOutputTokens || localOutputTokens}
+              droppedFiles={droppedFiles}
+              messages={messages}
+              setMessages={setMessages}
+              sessionCosts={sessionCosts}
+            />
+          </div>
+        </Card>
 
-        <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
-          {isLoading && <LoadingGoose />}
-          <ChatInput
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={_input || (hasMessages ? _input : initialPrompt)}
-            setView={setView}
-            hasMessages={hasMessages}
-            numTokens={sessionTokenCount}
-            droppedFiles={droppedFiles}
-            messages={messages}
-            setMessages={setMessages}
-          />
-        </div>
-      </Card>
+        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
 
-      {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-
-      <SessionSummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={closeSummaryModal}
-        onSave={(editedContent) => {
-          updateSummary(editedContent);
-          closeSummaryModal();
-        }}
-        summaryContent={summaryContent}
-      />
-    </div>
+        <SessionSummaryModal
+          isOpen={isSummaryModalOpen}
+          onClose={closeSummaryModal}
+          onSave={(editedContent) => {
+            updateSummary(editedContent);
+            closeSummaryModal();
+          }}
+          summaryContent={summaryContent}
+        />
+      </div>
     </CurrentModelContext.Provider>
   );
 }
