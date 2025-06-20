@@ -935,12 +935,33 @@ impl DeveloperRouter {
             normalized_text.push('\n');
         }
 
+        // Create checkpoint if file exists, before overwriting
+        let (ckpt_path, ts) = if path.exists() {
+            self.create_checkpoint(path)?
+        } else {
+            (PathBuf::new(), String::new())   // new file => no checkpoint
+        };
+
         // Write to the file
         std::fs::write(path, &normalized_text) // Write the potentially modified text
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
+
+        // Generate diff (empty old content for new files)
+        let old_content = if ckpt_path.as_os_str().is_empty() { "" } else { 
+            &std::fs::read_to_string(&ckpt_path)
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e)))?
+        };
+        let diff = self.diff_string(old_content, &normalized_text);
+
+        let payload = json!({
+            "file": path,
+            "checkpoint": ckpt_path,  // may be empty for brand-new file
+            "timestamp": ts,
+            "diff": diff
+        });
 
         // The assistant output does not show the file again because the content is already in the tool request
         // but we do show it to the user here, using the final written content
@@ -960,6 +981,8 @@ impl DeveloperRouter {
             })
             .with_audience(vec![Role::User])
             .with_priority(0.2),
+            Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
+                .with_audience(vec![Role::Assistant]),
         ])
     }
 
