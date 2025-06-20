@@ -215,6 +215,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                 }
+                MessageContent::EmbeddedResource(_) => {
+                    // Skip embedded resources - they are for UI purposes only
+                    continue;
+                }
             }
         }
 

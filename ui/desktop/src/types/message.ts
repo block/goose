@@ -18,7 +18,15 @@ export interface ImageContent {
   annotations?: Record<string, unknown>;
 }
 
-export type Content = TextContent | ImageContent;
+export interface ResourceContent {
+  type: 'resource';
+  uri: string;
+  text: string;
+  mimeType?: string;
+  annotations?: Record<string, unknown>;
+}
+
+export type Content = TextContent | ImageContent | ResourceContent;
 
 export interface ToolCall {
   name: string;
@@ -83,9 +91,18 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
+export interface ResourceMessageContent {
+  type: 'embeddedResource';
+  uri: string;
+  text: string;
+  mimeType?: string;
+  annotations?: Record<string, unknown>;
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
+  | ResourceMessageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
@@ -202,6 +219,17 @@ export function getTextContent(message: Message): string {
       return '';
     })
     .join('\n');
+}
+
+export function getResourceContent(message: Message): ResourceMessageContent[] {
+  return message.content.filter(
+    (content): content is ResourceMessageContent => content.type === 'embeddedResource'
+  );
+}
+
+export function getCheckpointContent(message: Message): ResourceMessageContent | null {
+  const resources = getResourceContent(message);
+  return resources.find(r => r.uri === 'goose://checkpoint') || null;
 }
 
 export function getToolRequests(message: Message): ToolRequestMessageContent[] {
