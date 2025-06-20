@@ -8,7 +8,7 @@ use std::collections::HashSet;
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
 use chrono::Utc;
-use mcp_core::content::{Content, ImageContent, TextContent, EmbeddedResource};
+use mcp_core::content::{Content, EmbeddedResource, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
 use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
 use mcp_core::resource::ResourceContents;
@@ -272,7 +272,11 @@ impl From<Content> for MessageContent {
             Content::Resource(resource) => {
                 // Check if this is a special embedded resource that should be preserved
                 match &resource.resource {
-                    ResourceContents::TextResourceContents { uri, text, mime_type: _ } => {
+                    ResourceContents::TextResourceContents {
+                        uri,
+                        text,
+                        mime_type: _,
+                    } => {
                         // For special URIs like goose://checkpoint, preserve as resource
                         if uri.starts_with("goose://") {
                             MessageContent::EmbeddedResource(resource)
