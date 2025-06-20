@@ -183,7 +183,7 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
     }
 }
 
-fn parse_recipe_content(content: &str) -> Result<Recipe> {
+pub fn parse_recipe_content(content: &str) -> Result<Recipe> {
     if serde_json::from_str::<JsonValue>(content).is_ok() {
         Ok(serde_json::from_str(content)?)
     } else if serde_yaml::from_str::<YamlValue>(content).is_ok() {
