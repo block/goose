@@ -5,7 +5,6 @@ mod shell;
 use anyhow::Result;
 use base64::Engine;
 use chrono::Utc;
-use difference::Changeset;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
@@ -611,7 +610,60 @@ impl DeveloperRouter {
 
     // Helper function to generate diff string
     fn diff_string(&self, old_txt: &str, new_txt: &str) -> String {
-        Changeset::new(old_txt, new_txt, "\n").to_string()
+        use similar::{ChangeTag, TextDiff};
+
+        let diff = TextDiff::from_lines(old_txt, new_txt);
+        let mut result = String::new();
+
+        result.push_str("--- a\n");
+        result.push_str("+++ b\n");
+
+        for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+            if idx > 0 {
+                result.push_str("\n"); // Separate hunks with newline
+            }
+
+            // Calculate hunk header
+            let first = group[0];
+            let last = group[group.len() - 1];
+            let old_range = (last.old_range().end - first.old_range().start) as i32;
+            let new_range = (last.new_range().end - first.new_range().start) as i32;
+
+            result.push_str(&format!(
+                "@@ -{},{} +{},{} @@\n",
+                first.old_range().start + 1,
+                old_range,
+                first.new_range().start + 1,
+                new_range
+            ));
+
+            for op in group {
+                for change in diff.iter_changes(op) {
+                    match change.tag() {
+                        ChangeTag::Delete => {
+                            result.push_str(&format!("-{}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                        ChangeTag::Insert => {
+                            result.push_str(&format!("+{}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                        ChangeTag::Equal => {
+                            result.push_str(&format!(" {}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        result
     }
 
     // List checkpoints for a file
