@@ -8,7 +8,7 @@ use tokio::process::Command;
 
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
-pub const SUB_RECIPE_TOOL_NAME_PREFIX: &str = "subrecipe__run_sub_recipe";
+pub const SUB_RECIPE_TOOL_NAME_PREFIX: &str = "subrecipe__run_";
 
 pub fn create_sub_recipe_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();
@@ -21,10 +21,10 @@ pub fn create_sub_recipe_tool(sub_recipe: &SubRecipe) -> Tool {
         input_schema,
         Some(ToolAnnotations {
             title: Some(format!("run sub recipe {}", sub_recipe.name)),
-            read_only_hint: true,
-            destructive_hint: false,
+            read_only_hint: false,
+            destructive_hint: true,
             idempotent_hint: false,
-            open_world_hint: false,
+            open_world_hint: true,
         }),
     )
 }

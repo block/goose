@@ -3,9 +3,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    agents::recipe_tools::sub_recipe_tools::{
-        create_sub_recipe_tool, run_sub_recipe, SUB_RECIPE_TOOL_NAME_PREFIX,
-    },
+    agents::{recipe_tools::sub_recipe_tools::{
+    create_sub_recipe_tool, run_sub_recipe, SUB_RECIPE_TOOL_NAME_PREFIX
+    }, tool_execution::ToolCallResult},
     recipe::SubRecipe,
 };
 
@@ -31,23 +31,36 @@ impl SubRecipeManager {
 
     pub fn add_sub_recipe_tools(&mut self, sub_recipes_to_add: Vec<SubRecipe>) {
         for sub_recipe in sub_recipes_to_add {
-            let sub_recipe_name = sub_recipe.name.clone();
+            let sub_recipe_key = format!("{}_{}", SUB_RECIPE_TOOL_NAME_PREFIX,  sub_recipe.name.clone());
             let tool = create_sub_recipe_tool(&sub_recipe);
-            self.sub_recipe_tools.insert(sub_recipe_name.clone(), tool);
-            self.sub_recipes.insert(sub_recipe_name, sub_recipe);
+            self.sub_recipe_tools.insert(sub_recipe_key.clone(), tool);
+            self.sub_recipes.insert(sub_recipe_key.clone(), sub_recipe);
         }
     }
 
     pub fn is_sub_recipe_tool(&self, tool_name: &str) -> bool {
-        tool_name.starts_with(SUB_RECIPE_TOOL_NAME_PREFIX)
+        self.sub_recipe_tools.contains_key(tool_name)
     }
 
-    pub async fn call_sub_recipe_tool(
+    pub async fn dispatch_sub_recipe_tool_call(
+        &self,
+        tool_name: &str,
+        params: Value,
+    ) -> ToolCallResult {
+        let result = self.call_sub_recipe_tool(tool_name, params).await;
+        match result {
+            Ok(call_result) => ToolCallResult::from(Ok(call_result)),
+            Err(e) => ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string()))),
+        }
+    }
+
+    async fn call_sub_recipe_tool(
         &self,
         tool_name: &str,
         params: Value,
     ) -> Result<Vec<Content>, ToolError> {
-        let sub_recipe_name = tool_name
+        let sub_recipe = self.sub_recipes.get(tool_name).ok_or_else(|| {
+            let sub_recipe_name = tool_name
             .strip_prefix(SUB_RECIPE_TOOL_NAME_PREFIX)
             .and_then(|s| s.strip_prefix("_"))
             .ok_or_else(|| {
@@ -55,9 +68,8 @@ impl SubRecipeManager {
                     "Invalid sub-recipe tool name format: {}",
                     tool_name
                 ))
-            })?;
+            }).unwrap();
 
-        let sub_recipe = self.sub_recipes.get(sub_recipe_name).ok_or_else(|| {
             ToolError::InvalidParameters(format!("Sub-recipe '{}' not found", sub_recipe_name))
         })?;
 

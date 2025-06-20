@@ -235,11 +235,9 @@ impl Agent {
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
 
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
-            ToolCallResult::from(
-                sub_recipe_manager
-                    .call_sub_recipe_tool(&tool_call.name, tool_call.arguments.clone())
-                    .await,
-            )
+            sub_recipe_manager
+                .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
+                .await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
