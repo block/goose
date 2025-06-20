@@ -105,6 +105,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .build()?,
             )
         }
+        MessageContent::EmbeddedResource(_) => {
+            // Skip embedded resources - they are for UI purposes only
+            bedrock::ContentBlock::Text("".to_string())
+        }
     })
 }
 

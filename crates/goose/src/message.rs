@@ -8,7 +8,7 @@ use std::collections::HashSet;
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
 use chrono::Utc;
-use mcp_core::content::{Content, ImageContent, TextContent};
+use mcp_core::content::{Content, ImageContent, TextContent, EmbeddedResource};
 use mcp_core::handler::ToolResult;
 use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
 use mcp_core::resource::ResourceContents;
@@ -102,6 +102,7 @@ pub struct SummarizationRequested {
 pub enum MessageContent {
     Text(TextContent),
     Image(ImageContent),
+    EmbeddedResource(EmbeddedResource),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
@@ -238,6 +239,14 @@ impl MessageContent {
         }
     }
 
+    /// Get the embedded resource if this is an EmbeddedResource variant
+    pub fn as_embedded_resource(&self) -> Option<&EmbeddedResource> {
+        match self {
+            MessageContent::EmbeddedResource(resource) => Some(resource),
+            _ => None,
+        }
+    }
+
     /// Get the thinking content if this is a ThinkingContent variant
     pub fn as_thinking(&self) -> Option<&ThinkingContent> {
         match self {
@@ -260,10 +269,30 @@ impl From<Content> for MessageContent {
         match content {
             Content::Text(text) => MessageContent::Text(text),
             Content::Image(image) => MessageContent::Image(image),
-            Content::Resource(resource) => MessageContent::Text(TextContent {
-                text: resource.get_text(),
-                annotations: None,
-            }),
+            Content::Resource(resource) => {
+                // Check if this is a special embedded resource that should be preserved
+                match &resource.resource {
+                    ResourceContents::TextResourceContents { uri, text, mime_type: _ } => {
+                        // For special URIs like goose://checkpoint, preserve as resource
+                        if uri.starts_with("goose://") {
+                            MessageContent::EmbeddedResource(resource)
+                        } else {
+                            // For regular resources, convert to text as before
+                            MessageContent::Text(TextContent {
+                                text: text.clone(),
+                                annotations: resource.annotations,
+                            })
+                        }
+                    }
+                    _ => {
+                        // For non-text resources, convert to text as before
+                        MessageContent::Text(TextContent {
+                            text: resource.get_text(),
+                            annotations: resource.annotations,
+                        })
+                    }
+                }
+            }
         }
     }
 }
