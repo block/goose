@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { ResourceMessageContent } from '../types/message';
+import { ResourceContent } from '../types/message';
 
 interface CheckpointActionsProps {
-  checkpointContent: ResourceMessageContent;
+  checkpointContent: ResourceContent;
 }
 
 export default function CheckpointActions({ checkpointContent }: CheckpointActionsProps) {
   const [showDiff, setShowDiff] = useState(false);
-  
+
   // Parse the checkpoint payload
-  let checkpointData: any = {};
+  let checkpointData: {
+    action?: string;
+    file?: string;
+    checkpoint?: string;
+    diff?: string;
+  } = {};
   try {
-    checkpointData = JSON.parse(checkpointContent.text);
+    checkpointData = JSON.parse(checkpointContent.resource.text);
   } catch (e) {
     console.error('Failed to parse checkpoint data:', e);
     return null;
@@ -50,7 +55,8 @@ export default function CheckpointActions({ checkpointContent }: CheckpointActio
     <div className="checkpoint-actions mt-2 p-2 bg-bgSubtle rounded border border-borderSubtle">
       <div className="flex gap-2 items-center">
         <span className="text-xs text-textSubtle">
-          {checkpointData.action ? `${checkpointData.action}:` : 'File modified:'} {checkpointData.file}
+          {checkpointData.action ? `${checkpointData.action}:` : 'File modified:'}{' '}
+          {checkpointData.file}
         </span>
         <button
           onClick={handleViewDiff}
@@ -67,7 +73,7 @@ export default function CheckpointActions({ checkpointContent }: CheckpointActio
           </button>
         )}
       </div>
-      
+
       {showDiff && checkpointData.diff && (
         <div className="mt-2">
           <pre className="text-xs bg-bgApp p-2 rounded border border-borderSubtle overflow-x-auto whitespace-pre-wrap">

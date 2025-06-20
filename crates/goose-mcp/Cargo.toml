@@ -35,7 +35,7 @@ reqwest = { version = "0.11", features = [
 ], default-features = false }
 async-trait = "0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
-difference = "2.0"
+similar = { version = "2.4", features = ["inline"] }
 etcetera = "0.8.0"
 tempfile = "3.8"
 include_dir = "0.7.4"

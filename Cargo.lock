@@ -2669,12 +2669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "difference"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3661,7 +3655,6 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "chrono",
- "difference",
  "docx-rs",
  "etcetera",
  "google-apis-common",
@@ -3689,6 +3682,7 @@ dependencies = [
  "serde_with",
  "serial_test",
  "shellexpand",
+ "similar",
  "sysinfo 0.32.1",
  "tempfile",
  "thiserror 1.0.69",
@@ -7783,6 +7777,12 @@ checksum = "95890f873bec569a0362c235787f3aca6e1e887302ba4840839bcc6459c42da6"
 dependencies = [
  "quote",
 ]
+
+[[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "simple_asn1"

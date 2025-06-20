@@ -20,10 +20,14 @@ export interface ImageContent {
 
 export interface ResourceContent {
   type: 'resource';
+  resource: Resource;
+  annotations?: Record<string, unknown>;
+}
+
+export interface Resource {
   uri: string;
   text: string;
   mimeType?: string;
-  annotations?: Record<string, unknown>;
 }
 
 export type Content = TextContent | ImageContent | ResourceContent;
@@ -91,18 +95,10 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
-export interface ResourceMessageContent {
-  type: 'embeddedResource';
-  uri: string;
-  text: string;
-  mimeType?: string;
-  annotations?: Record<string, unknown>;
-}
-
 export type MessageContent =
   | TextContent
   | ImageContent
-  | ResourceMessageContent
+  | ResourceContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
@@ -221,15 +217,15 @@ export function getTextContent(message: Message): string {
     .join('\n');
 }
 
-export function getResourceContent(message: Message): ResourceMessageContent[] {
+export function getResourceContent(message: Message): ResourceContent[] {
   return message.content.filter(
-    (content): content is ResourceMessageContent => content.type === 'embeddedResource'
+    (content): content is ResourceContent => content.type === 'resource'
   );
 }
 
-export function getCheckpointContent(message: Message): ResourceMessageContent | null {
+export function getCheckpointContent(message: Message): ResourceContent | null {
   const resources = getResourceContent(message);
-  return resources.find(r => r.uri === 'goose://checkpoint') || null;
+  return resources.find((r) => r.resource.uri === 'goose://checkpoint') || null;
 }
 
 export function getToolRequests(message: Message): ToolRequestMessageContent[] {

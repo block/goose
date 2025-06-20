@@ -2,11 +2,24 @@ import React, { useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+} from '../types/message';
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { FileDiff } from 'lucide-react';
+
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    pendingDiffContent?: string;
+  }
+}
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -121,6 +134,24 @@ function ToolCallView({
         return true;
     }
   })();
+
+  //extract resource content if present
+  const result = toolResponse?.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+  const hasDiffContent = diffContent !== undefined;
+  console.log(resourceContents);
+  console.log(checkpoint);
+  console.log(diffContent);
+
+  const handleShowDiff = () => {
+    // Store diff content globally so the new window can access it
+    window.pendingDiffContent = diffContent;
+
+    // Dispatch a custom event to open diff in a new window
+    window.dispatchEvent(new CustomEvent('open-diff-viewer'));
+  };
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
   const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
@@ -314,19 +345,40 @@ function ToolCallView({
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
-            {(() => {
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center">
+            <Dot size={2} loadingStatus={loadingStatus} />
+            <span className="ml-[10px]">
+              {(() => {
               const description = getToolDescription();
               if (description) {
                 return description;
               }
               // Fallback to the original tool name formatting
               return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
-        </>
+            })()}</span>
+
+          </div>
+          {/* Diff button */}
+          {hasDiffContent && (
+            <div className="relative group">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShowDiff();
+                }}
+                className="p-1 hover:bg-bgSubtle rounded transition-colors flex items-center gap-1"
+                title="Show Diff"
+              >
+                <FileDiff size={16} className="text-textSubtle" />
+              </button>
+              {/* Tooltip */}
+              <div className="absolute right-0 top-full mt-1 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                Show Diff
+              </div>
+            </div>
+          )}
+        </div>
       }
     >
       {/* Tool Details */}
