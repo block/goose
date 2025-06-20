@@ -8,8 +8,9 @@ use crate::{
         base::Usage,
         errors::ProviderError,
         utils::{
-            convert_image, detect_image_path, is_valid_function_name, load_image_file,
-            sanitize_function_name, ImageFormat,
+            convert_image, detect_image_path, is_valid_function_name,
+            json_escape_control_chars_in_string, load_image_file, sanitize_function_name,
+            ImageFormat,
         },
     },
     types::core::{Content, Role, Tool, ToolCall, ToolError},
@@ -286,14 +287,24 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let mut arguments = tool_call["function"]["arguments"]
+
+                // Get the raw arguments string from the LLM.
+                let arguments_str = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                // If arguments is empty, we will have invalid json parsing error later.
-                if arguments.is_empty() {
-                    arguments = "{}".to_string();
-                }
+
+                // If arguments_str is empty, default to an empty JSON object string.
+                let arguments_str = if arguments_str.is_empty() {
+                    "{}".to_string()
+                } else {
+                    arguments_str
+                };
+
+                // Escape literal control characters in the arguments string to make it valid JSON.
+                // This handles cases where the LLM might output raw newlines or other control
+                // characters within string values in the JSON arguments.
+                let escaped_arguments = json_escape_control_chars_in_string(&arguments_str);
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -302,7 +313,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     ));
                     content.push(MessageContent::tool_request(id, Err(error).into()));
                 } else {
-                    match serde_json::from_str::<Value>(&arguments) {
+                    match serde_json::from_str::<Value>(&escaped_arguments) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
@@ -311,8 +322,8 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                         }
                         Err(e) => {
                             let error = ToolError::InvalidParameters(format!(
-                                "Could not interpret tool use parameters for id {}: {}",
-                                id, e
+                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}', Processed (escaped) arguments: '{}'",
+                                id, e, arguments_str, escaped_arguments
                             ));
                             content.push(MessageContent::tool_request(id, Err(error).into()));
                         }
