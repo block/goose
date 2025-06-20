@@ -73,6 +73,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::FrontendToolRequest(_tool_request) => {
                     // Skip frontend tool requests
                 }
+                MessageContent::EmbeddedResource(_) => {
+                    // Skip embedded resources - they are for UI purposes only
+                    continue;
+                }
             }
         }
 
