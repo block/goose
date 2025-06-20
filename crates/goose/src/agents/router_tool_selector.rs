@@ -176,10 +176,15 @@ impl RouterToolSelector for VectorToolSelector {
             let existing_tools = vector_db
                 .search_tools(record.vector.clone(), 1, Some(&record.extension_name))
                 .await
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to search for existing tools: {}", e)))?;
+                .map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to search for existing tools: {}", e))
+                })?;
 
             // Only add if no exact match found
-            if !existing_tools.iter().any(|t| t.tool_name == record.tool_name) {
+            if !existing_tools
+                .iter()
+                .any(|t| t.tool_name == record.tool_name)
+            {
                 new_tool_records.push(record);
             }
         }

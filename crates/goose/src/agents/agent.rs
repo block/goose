@@ -806,11 +806,16 @@ impl Agent {
     /// Update the provider used by this agent
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         *self.provider.lock().await = Some(provider.clone());
-        self.update_router_tool_selector(Some(provider), None).await?;
+        self.update_router_tool_selector(Some(provider), None)
+            .await?;
         Ok(())
     }
 
-    pub async fn update_router_tool_selector(&self, provider: Option<Arc<dyn Provider>>, reindex_all: Option<bool>) -> Result<()> {
+    pub async fn update_router_tool_selector(
+        &self,
+        provider: Option<Arc<dyn Provider>>,
+        reindex_all: Option<bool>,
+    ) -> Result<()> {
         let config = Config::global();
         let extension_manager = self.extension_manager.lock().await;
         let provider = match provider {

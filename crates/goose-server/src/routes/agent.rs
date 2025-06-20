@@ -240,22 +240,22 @@ async fn update_router_tool_selector(
         })
     })?;
 
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get agent: {}", e);
-            Json(ErrorResponse {
-                error: format!("Failed to get agent: {}", e),
-            })
-        })?;
-
-    agent.update_router_tool_selector(None, Some(true)).await.map_err(|e| {
-        tracing::error!("Failed to update tool selection strategy: {}", e);
+    let agent = state.get_agent().await.map_err(|e| {
+        tracing::error!("Failed to get agent: {}", e);
         Json(ErrorResponse {
-            error: format!("Failed to update tool selection strategy: {}", e),
+            error: format!("Failed to get agent: {}", e),
         })
     })?;
+
+    agent
+        .update_router_tool_selector(None, Some(true))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update tool selection strategy: {}", e);
+            Json(ErrorResponse {
+                error: format!("Failed to update tool selection strategy: {}", e),
+            })
+        })?;
 
     Ok(Json(
         "Tool selection strategy updated successfully".to_string(),
