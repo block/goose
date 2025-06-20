@@ -3,9 +3,16 @@ interface StoredMessage {
   timestamp: number;
 }
 
+interface DraftData {
+  text: string;
+  timestamp: number;
+}
+
 const STORAGE_KEY = 'goose-chat-history';
+const DRAFT_STORAGE_KEY = 'goose-chat-draft';
 const MAX_MESSAGES = 500;
 const EXPIRY_DAYS = 30;
+const DRAFT_EXPIRY_HOURS = 24; // Drafts expire after 24 hours
 
 export class LocalMessageStorage {
   private static getStoredMessages(): StoredMessage[] {
@@ -72,5 +79,49 @@ export class LocalMessageStorage {
 
   static clearHistory() {
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  // Draft management methods
+  static saveDraft(text: string) {
+    if (!text.trim()) {
+      this.clearDraft();
+      return;
+    }
+
+    try {
+      const draftData: DraftData = {
+        text: text.trim(),
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+    } catch (error) {
+      console.error('Error saving draft:', error);
+    }
+  }
+
+  static getDraft(): string | null {
+    try {
+      const stored = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!stored) return null;
+
+      const draftData = JSON.parse(stored) as DraftData;
+      const now = Date.now();
+      const expiryTime = now - DRAFT_EXPIRY_HOURS * 60 * 60 * 1000;
+
+      // Check if draft has expired
+      if (draftData.timestamp < expiryTime) {
+        this.clearDraft();
+        return null;
+      }
+
+      return draftData.text;
+    } catch (error) {
+      console.error('Error reading draft:', error);
+      return null;
+    }
+  }
+
+  static clearDraft() {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
   }
 }
