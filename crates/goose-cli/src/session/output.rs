@@ -67,6 +67,17 @@ pub fn set_theme(theme: Theme) {
         .set_param("GOOSE_CLI_THEME", Value::String(theme.as_config_string()))
         .expect("Failed to set theme");
     CURRENT_THEME.with(|t| *t.borrow_mut() = theme);
+
+    let config = Config::global();
+    let theme_str = match theme {
+        Theme::Light => "light",
+        Theme::Dark => "dark",
+        Theme::Ansi => "ansi",
+    };
+
+    if let Err(e) = config.set_param("GOOSE_CLI_THEME", Value::String(theme_str.to_string())) {
+        eprintln!("Failed to save theme setting to config: {}", e);
+    }
 }
 
 pub fn get_theme() -> Theme {
