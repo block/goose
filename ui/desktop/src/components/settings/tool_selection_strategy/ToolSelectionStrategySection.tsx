@@ -31,10 +31,15 @@ export const ToolSelectionStrategySection = ({
 }: ToolSelectionStrategySectionProps) => {
   const [currentStrategy, setCurrentStrategy] = useState('default');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { read, upsert } = useConfig();
 
   const handleStrategyChange = async (newStrategy: string) => {
+    if (isLoading) return; // Prevent multiple simultaneous requests
+
     setError(null); // Clear any previous errors
+    setIsLoading(true);
+
     try {
       // First update the configuration
       try {
@@ -42,12 +47,13 @@ export const ToolSelectionStrategySection = ({
       } catch (error) {
         console.error('Error updating configuration:', error);
         setError(`Failed to update configuration: ${error}`);
+        setIsLoading(false);
         return;
       }
 
       // Then update the backend
       try {
-        const response = await fetch(getApiUrl('/agent/update_tool_selection_strategy'), {
+        const response = await fetch(getApiUrl('/agent/update_router_tool_selector'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -55,7 +61,6 @@ export const ToolSelectionStrategySection = ({
           },
         });
 
-        console.log('response', response);
         if (!response.ok) {
           const errorData = await response
             .json()
@@ -73,6 +78,7 @@ export const ToolSelectionStrategySection = ({
       } catch (error) {
         console.error('Error updating backend:', error);
         setError(`Failed to update backend: ${error}`);
+        setIsLoading(false);
         return;
       }
 
@@ -81,6 +87,8 @@ export const ToolSelectionStrategySection = ({
     } catch (error) {
       console.error('Error updating tool selection strategy:', error);
       setError(`Failed to update tool selection strategy: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -115,12 +123,21 @@ export const ToolSelectionStrategySection = ({
             {error}
           </div>
         )}
+        {isLoading && (
+          <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
+            Updating tool selection strategy...
+          </div>
+        )}
         <div>
           {all_tool_selection_strategies.map((strategy) => (
-            <div className="group hover:cursor-pointer" key={strategy.key}>
+            <div
+              className={`group ${isLoading ? 'opacity-50' : 'hover:cursor-pointer'}`}
+              key={strategy.key}
+            >
               <div
-                className="flex items-center justify-between text-textStandard py-2 px-4 hover:bg-bgSubtle"
-                onClick={() => handleStrategyChange(strategy.key)}
+                className={`flex items-center justify-between text-textStandard py-2 px-4 ${!isLoading ? 'hover:bg-bgSubtle' : ''}`}
+                onClick={() => !isLoading && handleStrategyChange(strategy.key)}
               >
                 <div className="flex">
                   <div>
@@ -135,14 +152,15 @@ export const ToolSelectionStrategySection = ({
                     name="tool-selection-strategy"
                     value={strategy.key}
                     checked={currentStrategy === strategy.key}
-                    onChange={() => handleStrategyChange(strategy.key)}
+                    onChange={() => !isLoading && handleStrategyChange(strategy.key)}
+                    disabled={isLoading}
                     className="peer sr-only"
                   />
                   <div
-                    className="h-4 w-4 rounded-full border border-borderStandard 
+                    className={`h-4 w-4 rounded-full border border-borderStandard 
                           peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                           peer-checked:bg-white dark:peer-checked:bg-black
-                          transition-all duration-200 ease-in-out group-hover:border-borderProminent"
+                          transition-all duration-200 ease-in-out ${!isLoading ? 'group-hover:border-borderProminent' : ''}`}
                   ></div>
                 </div>
               </div>

@@ -224,13 +224,13 @@ async fn update_agent_provider(
 
 #[utoipa::path(
     post,
-    path = "/agent/update_tool_selection_strategy",
+    path = "/agent/update_router_tool_selector",
     responses(
         (status = 200, description = "Tool selection strategy updated successfully", body = String),
         (status = 500, description = "Internal server error")
     )
 )]
-async fn update_tool_selection_strategy(
+async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
@@ -250,7 +250,7 @@ async fn update_tool_selection_strategy(
             })
         })?;
 
-    agent.update_tool_selection_strategy().await.map_err(|e| {
+    agent.update_router_tool_selector(None, Some(true)).await.map_err(|e| {
         tracing::error!("Failed to update tool selection strategy: {}", e);
         Json(ErrorResponse {
             error: format!("Failed to update tool selection strategy: {}", e),
@@ -270,8 +270,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
-            "/agent/update_tool_selection_strategy",
-            post(update_tool_selection_strategy),
+            "/agent/update_router_tool_selector",
+            post(update_router_tool_selector),
         )
         .with_state(state)
 }
