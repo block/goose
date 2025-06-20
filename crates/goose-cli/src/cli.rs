@@ -652,8 +652,9 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
-                        interactive: true,
+                        interactive: true, // Session command is always interactive
                         quiet: false,
+                        sub_recipes: None,
                     })
                     .await;
                     setup_logging(
@@ -699,8 +700,12 @@ pub async fn cli() -> Result<()> {
             explain,
             quiet,
         }) => {
-            let (input_config, session_settings) = match (instructions, input_text, recipe, explain)
-            {
+            let (input_config, session_settings, sub_recipes) = match (
+                instructions,
+                input_text,
+                recipe,
+                explain,
+            ) {
                 (Some(file), _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
@@ -713,6 +718,7 @@ pub async fn cli() -> Result<()> {
                             extensions_override: None,
                             additional_system_prompt: system,
                         },
+                        None,
                         None,
                     )
                 }
@@ -731,6 +737,7 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: None,
                         },
                         None,
+                        None,
                     )
                 }
                 (_, Some(text), _, _) => (
@@ -739,6 +746,7 @@ pub async fn cli() -> Result<()> {
                         extensions_override: None,
                         additional_system_prompt: system,
                     },
+                    None,
                     None,
                 ),
                 (_, _, Some(recipe_name), explain) => {
@@ -762,6 +770,7 @@ pub async fn cli() -> Result<()> {
                             goose_model: s.goose_model,
                             temperature: s.temperature,
                         }),
+                        recipe.sub_recipes,
                     )
                 }
                 (None, None, None, _) => {
@@ -784,6 +793,7 @@ pub async fn cli() -> Result<()> {
                 max_tool_repetitions,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
+                sub_recipes,
             })
             .await;
 
@@ -901,6 +911,7 @@ pub async fn cli() -> Result<()> {
                     max_tool_repetitions: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
+                    sub_recipes: None,
                 })
                 .await;
                 setup_logging(

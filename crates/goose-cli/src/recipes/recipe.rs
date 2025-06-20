@@ -8,8 +8,6 @@ use crate::recipes::print_recipe::{
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Error, Template, UndefinedBehavior};
-use serde_json::Value as JsonValue;
-use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -47,7 +45,7 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
 
     let rendered_content = render_content_with_params(&recipe_file_content, &params_for_template)?;
 
-    let recipe = parse_recipe_content(&rendered_content)?;
+    let recipe = Recipe::from_content(&rendered_content)?;
 
     // Display information about the loaded recipe
     println!(
@@ -106,7 +104,7 @@ pub fn explain_recipe_with_parameters(
 }
 
 fn validate_recipe_file_parameters(recipe_file_content: &str) -> Result<Recipe> {
-    let recipe_from_recipe_file: Recipe = parse_recipe_content(recipe_file_content)?;
+    let recipe_from_recipe_file: Recipe = Recipe::from_content(recipe_file_content)?;
     validate_optional_parameters(&recipe_from_recipe_file)?;
     validate_parameters_in_template(&recipe_from_recipe_file.parameters, recipe_file_content)?;
     Ok(recipe_from_recipe_file)
@@ -180,18 +178,6 @@ fn validate_optional_parameters(recipe: &Recipe) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
-    }
-}
-
-fn parse_recipe_content(content: &str) -> Result<Recipe> {
-    if serde_json::from_str::<JsonValue>(content).is_ok() {
-        Ok(serde_json::from_str(content)?)
-    } else if serde_yaml::from_str::<YamlValue>(content).is_ok() {
-        Ok(serde_yaml::from_str(content)?)
-    } else {
-        Err(anyhow::anyhow!(
-            "Unsupported file format for recipe file. Expected .yaml or .json"
-        ))
     }
 }
 
