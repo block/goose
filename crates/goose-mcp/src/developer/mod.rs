@@ -1006,8 +1006,9 @@ impl DeveloperRouter {
 
         // Check if Editor API is configured and use it as the primary path
         if let Some(ref editor) = self.editor_model {
-            // Editor API path - save history then call API directly
+            // Editor API path - save history and create checkpoint then call API directly
             self.save_file_history(path)?;
+            let (ckpt_path, ts) = self.create_checkpoint(path)?;
 
             match editor.edit_code(&content, old_str, new_str).await {
                 Ok(updated_content) => {
@@ -1017,6 +1018,15 @@ impl DeveloperRouter {
                         ToolError::ExecutionError(format!("Failed to write file: {}", e))
                     })?;
 
+                    // Generate diff and create checkpoint payload
+                    let diff = self.diff_string(&content, &normalized_content);
+                    let payload = json!({
+                        "file": path,
+                        "checkpoint": ckpt_path,
+                        "timestamp": ts,
+                        "diff": diff
+                    });
+
                     // Simple success message for Editor API
                     return Ok(vec![
                         Content::text(format!("Successfully edited {}", path.display()))
@@ -1024,6 +1034,8 @@ impl DeveloperRouter {
                         Content::text(format!("File {} has been edited", path.display()))
                             .with_audience(vec![Role::User])
                             .with_priority(0.2),
+                        Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
+                            .with_audience(vec![Role::Assistant]),
                     ]);
                 }
                 Err(e) => {
@@ -1050,8 +1062,9 @@ impl DeveloperRouter {
             ));
         }
 
-        // Save history for undo (original behavior - after validation)
+        // Save history and create checkpoint for undo (original behavior - after validation)
         self.save_file_history(path)?;
+        let (ckpt_path, ts) = self.create_checkpoint(path)?;
 
         let new_content = content.replace(old_str, new_str);
         let normalized_content = normalize_line_endings(&new_content);
@@ -1104,11 +1117,22 @@ impl DeveloperRouter {
             output
         };
 
+        // Generate diff and create checkpoint payload
+        let diff = self.diff_string(&content, &normalized_content);
+        let payload = json!({
+            "file": path,
+            "checkpoint": ckpt_path,
+            "timestamp": ts,
+            "diff": diff
+        });
+
         Ok(vec![
             Content::text(success_message).with_audience(vec![Role::Assistant]),
             Content::text(output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.2),
+            Content::embedded_text("goose://checkpoint", serde_json::to_string(&payload).unwrap())
+                .with_audience(vec![Role::Assistant]),
         ])
     }
 
