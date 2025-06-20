@@ -9,231 +9,69 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use mcp_core::{tool::Tool, Content};
 
-/// A provider that switches between a lead model and a worker model based on turn count
-/// and can fallback to lead model on consecutive failures
-pub struct LeadWorkerProvider {
-    lead_provider: Arc<dyn Provider>,
-    worker_provider: Arc<dyn Provider>,
-    lead_turns: usize,
-    turn_count: Arc<Mutex<usize>>,
-    failure_count: Arc<Mutex<usize>>,
-    max_failures_before_fallback: usize,
-    fallback_turns: usize,
-    in_fallback_mode: Arc<Mutex<bool>>,
-    fallback_remaining: Arc<Mutex<usize>>,
+/// Enum representing the current mode of the LeadWorkerProvider
+#[derive(Debug, Clone, PartialEq)]
+pub enum LeadWorkerMode {
+    Lead,
+    Worker,
 }
 
-impl LeadWorkerProvider {
-    /// Create a new LeadWorkerProvider
-    ///
-    /// # Arguments
-    /// * `lead_provider` - The provider to use for the initial turns
-    /// * `worker_provider` - The provider to use after lead_turns
-    /// * `lead_turns` - Number of turns to use the lead provider (default: 3)
-    pub fn new(
-        lead_provider: Arc<dyn Provider>,
-        worker_provider: Arc<dyn Provider>,
-        lead_turns: Option<usize>,
-    ) -> Self {
+/// Configuration for LeadWorkerProvider
+#[derive(Debug, Clone)]
+pub struct LeadWorkerConfig {
+    pub initial_lead_turns: usize,
+    pub failure_threshold: usize,
+    pub fallback_turns: usize,
+}
+
+impl Default for LeadWorkerConfig {
+    fn default() -> Self {
         Self {
-            lead_provider,
-            worker_provider,
-            lead_turns: lead_turns.unwrap_or(3),
-            turn_count: Arc::new(Mutex::new(0)),
-            failure_count: Arc::new(Mutex::new(0)),
-            max_failures_before_fallback: 2, // Fallback after 2 consecutive failures
-            fallback_turns: 2,               // Use lead model for 2 turns when in fallback mode
-            in_fallback_mode: Arc::new(Mutex::new(false)),
-            fallback_remaining: Arc::new(Mutex::new(0)),
+            initial_lead_turns: 3,
+            failure_threshold: 2,
+            fallback_turns: 2,
         }
     }
+}
 
-    /// Create a new LeadWorkerProvider with custom settings
-    ///
-    /// # Arguments
-    /// * `lead_provider` - The provider to use for the initial turns
-    /// * `worker_provider` - The provider to use after lead_turns
-    /// * `lead_turns` - Number of turns to use the lead provider
-    /// * `failure_threshold` - Number of consecutive failures before fallback
-    /// * `fallback_turns` - Number of turns to use lead model in fallback mode
-    pub fn new_with_settings(
-        lead_provider: Arc<dyn Provider>,
-        worker_provider: Arc<dyn Provider>,
-        lead_turns: usize,
-        failure_threshold: usize,
-        fallback_turns: usize,
-    ) -> Self {
-        Self {
-            lead_provider,
-            worker_provider,
-            lead_turns,
-            turn_count: Arc::new(Mutex::new(0)),
-            failure_count: Arc::new(Mutex::new(0)),
-            max_failures_before_fallback: failure_threshold,
-            fallback_turns,
-            in_fallback_mode: Arc::new(Mutex::new(false)),
-            fallback_remaining: Arc::new(Mutex::new(0)),
-        }
-    }
+/// Failure detector for identifying task-level failures
+#[derive(Default)]
+pub struct FailureDetector;
 
-    /// Reset the turn counter and failure tracking (useful for new conversations)
-    pub async fn reset_turn_count(&self) {
-        let mut count = self.turn_count.lock().await;
-        *count = 0;
-        let mut failures = self.failure_count.lock().await;
-        *failures = 0;
-        let mut fallback = self.in_fallback_mode.lock().await;
-        *fallback = false;
-        let mut remaining = self.fallback_remaining.lock().await;
-        *remaining = 0;
-    }
-
-    /// Get the current turn count
-    pub async fn get_turn_count(&self) -> usize {
-        *self.turn_count.lock().await
-    }
-
-    /// Get the current failure count
-    pub async fn get_failure_count(&self) -> usize {
-        *self.failure_count.lock().await
-    }
-
-    /// Check if currently in fallback mode
-    pub async fn is_in_fallback_mode(&self) -> bool {
-        *self.in_fallback_mode.lock().await
-    }
-
-    /// Get the currently active provider based on turn count and fallback state
-    async fn get_active_provider(&self) -> Arc<dyn Provider> {
-        let count = *self.turn_count.lock().await;
-        let in_fallback = *self.in_fallback_mode.lock().await;
-
-        // Use lead provider if we're in initial turns OR in fallback mode
-        if count < self.lead_turns || in_fallback {
-            Arc::clone(&self.lead_provider)
-        } else {
-            Arc::clone(&self.worker_provider)
-        }
-    }
-
-    /// Handle the result of a completion attempt and update failure tracking
-    async fn handle_completion_result(
-        &self,
-        result: &Result<(Message, ProviderUsage), ProviderError>,
-    ) {
-        match result {
-            Ok((message, _usage)) => {
-                // Check for task-level failures in the response
-                let has_task_failure = self.detect_task_failures(message).await;
-
-                if has_task_failure {
-                    // Task failure detected - increment failure count
-                    let mut failures = self.failure_count.lock().await;
-                    *failures += 1;
-
-                    let failure_count = *failures;
-                    let turn_count = *self.turn_count.lock().await;
-
-                    tracing::warn!(
-                        "Task failure detected in response (failure count: {})",
-                        failure_count
-                    );
-
-                    // Check if we should trigger fallback
-                    if turn_count >= self.lead_turns
-                        && !*self.in_fallback_mode.lock().await
-                        && failure_count >= self.max_failures_before_fallback
-                    {
-                        let mut in_fallback = self.in_fallback_mode.lock().await;
-                        let mut fallback_remaining = self.fallback_remaining.lock().await;
-
-                        *in_fallback = true;
-                        *fallback_remaining = self.fallback_turns;
-                        *failures = 0; // Reset failure count when entering fallback
-
-                        tracing::warn!(
-                            "🔄 SWITCHING TO LEAD MODEL: Entering fallback mode after {} consecutive task failures - using lead model for {} turns",
-                            self.max_failures_before_fallback,
-                            self.fallback_turns
-                        );
-                    }
-                } else {
-                    // Success - reset failure count and handle fallback mode
-                    let mut failures = self.failure_count.lock().await;
-                    *failures = 0;
-
-                    let mut in_fallback = self.in_fallback_mode.lock().await;
-                    let mut fallback_remaining = self.fallback_remaining.lock().await;
-
-                    if *in_fallback {
-                        *fallback_remaining -= 1;
-                        if *fallback_remaining == 0 {
-                            *in_fallback = false;
-                            tracing::info!("✅ SWITCHING BACK TO WORKER MODEL: Exiting fallback mode - worker model resumed");
-                        }
-                    }
-                }
-
-                // Increment turn count on any completion (success or task failure)
-                let mut count = self.turn_count.lock().await;
-                *count += 1;
-            }
-            Err(_) => {
-                // Technical failure - just log and let it bubble up
-                // For technical failures (API/LLM issues), we don't want to second-guess
-                // the model choice - just let the default model handle it
-                tracing::warn!(
-                    "Technical failure detected - API/LLM issue, will use default model"
-                );
-
-                // Don't increment turn count or failure tracking for technical failures
-                // as these are temporary infrastructure issues, not model capability issues
-            }
-        }
+impl FailureDetector {
+    pub fn new() -> Self {
+        Self
     }
 
     /// Detect task-level failures in the model's response
-    async fn detect_task_failures(&self, message: &Message) -> bool {
-        let mut failure_indicators = 0;
-
+    pub fn detect_task_failure(&self, message: &Message) -> bool {
         for content in &message.content {
             match content {
                 MessageContent::ToolRequest(tool_request) => {
-                    // Check if tool request itself failed (malformed, etc.)
                     if tool_request.tool_call.is_err() {
-                        failure_indicators += 1;
-                        tracing::debug!(
-                            "Failed tool request detected: {:?}",
-                            tool_request.tool_call
-                        );
+                        return true;
                     }
                 }
                 MessageContent::ToolResponse(tool_response) => {
-                    // Check if tool execution failed
-                    if let Err(tool_error) = &tool_response.tool_result {
-                        failure_indicators += 1;
-                        tracing::debug!("Tool execution failure detected: {:?}", tool_error);
+                    if tool_response.tool_result.is_err() {
+                        return true;
                     } else if let Ok(contents) = &tool_response.tool_result {
-                        // Check tool output for error indicators
                         if self.contains_error_indicators(contents) {
-                            failure_indicators += 1;
-                            tracing::debug!("Tool output contains error indicators");
+                            return true;
                         }
                     }
                 }
+                // TODO these are not correctly applied right now because they are checked on the completion
+                // output which is never the user message
                 MessageContent::Text(text_content) => {
-                    // Check for user correction patterns or error acknowledgments
                     if self.contains_user_correction_patterns(&text_content.text) {
-                        failure_indicators += 1;
-                        tracing::debug!("User correction pattern detected in text");
+                        return true;
                     }
                 }
                 _ => {}
             }
         }
-
-        // Consider it a failure if we have multiple failure indicators
-        failure_indicators >= 1
+        false
     }
 
     /// Check if tool output contains error indicators
@@ -284,6 +122,143 @@ impl LeadWorkerProvider {
     }
 }
 
+/// A provider that switches between a lead model and a worker model based on success/failure
+pub struct LeadWorkerProvider {
+    lead_provider: Arc<dyn Provider>,
+    worker_provider: Arc<dyn Provider>,
+    config: LeadWorkerConfig,
+    lead_turns_remaining: Arc<Mutex<usize>>,
+    consecutive_failures: Arc<Mutex<usize>>,
+    failure_detector: FailureDetector,
+}
+
+impl LeadWorkerProvider {
+    /// Create a new LeadWorkerProvider with default settings
+    pub fn new(
+        lead_provider: Arc<dyn Provider>,
+        worker_provider: Arc<dyn Provider>,
+        lead_turns: Option<usize>,
+    ) -> Self {
+        let config = LeadWorkerConfig {
+            initial_lead_turns: lead_turns.unwrap_or(3),
+            ..Default::default()
+        };
+
+        Self {
+            lead_provider,
+            worker_provider,
+            lead_turns_remaining: Arc::new(Mutex::new(config.initial_lead_turns)),
+            consecutive_failures: Arc::new(Mutex::new(0)),
+            config,
+            failure_detector: FailureDetector::new(),
+        }
+    }
+
+    /// Create a new LeadWorkerProvider with custom settings
+    pub fn new_with_settings(
+        lead_provider: Arc<dyn Provider>,
+        worker_provider: Arc<dyn Provider>,
+        lead_turns: usize,
+        failure_threshold: usize,
+        fallback_turns: usize,
+    ) -> Self {
+        let config = LeadWorkerConfig {
+            initial_lead_turns: lead_turns,
+            failure_threshold,
+            fallback_turns,
+        };
+
+        Self {
+            lead_provider,
+            worker_provider,
+            lead_turns_remaining: Arc::new(Mutex::new(config.initial_lead_turns)),
+            consecutive_failures: Arc::new(Mutex::new(0)),
+            config,
+            failure_detector: FailureDetector::new(),
+        }
+    }
+
+    /// Get the current mode
+    pub async fn get_current_mode(&self) -> LeadWorkerMode {
+        let lead_turns_remaining = *self.lead_turns_remaining.lock().await;
+        if lead_turns_remaining > 0 {
+            LeadWorkerMode::Lead
+        } else {
+            LeadWorkerMode::Worker
+        }
+    }
+
+    /// Get the currently active provider and mode
+    async fn get_active_provider(&self) -> (Arc<dyn Provider>, LeadWorkerMode) {
+        let mode = self.get_current_mode().await;
+        let provider = match mode {
+            LeadWorkerMode::Lead => Arc::clone(&self.lead_provider),
+            LeadWorkerMode::Worker => Arc::clone(&self.worker_provider),
+        };
+        (provider, mode)
+    }
+
+    /// Handle the result of a completion attempt and update state
+    async fn handle_completion_result(
+        &self,
+        result: &Result<(Message, ProviderUsage), ProviderError>,
+    ) {
+        match result {
+            Ok((message, _usage)) => {
+                let has_task_failure = self.failure_detector.detect_task_failure(message);
+
+                if has_task_failure {
+                    // Handle task failure
+                    let mut failures = self.consecutive_failures.lock().await;
+                    let mut lead_turns = self.lead_turns_remaining.lock().await;
+
+                    let new_failures = *failures + 1;
+
+                    // If we're in worker mode and hit failure threshold, add fallback turns
+                    let should_add_fallback =
+                        *lead_turns == 0 && new_failures >= self.config.failure_threshold;
+
+                    if should_add_fallback {
+                        *lead_turns = self.config.fallback_turns; // Add fallback turns to get back to lead
+                        *failures = 0; // Reset when entering fallback
+                    } else {
+                        *failures = new_failures;
+                        // Keep current lead_turns (don't decrement on failure)
+                    }
+                } else {
+                    // Handle success
+                    let mut failures = self.consecutive_failures.lock().await;
+                    let mut lead_turns = self.lead_turns_remaining.lock().await;
+
+                    // Only decrement lead turns on SUCCESS (move toward worker when things are going well)
+                    *lead_turns = lead_turns.saturating_sub(1);
+                    // Reset failure count on success
+                    *failures = 0;
+                }
+            }
+            Err(_) => {
+                // Technical failure - don't change state
+            }
+        }
+    }
+
+    /// Reset the state - for tests
+    #[cfg(test)]
+    async fn reset_turn_count(&self) {
+        let mut lead_turns = self.lead_turns_remaining.lock().await;
+        let mut failures = self.consecutive_failures.lock().await;
+        *lead_turns = self.config.initial_lead_turns;
+        *failures = 0;
+    }
+
+    /// Get the current failure count - for tests
+    #[cfg(test)]
+    async fn get_failure_count(&self) -> usize {
+        *self.consecutive_failures.lock().await
+    }
+}
+
+#[async_trait]
 impl LeadWorkerProviderTrait for LeadWorkerProvider {
     /// Get information about the lead and worker models for logging
     fn get_model_info(&self) -> (String, String) {
@@ -292,25 +267,35 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
         (lead_model, worker_model)
     }
 
-    /// Get the currently active model name
+    /// Get the currently active model name (configured name, not usage name)
     fn get_active_model(&self) -> String {
-        // Read from the global store which was set during complete()
-        use super::base::get_current_model;
-        get_current_model().unwrap_or_else(|| {
-            // Fallback to lead model if no current model is set
+        // Use try_lock to avoid blocking - this is safe for reading simple state
+        let lead_turns_remaining = self
+            .lead_turns_remaining
+            .try_lock()
+            .map(|t| *t)
+            .unwrap_or(self.config.initial_lead_turns);
+
+        if lead_turns_remaining > 0 {
             self.lead_provider.get_model_config().model_name
-        })
+        } else {
+            self.worker_provider.get_model_config().model_name
+        }
+    }
+
+    /// Get the current mode (Lead or Worker)
+    async fn get_current_mode(&self) -> LeadWorkerMode {
+        self.get_current_mode().await
     }
 }
 
 #[async_trait]
 impl Provider for LeadWorkerProvider {
     fn metadata() -> ProviderMetadata {
-        // This is a wrapper provider, so we return minimal metadata
         ProviderMetadata::new(
             "lead_worker",
             "Lead/Worker Provider",
-            "A provider that switches between lead and worker models based on turn count",
+            "A provider that switches between lead and worker models based on success/failure",
             "",     // No default model as this is determined by the wrapped providers
             vec![], // No known models as this depends on wrapped providers
             "",     // No doc link
@@ -320,7 +305,6 @@ impl Provider for LeadWorkerProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         // Return the lead provider's model config as the default
-        // In practice, this might need to be more sophisticated
         self.lead_provider.get_model_config()
     }
 
@@ -330,78 +314,24 @@ impl Provider for LeadWorkerProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Get the active provider
-        let provider = self.get_active_provider().await;
-
-        // Log which provider is being used
-        let turn_count = *self.turn_count.lock().await;
-        let in_fallback = *self.in_fallback_mode.lock().await;
-        let fallback_remaining = *self.fallback_remaining.lock().await;
-
-        let provider_type = if turn_count < self.lead_turns {
-            "lead (initial)"
-        } else if in_fallback {
-            "lead (fallback)"
-        } else {
-            "worker"
-        };
-
-        // Get the active model name and update the global store
-        let active_model_name = if turn_count < self.lead_turns || in_fallback {
-            self.lead_provider.get_model_config().model_name.clone()
-        } else {
-            self.worker_provider.get_model_config().model_name.clone()
-        };
-
-        // Update the global current model store
-        super::base::set_current_model(&active_model_name);
-
-        if in_fallback {
-            tracing::info!(
-                "🔄 Using {} provider for turn {} (FALLBACK MODE: {} turns remaining) - Model: {}",
-                provider_type,
-                turn_count + 1,
-                fallback_remaining,
-                active_model_name
-            );
-        } else {
-            tracing::info!(
-                "Using {} provider for turn {} (lead_turns: {}) - Model: {}",
-                provider_type,
-                turn_count + 1,
-                self.lead_turns,
-                active_model_name
-            );
-        }
+        let (provider, current_mode) = self.get_active_provider().await;
 
         // Make the completion request
         let result = provider.complete(system, messages, tools).await;
 
-        // For technical failures, try with default model (lead provider) instead
+        // For technical failures, try with lead provider as fallback
         let final_result = match &result {
-            Err(_) => {
-                tracing::warn!("Technical failure with {} provider, retrying with default model (lead provider)", provider_type);
-
-                // Try with lead provider as the default/fallback for technical failures
+            Err(_) if current_mode == LeadWorkerMode::Worker => {
                 let default_result = self.lead_provider.complete(system, messages, tools).await;
-
                 match &default_result {
-                    Ok(_) => {
-                        tracing::info!(
-                            "✅ Default model (lead provider) succeeded after technical failure"
-                        );
-                        default_result
-                    }
-                    Err(_) => {
-                        tracing::error!("❌ Default model (lead provider) also failed - returning original error");
-                        result // Return the original error
-                    }
+                    Ok(_) => default_result,
+                    Err(_) => result, // Return the original error
                 }
             }
-            Ok(_) => result, // Success with original provider
+            _ => result, // Success or lead provider failure
         };
 
-        // Handle the result and update tracking (only for successful completions)
+        // Handle the result and update state
         self.handle_completion_result(&final_result).await;
 
         final_result
@@ -426,7 +356,6 @@ impl Provider for LeadWorkerProvider {
     }
 
     fn supports_embeddings(&self) -> bool {
-        // Support embeddings if either provider supports them
         self.lead_provider.supports_embeddings() || self.worker_provider.supports_embeddings()
     }
 
@@ -443,7 +372,6 @@ impl Provider for LeadWorkerProvider {
         }
     }
 
-    /// Check if this provider is a LeadWorkerProvider
     fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
         Some(self)
     }
@@ -507,111 +435,29 @@ mod tests {
 
         let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(3));
 
-        // First three turns should use lead provider
-        for i in 0..3 {
+        // First three successful turns should use lead provider
+        // After each success, lead_turns_remaining decrements
+        for _i in 0..3 {
+            // Check mode before completion
+            assert_eq!(provider.get_current_mode().await, LeadWorkerMode::Lead);
             let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
             assert_eq!(usage.model, "lead");
-            assert_eq!(provider.get_turn_count().await, i + 1);
-            assert!(!provider.is_in_fallback_mode().await);
         }
 
-        // Subsequent turns should use worker provider
-        for i in 3..6 {
-            let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
-            assert_eq!(usage.model, "worker");
-            assert_eq!(provider.get_turn_count().await, i + 1);
-            assert!(!provider.is_in_fallback_mode().await);
-        }
+        // After 3 successful lead turns, should now be in worker mode
+        assert_eq!(provider.get_current_mode().await, LeadWorkerMode::Worker);
+        let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
+        assert_eq!(usage.model, "worker");
+
+        // Should stay in worker mode
+        assert_eq!(provider.get_current_mode().await, LeadWorkerMode::Worker);
 
         // Reset and verify it goes back to lead
         provider.reset_turn_count().await;
-        assert_eq!(provider.get_turn_count().await, 0);
-        assert_eq!(provider.get_failure_count().await, 0);
-        assert!(!provider.is_in_fallback_mode().await);
+        assert_eq!(provider.get_current_mode().await, LeadWorkerMode::Lead);
 
         let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
         assert_eq!(usage.model, "lead");
-    }
-
-    #[tokio::test]
-    async fn test_technical_failure_retry() {
-        let lead_provider = Arc::new(MockFailureProvider {
-            name: "lead".to_string(),
-            model_config: ModelConfig::new("lead-model".to_string()),
-            should_fail: false, // Lead provider works
-        });
-
-        let worker_provider = Arc::new(MockFailureProvider {
-            name: "worker".to_string(),
-            model_config: ModelConfig::new("worker-model".to_string()),
-            should_fail: true, // Worker will fail
-        });
-
-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(2));
-
-        // First two turns use lead (should succeed)
-        for _i in 0..2 {
-            let result = provider.complete("system", &[], &[]).await;
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap().1.model, "lead");
-            assert!(!provider.is_in_fallback_mode().await);
-        }
-
-        // Next turn uses worker (will fail, but should retry with lead and succeed)
-        let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
-        assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
-        assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures
-        assert!(!provider.is_in_fallback_mode().await); // Not in fallback mode
-
-        // Another turn - should still try worker first, then retry with lead
-        let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
-        assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
-        assert_eq!(provider.get_failure_count().await, 0); // Still no failure tracking
-        assert!(!provider.is_in_fallback_mode().await); // Still not in fallback mode
-    }
-
-    #[tokio::test]
-    async fn test_fallback_on_task_failures() {
-        // Test that task failures (not technical failures) still trigger fallback mode
-        // This would need a different mock that simulates task failures in successful responses
-        // For now, we'll test the fallback mode functionality directly
-        let lead_provider = Arc::new(MockFailureProvider {
-            name: "lead".to_string(),
-            model_config: ModelConfig::new("lead-model".to_string()),
-            should_fail: false,
-        });
-
-        let worker_provider = Arc::new(MockFailureProvider {
-            name: "worker".to_string(),
-            model_config: ModelConfig::new("worker-model".to_string()),
-            should_fail: false,
-        });
-
-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(2));
-
-        // Simulate being in fallback mode
-        {
-            let mut in_fallback = provider.in_fallback_mode.lock().await;
-            *in_fallback = true;
-            let mut fallback_remaining = provider.fallback_remaining.lock().await;
-            *fallback_remaining = 2;
-            let mut turn_count = provider.turn_count.lock().await;
-            *turn_count = 4; // Past initial lead turns
-        }
-
-        // Should use lead provider in fallback mode
-        let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().1.model, "lead");
-        assert!(provider.is_in_fallback_mode().await);
-
-        // One more fallback turn
-        let result = provider.complete("system", &[], &[]).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().1.model, "lead");
-        assert!(!provider.is_in_fallback_mode().await); // Should exit fallback mode
     }
 
     #[derive(Clone)]
@@ -655,5 +501,33 @@ mod tests {
                 ))
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_technical_failure_retry() {
+        let lead_provider = Arc::new(MockFailureProvider {
+            name: "lead".to_string(),
+            model_config: ModelConfig::new("lead-model".to_string()),
+            should_fail: false, // Lead provider works
+        });
+
+        let worker_provider = Arc::new(MockFailureProvider {
+            name: "worker".to_string(),
+            model_config: ModelConfig::new("worker-model".to_string()),
+            should_fail: true, // Worker will fail
+        });
+
+        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(1));
+
+        // First turn uses lead (should succeed)
+        let result = provider.complete("system", &[], &[]).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().1.model, "lead");
+
+        // Second turn uses worker (will fail, but should retry with lead and succeed)
+        let result = provider.complete("system", &[], &[]).await;
+        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
+        assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
+        assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures
     }
 }
