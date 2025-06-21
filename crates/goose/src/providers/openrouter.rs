@@ -21,10 +21,11 @@ pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
     "anthropic/claude-sonnet-4",
-    "google/gemini-2.5-pro-preview"
-    "google/gemini-2.0-flash-001",
-    "deepseek/deepseek-r1-0528:free",
+    "google/gemini-2.5-pro"
+    "deepseek/deepseek-r1-0528",
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
