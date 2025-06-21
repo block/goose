@@ -7,6 +7,7 @@ import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import HtmlResourceRenderer from './HtmlResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -290,25 +291,29 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
       label={<span className="pl-[19px] py-1">Output</span>}
       isStartExpanded={isStartExpanded}
     >
-      <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
-        {result.type === 'text' && result.text && (
-          <MarkdownContent
-            content={result.text}
-            className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
-          />
-        )}
-        {result.type === 'image' && (
-          <img
-            src={`data:${result.mimeType};base64,${result.data}`}
-            alt="Tool result"
-            className="max-w-full h-auto rounded-md my-2"
-            onError={(e) => {
-              console.error('Failed to load image');
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        )}
-      </div>
+      {result.type === 'resource' && result.resource.uri?.startsWith('ui://') ? (
+        <HtmlResourceRenderer content={result} />
+      ) : (
+        <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
+          {result.type === 'text' && result.text && (
+            <MarkdownContent
+              content={result.text}
+              className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+            />
+          )}
+          {result.type === 'image' && (
+            <img
+              src={`data:${result.mimeType};base64,${result.data}`}
+              alt="Tool result"
+              className="max-w-full h-auto rounded-md my-2"
+              onError={(e) => {
+                console.error('Failed to load image');
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          )}
+        </div>
+      )}
     </ToolCallExpandable>
   );
 }
