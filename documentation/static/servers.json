@@ -165,5 +165,17 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "playwright",
+    "name": "Playwright",
+    "description": "Interact with web pages through structured accessibility snapshots using Playwright",
+    "command": "npx @playwright/mcp@latest",
+    "link": "https://github.com/microsoft/playwright-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 12309,
+    "environmentVariables": []
   }
 ]
