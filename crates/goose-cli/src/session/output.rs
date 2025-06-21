@@ -656,6 +656,83 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
+/// Estimate token cost in USD based on provider + model.
+/// Returns `None` if pricing for the pair is unknown.
+fn estimate_cost_usd(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+) -> Option<f64> {
+    // Prices per 1K tokens (input, output) grouped by provider.
+    let (in_price_per_1k, out_price_per_1k) = match provider {
+        "openai" => {
+            // May-2025 OpenAI pricing – https://openai.com/pricing
+            if model.starts_with("gpt-4o") {
+                (0.0025, 0.01) // $2.5 / $10 per 1M
+            } else if model.starts_with("gpt-4.1") || model.starts_with("gpt-4-1") {
+                (0.002, 0.008) // $2 / $8 per 1M
+            } else if model.starts_with("o3") {
+                (0.002, 0.008) // $2 / $8 per 1M
+            } else {
+                return None;
+            }
+        }
+        "anthropic" => {
+            // Updated Claude pricing (per 1K tokens)
+            let model_lower = model.to_ascii_lowercase();
+            if model_lower.contains("opus-4") {
+                (15.0 / 1000.0, 75.0 / 1000.0) // Opus: $15 / $75 per 1M
+            } else if model_lower.contains("sonnet-4") {
+                (3.0 / 1000.0, 15.0 / 1000.0) // Sonnet: $3 / $15 per 1M
+            } else if model_lower.contains("haiku-3.5") {
+                (0.80 / 1000.0, 4.0 / 1000.0) // Haiku: $0.80 / $4 per 1M
+            } else {
+                return None;
+            }
+        }
+        "google" | "gemini" => {
+            // Gemini 2.5 pricing (per 1K tokens)
+            let model_lower = model.to_ascii_lowercase();
+            if model_lower.contains("2.5-pro") {
+                (1.25 / 1000.0, 10.0 / 1000.0) // Gemini 2.5 Pro: $1.25 / $10 per 1M (non-thinking)
+            } else if model_lower.contains("2.5-flash") {
+                (0.15 / 1000.0, 0.60 / 1000.0) // Gemini 2.5 Flash: $0.15 / $0.60 per 1M (non-thinking)
+            } else {
+                return None;
+            }
+        }
+        "ollama" => {
+            // Local inference – zero marginal cost
+            return Some(0.0);
+        }
+        _ => return None,
+    };
+
+    let input_cost = (input_tokens as f64 / 1000.0) * in_price_per_1k;
+    let output_cost = (output_tokens as f64 / 1000.0) * out_price_per_1k;
+    Some(input_cost + output_cost)
+}
+
+/// Display cost information, if price data is available.
+pub fn display_cost_usage(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+) {
+    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
+        use console::style;
+        println!(
+            "Cost: {} USD ({} tokens: in {}, out {})",
+            style(format!("${:.4}", cost)).cyan(),
+            input_tokens + output_tokens,
+            input_tokens,
+            output_tokens
+        );
+    }
+}
+
 pub struct McpSpinners {
     bars: HashMap<String, ProgressBar>,
     log_spinner: Option<ProgressBar>,
