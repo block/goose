@@ -69,7 +69,7 @@
     --spring-duration: 1.333s;
 
     /* custom slate */
-    --slate: #393838;
+    --slate: #1e1e1e;
 
     /* block */
     --block-teal: #13bbaf;
@@ -125,7 +125,7 @@
     --text-prominent-inverse: var(--constant-white);
 
     &.dark {
-      --background-app: var(--constant-black);
+      --background-app: var(--slate);
       --background-prominent: var(--dark-grey-40);
       --background-standard: var(--dark-grey-25);
       --background-subtle: var(--dark-grey-15);
