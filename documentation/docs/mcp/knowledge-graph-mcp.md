@@ -10,7 +10,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PF6hpDaI9Mc" />
 
 
-This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a Goose extension. This enables Goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/tutorials/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across Goose sessions.
+This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a Goose extension. This enables Goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across Goose sessions.
 
 :::tip TLDR
 <Tabs groupId="interface">
