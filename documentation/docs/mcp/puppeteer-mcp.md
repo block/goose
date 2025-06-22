@@ -404,9 +404,9 @@ This audit reveals several critical accessibility issues that should be addresse
 
 ### Further Automation with GitHub Extension
 
-You can take this accessibility audit a step further by combining the [GitHub Extension](/docs/tutorials/github-mcp) with the Puppeteer Extension. With this setup, Goose doesn’t just find issues and apply fixes, it can also handle the entire Git workflow for you. The GitHub Extension allows Goose to commit changes, create a pull request, and even generate a PR description, so all you have to do is review and merge.
+You can take this accessibility audit a step further by combining the [GitHub Extension](/docs/mcp/github-mcp) with the Puppeteer Extension. With this setup, Goose doesn’t just find issues and apply fixes, it can also handle the entire Git workflow for you. The GitHub Extension allows Goose to commit changes, create a pull request, and even generate a PR description, so all you have to do is review and merge.
 
-1. Enable the GitHub extension by following the steps in the **[GitHub Extension Tutorial](/docs/tutorials/github-mcp#configuration)**.
+1. Enable the GitHub extension by following the steps in the **[GitHub Extension Tutorial](/docs/mcp/github-mcp#configuration)**.
 
 
 :::tip 

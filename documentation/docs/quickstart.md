@@ -14,8 +14,16 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
 
 # Goose in 5 minutes
 
-Goose is an open source AI agent that supercharges your software development by automating coding tasks. This quick tutorial will guide you through getting started with Goose!
+Goose is an extensible open source AI agent enhances your software development by automating coding tasks. 
 
+This quick tutorial will guide you through:
+
+- ✅ Installing Goose
+- ✅ Configuring your LLM
+- ✅ Building a small app
+- ✅ Adding an MCP server
+
+Let's begin 🚀
 
 ## Install Goose
 
@@ -139,6 +147,11 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 Sessions are single, continuous conversations between you and Goose. Let's start one.
 
 <Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+        After choosing an LLM provider, you’ll see the session interface ready for use.
+
+        Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
+    </TabItem>
     <TabItem value="cli" label="Goose CLI">
         1. Make an empty directory (e.g. `goose-demo`) and navigate to that directory from the terminal.
         2. To start a new session, run:
@@ -153,11 +166,6 @@ Sessions are single, continuous conversations between you and Goose. Let's start
         ```
         :::
 
-    </TabItem>
-    <TabItem value="ui" label="Goose Desktop" default>
-        After choosing an LLM provider, you’ll see the session interface ready for use.
-
-        Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
     </TabItem>
 </Tabs>
 
@@ -179,6 +187,14 @@ Goose will create a plan and then get right to work on implementing it. Once don
 While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the `Computer Controller` extension.
 
 <Tabs groupId="interface">
+
+    <TabItem value="ui" label="Goose Desktop" default>
+        1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
+        2. Select `Advanced settings` from the menu.
+        3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        4. Scroll back to the top and click `<- Back` in the upper left corner to return to your session.
+        5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
+    </TabItem>
     <TabItem value="cli" label="Goose CLI">
         1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
         2. Run the configuration command
@@ -212,13 +228,6 @@ While you're able to manually navigate to your working directory and open the HT
          goose session -r
         ```
         5. Ask Goose to launch your game in a browser:
-    </TabItem>
-    <TabItem value="ui" label="Goose Desktop" default>
-        1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
-        2. Select `Advanced settings` from the menu.
-        3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
-        4. Scroll back to the top and click `<- Back` in the upper left corner to return to your session.
-        5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
 </Tabs>
 
