@@ -245,7 +245,11 @@ const config: Config = {
           {
             from: '/docs/tutorials/youtube-transcript',
             to: '/docs/mcp/youtube-transcript-mcp'
-          }
+          },
+          {
+            from: '/docs/guides/isolated-development-environments',
+            to: '/docs/tutorials/isolated-development-environments'
+          }         
         ],
       },
     ],

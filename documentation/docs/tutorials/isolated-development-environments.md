@@ -1,6 +1,5 @@
 ---
 title: Isolated Development Environments
-sidebar_position: 25
 ---
 
 import Tabs from '@theme/Tabs';
@@ -29,7 +28,7 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 ### Install Container Use
 
-Head on over to the [Container Use README](https://github.com/dagger/container-use/blob/main/README.md) for up to date install instructions for this fast moving project.
+Head on over to the [Container Use README](https://github.com/dagger/container-use/blob/main/README.md) for up-to-date install instructions for this fast moving project.
 
 ## Adding to Goose
 
@@ -185,4 +184,4 @@ If you encounter issues:
 
 With container-use enabled in Goose, you're ready to develop with confidence. Try starting a conversation about a project you've been hesitant to experiment with, and let Goose set up a safe, isolated environment for your exploration.
 
-Remember: with isolated environments, there's no such thing as a failed experiment—only learning opportunities that don't affect your main codebase.
+Remember: with isolated environments, there's no such thing as a failed experiment - only learning opportunities that don't affect your main codebase.
