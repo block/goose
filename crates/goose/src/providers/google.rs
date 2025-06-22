@@ -15,17 +15,36 @@ use std::time::Duration;
 use url::Url;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
-pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash";
+pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
+    // Gemini 2.5 models (latest generation)
+    "gemini-2.5-pro",
+    "gemini-2.5-pro-preview-06-05",
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.5-flash-lite-preview-06-17",
+    "gemini-2.5-flash-preview-native-audio-dialog",
+    "gemini-2.5-flash-exp-native-audio-thinking-dialog",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-pro-preview-tts",
+    // Gemini 2.0 models
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite-preview-02-05",
-    "gemini-2.0-flash-thinking-exp-01-21",
-    "gemini-2.0-pro-exp-02-05",
-    "gemini-2.5-pro-exp-03-25",
-    "gemini-2.5-flash-preview-04-17",
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-flash-preview-image-generation",
+    "gemini-2.0-flash-lite",
+    // Gemini 1.5 models
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash-8b-latest",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-pro-002",
 ];
 
-pub const GOOGLE_DOC_URL: &str = "https://ai.google/get-started/our-models/";
+pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 
 #[derive(Debug, serde::Serialize)]
 pub struct GoogleProvider {
