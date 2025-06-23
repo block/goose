@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { ScrollArea } from './ui/scroll-area';
 
 interface DiffLine {
   type: 'context' | 'added' | 'removed' | 'header';
@@ -120,33 +121,32 @@ export default function DiffViewer({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {parsedDiff.map((file, fileIndex) => (
-          <div
-            key={fileIndex}
-            className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-          >
-            {/* File header */}
-            <div className="bg-gray-50 dark:bg-gray-900 p-3 flex items-center justify-between">
-              <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
-                {file.fileName}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleApplyFile(fileIndex)}
-                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
-                >
-                  Apply All
-                </button>
-                <button
-                  onClick={() => handleRejectFile(fileIndex)}
-                  className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
-                >
-                  Reject All
-                </button>
-              </div>
+      {parsedDiff.map((file, fileIndex) => (
+        <div
+          key={fileIndex}
+          className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 h-screen w-full "
+        >
+          {/* File header */}
+          <div className="bg-gray-50 dark:bg-gray-900 p-3 flex items-center justify-between">
+            <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
+              {file.fileName}
             </div>
-
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleApplyFile(fileIndex)}
+                className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
+              >
+                Apply All
+              </button>
+              <button
+                onClick={() => handleRejectFile(fileIndex)}
+                className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+              >
+                Reject All
+              </button>
+            </div>
+          </div>
+          <ScrollArea className="h-full w-full">
             {/* Hunks */}
             {file.hunks.map((hunk) => (
               <DiffHunkView
@@ -160,9 +160,9 @@ export default function DiffViewer({
                 onReject={() => handleRejectHunk(fileIndex, hunk.id)}
               />
             ))}
-          </div>
-        ))}
-      </div>
+          </ScrollArea>
+        </div>
+      ))}
     </div>
   );
 }
