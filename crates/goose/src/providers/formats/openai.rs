@@ -161,9 +161,12 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Convert context files to text content
                     let files_text = format!(
                         "The following files have been added to the context:\n{}",
-                        context_files.paths.join("\n")
+                        context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
                     );
-                    converted["content"] = json!(files_text);
+                    converted["content"] = json!({
+                        "type": "text",
+                        "text": files_text
+                    });
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {

@@ -335,7 +335,7 @@ impl Provider for VeniceProvider {
                                 MessageContent::ContextPaths(context_files) => {
                                     let files_text = format!(
                                         "The following files have been added to the context:\n{}",
-                                        context_files.paths.join("\n")
+                                        context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
                                     );
                                     Some(files_text)
                                 }

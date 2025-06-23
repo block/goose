@@ -985,6 +985,34 @@ ipcMain.handle('select-multiple-files', async () => {
   return [];
 });
 
+// Add file/directory type detection handler
+ipcMain.handle('get-path-type', async (_event, filePath: string) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    const stats = await fs.lstat(expandedPath);
+
+    if (stats.isSymbolicLink()) {
+      // For symlinks, check the target
+      const realPath = await fs.realpath(expandedPath);
+      const realStats = await fs.lstat(realPath);
+      return realStats.isDirectory() ? 'directory' : 'file';
+    } else if (stats.isDirectory()) {
+      return 'directory';
+    } else if (stats.isFile()) {
+      return 'file';
+    } else {
+      return 'unknown';
+    }
+  } catch (error) {
+    console.error('Error getting path type:', error);
+    return 'unknown';
+  }
+});
+
 // IPC handler to save data URL to a temporary file
 ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);

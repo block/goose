@@ -85,7 +85,12 @@ export interface SummarizationRequestedContent {
 
 export interface ContextPathsContent {
   type: 'contextPaths';
-  paths: string[];
+  paths: ContextPathItem[];
+}
+
+export interface ContextPathItem {
+  path: string;
+  type: 'file' | 'directory' | 'unknown';
 }
 
 export type MessageContent =
@@ -108,7 +113,7 @@ export interface Message {
 }
 
 // Helper functions to create messages
-export function createUserMessage(text: string, contextPaths: string[] = []): Message {
+export function createUserMessage(text: string, contextPaths: ContextPathItem[] = []): Message {
   const content: MessageContent[] = [];
 
   // Add text content if there's text

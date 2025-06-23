@@ -97,8 +97,15 @@ pub struct SummarizationRequested {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ContextPathItem {
+    pub path: String,
+    #[serde(rename = "pathType")]
+    pub path_type: String, // "file", "directory", or "unknown"
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextPaths {
-    pub paths: Vec<String>,
+    pub paths: Vec<ContextPathItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -188,7 +195,7 @@ impl MessageContent {
         MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
     }
 
-    pub fn context_files(paths: Vec<String>) -> Self {
+    pub fn context_files(paths: Vec<ContextPathItem>) -> Self {
         MessageContent::ContextPaths(ContextPaths { paths })
     }
 
@@ -495,7 +502,7 @@ impl Message {
     }
 
     /// Add context files to the message
-    pub fn with_context_files(self, paths: Vec<String>) -> Self {
+    pub fn with_context_files(self, paths: Vec<ContextPathItem>) -> Self {
         self.with_content(MessageContent::context_files(paths))
     }
 }

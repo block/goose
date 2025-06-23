@@ -115,7 +115,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         // Convert context files to text content
                         let files_text = format!(
                             "The following files have been added to the context:\n{}",
-                            context_files.paths.join("\n")
+                            context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
                         );
                         parts.push(json!({"text": files_text}));
                     }

@@ -12,6 +12,7 @@ import {
   manageContext,
   Message as ApiMessage,
   MessageContent as ApiMessageContent,
+  ContextPathItem,
 } from '../../api';
 import { generateId } from 'ai';
 
@@ -124,7 +125,10 @@ function mapApiContentToFrontendMessageContent(
   } else if (apiContent.type === 'contextPaths') {
     return {
       type: 'contextPaths',
-      paths: apiContent.paths,
+      paths: apiContent.paths.map((pathItem: ContextPathItem) => ({
+        path: pathItem.path,
+        type: pathItem.pathType as 'file' | 'directory' | 'unknown',
+      })),
     };
   }
 
@@ -225,7 +229,10 @@ function mapFrontendContentToApiMessageContent(
     // Preserve contextPaths content type for backend storage
     return {
       type: 'contextPaths',
-      paths: frontendContent.paths,
+      paths: frontendContent.paths.map((pathItem) => ({
+        path: pathItem.path,
+        pathType: pathItem.type,
+      })),
     };
   }
 

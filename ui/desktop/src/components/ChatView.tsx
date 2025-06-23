@@ -43,6 +43,7 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
   TextContent,
+  ContextPathItem,
 } from '../types/message';
 
 // Context for sharing current model info
@@ -108,7 +109,7 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
-  const [sessionContextPaths, setSessionContextPaths] = useState<string[]>([]);
+  const [sessionContextPaths, setSessionContextPaths] = useState<ContextPathItem[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -130,20 +131,21 @@ function ChatContent({
     );
 
     // Extract context files from loaded session messages
-    const extractContextPathsFromMessages = (messages: Message[]): string[] => {
-      const contextPaths = new Set<string>();
+    const extractContextPathsFromMessages = (messages: Message[]): ContextPathItem[] => {
+      const contextPaths = new Map<string, ContextPathItem>();
 
       for (const message of messages) {
         for (const content of message.content) {
           if (content.type === 'contextPaths') {
-            for (const path of content.paths) {
-              contextPaths.add(path);
+            for (const pathItem of content.paths) {
+              // Use path as key to avoid duplicates, but preserve the type information
+              contextPaths.set(pathItem.path, pathItem);
             }
           }
         }
       }
 
-      return Array.from(contextPaths);
+      return Array.from(contextPaths.values());
     };
 
     const extractedContextPaths = extractContextPathsFromMessages(chat.messages);
@@ -330,11 +332,6 @@ function ChatContent({
     }
   }, [messages]);
 
-  // Pre-fill input with recipe prompt instead of auto-sending it
-  const initialPrompt = useMemo(() => {
-    return recipeConfig?.prompt || '';
-  }, [recipeConfig?.prompt]);
-
   // Auto-send the prompt for scheduled executions
   useEffect(() => {
     if (
@@ -384,7 +381,8 @@ function ChatContent({
       const updatedContextPaths = [...sessionContextPaths];
       if (contextPaths.length > 0) {
         const newContextPaths = contextPaths.filter(
-          (filePath: string) => !sessionContextPaths.includes(filePath)
+          (contextPath: ContextPathItem) =>
+            !sessionContextPaths.some((fp) => fp.path === contextPath.path)
         );
         if (newContextPaths.length > 0) {
           updatedContextPaths.push(...newContextPaths);
@@ -577,9 +575,20 @@ function ChatContent({
         paths.push(window.electron.getPathForFile(files[i]));
       }
       // Add dropped files to session context files instead of chat input
-      const newContextPaths = paths.filter((path) => !sessionContextPaths.includes(path));
+      const newContextPaths = paths.filter(
+        (path) => !sessionContextPaths.some((fp) => fp.path === path)
+      );
       if (newContextPaths.length > 0) {
-        setSessionContextPaths([...sessionContextPaths, ...newContextPaths]);
+        // Detect the type of each path
+        const addContextPaths = async () => {
+          const newContextPathItems: ContextPathItem[] = [];
+          for (const path of newContextPaths) {
+            const pathType = await window.electron.getPathType(path);
+            newContextPathItems.push({ path, type: pathType });
+          }
+          setSessionContextPaths([...sessionContextPaths, ...newContextPathItems]);
+        };
+        addContextPaths();
       }
     }
   };
@@ -719,9 +728,7 @@ function ChatContent({
               isLoading={isLoading}
               onStop={onStopGoose}
               commandHistory={commandHistory}
-              initialValue={_input || (hasMessages ? _input : initialPrompt)}
               setView={setView}
-              hasMessages={hasMessages}
               numTokens={sessionTokenCount}
               messages={messages}
               setMessages={setMessages}

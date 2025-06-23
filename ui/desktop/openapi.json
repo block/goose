@@ -1080,6 +1080,21 @@
           }
         }
       },
+      "ContextPathItem": {
+        "type": "object",
+        "required": [
+          "path",
+          "pathType"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "pathType": {
+            "type": "string"
+          }
+        }
+      },
       "ContextPaths": {
         "type": "object",
         "required": [
@@ -1089,7 +1104,7 @@
           "paths": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ContextPathItem"
             }
           }
         }

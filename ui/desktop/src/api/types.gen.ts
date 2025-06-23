@@ -62,8 +62,13 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type ContextPathItem = {
+    path: string;
+    pathType: string;
+};
+
 export type ContextPaths = {
-    paths: Array<string>;
+    paths: Array<ContextPathItem>;
 };
 
 export type CreateScheduleRequest = {

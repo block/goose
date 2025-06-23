@@ -17,9 +17,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message = Message::user()
         .with_text("Please analyze these files and tell me what they contain")
         .with_context_files(vec![
-            "path/to/file1.txt".to_string(),
-            "path/to/file2.py".to_string(),
-            "path/to/config.json".to_string(),
+            ContextPathItem { path: "path/to/file1.txt".to_string(), path_type: "file".to_string() },
+            ContextPathItem { path: "path/to/file2.py".to_string(), path_type: "file".to_string() },
+            ContextPathItem { path: "path/to/config.json".to_string(), path_type: "file".to_string() },
         ]);
 
     println!("Created message with context files:");
@@ -34,8 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             MessageContent::ContextPaths(context_files) => {
                 println!("Context files:");
-                for path in &context_files.paths {
-                    println!("  - {}", path);
+                for path_item in &context_files.paths {
+                    println!("  - {} ({})", path_item.path, path_item.path_type);
                 }
             }
             _ => {

@@ -6,7 +6,7 @@ import { Attach, Send, Close, Document } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { Message } from '../types/message';
+import { Message, ContextPathItem } from '../types/message';
 import { FolderOpen } from 'lucide-react';
 
 interface PastedImage {
@@ -32,8 +32,8 @@ interface ChatInputProps {
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
-  sessionContextPaths?: string[];
-  setSessionContextPaths?: (files: string[]) => void;
+  sessionContextPaths?: ContextPathItem[];
+  setSessionContextPaths?: (files: ContextPathItem[]) => void;
 }
 
 export default function ChatInput({
@@ -356,7 +356,7 @@ export default function ChatInput({
         new CustomEvent('submit', {
           detail: {
             value: textToSend,
-            contextPAths: sessionContextPaths,
+            contextPaths: sessionContextPaths,
           },
         }) as unknown as React.FormEvent
       );
@@ -465,9 +465,17 @@ export default function ChatInput({
       const filePaths = await window.electron.selectMultipleFiles();
       if (filePaths.length > 0 && setSessionContextPaths) {
         // Add only files that aren't already selected
-        const newFiles = filePaths.filter((filePath) => !sessionContextPaths.includes(filePath));
+        const newFiles = filePaths.filter(
+          (filePath) => !sessionContextPaths.some((fp) => fp.path === filePath)
+        );
         if (newFiles.length > 0) {
-          setSessionContextPaths([...sessionContextPaths, ...newFiles]);
+          // Detect the type of each path
+          const newContextPaths: ContextPathItem[] = [];
+          for (const filePath of newFiles) {
+            const pathType = await window.electron.getPathType(filePath);
+            newContextPaths.push({ path: filePath, type: pathType });
+          }
+          setSessionContextPaths([...sessionContextPaths, ...newContextPaths]);
         }
       }
       setIsContextMenuOpen(false);
@@ -595,18 +603,24 @@ export default function ChatInput({
             <div className="flex flex-wrap gap-2 flex-1">
               {sessionContextPaths.map((filePath) => (
                 <div
-                  key={filePath}
+                  key={filePath.path}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
                 >
-                  <Document className="w-3 h-3 text-textSubtle" />
-                  <span className="max-w-[200px] truncate" title={filePath}>
-                    {filePath.split('/').pop() || filePath}
+                  {filePath.type === 'directory' ? (
+                    <FolderOpen className="w-3 h-3 text-textSubtle" />
+                  ) : (
+                    <Document className="w-3 h-3 text-textSubtle" />
+                  )}
+                  <span className="max-w-[200px] truncate" title={filePath.path}>
+                    {filePath.path.split('/').pop() || filePath.path}
                   </span>
                   <button
                     type="button"
                     onClick={() =>
                       setSessionContextPaths &&
-                      setSessionContextPaths(sessionContextPaths.filter((fp) => fp !== filePath))
+                      setSessionContextPaths(
+                        sessionContextPaths.filter((fp) => fp.path !== filePath.path)
+                      )
                     }
                     className="text-textSubtle hover:text-textStandard transition-colors"
                     title="Remove from context"
