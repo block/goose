@@ -27,7 +27,6 @@ interface ChatInputProps {
   onStop?: () => void;
   commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
-  droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
   hasMessages?: boolean;
@@ -45,7 +44,6 @@ export default function ChatInput({
   initialValue = '',
   setView,
   numTokens,
-  droppedFiles = [],
   messages = [],
   setMessages,
   sessionContextFiles = [],
@@ -83,7 +81,6 @@ export default function ChatInput({
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -131,22 +128,6 @@ export default function ChatInput({
 
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
-
-  // If we have dropped files, add them to the input and update our state.
-  useEffect(() => {
-    if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
-      // Append file paths that aren't in displayValue.
-      const currentText = displayValue || '';
-      const joinedPaths = currentText.trim()
-        ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
-        : droppedFiles.join(' ');
-
-      setDisplayValue(joinedPaths);
-      setValue(joinedPaths);
-      textAreaRef.current?.focus();
-      setProcessedFilePaths(droppedFiles);
-    }
-  }, [droppedFiles, processedFilePaths, displayValue]);
 
   // Debounced function to update actual value
   const debouncedSetValue = useMemo(

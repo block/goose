@@ -107,7 +107,6 @@ function ChatContent({
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
-  const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
   const [sessionContextFiles, setSessionContextFiles] = useState<string[]>([]);
 
@@ -552,7 +551,11 @@ function ChatContent({
       for (let i = 0; i < files.length; i++) {
         paths.push(window.electron.getPathForFile(files[i]));
       }
-      setDroppedFiles(paths);
+      // Add dropped files to session context files instead of chat input
+      const newContextFiles = paths.filter((path) => !sessionContextFiles.includes(path));
+      if (newContextFiles.length > 0) {
+        setSessionContextFiles([...sessionContextFiles, ...newContextFiles]);
+      }
     }
   };
 
@@ -695,7 +698,6 @@ function ChatContent({
               setView={setView}
               hasMessages={hasMessages}
               numTokens={sessionTokenCount}
-              droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
               sessionContextFiles={sessionContextFiles}
