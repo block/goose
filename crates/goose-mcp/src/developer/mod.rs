@@ -615,7 +615,7 @@ impl DeveloperRouter {
         Ok((dest, ts))
     }
 
-    // Helper function to generate diff string
+    // Helper function to generate diff string with intelligent hunk splitting
     fn diff_string(&self, old_txt: &str, new_txt: &str, file_path: &Path) -> String {
         use similar::{ChangeTag, TextDiff};
 
@@ -632,7 +632,10 @@ impl DeveloperRouter {
         result.push_str(&format!("--- a/{}\n", display_path));
         result.push_str(&format!("+++ b/{}\n", display_path));
 
-        for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        // Use intelligent hunk grouping based on file type and content
+        let groups = self.smart_group_ops(&diff, file_path);
+
+        for (idx, group) in groups.iter().enumerate() {
             if idx > 0 {
                 result.push('\n'); // Separate hunks with newline
             }
@@ -678,6 +681,112 @@ impl DeveloperRouter {
         }
 
         result
+    }
+
+    // Smart hunk grouping that considers file type and content structure
+    fn smart_group_ops(
+        &self,
+        diff: &similar::TextDiff<str>,
+        file_path: &Path,
+    ) -> Vec<Vec<similar::DiffOp>> {
+        use similar::DiffOp;
+
+        // Get file extension to determine context strategy
+        let extension = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+        // Determine context size based on file type
+        let context_lines = match extension {
+            // Code files - use more context to capture function boundaries
+            "rs" | "py" | "js" | "ts" | "tsx" | "jsx" | "java" | "cpp" | "c" | "h" => 5,
+            // Markup files - moderate context for section boundaries
+            "md" | "html" | "xml" => 4,
+            // Config files - less context needed
+            "json" | "yaml" | "yml" | "toml" | "ini" => 3,
+            // Default for other files
+            _ => 3,
+        };
+
+        let ops = diff.ops();
+        if ops.is_empty() {
+            return vec![];
+        }
+
+        // First, try the standard grouping with increased context
+        let standard_groups: Vec<Vec<DiffOp>> = diff.grouped_ops(context_lines);
+
+        // If we only have one group and it's very large, try to split it intelligently
+        if standard_groups.len() == 1 && self.should_split_large_group(&standard_groups[0]) {
+            self.split_large_group_intelligently(&standard_groups[0])
+        } else {
+            standard_groups
+        }
+    }
+
+    // Check if a group is too large and should be split
+    fn should_split_large_group(&self, group: &[similar::DiffOp]) -> bool {
+        // Count total lines in the group
+        let total_lines: usize = group
+            .iter()
+            .map(|op| {
+                (op.old_range().end - op.old_range().start)
+                    .max(op.new_range().end - op.new_range().start)
+            })
+            .sum();
+
+        // Split if more than 50 lines or more than 20 changed lines
+        let changed_lines: usize = group
+            .iter()
+            .filter_map(|op| match op.tag() {
+                similar::DiffTag::Delete | similar::DiffTag::Insert => Some(
+                    (op.old_range().end - op.old_range().start)
+                        .max(op.new_range().end - op.new_range().start),
+                ),
+                _ => None,
+            })
+            .sum();
+
+        total_lines > 50 || changed_lines > 20
+    }
+
+    // Split a large group into smaller logical chunks
+    fn split_large_group_intelligently(
+        &self,
+        group: &[similar::DiffOp],
+    ) -> Vec<Vec<similar::DiffOp>> {
+        // Implement a simple splitting strategy based on line count
+        let mut result = Vec::new();
+        let mut current_group = Vec::new();
+        let mut lines_in_group = 0;
+        const MAX_LINES_PER_GROUP: usize = 30;
+
+        for op in group {
+            let op_lines = (op.old_range().end - op.old_range().start)
+                .max(op.new_range().end - op.new_range().start);
+
+            // If adding this op would make the group too large, start a new group
+            if lines_in_group > 0
+                && lines_in_group + op_lines > MAX_LINES_PER_GROUP
+                && !current_group.is_empty()
+            {
+                result.push(current_group.clone());
+                current_group.clear();
+                lines_in_group = 0;
+            }
+
+            current_group.push(*op);
+            lines_in_group += op_lines;
+        }
+
+        if !current_group.is_empty() {
+            result.push(current_group);
+        }
+
+        // If we couldn't split it effectively, return the original group
+        if result.len() <= 1 {
+            vec![group.to_vec()]
+        } else {
+            result
+        }
     }
 
     // List checkpoints for a file
