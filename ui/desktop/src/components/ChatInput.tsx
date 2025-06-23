@@ -33,6 +33,8 @@ interface ChatInputProps {
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
+  sessionContextFiles?: string[];
+  setSessionContextFiles?: (files: string[]) => void;
 }
 
 export default function ChatInput({
@@ -46,6 +48,8 @@ export default function ChatInput({
   droppedFiles = [],
   messages = [],
   setMessages,
+  sessionContextFiles = [],
+  setSessionContextFiles,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -80,7 +84,6 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
-  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -353,28 +356,28 @@ export default function ChatInput({
 
     let textToSend = displayValue.trim();
 
-    // Add context files to the message
-    if (selectedContextFiles.length > 0) {
-      const contextFilesText = selectedContextFiles
-        .map((filePath) => `File in context: ${filePath}`)
-        .join('\n');
-      textToSend = textToSend ? `${textToSend}\n\n${contextFilesText}` : contextFilesText;
-    }
-
+    // Add image paths to the text (keeping this as-is for now)
     if (validPastedImageFilesPaths.length > 0) {
       const pathsString = validPastedImageFilesPaths.join(' ');
       textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
     }
 
-    if (textToSend) {
+    if (textToSend || sessionContextFiles.length > 0) {
+      // Store only the user's text input in history (not context files)
       if (displayValue.trim()) {
         LocalMessageStorage.addMessage(displayValue);
       } else if (validPastedImageFilesPaths.length > 0) {
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
+      // Pass both text and context files to the submit handler
       handleSubmit(
-        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+        new CustomEvent('submit', {
+          detail: {
+            value: textToSend,
+            contextFiles: sessionContextFiles,
+          },
+        }) as unknown as React.FormEvent
       );
 
       setDisplayValue('');
@@ -409,7 +412,7 @@ export default function ChatInput({
         !isLoading &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-          selectedContextFiles.length > 0);
+          sessionContextFiles.length > 0);
       if (canSubmit) {
         performSubmit();
       }
@@ -422,7 +425,7 @@ export default function ChatInput({
       !isLoading &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-        selectedContextFiles.length > 0);
+        sessionContextFiles.length > 0);
     if (canSubmit) {
       performSubmit();
     }
@@ -441,7 +444,7 @@ export default function ChatInput({
   const hasSubmittableContent =
     displayValue.trim() ||
     pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-    selectedContextFiles.length > 0;
+    sessionContextFiles.length > 0;
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
   // Context menu state and handlers
@@ -483,11 +486,11 @@ export default function ChatInput({
   const handleSelectFilesAndFolders = async () => {
     try {
       const filePaths = await window.electron.selectMultipleFiles();
-      if (filePaths.length > 0) {
+      if (filePaths.length > 0 && setSessionContextFiles) {
         // Add only files that aren't already selected
-        const newFiles = filePaths.filter((filePath) => !selectedContextFiles.includes(filePath));
+        const newFiles = filePaths.filter((filePath) => !sessionContextFiles.includes(filePath));
         if (newFiles.length > 0) {
-          setSelectedContextFiles([...selectedContextFiles, ...newFiles]);
+          setSessionContextFiles([...sessionContextFiles, ...newFiles]);
         }
       }
       setIsContextMenuOpen(false);
@@ -609,11 +612,11 @@ export default function ChatInput({
         )}
       </form>
 
-      {selectedContextFiles.length > 0 && (
+      {sessionContextFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
           <div className="flex items-center gap-2 w-full">
             <div className="flex flex-wrap gap-2 flex-1">
-              {selectedContextFiles.map((filePath) => (
+              {sessionContextFiles.map((filePath) => (
                 <div
                   key={filePath}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
@@ -625,7 +628,8 @@ export default function ChatInput({
                   <button
                     type="button"
                     onClick={() =>
-                      setSelectedContextFiles(selectedContextFiles.filter((fp) => fp !== filePath))
+                      setSessionContextFiles &&
+                      setSessionContextFiles(sessionContextFiles.filter((fp) => fp !== filePath))
                     }
                     className="text-textSubtle hover:text-textStandard transition-colors"
                     title="Remove from context"

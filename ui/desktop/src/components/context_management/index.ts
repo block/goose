@@ -153,3 +153,80 @@ export function createSummarizationRequestMessage(
     display: true,
   };
 }
+
+// Function to convert frontend Message to API Message format
+export function convertFrontendMessageToApiMessage(frontendMessage: FrontendMessage): ApiMessage {
+  return {
+    role: frontendMessage.role,
+    created: frontendMessage.created,
+    content: frontendMessage.content
+      .map((frontendContent) => mapFrontendContentToApiMessageContent(frontendContent))
+      .filter((content): content is ApiMessageContent => content !== null),
+  };
+}
+
+// Function to convert frontend MessageContent to API MessageContent
+function mapFrontendContentToApiMessageContent(
+  frontendContent: FrontendMessageContent
+): ApiMessageContent | null {
+  if (frontendContent.type === 'text') {
+    return {
+      type: 'text',
+      text: frontendContent.text,
+      annotations: frontendContent.annotations as Record<string, unknown> | undefined,
+    };
+  } else if (frontendContent.type === 'image') {
+    return {
+      type: 'image',
+      data: frontendContent.data,
+      mimeType: frontendContent.mimeType,
+      annotations: frontendContent.annotations as Record<string, unknown> | undefined,
+    };
+  } else if (frontendContent.type === 'toolRequest') {
+    return {
+      type: 'toolRequest',
+      id: frontendContent.id,
+      toolCall: frontendContent.toolCall
+        ? (JSON.parse(JSON.stringify(frontendContent.toolCall)) as Record<string, unknown>)
+        : {},
+    };
+  } else if (frontendContent.type === 'toolResponse') {
+    return {
+      type: 'toolResponse',
+      id: frontendContent.id,
+      toolResult: frontendContent.toolResult
+        ? (JSON.parse(JSON.stringify(frontendContent.toolResult)) as Record<string, unknown>)
+        : {},
+    };
+  } else if (frontendContent.type === 'toolConfirmationRequest') {
+    return {
+      type: 'toolConfirmationRequest',
+      id: frontendContent.id,
+      toolName: frontendContent.toolName,
+      arguments: frontendContent.arguments as Record<string, unknown>,
+      prompt: frontendContent.prompt,
+    };
+  } else if (frontendContent.type === 'contextLengthExceeded') {
+    return {
+      type: 'contextLengthExceeded',
+      msg: frontendContent.msg,
+    };
+  } else if (frontendContent.type === 'summarizationRequested') {
+    return {
+      type: 'summarizationRequested',
+      msg: frontendContent.msg,
+    };
+  } else if (frontendContent.type === 'contextFile') {
+    // Convert context file to text for backend compatibility
+    return {
+      type: 'text',
+      text: `File in context: ${frontendContent.filePath}`,
+      annotations: frontendContent.annotations as Record<string, unknown> | undefined,
+    };
+  }
+
+  // Type-safe fallback for unknown types
+  const type = (frontendContent as { type?: string }).type;
+  console.warn(`Skipping unsupported frontend content type: ${type}`);
+  return null;
+}

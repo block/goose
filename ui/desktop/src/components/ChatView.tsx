@@ -49,23 +49,6 @@ import {
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
-// Function to remove context files text from display
-const removeContextFilesFromText = (text: string): string => {
-  // Remove lines that start with "File in context:" and any following empty lines
-  const lines = text.split('\n');
-  const filteredLines = lines.filter((line) => !line.trim().startsWith('File in context:'));
-
-  // Remove any consecutive empty lines that might be left after removing context files
-  const cleanedLines = filteredLines.reduce((acc: string[], line, index) => {
-    if (line.trim() === '' && index > 0 && acc[acc.length - 1].trim() === '') {
-      return acc; // Skip consecutive empty lines
-    }
-    return [...acc, line];
-  }, []);
-
-  return cleanedLines.join('\n').trim();
-};
-
 export interface ChatType {
   id: string;
   title: string;
@@ -126,6 +109,7 @@ function ChatContent({
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
+  const [sessionContextFiles, setSessionContextFiles] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -158,7 +142,7 @@ function ChatContent({
     if (isUserMessage(message)) {
       const text = getTextContent(message);
       if (text) {
-        LocalMessageStorage.addMessage(removeContextFilesFromText(text));
+        LocalMessageStorage.addMessage(text);
       }
     }
   }, []);
@@ -367,15 +351,25 @@ function ChatContent({
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
     const customEvent = e as unknown as CustomEvent;
-    // ChatInput now sends a single 'value' field with text and appended image paths
+    // ChatInput now sends both 'value' field with text and 'contextFiles' array
     const combinedTextFromInput = customEvent.detail?.value || '';
+    const contextFiles = customEvent.detail?.contextFiles || [];
 
-    if (combinedTextFromInput.trim()) {
+    if (combinedTextFromInput.trim() || contextFiles.length > 0) {
       setLastInteractionTime(Date.now());
 
-      // createUserMessage was reverted to only accept text.
-      // It will create a Message with a single TextContent part containing text + paths.
-      const userMessage = createUserMessage(combinedTextFromInput.trim());
+      // Add new context files to session state (don't clear them)
+      if (contextFiles.length > 0) {
+        const newContextFiles = contextFiles.filter(
+          (filePath: string) => !sessionContextFiles.includes(filePath)
+        );
+        if (newContextFiles.length > 0) {
+          setSessionContextFiles([...sessionContextFiles, ...newContextFiles]);
+        }
+      }
+
+      // Create user message with both text and context files
+      const userMessage = createUserMessage(combinedTextFromInput.trim(), contextFiles);
 
       if (summarizedThread.length > 0) {
         resetMessagesWithSummary(
@@ -704,6 +698,8 @@ function ChatContent({
               droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
+              sessionContextFiles={sessionContextFiles}
+              setSessionContextFiles={setSessionContextFiles}
             />
           </div>
         </Card>

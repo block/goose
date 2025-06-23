@@ -12,23 +12,6 @@ interface UserMessageProps {
   message: Message;
 }
 
-// Function to remove context files text from display
-const removeContextFilesFromText = (text: string): string => {
-  // Remove lines that start with "File in context:" and any following empty lines
-  const lines = text.split('\n');
-  const filteredLines = lines.filter((line) => !line.trim().startsWith('File in context:'));
-
-  // Remove any consecutive empty lines that might be left after removing context files
-  const cleanedLines = filteredLines.reduce((acc: string[], line, index) => {
-    if (line.trim() === '' && index > 0 && acc[acc.length - 1].trim() === '') {
-      return acc; // Skip consecutive empty lines
-    }
-    return [...acc, line];
-  }, []);
-
-  return cleanedLines.join('\n').trim();
-};
-
 export default function UserMessage({ message }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -40,9 +23,6 @@ export default function UserMessage({ message }: UserMessageProps) {
 
   // Remove image paths from text for display
   let displayText = removeImagePathsFromText(textContent, imagePaths);
-
-  // Remove context files text from display
-  displayText = removeContextFilesFromText(displayText);
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);

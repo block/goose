@@ -10,9 +10,9 @@ import ImagePreview from '../ImagePreview';
 import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
-  TextContent,
+  Message,
+  getTextContent,
 } from '../../types/message';
-import { type Message } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
 
@@ -79,23 +79,6 @@ export interface SessionMessagesProps {
   onRetry: () => void;
 }
 
-// Function to remove context files text from display
-const removeContextFilesFromText = (text: string): string => {
-  // Remove lines that start with "File in context:" and any following empty lines
-  const lines = text.split('\n');
-  const filteredLines = lines.filter((line) => !line.trim().startsWith('File in context:'));
-
-  // Remove any consecutive empty lines that might be left after removing context files
-  const cleanedLines = filteredLines.reduce((acc: string[], line, index) => {
-    if (line.trim() === '' && index > 0 && acc[acc.length - 1].trim() === '') {
-      return acc; // Skip consecutive empty lines
-    }
-    return [...acc, line];
-  }, []);
-
-  return cleanedLines.join('\n').trim();
-};
-
 /**
  * Common component for displaying session messages
  */
@@ -129,22 +112,13 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
               messages
                 .map((message, index) => {
                   // Extract text content from the message
-                  let textContent = message.content
-                    .filter((c): c is TextContent => c.type === 'text')
-                    .map((c) => c.text)
-                    .join('\n');
+                  const textContent = getTextContent(message);
 
                   // Extract image paths from the message
                   const imagePaths = extractImagePaths(textContent);
 
                   // Remove image paths from text for display
-                  let displayText =
-                    imagePaths.length > 0
-                      ? removeImagePathsFromText(textContent, imagePaths)
-                      : textContent;
-
-                  // Remove context files text from display
-                  displayText = removeContextFilesFromText(displayText);
+                  let displayText = removeImagePathsFromText(textContent, imagePaths);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
