@@ -495,5 +495,109 @@ function parseDiff(diffContent: string): DiffFile[] {
     }
   }
 
-  return files;
+  // Post-process to split large hunks into smaller, more manageable chunks
+  return files.map((file) => ({
+    ...file,
+    hunks: splitLargeHunks(file.hunks),
+  }));
+}
+
+function splitLargeHunks(hunks: DiffHunk[]): DiffHunk[] {
+  const result: DiffHunk[] = [];
+  const MAX_HUNK_SIZE = 50; // Maximum lines per hunk for better UX
+  const CONTEXT_LINES = 3; // Lines of context to keep around changes
+
+  for (const hunk of hunks) {
+    if (hunk.lines.length <= MAX_HUNK_SIZE) {
+      result.push(hunk);
+      continue;
+    }
+
+    // Split large hunk into smaller chunks
+    const chunks = splitHunkIntoChunks(hunk, MAX_HUNK_SIZE, CONTEXT_LINES);
+    result.push(...chunks);
+  }
+
+  return result;
+}
+
+function splitHunkIntoChunks(hunk: DiffHunk, maxSize: number, contextLines: number): DiffHunk[] {
+  const chunks: DiffHunk[] = [];
+  const lines = hunk.lines.filter((line) => line.type !== 'header'); // Remove header line for processing
+
+  if (lines.length <= maxSize) {
+    return [hunk];
+  }
+
+  let currentChunk: DiffLine[] = [];
+  let chunkIndex = 0;
+  let oldLineStart = hunk.oldStart;
+  let newLineStart = hunk.newStart;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    currentChunk.push(line);
+
+    // Check if we should start a new chunk
+    const shouldSplit =
+      currentChunk.length >= maxSize && (line.type === 'context' || i === lines.length - 1);
+
+    if (shouldSplit || i === lines.length - 1) {
+      // Create chunk with context
+      const chunkLines: DiffLine[] = [];
+
+      // Add header
+      chunkLines.push({
+        type: 'header',
+        content: `Chunk ${chunkIndex + 1}`,
+      });
+
+      // Add the actual lines
+      chunkLines.push(...currentChunk);
+
+      // Calculate line numbers for this chunk
+      const oldCount = currentChunk.filter((l) => l.oldLineNumber !== undefined).length;
+      const newCount = currentChunk.filter((l) => l.newLineNumber !== undefined).length;
+
+      chunks.push({
+        id: `${hunk.id}-chunk-${chunkIndex}`,
+        header: `@@ -${oldLineStart},${oldCount} +${newLineStart},${newCount} @@ Chunk ${chunkIndex + 1}`,
+        lines: chunkLines,
+        oldStart: oldLineStart,
+        oldCount: oldCount,
+        newStart: newLineStart,
+        newCount: newCount,
+      });
+
+      // Prepare for next chunk
+      if (i < lines.length - 1) {
+        // Update line starts for next chunk
+        // Find the last line with old/new line numbers using reverse iteration
+        let lastOldLine: number | undefined;
+        let lastNewLine: number | undefined;
+
+        for (let j = currentChunk.length - 1; j >= 0; j--) {
+          if (lastOldLine === undefined && currentChunk[j].oldLineNumber !== undefined) {
+            lastOldLine = currentChunk[j].oldLineNumber;
+          }
+          if (lastNewLine === undefined && currentChunk[j].newLineNumber !== undefined) {
+            lastNewLine = currentChunk[j].newLineNumber;
+          }
+          if (lastOldLine !== undefined && lastNewLine !== undefined) {
+            break;
+          }
+        }
+
+        if (lastOldLine !== undefined) oldLineStart = lastOldLine + 1;
+        if (lastNewLine !== undefined) newLineStart = lastNewLine + 1;
+
+        // Keep some context lines for the next chunk
+        const contextStart = Math.max(0, currentChunk.length - contextLines);
+        currentChunk = currentChunk.slice(contextStart);
+        chunkIndex++;
+      }
+    }
+  }
+
+  return chunks.length > 0 ? chunks : [hunk];
 }
