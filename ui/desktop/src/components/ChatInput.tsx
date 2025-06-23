@@ -343,7 +343,7 @@ export default function ChatInput({
       textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
     }
 
-    if (textToSend || sessionContextFiles.length > 0) {
+    if (textToSend) {
       // Store only the user's text input in history (not context files)
       if (displayValue.trim()) {
         LocalMessageStorage.addMessage(displayValue);
@@ -392,8 +392,7 @@ export default function ChatInput({
       const canSubmit =
         !isLoading &&
         (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-          sessionContextFiles.length > 0);
+          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
       if (canSubmit) {
         performSubmit();
       }
@@ -405,8 +404,7 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
-        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-        sessionContextFiles.length > 0);
+        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
     if (canSubmit) {
       performSubmit();
     }
@@ -423,9 +421,7 @@ export default function ChatInput({
   };
 
   const hasSubmittableContent =
-    displayValue.trim() ||
-    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-    sessionContextFiles.length > 0;
+    displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
   // Context menu state and handlers
