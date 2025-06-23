@@ -4,7 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
+    ContextFiles, ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
     SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use goose::permission::permission_confirmation::PrincipalType;
@@ -79,6 +79,7 @@ use utoipa::OpenApi;
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContents,
+        ContextFiles,
         ContextLengthExceeded,
         SummarizationRequested,
         Role,

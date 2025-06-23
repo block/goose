@@ -194,6 +194,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }));
                 }
+                MessageContent::ContextFiles(context_files) => {
+                    // Convert context files to text content
+                    let files_text = format!(
+                        "The following files have been added to the context:\n{}",
+                        context_files.paths.join("\n")
+                    );
+                    content_array.push(json!({
+                        "type": "text",
+                        "text": files_text
+                    }));
+                }
                 MessageContent::FrontendToolRequest(req) => {
                     // Frontend tool requests are converted to text messages
                     if let Ok(tool_call) = &req.tool_call {

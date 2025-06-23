@@ -216,12 +216,12 @@ function mapFrontendContentToApiMessageContent(
       type: 'summarizationRequested',
       msg: frontendContent.msg,
     };
-  } else if (frontendContent.type === 'contextFile') {
-    // Convert context file to text for backend compatibility
+  } else if (frontendContent.type === 'contextFiles') {
+    // Convert context files to text for backend compatibility
+    const filesText = `The following files have been added to the context:\n${frontendContent.paths.join('\n')}`;
     return {
       type: 'text',
-      text: `File in context: ${frontendContent.filePath}`,
-      annotations: frontendContent.annotations as Record<string, unknown> | undefined,
+      text: filesText,
     };
   }
 

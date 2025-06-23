@@ -30,6 +30,10 @@ export type Content = (TextContent & {
     type: 'resource';
 });
 
+export type ContextFiles = {
+    paths: Array<string>;
+};
+
 export type ContextLengthExceeded = {
     msg: string;
 };
@@ -201,6 +205,8 @@ export type Message = {
  */
 export type MessageContent = (TextContent & {
     type: 'text';
+}) | (ContextFiles & {
+    type: 'contextFiles';
 }) | (ImageContent & {
     type: 'image';
 }) | (ToolRequest & {

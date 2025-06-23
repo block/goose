@@ -97,10 +97,16 @@ pub struct SummarizationRequested {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ContextFiles {
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
     Text(TextContent),
+    ContextFiles(ContextFiles),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -182,6 +188,10 @@ impl MessageContent {
         MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
     }
 
+    pub fn context_files(paths: Vec<String>) -> Self {
+        MessageContent::ContextFiles(ContextFiles { paths })
+    }
+
     // Add this new method to check for summarization requested content
     pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
         if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
@@ -250,6 +260,14 @@ impl MessageContent {
     pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
         match self {
             MessageContent::RedactedThinking(redacted) => Some(redacted),
+            _ => None,
+        }
+    }
+
+    /// Get the context files content if this is a ContextFiles variant
+    pub fn as_context_files(&self) -> Option<&ContextFiles> {
+        match self {
+            MessageContent::ContextFiles(context_files) => Some(context_files),
             _ => None,
         }
     }
@@ -474,6 +492,11 @@ impl Message {
     /// Add summarization requested to the message
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
+    }
+
+    /// Add context files to the message
+    pub fn with_context_files(self, paths: Vec<String>) -> Self {
+        self.with_content(MessageContent::context_files(paths))
     }
 }
 

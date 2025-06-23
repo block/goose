@@ -83,10 +83,9 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
-export interface ContextFileContent {
-  type: 'contextFile';
-  filePath: string;
-  annotations?: Record<string, unknown>;
+export interface ContextFilesContent {
+  type: 'contextFiles';
+  paths: string[];
 }
 
 export type MessageContent =
@@ -97,7 +96,7 @@ export type MessageContent =
   | ToolConfirmationRequestMessageContent
   | ContextLengthExceededContent
   | SummarizationRequestedContent
-  | ContextFileContent;
+  | ContextFilesContent;
 
 export interface Message {
   id?: string;
@@ -117,10 +116,10 @@ export function createUserMessage(text: string, contextFiles: string[] = []): Me
     content.push({ type: 'text', text: text.trim() });
   }
 
-  // Add context file content
-  contextFiles.forEach((filePath) => {
-    content.push({ type: 'contextFile', filePath });
-  });
+  // Add context file content only if there are context files
+  if (contextFiles.length > 0) {
+    content.push({ type: 'contextFiles', paths: contextFiles });
+  }
 
   return {
     id: generateId(),
@@ -221,12 +220,6 @@ export function getTextContent(message: Message): string {
       return '';
     })
     .join('\n');
-}
-
-export function getContextFiles(message: Message): string[] {
-  return message.content
-    .filter((content): content is ContextFileContent => content.type === 'contextFile')
-    .map((content) => content.filePath);
 }
 
 export function getToolRequests(message: Message): ToolRequestMessageContent[] {

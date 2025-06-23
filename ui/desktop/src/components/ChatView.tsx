@@ -357,18 +357,20 @@ function ChatContent({
     if (combinedTextFromInput.trim() || contextFiles.length > 0) {
       setLastInteractionTime(Date.now());
 
-      // Add new context files to session state (don't clear them)
+      // Calculate the updated context files (combining existing and new ones)
+      const updatedContextFiles = [...sessionContextFiles];
       if (contextFiles.length > 0) {
         const newContextFiles = contextFiles.filter(
           (filePath: string) => !sessionContextFiles.includes(filePath)
         );
         if (newContextFiles.length > 0) {
-          setSessionContextFiles([...sessionContextFiles, ...newContextFiles]);
+          updatedContextFiles.push(...newContextFiles);
+          setSessionContextFiles(updatedContextFiles);
         }
       }
 
-      // Create user message with both text and context files
-      const userMessage = createUserMessage(combinedTextFromInput.trim(), contextFiles);
+      // Create user message with both text and all accumulated session context files
+      const userMessage = createUserMessage(combinedTextFromInput.trim(), updatedContextFiles);
 
       if (summarizedThread.length > 0) {
         resetMessagesWithSummary(

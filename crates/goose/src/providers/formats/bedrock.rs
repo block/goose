@@ -34,6 +34,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
+        MessageContent::ContextFiles(context_files) => {
+            // Convert context files to text content
+            let files_text = format!(
+                "The following files have been added to the context:\n{}",
+                context_files.paths.join("\n")
+            );
+            bedrock::ContentBlock::Text(files_text)
+        }
         MessageContent::Thinking(_) => {
             // Thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())

@@ -1023,6 +1023,20 @@
           "propertyName": "type"
         }
       },
+      "ContextFiles": {
+        "type": "object",
+        "required": [
+          "paths"
+        ],
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ContextLengthExceeded": {
         "type": "object",
         "required": [
@@ -1486,6 +1500,27 @@
                     "type": "string",
                     "enum": [
                       "text"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContextFiles"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "contextFiles"
                     ]
                   }
                 }
