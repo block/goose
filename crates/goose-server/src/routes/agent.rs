@@ -67,6 +67,11 @@ pub struct GetToolsQuery {
     extension_name: Option<String>,
 }
 
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
 async fn get_versions() -> Json<VersionsResponse> {
     let versions = ["goose".to_string()];
     let default_version = "goose".to_string();
@@ -217,6 +222,46 @@ async fn update_agent_provider(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/update_router_tool_selector",
+    responses(
+        (status = 200, description = "Tool selection strategy updated successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn update_router_tool_selector(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, Json<ErrorResponse>> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        Json(ErrorResponse {
+            error: "Unauthorized - Invalid or missing API key".to_string(),
+        })
+    })?;
+
+    let agent = state.get_agent().await.map_err(|e| {
+        tracing::error!("Failed to get agent: {}", e);
+        Json(ErrorResponse {
+            error: format!("Failed to get agent: {}", e),
+        })
+    })?;
+
+    agent
+        .update_router_tool_selector(None, Some(true))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update tool selection strategy: {}", e);
+            Json(ErrorResponse {
+                error: format!("Failed to update tool selection strategy: {}", e),
+            })
+        })?;
+
+    Ok(Json(
+        "Tool selection strategy updated successfully".to_string(),
+    ))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
@@ -224,5 +269,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))
+        .route(
+            "/agent/update_router_tool_selector",
+            post(update_router_tool_selector),
+        )
         .with_state(state)
 }
