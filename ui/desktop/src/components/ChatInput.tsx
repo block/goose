@@ -426,7 +426,9 @@ export default function ChatInput({
 
   // Context menu state and handlers
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const [isAdditionalPathsMenuOpen, setIsAdditionalPathsMenuOpen] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const additionalPathsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -459,6 +461,25 @@ export default function ChatInput({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isContextMenuOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        additionalPathsMenuRef.current &&
+        !additionalPathsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsAdditionalPathsMenuOpen(false);
+      }
+    };
+
+    if (isAdditionalPathsMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAdditionalPathsMenuOpen]);
 
   const handleSelectFilesAndFolders = async () => {
     try {
@@ -601,17 +622,18 @@ export default function ChatInput({
         <div className="flex flex-wrap gap-2 p-2">
           <div className="flex items-center gap-2 w-full">
             <div className="flex flex-wrap gap-2 flex-1">
-              {sessionContextPaths.map((filePath) => (
+              {sessionContextPaths.slice(0, 10).map((filePath) => (
                 <div
                   key={filePath.path}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
+                  title={filePath.path}
                 >
                   {filePath.type === 'directory' ? (
                     <FolderOpen className="w-3 h-3 text-textSubtle" />
                   ) : (
                     <Document className="w-3 h-3 text-textSubtle" />
                   )}
-                  <span className="max-w-[200px] truncate" title={filePath.path}>
+                  <span className="max-w-[200px] truncate">
                     {filePath.path.split('/').pop() || filePath.path}
                   </span>
                   <button
@@ -629,6 +651,56 @@ export default function ChatInput({
                   </button>
                 </div>
               ))}
+              {sessionContextPaths.length > 10 && (
+                <div className="relative" ref={additionalPathsMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdditionalPathsMenuOpen(!isAdditionalPathsMenuOpen)}
+                    className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard hover:bg-bgStandard transition-colors"
+                    title={`Show ${sessionContextPaths.length - 10} more files`}
+                  >
+                    <span className="text-textSubtle">+{sessionContextPaths.length - 10}</span>
+                  </button>
+
+                  {isAdditionalPathsMenuOpen && (
+                    <div className="absolute bottom-full left-0 mb-2 w-80 max-h-60 overflow-y-auto bg-bgApp rounded-lg border border-borderSubtle shadow-lg z-20">
+                      <div className="p-2">
+                        <div className="text-xs text-textSubtle mb-2 px-2 py-1">
+                          Additional files ({sessionContextPaths.length - 10}):
+                        </div>
+                        {sessionContextPaths.slice(10).map((filePath) => (
+                          <div
+                            key={filePath.path}
+                            className="flex items-center gap-2 px-2 py-1 hover:bg-bgSubtle rounded text-xs text-textStandard"
+                          >
+                            {filePath.type === 'directory' ? (
+                              <FolderOpen className="w-3 h-3 text-textSubtle flex-shrink-0" />
+                            ) : (
+                              <Document className="w-3 h-3 text-textSubtle flex-shrink-0" />
+                            )}
+                            <span className="truncate flex-1" title={filePath.path}>
+                              {filePath.path}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSessionContextPaths &&
+                                  setSessionContextPaths(
+                                    sessionContextPaths.filter((fp) => fp.path !== filePath.path)
+                                  );
+                              }}
+                              className="text-textSubtle hover:text-textStandard transition-colors flex-shrink-0"
+                              title="Remove from context"
+                            >
+                              <Close className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
