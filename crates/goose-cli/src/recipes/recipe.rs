@@ -162,11 +162,6 @@ fn parse_recipe_content(content: &str) -> Result<Recipe> {
     if content.trim().is_empty() {
         return Err(anyhow::anyhow!("Recipe content is empty"));
     }
-    println!(
-        "====content to be parsed parse_recipe_content: {:?}",
-        content
-    );
-
     serde_yaml::from_str(content)
         .map_err(|e| anyhow::anyhow!("Failed to parse recipe content: {}", e))
 }
