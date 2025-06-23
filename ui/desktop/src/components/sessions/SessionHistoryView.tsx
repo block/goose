@@ -11,7 +11,7 @@ import {
   LoaderCircle,
   GitBranch,
 } from 'lucide-react';
-import { type SessionDetails, generateSessionId } from '../../sessions';
+import { type SessionDetails, createSessionBranch } from '../../sessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { createSharedSession } from '../../sharedSessions';
@@ -111,37 +111,24 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const handleBranchFromMessage = async (messageIndex: number) => {
     try {
       setIsBranching(true);
-      
-      // Get the truncated messages array (include messages up to and including messageIndex)
-      const truncatedMessages = session.messages.slice(0, messageIndex + 1);
-      
-      // Generate a new session ID
-      const newSessionId = generateSessionId();
-      
-      // Create metadata for the new session
-      const metadata = {
-        description: `Branched from ${session.session_id}`,
-        message_count: truncatedMessages.length,
-        total_tokens: null,
-        working_dir: session.metadata.working_dir,
-      };
-      
-      // Open a new chat window with the branch session ID and pass the truncated messages
+
+      // Use the API to create a branch
+      const newSessionId = await createSessionBranch(
+        session.session_id,
+        messageIndex,
+        `Branched from ${session.session_id}`
+      );
+
+      // Open a new chat window with the branch session ID
       window.electron.createChatWindow(
         undefined, // query
         session.metadata.working_dir, // dir
         undefined, // version
         newSessionId, // resumeSessionId
         undefined, // recipeConfig
-        undefined, // viewType
-        { 
-          branchData: {
-            metadata,
-            messages: truncatedMessages
-          }
-        } // additional data
+        undefined // viewType
       );
-      
+
       toast.success(`Created new branch from message ${messageIndex + 1}`);
     } catch (error) {
       console.error('Error creating branch:', error);

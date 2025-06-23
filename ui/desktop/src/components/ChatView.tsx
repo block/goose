@@ -22,7 +22,7 @@ import { SearchView } from './conversation/SearchView';
 import { createRecipe } from '../recipe';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
-import { fetchSessionDetails, generateSessionId } from '../sessions';
+import { createSessionBranch, fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
@@ -555,34 +555,21 @@ function ChatContent({
     try {
       setIsBranching(true);
 
-      // Get the truncated messages array (include messages up to and including messageIndex)
-      const truncatedMessages = [...ancestorMessages, ...messages].slice(0, messageIndex + 1);
+      // Use the API to create a branch
+      const newSessionId = await createSessionBranch(
+        chat.id,
+        messageIndex,
+        `Branched from ${chat.id}`
+      );
 
-      // Generate a new session ID
-      const newSessionId = generateSessionId();
-
-      // Create metadata for the new session
-      const metadata = {
-        description: `Branched from ${chat.id}`,
-        message_count: truncatedMessages.length,
-        total_tokens: null,
-        working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-      };
-
-      // Open a new chat window with the branch session ID and pass the truncated messages
+      // Open a new chat window with the branch session ID
       window.electron.createChatWindow(
         undefined, // query
         window.appConfig.get('GOOSE_WORKING_DIR') as string, // dir
         undefined, // version
         newSessionId, // resumeSessionId
         undefined, // recipeConfig
-        undefined, // viewType
-        {
-          branchData: {
-            metadata,
-            messages: truncatedMessages
-          }
-        } // additional data
+        undefined // viewType
       );
 
       toast.success(`Created new branch from message ${messageIndex + 1}`);

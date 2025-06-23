@@ -6,6 +6,24 @@ export type Annotations = {
     timestamp?: string;
 };
 
+export type BranchSessionRequest = {
+    /**
+     * Optional description for the new branch
+     */
+    description?: string | null;
+    /**
+     * Index of the message to branch from (inclusive)
+     */
+    messageIndex: number;
+};
+
+export type BranchSessionResponse = {
+    /**
+     * ID of the newly created branch session
+     */
+    branchSessionId: string;
+};
+
 export type ConfigKey = {
     default?: string | null;
     name: string;
@@ -1266,6 +1284,46 @@ export type GetSessionHistoryResponses = {
 };
 
 export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
+
+export type BranchSessionData = {
+    body: BranchSessionRequest;
+    path: {
+        /**
+         * Unique identifier for the source session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/branch';
+};
+
+export type BranchSessionErrors = {
+    /**
+     * Invalid request - message index out of range
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Source session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type BranchSessionResponses = {
+    /**
+     * Session branch created successfully
+     */
+    200: BranchSessionResponse;
+};
+
+export type BranchSessionResponse2 = BranchSessionResponses[keyof BranchSessionResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

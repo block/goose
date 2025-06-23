@@ -5,14 +5,14 @@ use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use goose::message::Message;
 use goose::session;
 use goose::session::info::{get_session_info, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
@@ -31,6 +31,22 @@ pub struct SessionHistoryResponse {
     metadata: SessionMetadata,
     /// List of messages in the session conversation
     messages: Vec<Message>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSessionRequest {
+    /// Index of the message to branch from (inclusive)
+    message_index: usize,
+    /// Optional description for the new branch
+    description: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSessionResponse {
+    /// ID of the newly created branch session
+    branch_session_id: String,
 }
 
 #[utoipa::path(
@@ -104,10 +120,61 @@ async fn get_session_history(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/branch",
+    request_body = BranchSessionRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the source session")
+    ),
+    responses(
+        (status = 200, description = "Session branch created successfully", body = BranchSessionResponse),
+        (status = 400, description = "Invalid request - message index out of range"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Source session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+// Create a branch from an existing session
+async fn branch_session(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+    Json(request): Json<BranchSessionRequest>,
+) -> Result<Json<BranchSessionResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    // Branch the session
+    let branch_session_id = match session::branch_session(
+        &session_id,
+        request.message_index,
+        request.description,
+    ) {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("Failed to branch session: {:?}", e);
+            if e.to_string().contains("out of range") {
+                return Err(StatusCode::BAD_REQUEST);
+            } else if e.to_string().contains("not found") {
+                return Err(StatusCode::NOT_FOUND);
+            } else {
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    };
+
+    Ok(Json(BranchSessionResponse { branch_session_id }))
+}
+
 // Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session_history))
+        .route("/sessions/{session_id}/branch", post(branch_session))
         .with_state(state)
 }
