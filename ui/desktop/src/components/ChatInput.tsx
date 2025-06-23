@@ -594,7 +594,7 @@ export default function ChatInput({
       </form>
 
       {sessionContextFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-2">
           <div className="flex items-center gap-2 w-full">
             <div className="flex flex-wrap gap-2 flex-1">
               {sessionContextFiles.map((filePath) => (
