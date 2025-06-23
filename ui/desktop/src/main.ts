@@ -970,6 +970,21 @@ ipcMain.handle('select-file-or-directory', async () => {
   return null;
 });
 
+// Add multi-select file/directory selection handler
+ipcMain.handle('select-multiple-files', async () => {
+  const result = (await dialog.showOpenDialog({
+    properties:
+      process.platform === 'darwin'
+        ? ['openFile', 'openDirectory', 'multiSelections']
+        : ['openFile', 'multiSelections'],
+  })) as unknown as OpenDialogReturnValue;
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths;
+  }
+  return [];
+});
+
 // IPC handler to save data URL to a temporary file
 ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);

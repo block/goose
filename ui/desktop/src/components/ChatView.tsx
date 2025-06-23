@@ -49,6 +49,23 @@ import {
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
+// Function to remove context files text from display
+const removeContextFilesFromText = (text: string): string => {
+  // Remove lines that start with "File in context:" and any following empty lines
+  const lines = text.split('\n');
+  const filteredLines = lines.filter((line) => !line.trim().startsWith('File in context:'));
+
+  // Remove any consecutive empty lines that might be left after removing context files
+  const cleanedLines = filteredLines.reduce((acc: string[], line, index) => {
+    if (line.trim() === '' && index > 0 && acc[acc.length - 1].trim() === '') {
+      return acc; // Skip consecutive empty lines
+    }
+    return [...acc, line];
+  }, []);
+
+  return cleanedLines.join('\n').trim();
+};
+
 export interface ChatType {
   id: string;
   title: string;
@@ -141,7 +158,7 @@ function ChatContent({
     if (isUserMessage(message)) {
       const text = getTextContent(message);
       if (text) {
-        LocalMessageStorage.addMessage(text);
+        LocalMessageStorage.addMessage(removeContextFilesFromText(text));
       }
     }
   }, []);

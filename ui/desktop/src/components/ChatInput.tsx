@@ -79,6 +79,7 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -351,6 +352,14 @@ export default function ChatInput({
 
     let textToSend = displayValue.trim();
 
+    // Add context files to the message
+    if (selectedContextFiles.length > 0) {
+      const contextFilesText = selectedContextFiles
+        .map((filePath) => `File in context: ${filePath}`)
+        .join('\n');
+      textToSend = textToSend ? `${textToSend}\n\n${contextFilesText}` : contextFilesText;
+    }
+
     if (validPastedImageFilesPaths.length > 0) {
       const pathsString = validPastedImageFilesPaths.join(' ');
       textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
@@ -398,7 +407,8 @@ export default function ChatInput({
       const canSubmit =
         !isLoading &&
         (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+          selectedContextFiles.length > 0);
       if (canSubmit) {
         performSubmit();
       }
@@ -410,7 +420,8 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
-        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+        selectedContextFiles.length > 0);
     if (canSubmit) {
       performSubmit();
     }
@@ -427,7 +438,9 @@ export default function ChatInput({
   };
 
   const hasSubmittableContent =
-    displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
+    displayValue.trim() ||
+    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+    selectedContextFiles.length > 0;
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
   return (
@@ -542,17 +555,73 @@ export default function ChatInput({
         )}
       </form>
 
+      {selectedContextFiles.length > 0 && (
+        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+          <div className="flex items-center gap-2 w-full">
+            <div className="flex flex-wrap gap-2 flex-1">
+              {selectedContextFiles.map((filePath) => (
+                <div
+                  key={filePath}
+                  className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
+                >
+                  <span className="max-w-[200px] truncate" title={filePath}>
+                    {filePath.split('/').pop() || filePath}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedContextFiles(selectedContextFiles.filter((fp) => fp !== filePath))
+                    }
+                    className="text-textSubtle hover:text-textStandard transition-colors"
+                    title="Remove from context"
+                  >
+                    <Close className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
         <div className="gap-1 flex items-center justify-between w-full">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={handleFileSelect}
-            className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-          >
-            <Attach />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={handleFileSelect}
+              className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+            >
+              <Attach />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  const filePaths = await window.electron.selectMultipleFiles();
+                  if (filePaths.length > 0) {
+                    // Add only files that aren't already selected
+                    const newFiles = filePaths.filter(
+                      (filePath) => !selectedContextFiles.includes(filePath)
+                    );
+                    if (newFiles.length > 0) {
+                      setSelectedContextFiles([...selectedContextFiles, ...newFiles]);
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error selecting files:', error);
+                }
+              }}
+              className="text-textSubtle hover:text-textStandard text-xs px-2 py-1 h-7"
+              title="Add context files"
+            >
+              Add context
+            </Button>
+          </div>
 
           <BottomMenu
             setView={setView}
