@@ -128,6 +128,29 @@ function ChatContent({
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
+
+    // Extract context files from loaded session messages
+    const extractContextFilesFromMessages = (messages: Message[]): string[] => {
+      const contextFiles = new Set<string>();
+
+      for (const message of messages) {
+        for (const content of message.content) {
+          if (content.type === 'contextFiles') {
+            for (const path of content.paths) {
+              contextFiles.add(path);
+            }
+          }
+        }
+      }
+
+      return Array.from(contextFiles);
+    };
+
+    const extractedContextFiles = extractContextFilesFromMessages(chat.messages);
+    if (extractedContextFiles.length > 0) {
+      setSessionContextFiles(extractedContextFiles);
+    }
+
     // Set ready for auto user prompt after component initialization
     setReadyForAutoUserPrompt(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps

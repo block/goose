@@ -121,6 +121,11 @@ function mapApiContentToFrontendMessageContent(
       type: 'summarizationRequested',
       msg: apiContent.msg,
     };
+  } else if (apiContent.type === 'contextFiles') {
+    return {
+      type: 'contextFiles',
+      paths: apiContent.paths,
+    };
   }
 
   // For types that exist in API but not in frontend, either skip or convert
@@ -217,11 +222,10 @@ function mapFrontendContentToApiMessageContent(
       msg: frontendContent.msg,
     };
   } else if (frontendContent.type === 'contextFiles') {
-    // Convert context files to text for backend compatibility
-    const filesText = `The following files have been added to the context:\n${frontendContent.paths.join('\n')}`;
+    // Preserve contextFiles content type for backend storage
     return {
-      type: 'text',
-      text: filesText,
+      type: 'contextFiles',
+      paths: frontendContent.paths,
     };
   }
 
