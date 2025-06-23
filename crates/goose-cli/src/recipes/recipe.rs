@@ -223,7 +223,7 @@ fn render_content_with_params(content: &str, params: &HashMap<String, String>) -
         env.set_loader(move |name| {
             let path = Path::new(&recipe_dir).join(name);
             match std::fs::read_to_string(&path) {
-                Ok(content) => Ok(Some(content + "\n")),
+                Ok(content) => Ok(Some(content)),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(minijinja::Error::new(
                     minijinja::ErrorKind::InvalidOperation,
