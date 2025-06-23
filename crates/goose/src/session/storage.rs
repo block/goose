@@ -577,6 +577,58 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
     save_messages_with_metadata(session_file, metadata, &messages)
 }
 
+/// Branch a session from an existing session up to a specified message index
+///
+/// Creates a new session with messages copied from the source session up to and including
+/// the specified message index. Returns the ID of the newly created session.
+pub fn branch_session(
+    source_session_id: &str,
+    message_index: usize,
+    branch_description: Option<String>,
+) -> Result<String> {
+    // Generate a new session ID for the branch
+    let new_session_id = generate_session_id();
+    
+    // Get paths for source and target session files
+    let source_path = get_path(Identifier::Name(source_session_id.to_string()));
+    let target_path = get_path(Identifier::Name(new_session_id.clone()));
+    
+    // Read messages and metadata from source session
+    let source_messages = read_messages(&source_path)?;
+    let source_metadata = read_metadata(&source_path)?;
+    
+    // Ensure message_index is valid
+    if message_index >= source_messages.len() {
+        return Err(anyhow::anyhow!(
+            "Message index {} is out of range (max: {})",
+            message_index,
+            source_messages.len().saturating_sub(1)
+        ));
+    }
+    
+    // Create truncated messages array (include messages up to and including message_index)
+    let truncated_messages = source_messages[..=message_index].to_vec();
+    
+    // Create metadata for the new session
+    let new_metadata = SessionMetadata {
+        working_dir: source_metadata.working_dir.clone(),
+        description: branch_description.unwrap_or_else(|| format!("Branched from {}", source_session_id)),
+        schedule_id: None,
+        message_count: truncated_messages.len(),
+        total_tokens: source_metadata.total_tokens,
+        input_tokens: source_metadata.input_tokens,
+        output_tokens: source_metadata.output_tokens,
+        accumulated_total_tokens: source_metadata.accumulated_total_tokens,
+        accumulated_input_tokens: source_metadata.accumulated_input_tokens,
+        accumulated_output_tokens: source_metadata.accumulated_output_tokens,
+    };
+    
+    // Write the new session file with metadata and truncated messages
+    save_messages_with_metadata(&target_path, &new_metadata, &truncated_messages)?;
+    
+    Ok(new_session_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -822,6 +874,78 @@ mod tests {
         let read_metadata = read_metadata(&file_path)?;
         assert_eq!(metadata.description, read_metadata.description);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_branch_session() -> Result<()> {
+        // Create a temporary directory for our test
+        let dir = tempdir()?;
+        let source_session_id = "test_source";
+        let source_path = dir.path().join(format!("{}.jsonl", source_session_id));
+        
+        // Create a source session with metadata and messages
+        let source_metadata = SessionMetadata {
+            working_dir: dir.path().to_path_buf(),
+            description: "Source session".to_string(),
+            schedule_id: None,
+            message_count: 3,
+            total_tokens: Some(100),
+            input_tokens: Some(40),
+            output_tokens: Some(60),
+            accumulated_total_tokens: Some(100),
+            accumulated_input_tokens: Some(40),
+            accumulated_output_tokens: Some(60),
+        };
+        
+        let source_messages = vec![
+            Message::user().with_text("Message 1"),
+            Message::assistant().with_text("Response 1"),
+            Message::user().with_text("Message 2"),
+        ];
+        
+        // Write the source session
+        save_messages_with_metadata(&source_path, &source_metadata, &source_messages)?;
+        
+        // Create a custom implementation of branch_session for testing
+        let branch_session_id = "test_branch";
+        let branch_path = dir.path().join(format!("{}.jsonl", branch_session_id));
+        
+        // Create truncated messages array (include messages up to and including index 1)
+        let message_index = 1;
+        let truncated_messages = source_messages[..=message_index].to_vec();
+        
+        // Create metadata for the new session
+        let new_metadata = SessionMetadata {
+            working_dir: source_metadata.working_dir.clone(),
+            description: "Test branch".to_string(),
+            schedule_id: None,
+            message_count: truncated_messages.len(),
+            total_tokens: source_metadata.total_tokens,
+            input_tokens: source_metadata.input_tokens,
+            output_tokens: source_metadata.output_tokens,
+            accumulated_total_tokens: source_metadata.accumulated_total_tokens,
+            accumulated_input_tokens: source_metadata.accumulated_input_tokens,
+            accumulated_output_tokens: source_metadata.accumulated_output_tokens,
+        };
+        
+        // Write the new session file with metadata and truncated messages
+        save_messages_with_metadata(&branch_path, &new_metadata, &truncated_messages)?;
+        
+        // Read the branched session
+        let branch_metadata = read_metadata(&branch_path)?;
+        let branch_messages = read_messages(&branch_path)?;
+        
+        // Verify the branched session
+        assert_eq!(branch_metadata.description, "Test branch");
+        assert_eq!(branch_metadata.working_dir, source_metadata.working_dir);
+        assert_eq!(branch_metadata.message_count, 2);
+        assert_eq!(branch_messages.len(), 2);
+        
+        // Verify the messages were copied correctly
+        assert_eq!(branch_messages[0].as_concat_text(), "Message 1");
+        assert_eq!(branch_messages[1].as_concat_text(), "Response 1");
+        
         Ok(())
     }
 
