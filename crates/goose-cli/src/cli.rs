@@ -724,8 +724,13 @@ pub async fn cli() -> Result<()> {
             scheduled_job_id,
             quiet,
         }) => {
-            let (input_config, session_settings, subrecipes) = match (instructions, input_text, recipe, explain, render_recipe)
-            {
+            let (input_config, session_settings, sub_recipes) = match (
+                instructions,
+                input_text,
+                recipe,
+                explain,
+                render_recipe,
+            ) {
                 (Some(file), _, _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()

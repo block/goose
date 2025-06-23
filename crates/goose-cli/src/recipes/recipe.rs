@@ -7,8 +7,6 @@ use anyhow::Result;
 use console::style;
 use goose::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement};
 use minijinja::{Environment, Error, UndefinedBehavior};
-use serde_json::Value as JsonValue;
-use serde_yaml::Value as YamlValue;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -81,32 +79,7 @@ pub fn explain_recipe_with_parameters(
 }
 
 fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
-    let lines = content.lines();
-    let mut params_block = String::new();
-    let mut collecting = false;
-
-    for line in lines {
-        if line.starts_with("parameters:") {
-            collecting = true;
-        }
-        if collecting {
-            if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
-                let parameters: Vec<RecipeParameter> = serde_yaml::from_str(&params_block)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse parameters block: {}", e))?;
-                return Ok(Some(parameters));
-            }
-            params_block.push_str(line);
-            params_block.push('\n');
-        }
-    }
-
-    // If we didn't find a parameter block it might be because it is defined in json style or some such:
-    if serde_yaml::from_str::<serde_yaml::Value>(content).is_err() {
-        return Ok(None);
-    }
-
-    let recipe: Recipe = serde_yaml::from_str(content)
-        .map_err(|e| anyhow::anyhow!("Valid YAML but invalid Recipe structure: {}", e))?;
+    let recipe = Recipe::from_content(content)?;
     Ok(recipe.parameters)
 }
 

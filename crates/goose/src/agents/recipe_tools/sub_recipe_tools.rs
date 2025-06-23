@@ -16,7 +16,8 @@ pub fn create_sub_recipe_tool(sub_recipe: &SubRecipe) -> Tool {
         format!("{}_{}", SUB_RECIPE_TOOL_NAME_PREFIX, sub_recipe.name),
         "Run a sub recipe.
         Use this tool when you need to run a sub-recipe.
-        The sub recipe will be run with the provided parameters."
+        The sub recipe will be run with the provided parameters 
+        and return the output of the sub recipe."
             .to_string(),
         input_schema,
         Some(ToolAnnotations {
