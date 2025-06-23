@@ -112,6 +112,14 @@ impl Default for DeveloperRouter {
 }
 
 impl DeveloperRouter {
+    // Helper function to get the checkpoints directory
+    fn get_checkpoints_dir() -> PathBuf {
+        choose_app_strategy(crate::APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .data_dir()
+            .join("checkpoints")
+    }
+
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
@@ -531,8 +539,7 @@ impl DeveloperRouter {
 
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
-        let cwd = std::env::current_dir().expect("cwd");
-        let chk = cwd.join(".goose_checkpoints");
+        let chk = Self::get_checkpoints_dir();
         std::fs::create_dir_all(&chk).ok();
 
         Self {
@@ -2238,7 +2245,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: temp_dir.path().join(".goose_checkpoints"),
+            checkpoint_dir: Self::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
@@ -2291,7 +2298,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: temp_dir.path().join(".goose_checkpoints"),
+            checkpoint_dir: Self::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
@@ -2353,7 +2360,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: temp_dir.path().join(".goose_checkpoints"),
+            checkpoint_dir: Self::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
