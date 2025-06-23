@@ -660,12 +660,13 @@ export default function ChatInput({
             <div className="relative flex items-center" ref={contextMenuRef}>
               <Button
                 type="button"
+                size="icon"
                 variant="ghost"
                 onClick={() => setIsContextMenuOpen(!isContextMenuOpen)}
-                className="text-textSubtle hover:text-textStandard text-xs px-2 py-1 h-7"
+                className="w-7 h-7 text-base text-textSubtle hover:text-textStandard"
                 title="Add context files"
               >
-                Add context
+                <span className="relative bottom-px">@</span>
               </Button>
 
               {/* Dropdown Menu */}
