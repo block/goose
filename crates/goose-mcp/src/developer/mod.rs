@@ -616,18 +616,25 @@ impl DeveloperRouter {
     }
 
     // Helper function to generate diff string
-    fn diff_string(&self, old_txt: &str, new_txt: &str) -> String {
+    fn diff_string(&self, old_txt: &str, new_txt: &str, file_path: &Path) -> String {
         use similar::{ChangeTag, TextDiff};
 
         let diff = TextDiff::from_lines(old_txt, new_txt);
         let mut result = String::new();
 
-        result.push_str("--- a\n");
-        result.push_str("+++ b\n");
+        // Use relative path from current directory if possible, otherwise use full path
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let display_path = file_path
+            .strip_prefix(&cwd)
+            .unwrap_or(file_path)
+            .to_string_lossy();
+
+        result.push_str(&format!("--- a/{}\n", display_path));
+        result.push_str(&format!("+++ b/{}\n", display_path));
 
         for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
             if idx > 0 {
-                result.push_str("\n"); // Separate hunks with newline
+                result.push('\n'); // Separate hunks with newline
             }
 
             // Calculate hunk header
@@ -742,7 +749,7 @@ impl DeveloperRouter {
             .map_err(|e| ToolError::ExecutionError(format!("Failed to restore file: {}", e)))?;
 
         // Generate diff and create payload
-        let diff = self.diff_string(&current_content, &checkpoint_content);
+        let diff = self.diff_string(&current_content, &checkpoint_content, &file);
         let payload = json!({
             "file": file,
             "checkpoint": new_ckpt_path,
@@ -1177,7 +1184,7 @@ impl DeveloperRouter {
                 ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e))
             })?
         };
-        let diff = self.diff_string(old_content, &normalized_text);
+        let diff = self.diff_string(old_content, &normalized_text, path);
 
         let payload = json!({
             "file": path,
@@ -1245,7 +1252,7 @@ impl DeveloperRouter {
                     })?;
 
                     // Generate diff and create checkpoint payload
-                    let diff = self.diff_string(&content, &normalized_content);
+                    let diff = self.diff_string(&content, &normalized_content, path);
                     let payload = json!({
                         "file": path,
                         "checkpoint": ckpt_path,
@@ -1347,7 +1354,7 @@ impl DeveloperRouter {
         };
 
         // Generate diff and create checkpoint payload
-        let diff = self.diff_string(&content, &normalized_content);
+        let diff = self.diff_string(&content, &normalized_content, path);
         let payload = json!({
             "file": path,
             "checkpoint": ckpt_path,
@@ -2245,7 +2252,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: Self::get_checkpoints_dir(),
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
@@ -2298,7 +2305,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: Self::get_checkpoints_dir(),
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
@@ -2360,7 +2367,7 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
-            checkpoint_dir: Self::get_checkpoints_dir(),
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
             checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
