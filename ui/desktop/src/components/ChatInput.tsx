@@ -2,11 +2,12 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send, Close } from './icons';
+import { Attach, Send, Close, Document } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
+import { FolderOpen } from 'lucide-react';
 
 interface PastedImage {
   id: string;
@@ -443,6 +444,59 @@ export default function ChatInput({
     selectedContextFiles.length > 0;
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
+  // Context menu state and handlers
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsContextMenuOpen(false);
+      }
+    };
+
+    if (isContextMenuOpen) {
+      window.addEventListener('keydown', handleEsc);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isContextMenuOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        setIsContextMenuOpen(false);
+      }
+    };
+
+    if (isContextMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isContextMenuOpen]);
+
+  const handleSelectFilesAndFolders = async () => {
+    try {
+      const filePaths = await window.electron.selectMultipleFiles();
+      if (filePaths.length > 0) {
+        // Add only files that aren't already selected
+        const newFiles = filePaths.filter((filePath) => !selectedContextFiles.includes(filePath));
+        if (newFiles.length > 0) {
+          setSelectedContextFiles([...selectedContextFiles, ...newFiles]);
+        }
+      }
+      setIsContextMenuOpen(false);
+    } catch (error) {
+      console.error('Error selecting files:', error);
+      setIsContextMenuOpen(false);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
@@ -564,6 +618,7 @@ export default function ChatInput({
                   key={filePath}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
                 >
+                  <Document className="w-3 h-3 text-textSubtle" />
                   <span className="max-w-[200px] truncate" title={filePath}>
                     {filePath.split('/').pop() || filePath}
                   </span>
@@ -597,30 +652,33 @@ export default function ChatInput({
               <Attach />
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={async () => {
-                try {
-                  const filePaths = await window.electron.selectMultipleFiles();
-                  if (filePaths.length > 0) {
-                    // Add only files that aren't already selected
-                    const newFiles = filePaths.filter(
-                      (filePath) => !selectedContextFiles.includes(filePath)
-                    );
-                    if (newFiles.length > 0) {
-                      setSelectedContextFiles([...selectedContextFiles, ...newFiles]);
-                    }
-                  }
-                } catch (error) {
-                  console.error('Error selecting files:', error);
-                }
-              }}
-              className="text-textSubtle hover:text-textStandard text-xs px-2 py-1 h-7"
-              title="Add context files"
-            >
-              Add context
-            </Button>
+            {/* Context Menu */}
+            <div className="relative flex items-center" ref={contextMenuRef}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsContextMenuOpen(!isContextMenuOpen)}
+                className="text-textSubtle hover:text-textStandard text-xs px-2 py-1 h-7"
+                title="Add context files"
+              >
+                Add context
+              </Button>
+
+              {/* Dropdown Menu */}
+              {isContextMenuOpen && (
+                <div className="absolute bottom-[24px] left-0 w-[160px] py-2 bg-bgApp rounded-lg border border-borderSubtle shadow-lg">
+                  <div>
+                    <button
+                      className="flex items-center gap-2 w-full text-left text-textStandard py-2 px-4 hover:bg-bgSubtle"
+                      onClick={handleSelectFilesAndFolders}
+                    >
+                      <FolderOpen className="w-4 h-4 text-textSubtle" />
+                      <span>Files & Folders</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <BottomMenu
