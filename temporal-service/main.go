@@ -253,10 +253,7 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 	cmd := exec.Command(temporalCmd, args...)
 
 	// Properly detach the process so it survives when the parent exits
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // Create new process group
-		Pgid:    0,    // Use process ID as group ID
-	}
+	configureSysProcAttr(cmd)
 
 	// Redirect stdin/stdout/stderr to avoid hanging
 	cmd.Stdin = nil

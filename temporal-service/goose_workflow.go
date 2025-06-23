@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"go.temporal.io/sdk/activity"
@@ -158,9 +157,7 @@ func executeBackgroundJobWithCancellation(ctx context.Context, jobID, recipePath
 	)
 
 	// Set up process group for proper cleanup
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // Create new process group
-	}
+	configureSysProcAttr(cmd)
 
 	// Set up environment
 	cmd.Env = append(os.Environ(),
@@ -278,9 +275,7 @@ func executeForegroundJobCLIWithCancellation(ctx context.Context, jobID string, 
 	)
 
 	// Set up process group for proper cleanup
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // Create new process group
-	}
+	configureSysProcAttr(cmd)
 
 	// Set up environment
 	cmd.Env = append(os.Environ(),
