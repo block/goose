@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { X } from 'lucide-react';
 
 interface DiffLine {
   type: 'context' | 'added' | 'removed' | 'header';
@@ -34,7 +33,6 @@ interface DiffViewerProps {
 
 export default function DiffViewer({
   diffContent,
-  onClose,
   onApplyHunk,
   onRejectHunk,
   onApplyFile,
@@ -91,87 +89,79 @@ export default function DiffViewer({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Diff Viewer</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('unified')}
-                className={`px-3 py-1 text-sm rounded ${
-                  viewMode === 'unified'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Unified
-              </button>
-              <button
-                onClick={() => setViewMode('split')}
-                className={`px-3 py-1 text-sm rounded ${
-                  viewMode === 'split'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Split
-              </button>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-          >
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto">
-          {parsedDiff.map((file, fileIndex) => (
-            <div
-              key={fileIndex}
-              className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+    <div className="bg-white dark:bg-gray-800 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between pl-[86px] p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Diff Viewer</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('unified')}
+              className={`px-3 py-1 text-sm rounded ${
+                viewMode === 'unified'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
             >
-              {/* File header */}
-              <div className="bg-gray-50 dark:bg-gray-900 p-3 flex items-center justify-between">
-                <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
-                  {file.fileName}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleApplyFile(fileIndex)}
-                    className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
-                  >
-                    Apply All
-                  </button>
-                  <button
-                    onClick={() => handleRejectFile(fileIndex)}
-                    className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
-                  >
-                    Reject All
-                  </button>
-                </div>
-              </div>
-
-              {/* Hunks */}
-              {file.hunks.map((hunk) => (
-                <DiffHunkView
-                  key={hunk.id}
-                  hunk={hunk}
-                  fileIndex={fileIndex}
-                  viewMode={viewMode}
-                  isApplied={appliedHunks.has(hunk.id)}
-                  isRejected={rejectedHunks.has(hunk.id)}
-                  onApply={() => handleApplyHunk(fileIndex, hunk.id)}
-                  onReject={() => handleRejectHunk(fileIndex, hunk.id)}
-                />
-              ))}
-            </div>
-          ))}
+              Unified
+            </button>
+            <button
+              onClick={() => setViewMode('split')}
+              className={`px-3 py-1 text-sm rounded ${
+                viewMode === 'split'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              Split
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {parsedDiff.map((file, fileIndex) => (
+          <div
+            key={fileIndex}
+            className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+          >
+            {/* File header */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-3 flex items-center justify-between">
+              <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
+                {file.fileName}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleApplyFile(fileIndex)}
+                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
+                >
+                  Apply All
+                </button>
+                <button
+                  onClick={() => handleRejectFile(fileIndex)}
+                  className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                >
+                  Reject All
+                </button>
+              </div>
+            </div>
+
+            {/* Hunks */}
+            {file.hunks.map((hunk) => (
+              <DiffHunkView
+                key={hunk.id}
+                hunk={hunk}
+                fileIndex={fileIndex}
+                viewMode={viewMode}
+                isApplied={appliedHunks.has(hunk.id)}
+                isRejected={rejectedHunks.has(hunk.id)}
+                onApply={() => handleApplyHunk(fileIndex, hunk.id)}
+                onReject={() => handleRejectHunk(fileIndex, hunk.id)}
+              />
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -420,15 +410,35 @@ function parseDiff(diffContent: string): DiffFile[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // File header (--- or +++ or diff --git)
-    if (line.startsWith('diff --git') || line.startsWith('--- ') || line.startsWith('+++ ')) {
-      if (line.startsWith('--- ')) {
+    // File header (diff --git)
+    if (line.startsWith('diff --git')) {
+      // Extract filename from diff --git a/path/to/file b/path/to/file
+      const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      if (match) {
+        const fileName = match[2]; // Use the 'b/' version (new file path)
+        currentFile = {
+          fileName,
+          hunks: [],
+        };
+        files.push(currentFile);
+      }
+      continue;
+    }
+
+    // Handle --- and +++ lines as fallback if no diff --git line was found
+    if (line.startsWith('--- ') || line.startsWith('+++ ')) {
+      if (line.startsWith('--- ') && !currentFile) {
+        // Fallback: extract filename from --- line if no diff --git was found
         const fileName = line.substring(4).replace(/^a\//, '');
         currentFile = {
           fileName,
           hunks: [],
         };
         files.push(currentFile);
+      } else if (line.startsWith('+++ ') && currentFile && currentFile.fileName === 'a') {
+        // Fix the filename if it was incorrectly set to 'a' from --- line
+        const fileName = line.substring(4).replace(/^b\//, '');
+        currentFile.fileName = fileName;
       }
       continue;
     }
