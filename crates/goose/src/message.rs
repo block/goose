@@ -97,7 +97,7 @@ pub struct SummarizationRequested {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ContextFiles {
+pub struct ContextPaths {
     pub paths: Vec<String>,
 }
 
@@ -106,7 +106,7 @@ pub struct ContextFiles {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
     Text(TextContent),
-    ContextFiles(ContextFiles),
+    ContextPaths(ContextPaths),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -189,7 +189,7 @@ impl MessageContent {
     }
 
     pub fn context_files(paths: Vec<String>) -> Self {
-        MessageContent::ContextFiles(ContextFiles { paths })
+        MessageContent::ContextPaths(ContextPaths { paths })
     }
 
     // Add this new method to check for summarization requested content
@@ -264,10 +264,10 @@ impl MessageContent {
         }
     }
 
-    /// Get the context files content if this is a ContextFiles variant
-    pub fn as_context_files(&self) -> Option<&ContextFiles> {
+    /// Get the context files content if this is a ContextPaths variant
+    pub fn as_context_files(&self) -> Option<&ContextPaths> {
         match self {
-            MessageContent::ContextFiles(context_files) => Some(context_files),
+            MessageContent::ContextPaths(context_files) => Some(context_files),
             _ => None,
         }
     }

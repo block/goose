@@ -34,7 +34,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
-        MessageContent::ContextFiles(context_files) => {
+        MessageContent::ContextPaths(context_files) => {
             // Convert context files to text content
             let files_text = format!(
                 "The following files have been added to the context:\n{}",

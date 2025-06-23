@@ -32,8 +32,8 @@ interface ChatInputProps {
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
-  sessionContextFiles?: string[];
-  setSessionContextFiles?: (files: string[]) => void;
+  sessionContextPaths?: string[];
+  setSessionContextPaths?: (files: string[]) => void;
 }
 
 export default function ChatInput({
@@ -46,8 +46,8 @@ export default function ChatInput({
   numTokens,
   messages = [],
   setMessages,
-  sessionContextFiles = [],
-  setSessionContextFiles,
+  sessionContextPaths = [],
+  setSessionContextPaths,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -356,7 +356,7 @@ export default function ChatInput({
         new CustomEvent('submit', {
           detail: {
             value: textToSend,
-            contextFiles: sessionContextFiles,
+            contextPAths: sessionContextPaths,
           },
         }) as unknown as React.FormEvent
       );
@@ -463,11 +463,11 @@ export default function ChatInput({
   const handleSelectFilesAndFolders = async () => {
     try {
       const filePaths = await window.electron.selectMultipleFiles();
-      if (filePaths.length > 0 && setSessionContextFiles) {
+      if (filePaths.length > 0 && setSessionContextPaths) {
         // Add only files that aren't already selected
-        const newFiles = filePaths.filter((filePath) => !sessionContextFiles.includes(filePath));
+        const newFiles = filePaths.filter((filePath) => !sessionContextPaths.includes(filePath));
         if (newFiles.length > 0) {
-          setSessionContextFiles([...sessionContextFiles, ...newFiles]);
+          setSessionContextPaths([...sessionContextPaths, ...newFiles]);
         }
       }
       setIsContextMenuOpen(false);
@@ -589,11 +589,11 @@ export default function ChatInput({
         )}
       </form>
 
-      {sessionContextFiles.length > 0 && (
+      {sessionContextPaths.length > 0 && (
         <div className="flex flex-wrap gap-2 p-2">
           <div className="flex items-center gap-2 w-full">
             <div className="flex flex-wrap gap-2 flex-1">
-              {sessionContextFiles.map((filePath) => (
+              {sessionContextPaths.map((filePath) => (
                 <div
                   key={filePath}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
@@ -605,8 +605,8 @@ export default function ChatInput({
                   <button
                     type="button"
                     onClick={() =>
-                      setSessionContextFiles &&
-                      setSessionContextFiles(sessionContextFiles.filter((fp) => fp !== filePath))
+                      setSessionContextPaths &&
+                      setSessionContextPaths(sessionContextPaths.filter((fp) => fp !== filePath))
                     }
                     className="text-textSubtle hover:text-textStandard transition-colors"
                     title="Remove from context"

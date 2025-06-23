@@ -329,10 +329,10 @@ impl Provider for VeniceProvider {
                         .content
                         .iter()
                         .filter_map(|c| {
-                            // Handle both Text and ContextFiles content
+                            // Handle both Text and ContextPaths content
                             match c {
                                 MessageContent::Text(text) => Some(text.text.clone()),
-                                MessageContent::ContextFiles(context_files) => {
+                                MessageContent::ContextPaths(context_files) => {
                                     let files_text = format!(
                                         "The following files have been added to the context:\n{}",
                                         context_files.paths.join("\n")

@@ -30,10 +30,6 @@ export type Content = (TextContent & {
     type: 'resource';
 });
 
-export type ContextFiles = {
-    paths: Array<string>;
-};
-
 export type ContextLengthExceeded = {
     msg: string;
 };
@@ -64,6 +60,10 @@ export type ContextManageResponse = {
      * Token counts for each processed message
      */
     tokenCounts: Array<number>;
+};
+
+export type ContextPaths = {
+    paths: Array<string>;
 };
 
 export type CreateScheduleRequest = {
@@ -205,8 +205,8 @@ export type Message = {
  */
 export type MessageContent = (TextContent & {
     type: 'text';
-}) | (ContextFiles & {
-    type: 'contextFiles';
+}) | (ContextPaths & {
+    type: 'contextPaths';
 }) | (ImageContent & {
     type: 'image';
 }) | (ToolRequest & {

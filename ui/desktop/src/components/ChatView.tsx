@@ -108,7 +108,7 @@ function ChatContent({
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
-  const [sessionContextFiles, setSessionContextFiles] = useState<string[]>([]);
+  const [sessionContextPaths, setSessionContextPaths] = useState<string[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -130,25 +130,25 @@ function ChatContent({
     );
 
     // Extract context files from loaded session messages
-    const extractContextFilesFromMessages = (messages: Message[]): string[] => {
-      const contextFiles = new Set<string>();
+    const extractContextPathsFromMessages = (messages: Message[]): string[] => {
+      const contextPaths = new Set<string>();
 
       for (const message of messages) {
         for (const content of message.content) {
-          if (content.type === 'contextFiles') {
+          if (content.type === 'contextPaths') {
             for (const path of content.paths) {
-              contextFiles.add(path);
+              contextPaths.add(path);
             }
           }
         }
       }
 
-      return Array.from(contextFiles);
+      return Array.from(contextPaths);
     };
 
-    const extractedContextFiles = extractContextFilesFromMessages(chat.messages);
-    if (extractedContextFiles.length > 0) {
-      setSessionContextFiles(extractedContextFiles);
+    const extractedContextPaths = extractContextPathsFromMessages(chat.messages);
+    if (extractedContextPaths.length > 0) {
+      setSessionContextPaths(extractedContextPaths);
     }
 
     // Set ready for auto user prompt after component initialization
@@ -373,27 +373,27 @@ function ChatContent({
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
     const customEvent = e as unknown as CustomEvent;
-    // ChatInput now sends both 'value' field with text and 'contextFiles' array
+    // ChatInput now sends both 'value' field with text and 'contextPaths' array
     const combinedTextFromInput = customEvent.detail?.value || '';
-    const contextFiles = customEvent.detail?.contextFiles || [];
+    const contextPaths = customEvent.detail?.contextPaths || [];
 
-    if (combinedTextFromInput.trim() || contextFiles.length > 0) {
+    if (combinedTextFromInput.trim() || contextPaths.length > 0) {
       setLastInteractionTime(Date.now());
 
       // Calculate the updated context files (combining existing and new ones)
-      const updatedContextFiles = [...sessionContextFiles];
-      if (contextFiles.length > 0) {
-        const newContextFiles = contextFiles.filter(
-          (filePath: string) => !sessionContextFiles.includes(filePath)
+      const updatedContextPaths = [...sessionContextPaths];
+      if (contextPaths.length > 0) {
+        const newContextPaths = contextPaths.filter(
+          (filePath: string) => !sessionContextPaths.includes(filePath)
         );
-        if (newContextFiles.length > 0) {
-          updatedContextFiles.push(...newContextFiles);
-          setSessionContextFiles(updatedContextFiles);
+        if (newContextPaths.length > 0) {
+          updatedContextPaths.push(...newContextPaths);
+          setSessionContextPaths(updatedContextPaths);
         }
       }
 
       // Create user message with both text and all accumulated session context files
-      const userMessage = createUserMessage(combinedTextFromInput.trim(), updatedContextFiles);
+      const userMessage = createUserMessage(combinedTextFromInput.trim(), updatedContextPaths);
 
       if (summarizedThread.length > 0) {
         resetMessagesWithSummary(
@@ -577,9 +577,9 @@ function ChatContent({
         paths.push(window.electron.getPathForFile(files[i]));
       }
       // Add dropped files to session context files instead of chat input
-      const newContextFiles = paths.filter((path) => !sessionContextFiles.includes(path));
-      if (newContextFiles.length > 0) {
-        setSessionContextFiles([...sessionContextFiles, ...newContextFiles]);
+      const newContextPaths = paths.filter((path) => !sessionContextPaths.includes(path));
+      if (newContextPaths.length > 0) {
+        setSessionContextPaths([...sessionContextPaths, ...newContextPaths]);
       }
     }
   };
@@ -725,8 +725,8 @@ function ChatContent({
               numTokens={sessionTokenCount}
               messages={messages}
               setMessages={setMessages}
-              sessionContextFiles={sessionContextFiles}
-              setSessionContextFiles={setSessionContextFiles}
+              sessionContextPaths={sessionContextPaths}
+              setSessionContextPaths={setSessionContextPaths}
             />
           </div>
         </Card>

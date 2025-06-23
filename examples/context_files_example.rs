@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             MessageContent::Text(text) => {
                 println!("Text content: {}", text.text);
             }
-            MessageContent::ContextFiles(context_files) => {
+            MessageContent::ContextPaths(context_files) => {
                 println!("Context files:");
                 for path in &context_files.paths {
                     println!("  - {}", path);
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let response = provider.complete("You are a helpful assistant.", &[message], &[]).await?;
     // println!("LLM Response: {}", response.0.as_concat_text());
 
-    println!("\nThe ContextFiles content will be converted to text when sent to the LLM:");
+    println!("\nThe ContextPaths content will be converted to text when sent to the LLM:");
     println!("'The following files have been added to the context:'");
     println!("followed by the list of file paths.");
 

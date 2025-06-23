@@ -157,7 +157,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Handle direct image content
                     converted["content"] = json!([convert_image(image, image_format)]);
                 }
-                MessageContent::ContextFiles(context_files) => {
+                MessageContent::ContextPaths(context_files) => {
                     // Convert context files to text content
                     let files_text = format!(
                         "The following files have been added to the context:\n{}",

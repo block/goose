@@ -1023,20 +1023,6 @@
           "propertyName": "type"
         }
       },
-      "ContextFiles": {
-        "type": "object",
-        "required": [
-          "paths"
-        ],
-        "properties": {
-          "paths": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "ContextLengthExceeded": {
         "type": "object",
         "required": [
@@ -1091,6 +1077,20 @@
               "minimum": 0
             },
             "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "ContextPaths": {
+        "type": "object",
+        "required": [
+          "paths"
+        ],
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1509,7 +1509,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ContextFiles"
+                "$ref": "#/components/schemas/ContextPaths"
               },
               {
                 "type": "object",
@@ -1520,7 +1520,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "contextFiles"
+                      "contextPaths"
                     ]
                   }
                 }

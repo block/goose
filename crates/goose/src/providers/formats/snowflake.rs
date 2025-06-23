@@ -70,7 +70,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip redacted thinking for now
                 }
                 MessageContent::Image(_) => continue, // Snowflake doesn't support image content yet
-                MessageContent::ContextFiles(context_files) => {
+                MessageContent::ContextPaths(context_files) => {
                     // Convert context files to text content
                     if !text_content.is_empty() {
                         text_content.push('\n');

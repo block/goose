@@ -83,8 +83,8 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
-export interface ContextFilesContent {
-  type: 'contextFiles';
+export interface ContextPathsContent {
+  type: 'contextPaths';
   paths: string[];
 }
 
@@ -96,7 +96,7 @@ export type MessageContent =
   | ToolConfirmationRequestMessageContent
   | ContextLengthExceededContent
   | SummarizationRequestedContent
-  | ContextFilesContent;
+  | ContextPathsContent;
 
 export interface Message {
   id?: string;
@@ -108,7 +108,7 @@ export interface Message {
 }
 
 // Helper functions to create messages
-export function createUserMessage(text: string, contextFiles: string[] = []): Message {
+export function createUserMessage(text: string, contextPaths: string[] = []): Message {
   const content: MessageContent[] = [];
 
   // Add text content if there's text
@@ -117,8 +117,8 @@ export function createUserMessage(text: string, contextFiles: string[] = []): Me
   }
 
   // Add context file content only if there are context files
-  if (contextFiles.length > 0) {
-    content.push({ type: 'contextFiles', paths: contextFiles });
+  if (contextPaths.length > 0) {
+    content.push({ type: 'contextPaths', paths: contextPaths });
   }
 
   return {

@@ -111,7 +111,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
 
-                    MessageContent::ContextFiles(context_files) => {
+                    MessageContent::ContextPaths(context_files) => {
                         // Convert context files to text content
                         let files_text = format!(
                             "The following files have been added to the context:\n{}",

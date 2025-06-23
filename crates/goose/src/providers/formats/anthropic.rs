@@ -80,7 +80,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }));
                 }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
-                MessageContent::ContextFiles(context_files) => {
+                MessageContent::ContextPaths(context_files) => {
                     // Convert context files to text content
                     let files_text = format!(
                         "The following files have been added to the context:\n{}",

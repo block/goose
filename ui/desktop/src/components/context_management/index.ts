@@ -121,9 +121,9 @@ function mapApiContentToFrontendMessageContent(
       type: 'summarizationRequested',
       msg: apiContent.msg,
     };
-  } else if (apiContent.type === 'contextFiles') {
+  } else if (apiContent.type === 'contextPaths') {
     return {
-      type: 'contextFiles',
+      type: 'contextPaths',
       paths: apiContent.paths,
     };
   }
@@ -221,10 +221,10 @@ function mapFrontendContentToApiMessageContent(
       type: 'summarizationRequested',
       msg: frontendContent.msg,
     };
-  } else if (frontendContent.type === 'contextFiles') {
-    // Preserve contextFiles content type for backend storage
+  } else if (frontendContent.type === 'contextPaths') {
+    // Preserve contextPaths content type for backend storage
     return {
-      type: 'contextFiles',
+      type: 'contextPaths',
       paths: frontendContent.paths,
     };
   }
