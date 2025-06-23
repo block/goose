@@ -98,7 +98,7 @@ extensions:
 
 ## Guide
 
-**[Get started with the full guide →](/docs/guides/isolated-development-environments)**
+**[Get started with the full guide →](/docs/tutorials/isolated-development-environments)**
 
 ---
 

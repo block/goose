@@ -144,6 +144,7 @@ pub fn manage_schedule_tool() -> Tool {
                 "job_id": {"type": "string", "description": "Job identifier for operations on existing jobs"},
                 "recipe_path": {"type": "string", "description": "Path to recipe file for create action"},
                 "cron_expression": {"type": "string", "description": "A six field cron expression for create action"},
+                "execution_mode": {"type": "string", "description": "Execution mode for create action: 'foreground' or 'background'", "enum": ["foreground", "background"], "default": "background"},
                 "limit": {"type": "integer", "description": "Limit for sessions list", "default": 50},
                 "session_id": {"type": "string", "description": "Session identifier for session_content action"}
             }

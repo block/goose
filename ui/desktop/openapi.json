@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.28"
+    "version": "1.0.29"
   },
   "paths": {
     "/agent/tools": {
@@ -479,6 +479,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid cron expression or recipe file"
+          },
+          "409": {
+            "description": "Job ID already exists"
           },
           "500": {
             "description": "Internal server error"
@@ -1084,6 +1090,10 @@
         "properties": {
           "cron": {
             "type": "string"
+          },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
           },
           "id": {
             "type": "string"
@@ -1900,6 +1910,10 @@
           },
           "currently_running": {
             "type": "boolean"
+          },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
           },
           "id": {
             "type": "string"

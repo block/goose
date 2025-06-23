@@ -196,15 +196,20 @@ jobs:
           ls -la ./target/x86_64-pc-windows-gnu/release/goosed.exe
           ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
 
-      # 4.5) Build temporal-service for Windows
+      # 4.5) Build temporal-service for Windows using build.sh script
       - name: Build temporal-service for Windows
         run: |
-          echo "Building temporal-service for Windows..."
+          echo "Building temporal-service for Windows using build.sh script..."
           docker run --rm \
             -v "$(pwd)":/usr/src/myapp \
             -w /usr/src/myapp/temporal-service \
             golang:latest \
-            sh -c "GOOS=windows GOARCH=amd64 go build -o temporal-service.exe main.go"
+            sh -c "
+              # Make build.sh executable
+              chmod +x build.sh
+              # Set Windows build environment and run build script
+              GOOS=windows GOARCH=amd64 ./build.sh
+            "
           echo "temporal-service.exe built successfully"
 
       # 4.6) Download temporal CLI for Windows

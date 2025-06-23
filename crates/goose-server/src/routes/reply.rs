@@ -40,6 +40,7 @@ struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
     session_working_dir: String,
+    scheduled_job_id: Option<String>,
 }
 
 pub struct SseResponse {
@@ -181,7 +182,8 @@ async fn handler(
                 Some(SessionConfig {
                     id: session::Identifier::Name(session_id.clone()),
                     working_dir: PathBuf::from(session_working_dir),
-                    schedule_id: None,
+                    schedule_id: request.scheduled_job_id.clone(),
+                    execution_mode: None,
                 }),
             )
             .await
@@ -303,6 +305,7 @@ struct AskRequest {
     prompt: String,
     session_id: Option<String>,
     session_working_dir: String,
+    scheduled_job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -339,7 +342,8 @@ async fn ask_handler(
             Some(SessionConfig {
                 id: session::Identifier::Name(session_id.clone()),
                 working_dir: PathBuf::from(session_working_dir),
-                schedule_id: None,
+                schedule_id: request.scheduled_job_id.clone(),
+                execution_mode: None,
             }),
         )
         .await
@@ -578,6 +582,7 @@ mod tests {
                         prompt: "test prompt".to_string(),
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
+                        scheduled_job_id: None,
                     })
                     .unwrap(),
                 ))

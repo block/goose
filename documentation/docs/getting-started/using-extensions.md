@@ -12,11 +12,7 @@ Extensions are based on the [Model Context Protocol (MCP)](https://github.com/mo
 Goose to a wide ecosystem of capabilities.
 
 :::tip Tutorials
-Check out the [step-by-step tutorials](/docs/category/tutorials) for adding and using several Goose Extensions
-:::
-
-:::tip Featured Extension
-Looking for isolated development environments? Check out our guide on [Isolated Development Environments](/docs/guides/isolated-development-environments) using the new container-use extension.
+Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
 :::
 
 

@@ -19,7 +19,7 @@ const LinuxDesktopInstallButtons = () => {
           <IconDownload /> Linux ARM64
         </Link>
         <Link
-          className="button button--secondary button--lg"
+          className="button button--primary button--lg"
           to="https://github.com/block/goose/releases/download/v1.0.29/Goose-1.0.29-1.x86_64.rpm"
         >
           <IconDownload /> RPM Package

@@ -4,7 +4,7 @@ use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake,
+    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake, xai,
 };
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
@@ -499,6 +499,11 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
         goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
     )
     .await
+}
+
+#[tokio::test]
+async fn test_xai_provider() -> Result<()> {
+    test_provider("Xai", &["XAI_API_KEY"], None, xai::XaiProvider::default).await
 }
 
 // Print the final test report
