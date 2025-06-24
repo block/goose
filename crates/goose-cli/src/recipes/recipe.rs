@@ -90,7 +90,7 @@ pub fn explain_recipe_with_parameters(
     let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in recipe_dir"))?;
+        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
     let recipe_parameters = validate_recipe_parameters(&recipe_file_content, recipe_dir_str)?;
 
     let (params_for_template, missing_params) =

@@ -84,8 +84,6 @@ pub fn parse_recipe_content(
     let (env, template_variables) =
         get_env_with_template_variables(content, recipe_dir, UndefinedBehavior::Lenient)?;
     let template = env.get_template(CURRENT_TEMPLATE_NAME).unwrap();
-    // let mut ctx = preserve_vars(&template_variables).clone();
-    // ctx.extend(params.clone());
     let rendered_content = template
         .render(())
         .map_err(|e| anyhow::anyhow!("Failed to parse the recipe {}", e))?;
@@ -131,38 +129,44 @@ mod tests {
         fn test_render_content_with_params() {
             // Test basic parameter substitution
             let content = "Hello {{ name }}!";
-            let mut params = HashMap::new();
-            params.insert("name".to_string(), "World".to_string());
+            let params = HashMap::from([
+                ("recipe_dir".to_string(), "some_dir".to_string()),
+                ("name".to_string(), "World".to_string()),
+            ]);
             let result = render_recipe_content_with_params(content, &params).unwrap();
             assert_eq!(result, "Hello World!");
 
             // Test empty parameter substitution
             let content = "Hello {{ empty }}!";
-            let mut params = HashMap::new();
-            params.insert("empty".to_string(), "".to_string());
+            let params = HashMap::from([
+                ("recipe_dir".to_string(), "some_dir".to_string()),
+                ("empty".to_string(), "".to_string()),
+            ]);
             let result = render_recipe_content_with_params(content, &params).unwrap();
             assert_eq!(result, "Hello !");
 
             // Test multiple parameters
             let content = "{{ greeting }} {{ name }}!";
-            let mut params = HashMap::new();
-            params.insert("greeting".to_string(), "Hi".to_string());
-            params.insert("name".to_string(), "Alice".to_string());
+            let params = HashMap::from([
+                ("recipe_dir".to_string(), "some_dir".to_string()),
+                ("greeting".to_string(), "Hi".to_string()),
+                ("name".to_string(), "Alice".to_string()),
+            ]);
             let result = render_recipe_content_with_params(content, &params).unwrap();
             assert_eq!(result, "Hi Alice!");
 
             // Test missing parameter results in error
             let content = "Hello {{ missing }}!";
-            let params = HashMap::new();
+            let params = HashMap::from([("recipe_dir".to_string(), "some_dir".to_string())]);
             let err = render_recipe_content_with_params(content, &params).unwrap_err();
             let error_msg = err.to_string();
             assert!(error_msg.contains("Failed to render the recipe"));
 
             // Test invalid template syntax results in error
             let content = "Hello {{ unclosed";
-            let params = HashMap::new();
+            let params = HashMap::from([("recipe_dir".to_string(), "some_dir".to_string())]);
             let err = render_recipe_content_with_params(content, &params).unwrap_err();
-            assert!(err.to_string().contains("Invalid template syntax"));
+            assert!(err.to_string().contains("unexpected end of input"));
         }
     }
 }
