@@ -4,7 +4,6 @@ import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import type { View, ViewOptions } from '../../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import { BottomMenuExtensions } from './BottomMenuExtensions';
 import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
@@ -207,12 +206,6 @@ export default function BottomMenu({
       <div className="flex items-center pl-2">
         {/* Tool and Token count */}
         {<BottomMenuAlertPopover alerts={alerts} />}
-
-        {/* Extensions Menu */}
-        <BottomMenuExtensions setView={setView} />
-
-        {/* Separator */}
-        <div className="w-[1px] h-4 bg-borderSubtle mx-2" />
 
         {/* Model Selector Dropdown */}
         <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
