@@ -11,6 +11,7 @@ import AppSettingsSection from './app/AppSettingsSection';
 import SchedulerSection from './scheduler/SchedulerSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { useEffect, useRef } from 'react';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -27,6 +28,18 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  const extensionsSectionRef = useRef<HTMLDivElement>(null);
+
+  // Handle scrolling to extensions section
+  useEffect(() => {
+    if (viewOptions.section === 'extensions' && extensionsSectionRef.current) {
+      // Use a timeout to ensure the DOM is ready
+      setTimeout(() => {
+        extensionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [viewOptions.section]);
+
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <MoreMenuLayout showMenu={false} />
@@ -44,10 +57,12 @@ export default function SettingsView({
               {/* Models Section */}
               <ModelsSection setView={setView} />
               {/* Extensions Section */}
-              <ExtensionsSection
-                deepLinkConfig={viewOptions.deepLinkConfig}
-                showEnvVars={viewOptions.showEnvVars}
-              />
+              <div ref={extensionsSectionRef}>
+                <ExtensionsSection
+                  deepLinkConfig={viewOptions.deepLinkConfig}
+                  showEnvVars={viewOptions.showEnvVars}
+                />
+              </div>
               {/* Scheduler Section */}
               <SchedulerSection />
               {/* Goose Modes */}
