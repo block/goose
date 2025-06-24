@@ -2,7 +2,7 @@
 title: Cognee Extension
 description: Add Cognee MCP Server as a Goose Extension
 authors: 
-    - Kevin Cojean
+    - KevinCojean
 ---
 
 import Tabs from '@theme/Tabs';
@@ -52,9 +52,6 @@ uv run cognee
   </TabItem>
 </Tabs>
 
-
-## Configuration
-
 You can configure Goose and the Cognee MCP server in two ways.
 - Method 1: Goose starts a Cognee-MCP server (slow)
 - Method 2: Goose connects to a running Cognee-MCP instance (preferred)
@@ -62,7 +59,7 @@ You can configure Goose and the Cognee MCP server in two ways.
 <Tabs groupId="interface">
 <TabItem value="method-1" label="Method 1 (slow)">
 
-Overall, it's as simple as following the [installation instructions from Cognee](https://docs.cognee.ai/quickstart).
+Every time you start Goose, an Cognee MCP instance will also start. This adds significant at start for Goose.
 
 #### Goose configuration
 
@@ -117,51 +114,47 @@ You may check the generated logs for `cognee-mcp` in this relative directory, wh
 
   <TabItem value="method-2" label="Method 2 (preferred)">
 
-You can start the MCP server yourself using the following bash script. This method creates close to no extra delay at the start of Goose.
+Every time you start Goose, it will attempt to connect to an already running Cognee MCP server. This significantly saves time when Goose starts.
 
-#### Create the bash file which starts Cognee-MCP with configuration via environment variables
+#### Creating the script which starts the MCP Server
+
+##### Bash
+
+1. Place the following script at the root directory where you installed Cognee.
+
+:::info
+Don't forget to give the script executable permissions with `chmod +x`
+:::
+
 ```bash
 #!/bin/bash
-
 set -e
 
-# We export all the configuration environment variables in the ~/.cache/cognee/env file
-export $(grep -v '^#' ~/.cache/cognee/env | envsubst | xargs -d '\n')
+# Configuration
+# Replace LLM_API_KEY, EMBEDDING_API_KEY, and models as your prefer.
+export DEBUG=true
+export HOST=localhost
+export ENVIRONMENT=LOCAL
+export ENV=${ENVIRONMENT}
+export LLM_API_KEY=${OPENAI_API_KEY}
+export LLM_MODEL=openai/gpt-4.1-nano-2025-04-14
+export EMBEDDING_API_KEY=${OPENAI_API_KEY}
+export EMBEDDING_MODEL=openai/text-embedding-3-large
+export RATE_LIMIT_INTERVAL=60
 
-echo "Debug mode: ${DEBUG:-False}"
-echo "Environment: ${ENVIRONMENT:-LOCAL}"
-uv --directory $COGNEE_VENV_DIR init || echo "Error $?: encountered, perhaps the project is already initialized?"
-uv --directory "$COGNEE_VENV_DIR" sync --dev --all-extras
-uv --directory "$COGNEE_VENV_DIR" run \
-  python ~/.cache/cognee/run-cognee-mcp-server.py --transport sse
+uv init || echo "Error $?: encountered, perhaps the project is already initialized?"
+uv sync --dev --all-extras
+uv run python run-cognee-mcp-server.py --transport sse
 ```
 
-Before running the MCP server script, make it executable:
+##### Python
 
-```bash
-chmod +x ~/.cache/cognee/run-cognee-mcp-server.sh
-```
+Copy paste the following into a file `run-cognee-mcp-server.py`, at the root directory where you installed Cognee.
 
-The `~/.cache/cognee/env` file contains this:
-```txt
-DEBUG=true
-HOST=localhost
-COGNEE_DIR=$HOME/.local/share/cognee
-COGNEE_MCP_DIR=$HOME/.local/share/cognee/cognee-mcp
-COGNEE_VENV_DIR=$HOME/.local/share/cognee/cognee-mcp
-ENVIRONMENT=LOCAL
-ENV=${ENVIRONMENT}
-LOG_LEVEL=INFO
-LLM_API_KEY=${OPENAI_API_KEY}
-LLM_MODEL=openai/gpt-4.1-nano-2025-04-14
-EMBEDDING_API_KEY=${OPENAI_API_KEY}
-EMBEDDING_MODEL=openai/text-embedding-3-large
-RATE_LIMIT_INTERVAL=60
-```
+> This is mostly a copy-paste of the default `server.py` from Cognee; with the difference that we specify endpoints for the `sse` and `streamable-http` protocols. You may change the server host and port as well.
 
-#### Create the python script which starts the Cognee-MCP server
-
-This is mostly a copy-paste of the default `server.py` from Cognee; with the difference that we specify endpoints for the `sse` and `streamable-http` protocols. You may change the server host and port as well.
+<details>
+<summary>A slightly modified `cognee-mcp/server.py` file.</summary>
 
 ```python title="server.py"
 import json
@@ -635,8 +628,9 @@ if __name__ == "__main__":
         logger.error(f"Error initializing Cognee MCP server: {str(e)}")
         raise
 ```
+</details>
 
-#### Goose extension configuration
+#### Goose configuration
 
 Once you've saved the scripts, you must update your Goose extension configuration.
 
@@ -654,38 +648,24 @@ extensions:
 
 #### Usage
 
-Once you've set up a stand-alone cognee-mcp server instance, you may simply start it using:
-
-```bash
-~/.cache/cognee/run-cognee-mcp.sh
-```
-
-Then, start goose, and try asking it:
-
-```text
-Goose, can you list the cognee-mcp extension commands at your disposal?
-```
-
-#### Logging and errors
-
-This preferred method of running the cognee-mcp makes reading logs and errors easier, as the running instance will simply print to stdout.  
-
-> The first method uses the stdio protocol; which prohibits an application from sending logs to stdout, which makes it annoying to monitor.
+Once your scripts are ready, all you need to do is:  
+1. Start the cognee-mcp server using the bash script.
+2. Start Goose, and try asking it:
+    ```text
+    Goose, can you list the cognee-mcp extension commands at your disposal?
+    ```
 
   </TabItem>
 </Tabs>
 
-
-
-##  Usage tips
-
-### Making Goose use the knowledge graph more autonomously
+## Example usage
 
 Goose and Cognee now run successfully together, but as a user, you still will find yourself having to explicitely tell Goose to use the knowledge graph, which quickly becomes annoying.
 
 I've had varying success making goose autonomously use the knowledge graph using different methods:  
 
-Using an instruction file
+<Tabs>
+<TabItem value="using-instruction-file" label="Using instructions">
 
 Using an instruction file is slower, because Goose executes the recipe at the start, but overrall it should use less LLM tokens. Here is an example of recipe for which I'm almost satisfied.
 
@@ -745,7 +725,9 @@ cognee-mcp__cognify_status()
 ```
 ``````
 
-Using a Goosehints file
+</TabItem>
+
+<TabItem value="using-goosehints-file" label="Using Goosehints">
 
 To avoid the execution of the instruction file at the start of each Goose session, which is slow, you may include information for the cognee-mcp knowledge graph in the `.goosehints` file.  
 
@@ -786,6 +768,9 @@ cognee-mcp__search({
 You then incorporate the memory search results into your reasoning for the response.
 ``````
 
+</TabItem>
+
+<TabItem value="using-memory-mcp" label="Using memory-mcp">
 
 Mixing the memory-mcp extension and the instruction file
 
@@ -795,3 +780,5 @@ I would save the above  Goosehint text content as a `memory` and prompt Goose to
 
 This would have the advantage of limiting token usage, but would not guarantee Goose would query the knowledge graph.
 
+</TabItem>
+</Tabs>
