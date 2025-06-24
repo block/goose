@@ -317,33 +317,6 @@ function ChatContent({
     };
   }, [messages]);
 
-  // Listen for open-diff-viewer event
-  useEffect(() => {
-    const handleOpenDiffViewer = () => {
-      const diffContent = window.pendingDiffContent;
-      if (diffContent) {
-        window.electron.logInfo('Opening diff viewer in new window');
-        // Create a new window with the diff content
-        window.electron.createChatWindow(
-          undefined, // query
-          undefined, // dir
-          undefined, // version
-          undefined, // resumeSessionId
-          { diffContent } as unknown as Recipe, // pass diff content as config
-          'diffViewer' // view type
-        );
-        // Clear the pending diff content
-        window.pendingDiffContent = undefined;
-      }
-    };
-
-    window.addEventListener('open-diff-viewer', handleOpenDiffViewer);
-
-    return () => {
-      window.removeEventListener('open-diff-viewer', handleOpenDiffViewer);
-    };
-  }, []);
-
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
     // @ts-expect-error - TypeScript being overly strict about the return type
@@ -708,7 +681,7 @@ function ChatContent({
       <ChatContext.Provider
         value={{ messages: messages, sendMessage: (msg: string) => append(msg) }}
       >
-        <div className="flex flex-col w-full h-screen items-center justify-center">
+        <div className="flex flex-col w-full h-screen items-center justify-center relative">
           {/* Loader when generating recipe */}
           {isGeneratingRecipe && <LayingEggLoader />}
           <MoreMenuLayout

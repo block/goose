@@ -24,6 +24,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
 import DiffViewer from './components/DiffViewer';
+import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -277,6 +278,8 @@ export default function App() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
+  const [isDiffSidePanelOpen, setIsDiffSidePanelOpen] = useState(false);
+  const [diffSidePanelContent, setDiffSidePanelContent] = useState<string>('');
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
@@ -491,6 +494,45 @@ export default function App() {
     };
   }, []);
 
+  // Listen for open-diff-viewer event at App level
+  useEffect(() => {
+    const handleOpenDiffViewer = () => {
+      const diffContent = window.pendingDiffContent;
+      if (diffContent) {
+        window.electron.logInfo('Opening diff viewer as side panel');
+        setDiffSidePanelContent(diffContent);
+        setIsDiffSidePanelOpen(true);
+        // Clear the pending diff content
+        window.pendingDiffContent = undefined;
+      }
+    };
+
+    window.addEventListener('open-diff-viewer', handleOpenDiffViewer);
+
+    return () => {
+      window.removeEventListener('open-diff-viewer', handleOpenDiffViewer);
+    };
+  }, []);
+
+  // Handle window resizing when diff panel opens/closes
+  useEffect(() => {
+    const resizeWindow = async () => {
+      try {
+        if (isDiffSidePanelOpen) {
+          // Expand window to accommodate diff panel
+          await window.electron.resizeWindow(50); // Add 50% more width
+        } else {
+          // Restore original window size
+          await window.electron.resizeWindow(0); // Reset to original size
+        }
+      } catch (error) {
+        console.error('Error resizing window:', error);
+      }
+    };
+
+    resizeWindow();
+  }, [isDiffSidePanelOpen]);
+
   const handleConfirm = async () => {
     if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
@@ -557,7 +599,7 @@ export default function App() {
       )}
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
         <div className="titlebar-drag-region" />
-        <div>
+        <div className={`transition-all duration-300 ${isDiffSidePanelOpen ? 'mr-[50vw]' : ''}`}>
           {view === 'loading' && <SuspenseLoader />}
           {view === 'welcome' && (
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
@@ -630,6 +672,13 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* Diff Side Panel */}
+        <DiffSidePanel
+          diffContent={diffSidePanelContent}
+          isOpen={isDiffSidePanelOpen}
+          onClose={() => setIsDiffSidePanelOpen(false)}
+        />
       </div>
       {isGoosehintsModalOpen && (
         <GoosehintsModal
