@@ -1,5 +1,5 @@
 ---
-title: Cognee MCP Extension
+title: Cognee Extension
 description: Add Cognee MCP Server as a Goose Extension
 authors: 
     - Kevin Cojean
@@ -31,10 +31,10 @@ Key features include:
 
 You first need to install `uv`, which is a fast package manager for Python which is strongly recommended for usage with Cognee.
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh -o /tmp/install.sh && sh /tmp/install.sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then, install Cognee.
+Then, install `Cognee`.
 
 ```bash
 git clone https://github.com/topoteretes/cognee
@@ -49,7 +49,6 @@ uv run cognee
 ```
 :::
 
-
   </TabItem>
 </Tabs>
 
@@ -61,7 +60,9 @@ You can configure Goose and the Cognee MCP server in two ways.
 - Method 2: Goose connects to a running Cognee-MCP instance (preferred)
 
 <Tabs groupId="interface">
-<TabItem value="method-1" label="Method 1 (slow but simple)">
+<TabItem value="method-1" label="Method 1 (slow)">
+
+Overall, it's as simple as following the [installation instructions from Cognee](https://docs.cognee.ai/quickstart).
 
 #### Goose configuration
 
@@ -101,16 +102,16 @@ extensions:
   }
 ```
 
-> Do not forget to replace `YOURNAME` in the above configuration. The Goose extension configuration is not capable of expanding variables such as `$HOME` or symbols such as `~`; you must write the complete path to your home.
+:::warning
+Do not forget to replace `YOURNAME` in the above configuration. The Goose extension configuration is not capable of expanding variables such as `$HOME` or symbols such as `~`; you must write the complete path to your home.
+:::
 
 You may then start `goose`, which will take between 5 and 20 seconds (depending on the machine).
 
-##### Logs and errors
-
-After starting goose, make sure no error occurred by checking the `cognee-mcp` logs at:  
-`/home/YOURNAME/.local/share/cognee/cognee-mcp/.venv/lib/python3.11/site-packages/logs`
-
-It's very important to check them to make sure there were no errors.
+:::info Logs and errors
+You may check the generated logs for `cognee-mcp` in this relative directory, where you installed cognee:  
+`.venv/lib/python3.11/site-packages/logs`
+:::
 
 </TabItem>
 
