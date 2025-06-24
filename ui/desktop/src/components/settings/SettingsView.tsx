@@ -33,10 +33,34 @@ export default function SettingsView({
   // Handle scrolling to extensions section
   useEffect(() => {
     if (viewOptions.section === 'extensions' && extensionsSectionRef.current) {
-      // Use a timeout to ensure the DOM is ready
-      setTimeout(() => {
-        extensionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      // Use requestAnimationFrame for better timing and DOM readiness
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (extensionsSectionRef.current) {
+            const element = extensionsSectionRef.current;
+            const scrollContainer = element.closest('[data-radix-scroll-area-viewport]');
+
+            if (scrollContainer) {
+              // Scroll within the ScrollArea component
+              const elementTop = element.offsetTop;
+
+              // Calculate the target scroll position with a small offset for the header
+              const targetScroll = elementTop - 20; // 20px offset from top
+
+              scrollContainer.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth',
+              });
+            } else {
+              // Fallback to scrollIntoView if ScrollArea not found
+              element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+            }
+          }
+        }, 50);
+      });
     }
   }, [viewOptions.section]);
 
