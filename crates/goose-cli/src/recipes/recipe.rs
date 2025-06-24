@@ -4,8 +4,7 @@ use crate::recipes::print_recipe::{
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use crate::recipes::template_recipe::{
-    parse_recipe_content, render_recipe_content_with_params,
-    render_recipe_content_without_all_variables,
+    parse_recipe_content, render_recipe_content_with_params, render_recipe_for_preview,
 };
 use anyhow::Result;
 use console::style;
@@ -76,7 +75,7 @@ pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
     validate_recipe_parameters(&recipe_file_content, recipe_dir_str)?;
-    let recipe = render_recipe_content_without_all_variables(
+    let recipe = render_recipe_for_preview(
         &recipe_file_content,
         recipe_dir_str.to_string(),
         &HashMap::new(),
@@ -96,7 +95,7 @@ pub fn explain_recipe_with_parameters(
 
     let (params_for_template, missing_params) =
         apply_values_to_parameters(&params, recipe_parameters, recipe_dir_str, false)?;
-    let recipe = render_recipe_content_without_all_variables(
+    let recipe = render_recipe_for_preview(
         &recipe_file_content,
         recipe_dir_str.to_string(),
         &params_for_template,

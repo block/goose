@@ -94,7 +94,8 @@ pub fn parse_recipe_content(
     Ok((recipe, template_variables))
 }
 
-pub fn render_recipe_content_without_all_variables(
+// render the recipe for validation, deeplink and explain, etc.
+pub fn render_recipe_for_preview(
     content: &str,
     recipe_dir: String,
     params: &HashMap<String, String>,
