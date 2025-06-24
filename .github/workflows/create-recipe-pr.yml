@@ -38,8 +38,8 @@ jobs:
           TITLE=$(jq -r .title recipe.json | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
           BRANCH_NAME="add-recipe-${TITLE}"
 
-          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
-          echo "recipe_json=${RECIPE_JSON}" >> $GITHUB_OUTPUT
+          echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+          echo "recipe_json=${RECIPE_JSON}" >> "$GITHUB_OUTPUT"
 
       - name: Validate recipe fields
         run: |
@@ -61,7 +61,7 @@ jobs:
 
       - name: Create branch and add file
         run: |
-          BRANCH_NAME=${{ steps.parse.outputs.branch_name }}
+          BRANCH_NAME="${{ steps.parse.outputs.branch_name }}"
           git checkout -b "$BRANCH_NAME"
 
           DEST_DIR="documentation/src/pages/recipes/data/recipes"
@@ -91,8 +91,8 @@ jobs:
 
       - name: Comment and close issue
         run: |
-          ISSUE_NUMBER=${{ github.event.issue.number }}
-          PR_URL=${{ steps.cpr.outputs.pull-request-url }}
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          PR_URL="${{ steps.cpr.outputs.pull-request-url }}"
 
           gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
           gh issue close "$ISSUE_NUMBER"
