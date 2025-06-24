@@ -1091,7 +1091,7 @@
             "type": "string"
           },
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/PathType"
           }
         }
       },
@@ -1755,6 +1755,14 @@
             "description": "The name of the model"
           }
         }
+      },
+      "PathType": {
+        "type": "string",
+        "enum": [
+          "file",
+          "directory",
+          "unknown"
+        ]
       },
       "PermissionConfirmationRequest": {
         "type": "object",

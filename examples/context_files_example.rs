@@ -1,4 +1,4 @@
-use goose::message::{Message, MessageContent};
+use goose::message::{Message, MessageContent, ContextPathItem, PathType};
 use goose::providers::base::Provider;
 use goose::providers::factory::create_provider;
 use goose::model::ModelConfig;
@@ -17,9 +17,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message = Message::user()
         .with_text("Please analyze these files and tell me what they contain")
         .with_context_files(vec![
-            ContextPathItem { path: "path/to/file1.txt".to_string(), path_type: "file".to_string() },
-            ContextPathItem { path: "path/to/file2.py".to_string(), path_type: "file".to_string() },
-            ContextPathItem { path: "path/to/config.json".to_string(), path_type: "file".to_string() },
+            ContextPathItem { path: "path/to/file1.txt".to_string(), path_type: PathType::File },
+            ContextPathItem { path: "path/to/file2.py".to_string(), path_type: PathType::File },
+            ContextPathItem { path: "path/to/config.json".to_string(), path_type: PathType::File },
         ]);
 
     println!("Created message with context files:");

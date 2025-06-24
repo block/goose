@@ -64,7 +64,7 @@ export type ContextManageResponse = {
 
 export type ContextPathItem = {
     path: string;
-    type: 'file' | 'directory' | 'unknown';
+    type: PathType;
 };
 
 export type ContextPaths = {
@@ -245,6 +245,8 @@ export type ModelInfo = {
      */
     name: string;
 };
+
+export type PathType = 'file' | 'directory' | 'unknown';
 
 export type PermissionConfirmationRequest = {
     action: string;

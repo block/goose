@@ -155,8 +155,7 @@ function ChatContent({
 
     // Set ready for auto user prompt after component initialization
     setReadyForAutoUserPrompt(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array means this runs once on mount;
+  }, [chat.messages]);
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;

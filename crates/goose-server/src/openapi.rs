@@ -4,7 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::message::{
-    ContextPaths, ContextPathItem, ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, 
+    ContextPaths, ContextPathItem, ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, PathType,
     RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use goose::permission::permission_confirmation::PrincipalType;
@@ -92,6 +92,7 @@ use utoipa::OpenApi;
         Tool,
         ToolAnnotations,
         ToolInfo,
+        PathType,
         PermissionLevel,
         PrincipalType,
         ModelInfo,
