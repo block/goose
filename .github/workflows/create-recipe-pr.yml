@@ -28,13 +28,9 @@ jobs:
         id: parse
         run: |
           ISSUE_BODY=$(jq -r .issue.body "$GITHUB_EVENT_PATH")
-
-          # Extract the JSON block from the issue body
           RECIPE_JSON=$(echo "$ISSUE_BODY" | awk '/```/,/```/' | sed '1d;$d')
-
           echo "$RECIPE_JSON" > recipe.json
 
-          # Extract title to use as a slug
           TITLE=$(jq -r .title recipe.json | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
           BRANCH_NAME="add-recipe-${TITLE}"
 
@@ -60,8 +56,9 @@ jobs:
           jq --arg url "$RECIPE_URL" '. + {recipeUrl: $url}' recipe.json > updated-recipe.json
 
       - name: Create branch and add file
+        env:
+          BRANCH_NAME: ${{ steps.parse.outputs.branch_name }}
         run: |
-          BRANCH_NAME="${{ steps.parse.outputs.branch_name }}"
           git checkout -b "$BRANCH_NAME"
 
           DEST_DIR="documentation/src/pages/recipes/data/recipes"
@@ -90,10 +87,10 @@ jobs:
             blackgirlbytes
 
       - name: Comment and close issue
-        run: |
-          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
-          gh issue close "$ISSUE_NUMBER"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
+          gh issue close "$ISSUE_NUMBER"
