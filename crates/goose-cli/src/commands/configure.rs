@@ -351,6 +351,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     .map(|m| (m, m.as_str(), ""))
                     .collect::<Vec<_>>(),
             )
+            .filter_mode() // enable "fuzzy search" filtering for the list of models
             .interact()?
             .to_string(),
         Ok(None) => {

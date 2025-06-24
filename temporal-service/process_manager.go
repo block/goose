@@ -131,26 +131,20 @@ func killProcessGroup(process *os.Process) error {
 	switch runtime.GOOS {
 	case "windows":
 		// On Windows, kill the process tree
-		cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
-		if err := cmd.Run(); err != nil {
-			log.Printf("Failed to kill Windows process tree for PID %d: %v", pid, err)
-			return err
-		}
-		log.Printf("Successfully killed Windows process tree for PID %d", pid)
-		return nil
+		return killProcessGroupByPID(pid, 0) // signal parameter not used on Windows
 	default:
 		// On Unix-like systems, kill the process group more aggressively
 		log.Printf("Killing Unix process group for PID %d", pid)
 		
 		// First, try to kill the entire process group with SIGTERM
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+		if err := killProcessGroupByPID(pid, syscall.SIGTERM); err != nil {
 			log.Printf("Failed to send SIGTERM to process group -%d: %v", pid, err)
 		} else {
 			log.Printf("Sent SIGTERM to process group -%d", pid)
 		}
 		
 		// Also try to kill the main process directly
-		if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		if err := killProcessByPID(pid, syscall.SIGTERM); err != nil {
 			log.Printf("Failed to send SIGTERM to process %d: %v", pid, err)
 		} else {
 			log.Printf("Sent SIGTERM to process %d", pid)
@@ -160,14 +154,14 @@ func killProcessGroup(process *os.Process) error {
 		time.Sleep(1 * time.Second)
 
 		// Force kill the process group with SIGKILL
-		if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+		if err := killProcessGroupByPID(pid, syscall.SIGKILL); err != nil {
 			log.Printf("Failed to send SIGKILL to process group -%d: %v", pid, err)
 		} else {
 			log.Printf("Sent SIGKILL to process group -%d", pid)
 		}
 		
 		// Force kill the main process with SIGKILL
-		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+		if err := killProcessByPID(pid, syscall.SIGKILL); err != nil {
 			log.Printf("Failed to send SIGKILL to process %d: %v", pid, err)
 		} else {
 			log.Printf("Sent SIGKILL to process %d", pid)
@@ -229,7 +223,7 @@ func FindAndKillProcessesByPattern(jobID string) int {
 				log.Printf("Found process %d matching pattern '%s' for job %s", pid, pattern, jobID)
 				
 				// Kill the process
-				if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+				if err := killProcessByPID(pid, syscall.SIGTERM); err != nil {
 					log.Printf("Failed to send SIGTERM to PID %d: %v", pid, err)
 				} else {
 					log.Printf("Sent SIGTERM to PID %d", pid)
@@ -238,7 +232,7 @@ func FindAndKillProcessesByPattern(jobID string) int {
 				
 				// Wait a moment then force kill
 				time.Sleep(500 * time.Millisecond)
-				if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+				if err := killProcessByPID(pid, syscall.SIGKILL); err != nil {
 					log.Printf("Failed to send SIGKILL to PID %d: %v", pid, err)
 				} else {
 					log.Printf("Sent SIGKILL to PID %d", pid)
