@@ -14,18 +14,6 @@ on:
         required: false
         default: ""
         type: string
-      # Let's allow overriding the OSes and architectures in JSON array form:
-      # e.g. '["ubuntu-latest","macos-latest","windows"]'
-      # Note: "windows" uses Ubuntu runner with Docker cross-compilation
-      # If no input is provided, these defaults apply.
-      operating-systems:
-        type: string
-        required: false
-        default: '["ubuntu-latest","macos-latest","windows"]'
-      architectures:
-        type: string
-        required: false
-        default: '["x86_64","aarch64"]'
       ref:
         type: string
         required: false
@@ -40,26 +28,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.operating-systems) }}
-        architecture: ${{ fromJson(inputs.architectures) }}
         include:
+          # Linux builds
           - os: ubuntu-latest
+            architecture: x86_64
             target-suffix: unknown-linux-gnu
             build-on: ubuntu-latest
             use-cross: true
+          - os: ubuntu-latest
+            architecture: aarch64
+            target-suffix: unknown-linux-gnu
+            build-on: ubuntu-latest
+            use-cross: true
+          # macOS builds
           - os: macos-latest
+            architecture: x86_64
             target-suffix: apple-darwin
             build-on: macos-latest
             use-cross: true
+          - os: macos-latest
+            architecture: aarch64
+            target-suffix: apple-darwin
+            build-on: macos-latest
+            use-cross: true
+          # Windows builds (only x86_64 supported)
           - os: windows
+            architecture: x86_64
             target-suffix: pc-windows-gnu
             build-on: ubuntu-latest
             use-cross: false
             use-docker: true
-        exclude:
-          # Windows doesn't support aarch64 in our current setup
-          - os: windows
-            architecture: aarch64
 
     steps:
       - name: Checkout code
