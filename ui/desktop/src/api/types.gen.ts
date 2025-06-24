@@ -64,7 +64,7 @@ export type ContextManageResponse = {
 
 export type ContextPathItem = {
     path: string;
-    pathType: string;
+    type: 'file' | 'directory' | 'unknown';
 };
 
 export type ContextPaths = {

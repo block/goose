@@ -99,7 +99,7 @@ pub struct SummarizationRequested {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextPathItem {
     pub path: String,
-    #[serde(rename = "pathType")]
+    #[serde(rename = "type")]
     pub path_type: String, // "file", "directory", or "unknown"
 }
 

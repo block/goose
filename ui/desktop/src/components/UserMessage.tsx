@@ -22,7 +22,7 @@ export default function UserMessage({ message }: UserMessageProps) {
   const imagePaths = extractImagePaths(textContent);
 
   // Remove image paths from text for display
-  let displayText = removeImagePathsFromText(textContent, imagePaths);
+  const displayText = removeImagePathsFromText(textContent, imagePaths);
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);

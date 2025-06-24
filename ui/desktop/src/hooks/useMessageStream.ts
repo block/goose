@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef, useId } from 'react';
 import useSWR from 'swr';
 import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
-import { convertFrontendMessageToApiMessage } from '../components/context_management';
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
@@ -341,12 +340,9 @@ export function useMessageStream({
         // Filter out messages where sendToLLM is explicitly false
         const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
 
-        // Convert frontend messages to API format
-        const apiMessages = filteredMessages.map(convertFrontendMessageToApiMessage);
-
         // Log request details for debugging
         console.log('Request details:', {
-          messages: apiMessages,
+          messages: filteredMessages,
           body: extraMetadataRef.current.body,
         });
 
@@ -359,7 +355,7 @@ export function useMessageStream({
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
-            messages: apiMessages,
+            messages: filteredMessages,
             ...extraMetadataRef.current.body,
           }),
           signal: abortController.signal,

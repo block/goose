@@ -337,21 +337,18 @@ export default function ChatInput({
 
     let textToSend = displayValue.trim();
 
-    // Add image paths to the text (keeping this as-is for now)
     if (validPastedImageFilesPaths.length > 0) {
       const pathsString = validPastedImageFilesPaths.join(' ');
       textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
     }
 
     if (textToSend) {
-      // Store only the user's text input in history (not context files)
       if (displayValue.trim()) {
         LocalMessageStorage.addMessage(displayValue);
       } else if (validPastedImageFilesPaths.length > 0) {
         LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
       }
 
-      // Pass both text and context files to the submit handler
       handleSubmit(
         new CustomEvent('submit', {
           detail: {

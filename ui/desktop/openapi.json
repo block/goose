@@ -1084,13 +1084,13 @@
         "type": "object",
         "required": [
           "path",
-          "pathType"
+          "type"
         ],
         "properties": {
           "path": {
             "type": "string"
           },
-          "pathType": {
+          "type": {
             "type": "string"
           }
         }

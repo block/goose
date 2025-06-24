@@ -370,11 +370,10 @@ function ChatContent({
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
     const customEvent = e as unknown as CustomEvent;
-    // ChatInput now sends both 'value' field with text and 'contextPaths' array
     const combinedTextFromInput = customEvent.detail?.value || '';
     const contextPaths = customEvent.detail?.contextPaths || [];
 
-    if (combinedTextFromInput.trim() || contextPaths.length > 0) {
+    if (combinedTextFromInput.trim()) {
       setLastInteractionTime(Date.now());
 
       // Calculate the updated context files (combining existing and new ones)
