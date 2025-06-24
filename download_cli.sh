@@ -7,7 +7,7 @@ set -eu
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
 #
-# Supported OS: macOS (darwin), Linux
+# Supported OS: macOS (darwin), Linux, Windows (MSYS2/Git Bash/WSL)
 # Supported Architectures: x86_64, arm64
 #
 # Usage:
@@ -29,9 +29,9 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-# Check for tar
-if ! command -v tar >/dev/null 2>&1; then
-  echo "Error: 'tar' is required to download Goose. Please install tar and try again."
+# Check for tar or unzip (depending on OS)
+if ! command -v tar >/dev/null 2>&1 && ! command -v unzip >/dev/null 2>&1; then
+  echo "Error: Either 'tar' or 'unzip' is required to extract Goose. Please install one and try again."
   exit 1
 fi
 
@@ -48,10 +48,14 @@ CONFIGURE="${CONFIGURE:-true}"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
+# Handle Windows environments (MSYS2, Git Bash, Cygwin, WSL)
 case "$OS" in
   linux|darwin) ;;
+  mingw*|msys*|cygwin*)
+    OS="windows"
+    ;;
   *)
-    echo "Error: Unsupported OS '$OS'. Goose currently only supports Linux and macOS."
+    echo "Error: Unsupported OS '$OS'. Goose currently supports Linux, macOS, and Windows."
     exit 1
     ;;
 esac
@@ -73,8 +77,19 @@ esac
 # Build the filename and URL for the stable release
 if [ "$OS" = "darwin" ]; then
   FILE="goose-$ARCH-apple-darwin.tar.bz2"
+  EXTRACT_CMD="tar"
+elif [ "$OS" = "windows" ]; then
+  # Windows only supports x86_64 currently
+  if [ "$ARCH" != "x86_64" ]; then
+    echo "Error: Windows currently only supports x86_64 architecture."
+    exit 1
+  fi
+  FILE="goose-$ARCH-pc-windows-gnu.zip"
+  EXTRACT_CMD="unzip"
+  OUT_FILE="goose.exe"
 else
   FILE="goose-$ARCH-unknown-linux-gnu.tar.bz2"
+  EXTRACT_CMD="tar"
 fi
 
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$FILE"
@@ -97,27 +112,48 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Extracting $FILE to temporary directory..."
 set +e  # Disable immediate exit on error
-tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
-tar_exit_code=$?
+
+if [ "$EXTRACT_CMD" = "tar" ]; then
+  tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
+  extract_exit_code=$?
+  
+  # Check for tar errors
+  if [ $extract_exit_code -ne 0 ]; then
+    if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
+      echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed. See details below:"
+    else
+      echo "Error: Failed to extract $FILE. See details below:"
+    fi
+    cat tar_error.log
+    rm tar_error.log
+    exit 1
+  fi
+  rm tar_error.log
+else
+  # Use unzip for Windows
+  unzip -q "$FILE" -d "$TMP_DIR" 2> unzip_error.log
+  extract_exit_code=$?
+  
+  # Check for unzip errors
+  if [ $extract_exit_code -ne 0 ]; then
+    echo "Error: Failed to extract $FILE. See details below:"
+    cat unzip_error.log
+    rm unzip_error.log
+    exit 1
+  fi
+  rm unzip_error.log
+fi
+
 set -e  # Re-enable immediate exit on error
 
-# Check for tar errors
-if [ $tar_exit_code -ne 0 ]; then
-  if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
-    echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed. See details below:"
-  else
-    echo "Error: Failed to extract $FILE. See details below:"
-  fi
-  cat tar_error.log
-  rm tar_error.log
-  exit 1
-fi
-rm tar_error.log
-
-rm "$FILE" # clean up the downloaded tarball
+rm "$FILE" # clean up the downloaded archive
 
 # Make binary executable
-chmod +x "$TMP_DIR/goose"
+if [ "$OS" = "windows" ]; then
+  chmod +x "$TMP_DIR/goose.exe"
+else
+  chmod +x "$TMP_DIR/goose"
+fi
 
 # --- 5) Install to $GOOSE_BIN_DIR ---
 if [ ! -d "$GOOSE_BIN_DIR" ]; then
@@ -126,13 +162,25 @@ if [ ! -d "$GOOSE_BIN_DIR" ]; then
 fi
 
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
-mv "$TMP_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
+if [ "$OS" = "windows" ]; then
+  mv "$TMP_DIR/goose.exe" "$GOOSE_BIN_DIR/$OUT_FILE"
+else
+  mv "$TMP_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
+fi
 
 # Also move temporal-service if it exists (for scheduling functionality)
-if [ -f "$TMP_DIR/temporal-service" ]; then
-  echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-  mv "$TMP_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
-  chmod +x "$GOOSE_BIN_DIR/temporal-service"
+if [ "$OS" = "windows" ]; then
+  if [ -f "$TMP_DIR/temporal-service.exe" ]; then
+    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
+    mv "$TMP_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
+    chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
+  fi
+else
+  if [ -f "$TMP_DIR/temporal-service" ]; then
+    echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
+    mv "$TMP_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
+    chmod +x "$GOOSE_BIN_DIR/temporal-service"
+  fi
 fi
 
 # skip configuration for non-interactive installs e.g. automation, docker
