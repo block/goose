@@ -177,27 +177,36 @@ func findTemporalCLI() (string, error) {
 
 	// If not found in PATH, try different possible locations for the temporal CLI
 	log.Println("Checking bundled/local locations for temporal CLI...")
-	possiblePaths := []string{
-		"./temporal", // Current directory
+	currentPaths := []string{
+		"./temporal",
+		"./temporal.exe",
+	}
+	if path, err := getExistingTemporalCLIFrom(currentPaths); err == nil {
+		return path, nil
+	} else {
+		log.Printf("Attempt to find in local directory failed: %s.", err)
 	}
 
 	// Also try relative to the current executable (most important for bundled apps)
-	if exePath, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exePath)
-		log.Printf("Executable directory: %s", exeDir)
-		additionalPaths := []string{
-			filepath.Join(exeDir, "temporal"),
-			filepath.Join(exeDir, "temporal.exe"), // Windows
-			// Also try one level up (for development)
-			filepath.Join(exeDir, "..", "temporal"),
-			filepath.Join(exeDir, "..", "temporal.exe"),
-		}
-		possiblePaths = append(possiblePaths, additionalPaths...)
-		log.Printf("Will check these additional paths: %v", additionalPaths)
-	} else {
+	exePath, err := os.Executable()
+	if err != nil {
 		log.Printf("Failed to get executable path: %v", err)
 	}
+	exeDir := filepath.Dir(exePath)
+	log.Printf("Executable directory: %s", exeDir)
+	additionalPaths := []string{
+		filepath.Join(exeDir, "temporal"),
+		filepath.Join(exeDir, "temporal.exe"), // Windows
+		// Also try one level up (for development)
+		filepath.Join(exeDir, "..", "temporal"),
+		filepath.Join(exeDir, "..", "temporal.exe"),
+	}
+	log.Printf("Will check these additional paths: %v", additionalPaths)
+	return getExistingTemporalCLIFrom(additionalPaths)
+}
 
+// getExistingTemporalCLIFrom gets a list of paths and returns one of those that is an existing and working Temporal CLI binary
+func getExistingTemporalCLIFrom(possiblePaths []string) (string, error) {
 	log.Printf("Checking %d possible paths for temporal CLI", len(possiblePaths))
 
 	// Check all possible paths in parallel, pick the first one that works.
@@ -212,12 +221,14 @@ func findTemporalCLI() (string, error) {
 			log.Printf("Checking path %d/%d: %s", i+1, len(possiblePaths), path)
 			if _, err := os.Stat(path); err != nil {
 				log.Printf("File does not exist at %s: %v", path, err)
+				return
 			}
 			log.Printf("File exists at: %s", path)
 			// File exists, test if it's executable and the right binary
 			cmd := exec.CommandContext(psCtx, path, "--version")
 			if err := cmd.Run(); err != nil {
 				log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
+				return
 			}
 			select {
 			case pathFound <- path:
