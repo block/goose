@@ -675,6 +675,7 @@ pub async fn cli() -> Result<()> {
                         scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
+                        sub_recipes: None,
                     })
                     .await;
                     setup_logging(
@@ -723,7 +724,7 @@ pub async fn cli() -> Result<()> {
             scheduled_job_id,
             quiet,
         }) => {
-            let (input_config, session_settings) = match (
+            let (input_config, session_settings, sub_recipes) = match (
                 instructions,
                 input_text,
                 recipe,
@@ -743,6 +744,7 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: system,
                         },
                         None,
+                        None,
                     )
                 }
                 (Some(file), _, _, _, _) => {
@@ -760,6 +762,7 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: None,
                         },
                         None,
+                        None,
                     )
                 }
                 (_, Some(text), _, _, _) => (
@@ -768,6 +771,7 @@ pub async fn cli() -> Result<()> {
                         extensions_override: None,
                         additional_system_prompt: system,
                     },
+                    None,
                     None,
                 ),
                 (_, _, Some(recipe_name), explain, render_recipe) => {
@@ -800,6 +804,7 @@ pub async fn cli() -> Result<()> {
                             goose_model: s.goose_model,
                             temperature: s.temperature,
                         }),
+                        recipe.sub_recipes,
                     )
                 }
                 (None, None, None, _, _) => {
@@ -823,6 +828,7 @@ pub async fn cli() -> Result<()> {
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
+                sub_recipes,
             })
             .await;
 
@@ -941,6 +947,7 @@ pub async fn cli() -> Result<()> {
                     scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
+                    sub_recipes: None,
                 })
                 .await;
                 setup_logging(

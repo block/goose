@@ -10,13 +10,14 @@ use futures_util::stream;
 use futures_util::stream::StreamExt;
 use mcp_core::protocol::JsonRpcMessage;
 
+use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe, Settings};
+use crate::recipe::{Author, Recipe, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
@@ -52,6 +53,7 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -80,6 +82,7 @@ impl Agent {
         Self {
             provider: Mutex::new(None),
             extension_manager: Mutex::new(ExtensionManager::new()),
+            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -193,6 +196,11 @@ impl Agent {
         Ok(tools)
     }
 
+    pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
+        let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
+        sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
@@ -242,7 +250,13 @@ impl Agent {
         }
 
         let extension_manager = self.extension_manager.lock().await;
-        let result: ToolCallResult = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
+        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+
+        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+            sub_recipe_manager
+                .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
+                .await
+        } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
@@ -465,15 +479,24 @@ impl Agent {
 
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
-            prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::manage_extensions_tool());
-            prefixed_tools.push(platform_tools::manage_schedule_tool());
+            prefixed_tools.extend([
+                platform_tools::search_available_extensions_tool(),
+                platform_tools::manage_extensions_tool(),
+                platform_tools::manage_schedule_tool(),
+            ]);
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
-                prefixed_tools.push(platform_tools::read_resource_tool());
-                prefixed_tools.push(platform_tools::list_resources_tool());
+                prefixed_tools.extend([
+                    platform_tools::read_resource_tool(),
+                    platform_tools::list_resources_tool(),
+                ]);
             }
+        }
+
+        if extension_name.is_none() {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
+            prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
         }
 
         prefixed_tools

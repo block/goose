@@ -3,6 +3,7 @@ use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
+use goose::recipe::SubRecipe;
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -46,6 +47,8 @@ pub struct SessionBuilderConfig {
     pub interactive: bool,
     /// Quiet mode - suppress non-response output
     pub quiet: bool,
+    /// Sub-recipes to add to the session
+    pub sub_recipes: Option<Vec<SubRecipe>>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -174,6 +177,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     // Create the agent
     let agent: Agent = Agent::new();
+    if let Some(sub_recipes) = session_config.sub_recipes {
+        agent.add_sub_recipes(sub_recipes).await;
+    }
     let new_provider = match create(&provider_name, model_config) {
         Ok(provider) => provider,
         Err(e) => {
@@ -216,7 +222,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Handle session file resolution and resuming
-    let session_file = if session_config.no_session {
+    let session_file: std::path::PathBuf = if session_config.no_session {
         // Use a temporary path that won't be written to
         #[cfg(unix)]
         {
@@ -500,6 +506,7 @@ mod tests {
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
+            sub_recipes: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
