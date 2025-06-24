@@ -1863,6 +1863,43 @@ app.whenReady().then(async () => {
     return false;
   });
 
+  // Handle window resizing for diff viewer
+  ipcMain.handle('resize-window', async (_event, widthPercentage: number) => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        const [currentWidth, currentHeight] = focusedWindow.getSize();
+
+        if (widthPercentage === 0) {
+          // Reset to original size - we'll store the original size in window properties
+          const windowWithOriginalWidth = focusedWindow as BrowserWindow & {
+            originalWidth?: number;
+          };
+          const originalWidth = windowWithOriginalWidth.originalWidth || currentWidth;
+          focusedWindow.setSize(originalWidth, currentHeight);
+        } else {
+          // Store original width if not already stored
+          const windowWithOriginalWidth = focusedWindow as BrowserWindow & {
+            originalWidth?: number;
+          };
+          if (!windowWithOriginalWidth.originalWidth) {
+            windowWithOriginalWidth.originalWidth = currentWidth;
+          }
+
+          // Calculate new width
+          const newWidth = Math.floor(currentWidth * (1 + widthPercentage / 100));
+          focusedWindow.setSize(newWidth, currentHeight);
+        }
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error resizing window:', error);
+      return false;
+    }
+  });
+
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
