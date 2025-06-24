@@ -304,7 +304,7 @@ For advanced users, you can also directly edit the config file (`~/.config/goose
 
 ```yaml
 extensions:
-  fetch:
+  github:
     name: GitHub
     cmd: npx
     args: [-y @modelcontextprotocol/server-github]
