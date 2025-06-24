@@ -410,16 +410,6 @@ export default function ChatInput({
     }
   };
 
-  const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
-    }
-  };
-
   const hasSubmittableContent =
     displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
@@ -626,14 +616,13 @@ export default function ChatInput({
                 <div
                   key={filePath.path}
                   className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
-                  title={filePath.path}
                 >
                   {filePath.type === 'directory' ? (
                     <FolderOpen className="w-3 h-3 text-textSubtle" />
                   ) : (
                     <Document className="w-3 h-3 text-textSubtle" />
                   )}
-                  <span className="max-w-[200px] truncate">
+                  <span className="max-w-[200px] truncate" title={filePath.path}>
                     {filePath.path.split('/').pop() || filePath.path}
                   </span>
                   <button
@@ -709,16 +698,6 @@ export default function ChatInput({
       <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
         <div className="gap-1 flex items-center justify-between w-full">
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={handleFileSelect}
-              className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-            >
-              <Attach />
-            </Button>
-
             {/* Context Menu */}
             <div className="relative flex items-center" ref={contextMenuRef}>
               <Button
@@ -726,10 +705,9 @@ export default function ChatInput({
                 size="icon"
                 variant="ghost"
                 onClick={() => setIsContextMenuOpen(!isContextMenuOpen)}
-                className="w-7 h-7 text-base text-textSubtle hover:text-textStandard"
-                title="Add context files"
+                className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
               >
-                <span className="relative bottom-px">@</span>
+                <Attach />
               </Button>
 
               {/* Dropdown Menu */}
