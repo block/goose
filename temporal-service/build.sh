@@ -24,10 +24,10 @@ fi
 echo "Compiling Go binary..."
 if [ -n "${GOOS:-}" ] && [ -n "${GOARCH:-}" ]; then
     echo "Cross-compiling for ${GOOS}/${GOARCH}..."
-    GOOS="${GOOS}" GOARCH="${GOARCH}" go build -o "${BINARY_NAME}" .
+    GOOS="${GOOS}" GOARCH="${GOARCH}" go build -buildvcs=false -o "${BINARY_NAME}" .
 else
     echo "Building for current platform..."
-    go build -o "${BINARY_NAME}" .
+    go build -buildvcs=false -o "${BINARY_NAME}" .
 fi
 
 # Make it executable (skip on Windows as it's not needed)

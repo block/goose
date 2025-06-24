@@ -79,30 +79,10 @@ pub fn explain_recipe_with_parameters(
 }
 
 fn extract_parameters_from_content(content: &str) -> Result<Option<Vec<RecipeParameter>>> {
-    let lines = content.lines();
-    let mut params_block = String::new();
-    let mut collecting = false;
-
-    for line in lines {
-        if line.starts_with("parameters:") {
-            collecting = true;
-        }
-        if collecting {
-            if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
-                let parameters: Vec<RecipeParameter> = serde_yaml::from_str(&params_block)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse parameters block: {}", e))?;
-                return Ok(Some(parameters));
-            }
-            params_block.push_str(line);
-            params_block.push('\n');
-        }
-    }
-
     // If we didn't find a parameter block it might be because it is defined in json style or some such:
     if serde_yaml::from_str::<serde_yaml::Value>(content).is_err() {
         return Ok(None);
     }
-
     let recipe: Recipe = serde_yaml::from_str(content)
         .map_err(|e| anyhow::anyhow!("Valid YAML but invalid Recipe structure: {}", e))?;
     Ok(recipe.parameters)
@@ -182,7 +162,6 @@ fn parse_recipe_content(content: &str) -> Result<Recipe> {
     if content.trim().is_empty() {
         return Err(anyhow::anyhow!("Recipe content is empty"));
     }
-
     serde_yaml::from_str(content)
         .map_err(|e| anyhow::anyhow!("Failed to parse recipe content: {}", e))
 }
@@ -292,7 +271,7 @@ mod tests {
             instructions_and_parameters
         );
         let temp_dir = tempfile::tempdir().unwrap();
-        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
+        let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.json");
 
         std::fs::write(&recipe_path, recipe_content).unwrap();
         (temp_dir, recipe_path)
@@ -543,43 +522,54 @@ mod tests {
     fn test_template_inheritance() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
-
-        let parent_content = [
-            "version: 1.0.0",
-            "title: Parent",
-            "description: Parent recipe",
-            "prompt: |",
-            "  {% block prompt -%}",
-            "  What is the capital of France?",
-            "  {%- endblock -%}",
-        ]
-        .join("\n");
+        let parent_content = r#"
+            version: 1.0.0
+            title: Parent
+            description: Parent recipe
+            prompt: |
+              show me the news for day: {{ date }}
+              {% block prompt -%}
+              What is the capital of France?
+              {%- endblock %}
+            parameters:
+            - key: date
+              input_type: string
+              requirement: required
+              description: date specified by the user
+        "#;
 
         let parent_path = temp_path.join("parent.yaml");
         std::fs::write(&parent_path, parent_content).unwrap();
-
-        let child_content = [
-            "{% extends \"parent.yaml\" -%}",
-            "{%- block prompt -%}",
-            "  What is the capital of Germany?",
-            "{%- endblock -%}",
-        ]
-        .join("\n");
-
+        let child_content = r#"
+            {% extends "parent.yaml" -%}
+            {% block prompt -%}
+            What is the capital of Germany?
+            {%- endblock %}
+        "#;
         let child_path = temp_path.join("child.yaml");
         std::fs::write(&child_path, child_content).unwrap();
 
-        let params = vec![];
-        let result = load_recipe_as_template(child_path.to_str().unwrap(), params);
-
-        assert!(result.is_ok());
-        let recipe = result.unwrap();
-
-        assert_eq!(recipe.title, "Parent");
-        assert_eq!(recipe.description, "Parent recipe");
+        let params = vec![("date".to_string(), "today".to_string())];
+        let parent_result = load_recipe_as_template(parent_path.to_str().unwrap(), params.clone());
+        assert!(parent_result.is_ok());
+        let parent_recipe = parent_result.unwrap();
+        assert_eq!(parent_recipe.description, "Parent recipe");
         assert_eq!(
-            recipe.prompt.unwrap().trim(),
-            "What is the capital of Germany?"
+            parent_recipe.prompt.unwrap(),
+            "show me the news for day: today\nWhat is the capital of France?\n"
+        );
+        assert_eq!(parent_recipe.parameters.as_ref().unwrap().len(), 1);
+        assert_eq!(parent_recipe.parameters.as_ref().unwrap()[0].key, "date");
+
+        let child_result = load_recipe_as_template(child_path.to_str().unwrap(), params);
+
+        assert!(child_result.is_ok());
+        let child_recipe = child_result.unwrap();
+        assert_eq!(child_recipe.title, "Parent");
+        assert_eq!(child_recipe.description, "Parent recipe");
+        assert_eq!(
+            child_recipe.prompt.unwrap().trim(),
+            "show me the news for day: today\nWhat is the capital of Germany?"
         );
     }
 }
