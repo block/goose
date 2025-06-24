@@ -157,12 +157,14 @@ impl Provider for GroqProvider {
         // Construct the Groq models endpoint
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {}", e)))?;
-        let url = base_url
-            .join("openai/v1/models")
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {}", e)))?;
+        let url = base_url.join("openai/v1/models").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {}", e))
+        })?;
 
         // Build the request with required headers
-        let request = self.client.get(url)
+        let request = self
+            .client
+            .get(url)
             .bearer_auth(&self.api_key)
             .header("Content-Type", "application/json");
 
@@ -184,7 +186,10 @@ impl Provider for GroqProvider {
 
         // Extract model names
         if status == StatusCode::OK {
-            let data = payload.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            let data = payload
+                .get("data")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| {
                 ProviderError::UsageError("Missing or invalid `data` field in response".into())
             })?;
 
