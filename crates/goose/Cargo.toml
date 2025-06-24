@@ -88,6 +88,9 @@ mockall = "0.13.1"
 wiremock = "0.6.0"
 tokio = { version = "1.43", features = ["full"] }
 temp-env = "0.3.6"
+dotenv = "0.15.0"
+lazy_static = "1.5.0"
+ctor = "0.2.9"
 
 [[example]]
 name = "agent"
