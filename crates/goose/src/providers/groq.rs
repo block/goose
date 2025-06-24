@@ -190,8 +190,8 @@ impl Provider for GroqProvider {
                 .get("data")
                 .and_then(|v| v.as_array())
                 .ok_or_else(|| {
-                ProviderError::UsageError("Missing or invalid `data` field in response".into())
-            })?;
+                    ProviderError::UsageError("Missing or invalid `data` field in response".into())
+                })?;
 
             let mut model_names: Vec<String> = data
                 .iter()
