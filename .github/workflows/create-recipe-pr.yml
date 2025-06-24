@@ -1,0 +1,100 @@
+name: Handle Recipe Submissions
+
+on:
+  issues:
+    types: [opened]
+    labels:
+      - recipe submission
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-recipe-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Parse recipe from issue
+        id: parse
+        run: |
+          ISSUE_BODY=$(jq -r .issue.body "$GITHUB_EVENT_PATH")
+
+          # Extract the JSON block from the issue body
+          RECIPE_JSON=$(echo "$ISSUE_BODY" | awk '/```/,/```/' | sed '1d;$d')
+
+          echo "$RECIPE_JSON" > recipe.json
+
+          # Extract title to use as a slug
+          TITLE=$(jq -r .title recipe.json | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
+          BRANCH_NAME="add-recipe-${TITLE}"
+
+          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "recipe_json=${RECIPE_JSON}" >> $GITHUB_OUTPUT
+
+      - name: Validate recipe fields
+        run: |
+          REQUIRED_FIELDS=(id title description instructions action category extensions activities author)
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            VALUE=$(jq -r ".${field}" recipe.json)
+            if [[ "$VALUE" == "null" || "$VALUE" == "" ]]; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+          echo "✅ All required fields present."
+
+      - name: Generate recipeUrl and update JSON
+        run: |
+          BASE64_ENCODED=$(jq -c . recipe.json | base64 | tr -d '\n')
+          RECIPE_URL="goose://recipe?config=${BASE64_ENCODED}"
+          jq --arg url "$RECIPE_URL" '. + {recipeUrl: $url}' recipe.json > updated-recipe.json
+
+      - name: Create branch and add file
+        run: |
+          BRANCH_NAME=${{ steps.parse.outputs.branch_name }}
+          git checkout -b "$BRANCH_NAME"
+
+          DEST_DIR="documentation/src/pages/recipes/data/recipes"
+          mkdir -p "$DEST_DIR"
+
+          ID=$(jq -r .id updated-recipe.json)
+          cp updated-recipe.json "$DEST_DIR/${ID}.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$DEST_DIR/${ID}.json"
+          git commit -m "Add recipe: ${ID}"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.parse.outputs.branch_name }}
+          title: "Add recipe: ${{ fromJson(steps.parse.outputs.recipe_json).title }}"
+          body: "This PR adds a new Goose recipe submitted via issue #${{ github.event.issue.number }}."
+          reviewers: |
+            EbonyLouis
+            angiejones
+            blackgirlbytes
+
+      - name: Comment and close issue
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          PR_URL=${{ steps.cpr.outputs.pull-request-url }}
+
+          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
+          gh issue close "$ISSUE_NUMBER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
