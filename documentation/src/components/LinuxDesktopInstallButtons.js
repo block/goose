@@ -8,21 +8,15 @@ const LinuxDesktopInstallButtons = () => {
       <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <Link
           className="button button--primary button--lg"
-          to="https://github.com/block/goose/releases/download/v1.0.29/goose-x86_64-unknown-linux-gnu.tar.bz2"
+          to="https://github.com/block/goose/releases/download/stable/goose_1.0.29_amd64.deb"
         >
-          <IconDownload /> Linux x86_64
+          <IconDownload /> DEB Package (Ubuntu/Debian)
         </Link>
         <Link
           className="button button--primary button--lg"
-          to="https://github.com/block/goose/releases/download/v1.0.29/goose-aarch64-unknown-linux-gnu.tar.bz2"
+          to="https://github.com/block/goose/releases/download/stable/Goose-1.0.29-1.x86_64.rpm"
         >
-          <IconDownload /> Linux ARM64
-        </Link>
-        <Link
-          className="button button--primary button--lg"
-          to="https://github.com/block/goose/releases/download/v1.0.29/Goose-1.0.29-1.x86_64.rpm"
-        >
-          <IconDownload /> RPM Package
+          <IconDownload /> RPM Package (RHEL/Fedora)
         </Link>
       </div>
     </div>
