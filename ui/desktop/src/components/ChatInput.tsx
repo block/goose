@@ -461,43 +461,9 @@ export default function ChatInput({
     (file) => file.type === 'image' && file.isLoading
   );
 
-  // Context menu state and handlers
-  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  // Additional paths menu state and handlers
   const [isAdditionalPathsMenuOpen, setIsAdditionalPathsMenuOpen] = useState(false);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
   const additionalPathsMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsContextMenuOpen(false);
-      }
-    };
-
-    if (isContextMenuOpen) {
-      window.addEventListener('keydown', handleEsc);
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleEsc);
-    };
-  }, [isContextMenuOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
-        setIsContextMenuOpen(false);
-      }
-    };
-
-    if (isContextMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isContextMenuOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -668,10 +634,8 @@ export default function ChatInput({
           setSessionFilesFn((prev) => [...prev, ...newSessionFiles]);
         }
       }
-      setIsContextMenuOpen(false);
     } catch (error) {
       console.error('Error selecting files:', error);
-      setIsContextMenuOpen(false);
     }
   };
 
@@ -1025,33 +989,17 @@ export default function ChatInput({
       <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderStandard gap-2">
         <div className="gap-1 flex items-center justify-between w-full">
           <div className="flex items-center gap-1">
-            {/* Context Menu */}
-            <div className="relative flex items-center" ref={contextMenuRef}>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => setIsContextMenuOpen(!isContextMenuOpen)}
-                className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-              >
-                <Attach />
-              </Button>
-
-              {/* Dropdown Menu */}
-              {isContextMenuOpen && (
-                <div className="absolute bottom-[24px] left-0 w-[160px] py-2 bg-bgApp rounded-lg border border-borderSubtle shadow-lg">
-                  <div>
-                    <button
-                      className="flex items-center gap-2 w-full text-left text-textStandard py-2 px-4 hover:bg-bgSubtle"
-                      onClick={handleSelectFilesAndFolders}
-                    >
-                      <FolderOpen className="w-4 h-4 text-textSubtle" />
-                      <span>Files & Folders</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* File Attachment Button */}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={handleSelectFilesAndFolders}
+              className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+              title="Attach files & folders"
+            >
+              <Attach />
+            </Button>
           </div>
 
           <BottomMenu
