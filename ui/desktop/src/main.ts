@@ -723,7 +723,7 @@ const openDirectoryDialog = async (
     // If a file was selected, use its parent directory
     let dirToAdd = selectedPath;
     try {
-      const stats = fsSync.lstatSync(selectedPath);
+      const stats = await fs.lstat(selectedPath);
 
       // Reject symlinks for security
       if (stats.isSymbolicLink()) {
