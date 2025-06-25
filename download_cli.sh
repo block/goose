@@ -15,6 +15,7 @@ set -eu
 #
 # Environment variables:
 #   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)
+#   GOOSE_VERSION  - Optional: specific version to install (e.g., "v1.0.25"). Overrides CANARY. Can be in the format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z
 #   GOOSE_PROVIDER - Optional: provider for goose
 #   GOOSE_MODEL    - Optional: model for goose
 #   CANARY         - Optional: if set to "true", downloads from canary release instead of stable
@@ -41,8 +42,20 @@ REPO="block/goose"
 OUT_FILE="goose"
 GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
 RELEASE="${CANARY:-false}"
-RELEASE_TAG="$([[ "$RELEASE" == "true" ]] && echo "canary" || echo "stable")"
 CONFIGURE="${CONFIGURE:-true}"
+if [ -n "${GOOSE_VERSION:-}" ]; then
+  # Validate the version format
+  if [[ ! "$GOOSE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+    echo "[error]: invalid version '$GOOSE_VERSION'."
+    echo "  expected: semver format vX.Y.Z, vX.Y.Z-suffix, or X.Y.Z"
+    exit 1
+  fi
+  GOOSE_VERSION=$(echo "$GOOSE_VERSION" | sed 's/^v\{0,1\}/v/') # Ensure the version string is prefixed with 'v' if not already present
+  RELEASE_TAG="$GOOSE_VERSION"
+else
+  # If GOOSE_VERSION is not set, fall back to existing behavior for backwards compatibility
+  RELEASE_TAG="$([[ "$RELEASE" == "true" ]] && echo "canary" || echo "stable")"
+fi
 
 # --- 3) Detect OS/Architecture ---
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
