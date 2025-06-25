@@ -46,8 +46,7 @@ use mcp_core::{
 };
 
 use crate::agents::subagent_tools::{
-    SUBAGENT_CHECK_PROGRESS_TOOL_NAME, SUBAGENT_LIST_TOOL_NAME, SUBAGENT_SEND_MESSAGE_TOOL_NAME,
-    SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME,
+    SUBAGENT_RUN_TASK_TOOL_NAME,
 };
 
 use super::platform_tools;
@@ -285,21 +284,9 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
-        } else if tool_call.name == SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME {
+        } else if tool_call.name == SUBAGENT_RUN_TASK_TOOL_NAME {
             ToolCallResult::from(
-                self.handle_spawn_subagent(tool_call.arguments.clone())
-                    .await,
-            )
-        } else if tool_call.name == SUBAGENT_LIST_TOOL_NAME {
-            ToolCallResult::from(self.handle_list_subagents().await)
-        } else if tool_call.name == SUBAGENT_CHECK_PROGRESS_TOOL_NAME {
-            ToolCallResult::from(
-                self.handle_get_subagent_status(tool_call.arguments.clone())
-                    .await,
-            )
-        } else if tool_call.name == SUBAGENT_SEND_MESSAGE_TOOL_NAME {
-            ToolCallResult::from(
-                self.handle_send_message_to_subagent(tool_call.arguments.clone())
+                self.handle_run_subagent_task(tool_call.arguments.clone())
                     .await,
             )
         } else if self.is_frontend_tool(&tool_call.name).await {
@@ -543,13 +530,10 @@ impl Agent {
                 platform_tools::manage_schedule_tool(),
             ]);
 
-            // Add subagent tools (only if ALPHA_FEATURES is enabled)
+            // Add subagent tool (only if ALPHA_FEATURES is enabled)
             let config = Config::global();
             if config.get_param::<bool>("ALPHA_FEATURES").unwrap_or(false) {
-                prefixed_tools.push(subagent_tools::spawn_interactive_subagent_tool());
-                prefixed_tools.push(subagent_tools::list_subagents_tool());
-                prefixed_tools.push(subagent_tools::check_subagent_progress_tool());
-                prefixed_tools.push(subagent_tools::send_message_to_subagent_tool());
+                prefixed_tools.push(subagent_tools::run_task_subagent_tool());
             }
 
             // Add resource tools if supported

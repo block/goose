@@ -2,35 +2,34 @@ use indoc::indoc;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::json;
 
-pub const SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME: &str = "subagent__spawn_interactive";
-pub const SUBAGENT_LIST_TOOL_NAME: &str = "subagent__list";
-pub const SUBAGENT_CHECK_PROGRESS_TOOL_NAME: &str = "subagent__check_progress";
-pub const SUBAGENT_SEND_MESSAGE_TOOL_NAME: &str = "subagent__send_message";
+pub const SUBAGENT_RUN_TASK_TOOL_NAME: &str = "subagent__run_task";
 
-pub fn spawn_interactive_subagent_tool() -> Tool {
+pub fn run_task_subagent_tool() -> Tool {
     Tool::new(
-        SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME.to_string(),
+        SUBAGENT_RUN_TASK_TOOL_NAME.to_string(),
         indoc! {r#"
-            Spawn a specialized subagent to handle specific tasks independently.
+            Spawn a specialized subagent to handle a specific task completely and automatically.
+            
+            This tool creates a subagent, processes your task through a complete conversation,
+            and returns the final result. The subagent is automatically cleaned up after completion.
             
             You can configure the subagent in two ways:
             1. Using a recipe file that defines instructions, extensions, and behavior
             2. Providing direct instructions for ad-hoc tasks
             
-            Each subagent maintains its own conversation history and can be used for specialized tasks
-            like research, code review, file modifications, or interactive assistance.
-            
-            The subagent will process the initial message and be ready for further interaction.
-            Use other subagent tools to manage, communicate with, or terminate the subagent.
+            The subagent will work autonomously until the task is complete, it reaches max_turns,
+            or it encounters an error. You'll get the final result without needing to manage
+            the subagent lifecycle manually.
             
             Examples:
-            - "spawn subagent to change these files from using unittest to pytest: file1.py, file2.py"
-            - "spawn subagent to research and summarize the latest developments in AI"
-            - "spawn subagent to review this code for security issues"
+            - "Convert these unittest files to pytest format: file1.py, file2.py"
+            - "Research the latest developments in AI and provide a comprehensive summary"
+            - "Review this code for security vulnerabilities and suggest fixes"
+            - "Refactor this legacy code to use modern Python patterns"
         "#}.to_string(),
         json!({
             "type": "object",
-            "required": ["message"],
+            "required": ["task"],
             "properties": {
                 "recipe_name": {
                     "type": "string", 
@@ -40,115 +39,25 @@ pub fn spawn_interactive_subagent_tool() -> Tool {
                     "type": "string", 
                     "description": "Direct instructions for the subagent's task. Either this or 'recipe_name' must be provided. Example: 'You are a code refactoring assistant. Help convert unittest tests to pytest format.'"
                 },
-                "message": {
+                "task": {
                     "type": "string", 
-                    "description": "Initial message to send to the subagent"
+                    "description": "The task description or initial message for the subagent to work on"
                 },
                 "max_turns": {
                     "type": "integer", 
-                    "description": "Optional maximum number of conversation turns (default: unlimited)",
-                    "minimum": 1
+                    "description": "Maximum number of conversation turns before auto-completion (default: 10)",
+                    "minimum": 1,
+                    "default": 10
                 },
                 "timeout_seconds": {
                     "type": "integer", 
-                    "description": "Optional timeout for the subagent in seconds",
+                    "description": "Optional timeout for the entire task in seconds",
                     "minimum": 1
                 }
             }
         }),
         Some(ToolAnnotations {
-            title: Some("Spawn interactive subagent".to_string()),
-            read_only_hint: false,
-            destructive_hint: false,
-            idempotent_hint: false,
-            open_world_hint: false,
-        }),
-    )
-}
-
-pub fn list_subagents_tool() -> Tool {
-    Tool::new(
-        SUBAGENT_LIST_TOOL_NAME.to_string(),
-        "List all active subagents and their basic information.
-        Returns a list of subagent IDs and their current status."
-            .to_string(),
-        json!({
-            "type": "object",
-            "required": [],
-            "properties": {}
-        }),
-        Some(ToolAnnotations {
-            title: Some("List active subagents".to_string()),
-            read_only_hint: true,
-            destructive_hint: false,
-            idempotent_hint: true,
-            open_world_hint: false,
-        }),
-    )
-}
-
-pub fn check_subagent_progress_tool() -> Tool {
-    Tool::new(
-        SUBAGENT_CHECK_PROGRESS_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Check the progress and status of subagents.
-            
-            If subagent_id is provided, returns detailed progress information for that specific subagent.
-            If no subagent_id is provided, returns progress for all active subagents.
-            
-            Progress information includes current state, turn count, and optionally the full conversation history.
-        "#}.to_string(),
-        json!({
-            "type": "object",
-            "properties": {
-                "subagent_id": {
-                    "type": "string", 
-                    "description": "Optional ID of specific subagent to check progress for"
-                },
-                "include_conversation": {
-                    "type": "boolean", 
-                    "description": "Whether to include full conversation history (default: false)",
-                    "default": false
-                }
-            }
-        }),
-        Some(ToolAnnotations {
-            title: Some("Check subagent progress".to_string()),
-            read_only_hint: true,
-            destructive_hint: false,
-            idempotent_hint: true,
-            open_world_hint: false,
-        }),
-    )
-}
-
-pub fn send_message_to_subagent_tool() -> Tool {
-    Tool::new(
-        SUBAGENT_SEND_MESSAGE_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Send a message to an existing subagent.
-            
-            This tool allows you to continue interacting with a previously spawned subagent.
-            The subagent will process the message and maintain its conversation history.
-            
-            Use subagent__list to see available subagents and subagent__check_progress to monitor their status.
-        "#}.to_string(),
-        json!({
-            "type": "object",
-            "required": ["subagent_id", "message"],
-            "properties": {
-                "subagent_id": {
-                    "type": "string", 
-                    "description": "ID of the subagent to send the message to"
-                },
-                "message": {
-                    "type": "string", 
-                    "description": "Message to send to the subagent"
-                }
-            }
-        }),
-        Some(ToolAnnotations {
-            title: Some("Send message to subagent".to_string()),
+            title: Some("Run subagent task".to_string()),
             read_only_hint: false,
             destructive_hint: false,
             idempotent_hint: false,

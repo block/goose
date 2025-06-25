@@ -10,19 +10,18 @@ use crate::agents::subagent_types::{
 use crate::agents::Agent;
 
 impl Agent {
-    /// Handle spawning a new interactive subagent
-    /// Handle spawning a new interactive subagent
-    pub async fn handle_spawn_subagent(&self, arguments: Value) -> Result<Vec<Content>, ToolError> {
+    /// Handle running a complete subagent task (replaces the individual spawn/send/check tools)
+    pub async fn handle_run_subagent_task(&self, arguments: Value) -> Result<Vec<Content>, ToolError> {
         let subagent_manager = self.subagent_manager.lock().await;
         let manager = subagent_manager.as_ref().ok_or_else(|| {
             ToolError::ExecutionError("Subagent manager not initialized".to_string())
         })?;
 
-        // Parse arguments
+        // Parse arguments - using "task" as the main message parameter
         let message = arguments
-            .get("message")
+            .get("task")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::ExecutionError("Missing message parameter".to_string()))?
+            .ok_or_else(|| ToolError::ExecutionError("Missing task parameter".to_string()))?
             .to_string();
 
         // Either recipe_name or instructions must be provided
@@ -45,9 +44,12 @@ impl Agent {
             ));
         };
 
-        if let Some(max_turns) = arguments.get("max_turns").and_then(|v| v.as_u64()) {
-            args = args.with_max_turns(max_turns as usize);
-        }
+        // Set max_turns with default of 10
+        let max_turns = arguments
+            .get("max_turns")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as usize;
+        args = args.with_max_turns(max_turns);
 
         if let Some(timeout) = arguments.get("timeout_seconds").and_then(|v| v.as_u64()) {
             args = args.with_timeout(timeout);
@@ -62,172 +64,14 @@ impl Agent {
         // Get the extension manager from the parent agent
         let extension_manager = Arc::new(self.extension_manager.read().await);
 
-        // Spawn the subagent (without processing initial message)
+        // Run the complete subagent task
         match manager
-            .spawn_interactive_subagent(args, provider.clone(), extension_manager.clone())
+            .run_complete_subagent_task(args, provider, extension_manager)
             .await
         {
-            Ok(subagent_id) => {
-                // Send the initial message separately
-                match manager
-                    .send_message_to_subagent(&subagent_id, message, provider, extension_manager)
-                    .await
-                {
-                    Ok(_response) => {
-                        Ok(vec![Content::text(format!(
-                            "Subagent spawned successfully with ID: {}\nInitial message sent. Use subagent__check_progress to check status.",
-                            subagent_id
-                        ))])
-                    }
-                    Err(e) => {
-                        // Clean up the subagent if initial message fails
-                        let _ = manager.terminate_subagent(&subagent_id).await;
-                        Err(ToolError::ExecutionError(format!(
-                            "Failed to send initial message to subagent: {}",
-                            e
-                        )))
-                    }
-                }
-            }
+            Ok(result) => Ok(vec![Content::text(result)]),
             Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to spawn subagent: {}",
-                e
-            ))),
-        }
-    }
-
-    /// Handle listing all subagents
-    pub async fn handle_list_subagents(&self) -> Result<Vec<Content>, ToolError> {
-        let subagent_manager = self.subagent_manager.lock().await;
-        let manager = subagent_manager.as_ref().ok_or_else(|| {
-            ToolError::ExecutionError("Subagent manager not initialized".to_string())
-        })?;
-
-        let subagent_ids = manager.list_subagents().await;
-        let status_map = manager.get_subagent_status().await;
-
-        if subagent_ids.is_empty() {
-            Ok(vec![Content::text("No active subagents.".to_string())])
-        } else {
-            let mut response = String::from("Active subagents:\n");
-            for id in subagent_ids {
-                let status = status_map
-                    .get(&id)
-                    .map(|s| format!("{:?}", s))
-                    .unwrap_or_else(|| "Unknown".to_string());
-                response.push_str(&format!("- {}: {}\n", id, status));
-            }
-            Ok(vec![Content::text(response)])
-        }
-    }
-
-    /// Handle getting subagent status
-    pub async fn handle_get_subagent_status(
-        &self,
-        arguments: Value,
-    ) -> Result<Vec<Content>, ToolError> {
-        let subagent_manager = self.subagent_manager.lock().await;
-        let manager = subagent_manager.as_ref().ok_or_else(|| {
-            ToolError::ExecutionError("Subagent manager not initialized".to_string())
-        })?;
-
-        let include_conversation = arguments
-            .get("include_conversation")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        if let Some(subagent_id) = arguments.get("subagent_id").and_then(|v| v.as_str()) {
-            // Get status for specific subagent
-            if let Some(subagent) = manager.get_subagent(subagent_id).await {
-                let progress = subagent.get_progress().await;
-                let mut response = format!(
-                    "Subagent ID: {}\nStatus: {:?}\nMessage: {}\nTurn: {}",
-                    progress.subagent_id, progress.status, progress.message, progress.turn
-                );
-
-                if let Some(max_turns) = progress.max_turns {
-                    response.push_str(&format!("/{}", max_turns));
-                }
-
-                response.push_str(&format!("\nTimestamp: {}", progress.timestamp));
-
-                if include_conversation {
-                    response.push_str("\n\n");
-                    response.push_str(&subagent.get_formatted_conversation().await);
-                }
-
-                Ok(vec![Content::text(response)])
-            } else {
-                Err(ToolError::ExecutionError(format!(
-                    "Subagent {} not found",
-                    subagent_id
-                )))
-            }
-        } else {
-            // Get status for all subagents
-            let progress_map = manager.get_subagent_progress().await;
-
-            if progress_map.is_empty() {
-                Ok(vec![Content::text("No active subagents.".to_string())])
-            } else {
-                let mut response = String::from("All subagent status:\n\n");
-                for (id, progress) in progress_map {
-                    response.push_str(&format!(
-                        "Subagent ID: {}\nStatus: {:?}\nMessage: {}\nTurn: {}",
-                        id, progress.status, progress.message, progress.turn
-                    ));
-
-                    if let Some(max_turns) = progress.max_turns {
-                        response.push_str(&format!("/{}", max_turns));
-                    }
-
-                    response.push_str(&format!("\nTimestamp: {}\n\n", progress.timestamp));
-                }
-                Ok(vec![Content::text(response)])
-            }
-        }
-    }
-
-    /// Handle sending a message to an existing subagent
-    pub async fn handle_send_message_to_subagent(
-        &self,
-        arguments: Value,
-    ) -> Result<Vec<Content>, ToolError> {
-        let subagent_manager = self.subagent_manager.lock().await;
-        let manager = subagent_manager.as_ref().ok_or_else(|| {
-            ToolError::ExecutionError("Subagent manager not initialized".to_string())
-        })?;
-
-        // Parse arguments
-        let subagent_id = arguments
-            .get("subagent_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::ExecutionError("Missing subagent_id parameter".to_string()))?
-            .to_string();
-
-        let message = arguments
-            .get("message")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::ExecutionError("Missing message parameter".to_string()))?
-            .to_string();
-
-        // Get the provider from the parent agent
-        let provider = self
-            .provider()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to get provider: {}", e)))?;
-
-        // Get the extension manager from the parent agent
-        let extension_manager = Arc::new(self.extension_manager.read().await);
-
-        // Send message to subagent and get response
-        match manager
-            .send_message_to_subagent(&subagent_id, message, provider, extension_manager)
-            .await
-        {
-            Ok(response) => Ok(vec![Content::text(response)]),
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to send message to subagent: {}",
+                "Failed to run subagent task: {}",
                 e
             ))),
         }
