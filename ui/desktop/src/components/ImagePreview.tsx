@@ -16,17 +16,33 @@ export default function ImagePreview({
   const [isLoading, setIsLoading] = useState(true);
   const [imageData, setImageData] = useState<string | null>(null);
 
+  // Check if the src is a data URL
+  const isDataUrl = src.startsWith('data:');
+
   useEffect(() => {
     const loadImage = async () => {
       try {
-        // Use the IPC handler to get the image data
-        const data = await window.electron.getTempImage(src);
-        if (data) {
-          setImageData(data);
+        if (isDataUrl) {
+          // For data URLs, use the src directly
+          setImageData(src);
           setIsLoading(false);
         } else {
-          setError(true);
-          setIsLoading(false);
+          // For file paths, use the IPC handler to get the image data
+          // Validate that this is a safe file path (should contain goose-pasted-images)
+          if (!src.includes('goose-pasted-images')) {
+            setError(true);
+            setIsLoading(false);
+            return;
+          }
+
+          const data = await window.electron.getTempImage(src);
+          if (data) {
+            setImageData(data);
+            setIsLoading(false);
+          } else {
+            setError(true);
+            setIsLoading(false);
+          }
         }
       } catch (err) {
         console.error('Error loading image:', err);
@@ -36,7 +52,7 @@ export default function ImagePreview({
     };
 
     loadImage();
-  }, [src]);
+  }, [src, isDataUrl]);
 
   const handleError = () => {
     setError(true);
@@ -48,11 +64,6 @@ export default function ImagePreview({
       setIsExpanded(!isExpanded);
     }
   };
-
-  // Validate that this is a safe file path (should contain goose-pasted-images)
-  if (!src.includes('goose-pasted-images')) {
-    return <div className="text-red-500 text-xs italic mt-1 mb-1">Invalid image path: {src}</div>;
-  }
 
   if (error) {
     return <div className="text-red-500 text-xs italic mt-1 mb-1">Unable to load image: {src}</div>;

@@ -100,6 +100,8 @@ type ElectronAPI = {
   deleteTempFile: (filePath: string) => void;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
+  // Function to read image files and convert to data URL
+  readImageFile: (filePath: string) => Promise<string | null>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -191,6 +193,9 @@ const electronAPI: ElectronAPI = {
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);
+  },
+  readImageFile: (filePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('read-image-file', filePath);
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';

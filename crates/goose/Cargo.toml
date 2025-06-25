@@ -104,8 +104,8 @@ name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
 [[example]]
-name = "context_files_example"
-path = "examples/context_files_example.rs"
+name = "session_files_example"
+path = "examples/session_files_example.rs"
 
 [[bench]]
 name = "tokenization_benchmark"

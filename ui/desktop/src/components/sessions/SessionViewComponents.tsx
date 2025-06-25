@@ -12,9 +12,13 @@ import {
   ToolResponseMessageContent,
   Message,
   getTextContent,
+  getSessionFilesFromMessage,
+  ImageContent,
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
+import { Document } from '../icons';
+import { FolderOpen } from 'lucide-react';
 
 /**
  * Get tool responses map from messages
@@ -120,6 +124,22 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                   // Remove image paths from text for display
                   let displayText = removeImagePathsFromText(textContent, imagePaths);
 
+                  // Extract session files from the message
+                  const sessionFiles = getSessionFilesFromMessage(message);
+
+                  // Extract images from ImageContent objects in the message
+                  const imageContents = message.content.filter(
+                    (content): content is ImageContent => content.type === 'image'
+                  );
+
+                  // Convert ImageContent objects to data URLs for display
+                  const imageDataUrls = imageContents.map(
+                    (imageContent) => `data:${imageContent.mimeType};base64,${imageContent.data}`
+                  );
+
+                  // Combine both image sources (new ImageContent and old image paths)
+                  const allImages = [...imageDataUrls, ...imagePaths];
+
                   // Get tool requests from the message
                   const toolRequests = message.content
                     .filter((c) => c.type === 'toolRequest')
@@ -159,19 +179,40 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                         {/* Text content */}
                         {displayText && (
                           <div
-                            className={`${toolRequests.length > 0 || imagePaths.length > 0 ? 'mb-4' : ''}`}
+                            className={`${toolRequests.length > 0 || allImages.length > 0 || sessionFiles.length > 0 ? 'mb-4' : ''}`}
                           >
                             <MarkdownContent content={displayText} />
                           </div>
                         )}
 
-                        {/* Render images if any */}
-                        {imagePaths.length > 0 && (
+                        {/* Render session files if any */}
+                        {sessionFiles.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                            {imagePaths.map((imagePath, imageIndex) => (
+                            {sessionFiles.map((sessionFile, fileIndex) => (
+                              <div
+                                key={`${sessionFile.path}-${fileIndex}`}
+                                className="flex items-center gap-1 px-2 py-1 bg-bgSubtle border border-borderSubtle rounded-full text-xs text-textStandard"
+                              >
+                                {sessionFile.type === 'directory' ? (
+                                  <FolderOpen className="w-3 h-3 text-textSubtle" />
+                                ) : (
+                                  <Document className="w-3 h-3 text-textSubtle" />
+                                )}
+                                <span className="max-w-[200px] truncate" title={sessionFile.path}>
+                                  {sessionFile.path.split('/').pop() || sessionFile.path}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Render images if any */}
+                        {allImages.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                            {allImages.map((imageSrc, imageIndex) => (
                               <ImagePreview
                                 key={imageIndex}
-                                src={imagePath}
+                                src={imageSrc}
                                 alt={`Image ${imageIndex + 1}`}
                               />
                             ))}

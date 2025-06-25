@@ -34,11 +34,11 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
-        MessageContent::ContextPaths(context_files) => {
-            // Convert context files to text content
+        MessageContent::SessionFiles(session_files) => {
+            // Convert session files to text content
             let files_text = format!(
                 "The following files have been added to the context:\n{}",
-                context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
+                session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
             );
             bedrock::ContentBlock::Text(files_text)
         }

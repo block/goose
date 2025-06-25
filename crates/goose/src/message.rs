@@ -97,25 +97,21 @@ pub struct SummarizationRequested {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub enum PathType {
-    #[serde(rename = "file")]
-    File,
-    #[serde(rename = "directory")]
-    Directory,
-    #[serde(rename = "unknown")]
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ContextPathItem {
+pub struct SessionFile {
+    pub id: String,
     pub path: String,
     #[serde(rename = "type")]
-    pub path_type: PathType,
+    pub file_type: String, // "file", "directory", or "image"
+    // Image-specific properties (only present for images)
+    pub data_url: Option<String>, // For immediate preview
+    pub file_path: Option<String>, // Path on filesystem after saving (for images)
+    pub is_loading: Option<bool>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ContextPaths {
-    pub paths: Vec<ContextPathItem>,
+pub struct SessionFiles {
+    pub files: Vec<SessionFile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -123,7 +119,7 @@ pub struct ContextPaths {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
     Text(TextContent),
-    ContextPaths(ContextPaths),
+    SessionFiles(SessionFiles),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -205,8 +201,8 @@ impl MessageContent {
         MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
     }
 
-    pub fn context_files(paths: Vec<ContextPathItem>) -> Self {
-        MessageContent::ContextPaths(ContextPaths { paths })
+    pub fn session_files(files: Vec<SessionFile>) -> Self {
+        MessageContent::SessionFiles(SessionFiles { files })
     }
 
     // Add this new method to check for summarization requested content
@@ -281,10 +277,10 @@ impl MessageContent {
         }
     }
 
-    /// Get the context files content if this is a ContextPaths variant
-    pub fn as_context_files(&self) -> Option<&ContextPaths> {
+    /// Get the session files content if this is a SessionFiles variant
+    pub fn as_session_files(&self) -> Option<&SessionFiles> {
         match self {
-            MessageContent::ContextPaths(context_files) => Some(context_files),
+            MessageContent::SessionFiles(session_files) => Some(session_files),
             _ => None,
         }
     }
@@ -511,9 +507,9 @@ impl Message {
         self.with_content(MessageContent::summarization_requested(msg))
     }
 
-    /// Add context files to the message
-    pub fn with_context_files(self, paths: Vec<ContextPathItem>) -> Self {
-        self.with_content(MessageContent::context_files(paths))
+    /// Add session files to the message
+    pub fn with_session_files(self, files: Vec<SessionFile>) -> Self {
+        self.with_content(MessageContent::session_files(files))
     }
 }
 

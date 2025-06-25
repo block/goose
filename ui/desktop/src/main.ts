@@ -1149,6 +1149,7 @@ ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
     return null;
   }
 });
+
 ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
@@ -2042,5 +2043,68 @@ app.on('window-all-closed', () => {
   // Only quit if we're not on macOS or don't have a tray icon
   if (process.platform !== 'darwin' || !tray) {
     app.quit();
+  }
+});
+
+// IPC handler to read image files and convert to data URL
+ipcMain.handle('read-image-file', async (_event, filePath: string) => {
+  console.log(`[Main] Received read-image-file for path: ${filePath}`);
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for image reading');
+    return null;
+  }
+
+  try {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    // Check if it's a regular file
+    const stats = await fs.lstat(expandedPath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to read: ${expandedPath}`);
+      return null;
+    }
+
+    // Read the file and return as base64 data URL
+    const fileBuffer = await fs.readFile(expandedPath);
+    const fileExtension = path.extname(expandedPath).toLowerCase().substring(1);
+
+    // Validate file extension
+    const allowedExtensions = [
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'webp',
+      'bmp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+    ];
+    if (!allowedExtensions.includes(fileExtension)) {
+      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
+      return null;
+    }
+
+    // Check file size (max 5MB)
+    if (fileBuffer.length > 5 * 1024 * 1024) {
+      console.warn(`[Main] Image too large: ${Math.round(fileBuffer.length / (1024 * 1024))}MB`);
+      return null;
+    }
+
+    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
+    const base64Data = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    console.log(`[Main] Read image file: ${expandedPath}`);
+    return dataUrl;
+  } catch (error) {
+    console.error(`[Main] Failed to read image file: ${filePath}`, error);
+    return null;
   }
 });

@@ -70,11 +70,11 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip redacted thinking for now
                 }
                 MessageContent::Image(_) => continue, // Snowflake doesn't support image content yet
-                MessageContent::ContextPaths(context_files) => {
-                    // Convert context files to text content
+                MessageContent::SessionFiles(session_files) => {
+                    // Convert session files to text content
                     let files_text = format!(
                         "The following files have been added to the context:\n{}",
-                        context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
+                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
                     );
                     text_content.push_str(&files_text);
                 }

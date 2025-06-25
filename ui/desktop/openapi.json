@@ -1080,35 +1080,6 @@
           }
         }
       },
-      "ContextPathItem": {
-        "type": "object",
-        "required": [
-          "path",
-          "type"
-        ],
-        "properties": {
-          "path": {
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/PathType"
-          }
-        }
-      },
-      "ContextPaths": {
-        "type": "object",
-        "required": [
-          "paths"
-        ],
-        "properties": {
-          "paths": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ContextPathItem"
-            }
-          }
-        }
-      },
       "CreateScheduleRequest": {
         "type": "object",
         "required": [
@@ -1524,7 +1495,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ContextPaths"
+                "$ref": "#/components/schemas/SessionFiles"
               },
               {
                 "type": "object",
@@ -1535,7 +1506,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "contextPaths"
+                      "sessionFiles"
                     ]
                   }
                 }
@@ -1755,14 +1726,6 @@
             "description": "The name of the model"
           }
         }
-      },
-      "PathType": {
-        "type": "string",
-        "enum": [
-          "file",
-          "directory",
-          "unknown"
-        ]
       },
       "PermissionConfirmationRequest": {
         "type": "object",
@@ -2053,6 +2016,55 @@
           },
           "workingDir": {
             "type": "string"
+          }
+        }
+      },
+      "SessionFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "type"
+        ],
+        "properties": {
+          "data_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "file_path": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_loading": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionFiles": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionFile"
+            }
           }
         }
       },

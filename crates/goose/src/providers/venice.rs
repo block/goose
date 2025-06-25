@@ -329,13 +329,13 @@ impl Provider for VeniceProvider {
                         .content
                         .iter()
                         .filter_map(|c| {
-                            // Handle both Text and ContextPaths content
+                            // Handle both Text and SessionFiles content
                             match c {
                                 MessageContent::Text(text) => Some(text.text.clone()),
-                                MessageContent::ContextPaths(context_files) => {
+                                MessageContent::SessionFiles(session_files) => {
                                     let files_text = format!(
                                         "The following files have been added to the context:\n{}",
-                                        context_files.paths.iter().map(|item| item.path.clone()).collect::<Vec<_>>().join("\n")
+                                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
                                     );
                                     Some(files_text)
                                 }

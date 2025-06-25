@@ -14,6 +14,7 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   createToolErrorResponseMessage,
+  ImageContent,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
@@ -68,6 +69,19 @@ export default function GooseMessage({
   // Remove image paths from text for display
   const displayText =
     imagePaths.length > 0 ? removeImagePathsFromText(textWithoutCot, imagePaths) : textWithoutCot;
+
+  // Extract images from ImageContent objects in the message
+  const imageContents = message.content.filter(
+    (content): content is ImageContent => content.type === 'image'
+  );
+
+  // Convert ImageContent objects to data URLs for display
+  const imageDataUrls = imageContents.map(
+    (imageContent) => `data:${imageContent.mimeType};base64,${imageContent.data}`
+  );
+
+  // Combine both image sources (new ImageContent and old image paths)
+  const allImages = [...imageDataUrls, ...imagePaths];
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
@@ -152,10 +166,10 @@ export default function GooseMessage({
             </div>
 
             {/* Render images if any */}
-            {imagePaths.length > 0 && (
+            {allImages.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                {imagePaths.map((imagePath, index) => (
-                  <ImagePreview key={index} src={imagePath} alt={`Image ${index + 1}`} />
+                {allImages.map((imageSrc, index) => (
+                  <ImagePreview key={index} src={imageSrc} alt={`Image ${index + 1}`} />
                 ))}
               </div>
             )}

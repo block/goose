@@ -12,7 +12,6 @@ import {
   manageContext,
   Message as ApiMessage,
   MessageContent as ApiMessageContent,
-  ContextPathItem,
 } from '../../api';
 import { generateId } from 'ai';
 
@@ -79,6 +78,19 @@ function mapApiContentToFrontendMessageContent(
       text: apiContent.text,
       annotations: apiContent.annotations as Record<string, unknown> | undefined,
     };
+  } else if (apiContent.type === 'sessionFiles') {
+    return {
+      type: 'sessionFiles',
+      files: apiContent.files.map((file) => ({
+        id: file.id,
+        path: file.path,
+        type: file.type as 'file' | 'directory' | 'image',
+        dataUrl: file.data_url || undefined,
+        filePath: file.file_path || undefined,
+        isLoading: file.is_loading || undefined,
+        error: file.error || undefined,
+      })),
+    };
   } else if (apiContent.type === 'image') {
     return {
       type: 'image',
@@ -121,14 +133,6 @@ function mapApiContentToFrontendMessageContent(
     return {
       type: 'summarizationRequested',
       msg: apiContent.msg,
-    };
-  } else if (apiContent.type === 'contextPaths') {
-    return {
-      type: 'contextPaths',
-      paths: apiContent.paths.map((pathItem: ContextPathItem) => ({
-        path: pathItem.path,
-        type: pathItem.type,
-      })),
     };
   }
 

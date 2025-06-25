@@ -62,15 +62,6 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
-export type ContextPathItem = {
-    path: string;
-    type: PathType;
-};
-
-export type ContextPaths = {
-    paths: Array<ContextPathItem>;
-};
-
 export type CreateScheduleRequest = {
     cron: string;
     execution_mode?: string | null;
@@ -210,8 +201,8 @@ export type Message = {
  */
 export type MessageContent = (TextContent & {
     type: 'text';
-}) | (ContextPaths & {
-    type: 'contextPaths';
+}) | (SessionFiles & {
+    type: 'sessionFiles';
 }) | (ImageContent & {
     type: 'image';
 }) | (ToolRequest & {
@@ -245,8 +236,6 @@ export type ModelInfo = {
      */
     name: string;
 };
-
-export type PathType = 'file' | 'directory' | 'unknown';
 
 export type PermissionConfirmationRequest = {
     action: string;
@@ -351,6 +340,20 @@ export type SessionDisplayInfo = {
     scheduleId?: string | null;
     totalTokens?: number | null;
     workingDir: string;
+};
+
+export type SessionFile = {
+    data_url?: string | null;
+    error?: string | null;
+    file_path?: string | null;
+    id: string;
+    is_loading?: boolean | null;
+    path: string;
+    type: string;
+};
+
+export type SessionFiles = {
+    files: Array<SessionFile>;
 };
 
 export type SessionHistoryResponse = {

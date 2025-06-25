@@ -2404,33 +2404,6 @@
             }
           }
         }
-      },
-      "ContextPaths": {
-        "type": "object",
-        "required": [
-          "paths"
-        ],
-        "properties": {
-          "paths": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "path",
-                "type"
-              ],
-              "properties": {
-                "path": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "enum": ["file", "directory", "unknown"]
-                }
-              }
-            }
-          }
-        }
       }
     }
   }
