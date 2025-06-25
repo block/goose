@@ -284,11 +284,7 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 
     let result = read_messages_with_truncation(&secure_path, Some(50000)); // 50KB limit per message content
     match &result {
-        Ok(messages) => println!(
-            "[SESSION] Successfully read {} messages from: {:?}",
-            messages.len(),
-            secure_path
-        ),
+        Ok(_messages) => {}
         Err(e) => println!(
             "[SESSION] Failed to read messages from {:?}: {}",
             secure_path, e
@@ -509,11 +505,6 @@ pub fn read_messages_with_truncation(
         }
     }
 
-    println!(
-        "[SESSION] Finished reading session file. Total messages: {}, corrupted lines: {}",
-        messages.len(),
-        corrupted_lines.len()
-    );
     Ok(messages)
 }
 
@@ -552,7 +543,6 @@ fn parse_message_with_truncation(
 
                 match serde_json::from_str::<Message>(&truncated_json) {
                     Ok(message) => {
-                        println!("[SESSION] Successfully parsed message after truncation");
                         tracing::info!("Successfully parsed message after JSON truncation");
                         Ok(message)
                     }
@@ -736,8 +726,6 @@ fn try_fix_json_corruption(json_str: &str, max_content_size: Option<usize>) -> R
     }
 
     if !fixes_applied.is_empty() {
-        println!("[SESSION] Applied JSON fixes: {}", fixes_applied.join(", "));
-
         match serde_json::from_str::<Message>(&fixed_json) {
             Ok(mut message) => {
                 if let Some(max_size) = max_content_size {
@@ -798,15 +786,6 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
     }
 
     if !extracted_text.is_empty() {
-        println!(
-            "[SESSION] Extracted text content: {}",
-            if extracted_text.len() > 50 {
-                &extracted_text[..50]
-            } else {
-                &extracted_text
-            }
-        );
-
         let message = match role {
             mcp_core::role::Role::User => Message::user(),
             mcp_core::role::Role::Assistant => Message::assistant(),
@@ -838,8 +817,6 @@ fn try_fix_truncated_json(json_str: &str, max_content_size: Option<usize>) -> Re
                 for _ in 0..(open_braces - close_braces) {
                     completed_json.push('}');
                 }
-
-                println!("[SESSION] Attempting to complete truncated JSON");
 
                 match serde_json::from_str::<Message>(&completed_json) {
                     Ok(mut message) => {
@@ -903,10 +880,7 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
     // Validate the path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
-    println!("[SESSION] Reading metadata from: {:?}", secure_path);
-
     if !secure_path.exists() {
-        println!("[SESSION] Session file doesn't exist, returning default metadata");
         return Ok(SessionMetadata::default());
     }
 
@@ -932,29 +906,17 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
             return Err(anyhow::anyhow!("Metadata line too long"));
         }
 
-        println!("[SESSION] Read first line, attempting to parse as metadata...");
         // Try to parse as metadata
         match serde_json::from_str::<SessionMetadata>(&first_line) {
-            Ok(metadata) => {
-                println!(
-                    "[SESSION] Successfully parsed metadata: description='{}'",
-                    metadata.description
-                );
-                Ok(metadata)
-            }
+            Ok(metadata) => Ok(metadata),
             Err(e) => {
                 // If the first line isn't metadata, return default
-                println!(
-                    "[SESSION] First line is not valid metadata ({}), returning default",
-                    e
-                );
                 tracing::debug!("Metadata parse error: {}", e);
                 Ok(SessionMetadata::default())
             }
         }
     } else {
         // Empty file, return default
-        println!("[SESSION] File is empty, returning default metadata");
         Ok(SessionMetadata::default())
     }
 }
@@ -972,16 +934,7 @@ pub async fn persist_messages(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
-    println!(
-        "[SESSION] persist_messages called with {} messages to: {:?}",
-        messages.len(),
-        session_file
-    );
     let result = persist_messages_with_schedule_id(session_file, messages, provider, None).await;
-    match &result {
-        Ok(_) => println!("[SESSION] persist_messages completed successfully"),
-        Err(e) => println!("[SESSION] persist_messages failed: {}", e),
-    }
     result
 }
 
@@ -1067,19 +1020,11 @@ pub fn save_messages_with_metadata(
         return Err(anyhow::anyhow!("Too many messages to save"));
     }
 
-    println!(
-        "[SESSION] Starting to save {} messages to: {:?}",
-        messages.len(),
-        secure_path
-    );
-
     // Create a temporary file in the same directory to ensure atomic move
     let temp_file = secure_path.with_extension("tmp");
-    println!("[SESSION] 🔧 Using temporary file: {:?}", temp_file);
 
     // Ensure the parent directory exists
     if let Some(parent) = secure_path.parent() {
-        println!("[SESSION] Ensuring parent directory exists: {:?}", parent);
         fs::create_dir_all(parent).map_err(|e| {
             tracing::error!("Failed to create parent directory: {}", e);
             anyhow::anyhow!("Failed to create session directory")
@@ -1087,7 +1032,6 @@ pub fn save_messages_with_metadata(
     }
 
     // Create and lock the temporary file with secure permissions
-    println!("[SESSION] Creating and locking temporary file with secure permissions...");
     let file = fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -1111,7 +1055,6 @@ pub fn save_messages_with_metadata(
     }
 
     // Get an exclusive lock on the file
-    println!("[SESSION] Acquiring exclusive lock...");
     file.try_lock_exclusive().map_err(|e| {
         tracing::error!("Failed to lock file: {}", e);
         anyhow::anyhow!("Failed to lock session file")
@@ -1119,14 +1062,9 @@ pub fn save_messages_with_metadata(
 
     // Write to temporary file
     {
-        println!(
-            "[SESSION] Writing metadata and {} messages to temporary file...",
-            messages.len()
-        );
         let mut writer = io::BufWriter::new(&file);
 
         // Write metadata as the first line
-        println!("[SESSION] Writing metadata as first line...");
         serde_json::to_writer(&mut writer, &metadata).map_err(|e| {
             tracing::error!("Failed to serialize metadata: {}", e);
             anyhow::anyhow!("Failed to write session metadata")
@@ -1134,21 +1072,15 @@ pub fn save_messages_with_metadata(
         writeln!(writer)?;
 
         // Write all messages with progress tracking
-        println!("[SESSION] Writing {} messages...", messages.len());
         for (i, message) in messages.iter().enumerate() {
             serde_json::to_writer(&mut writer, &message).map_err(|e| {
                 tracing::error!("Failed to serialize message {}: {}", i, e);
                 anyhow::anyhow!("Failed to write session message")
             })?;
             writeln!(writer)?;
-
-            if (i + 1) % 50 == 0 {
-                println!("[SESSION] Written {} messages so far...", i + 1);
-            }
         }
 
         // Ensure all data is written to disk
-        println!("[SESSION] Flushing writer buffer...");
         writer.flush().map_err(|e| {
             tracing::error!("Failed to flush writer: {}", e);
             anyhow::anyhow!("Failed to flush session data")
@@ -1156,33 +1088,25 @@ pub fn save_messages_with_metadata(
     }
 
     // Sync to ensure data is persisted
-    println!("[SESSION] Syncing data to disk...");
     file.sync_all().map_err(|e| {
         tracing::error!("Failed to sync data: {}", e);
         anyhow::anyhow!("Failed to sync session data")
     })?;
 
     // Release the lock
-    println!("[SESSION] Releasing file lock...");
     fs2::FileExt::unlock(&file).map_err(|e| {
         tracing::error!("Failed to unlock file: {}", e);
         anyhow::anyhow!("Failed to unlock session file")
     })?;
 
     // Atomically move the temporary file to the final location
-    println!("[SESSION] Atomically moving temp file to final location...");
     fs::rename(&temp_file, &secure_path).map_err(|e| {
         // Clean up temp file on failure
-        println!("[SESSION] Failed to move temp file, cleaning up...");
         tracing::error!("Failed to move temporary file: {}", e);
         let _ = fs::remove_file(&temp_file);
         anyhow::anyhow!("Failed to finalize session file")
     })?;
 
-    println!(
-        "[SESSION] Successfully saved session file: {:?}",
-        secure_path
-    );
     tracing::debug!("Successfully saved session file: {:?}", secure_path);
     Ok(())
 }
