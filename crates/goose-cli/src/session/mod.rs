@@ -939,8 +939,7 @@ impl Session {
 
                                                             if min_priority > 0.1 && !self.debug {
                                                                 // High/Medium verbosity: show truncated response
-                                                                if msg.starts_with("Responded: ") {
-                                                                    let response_content = &msg[11..]; // Remove "Responded: " prefix
+                                                                if let Some(response_content) = msg.strip_prefix("Responded: ") {
                                                                     if response_content.len() > 100 {
                                                                         format!("🤖 Responded: {}...", &response_content[..100])
                                                                     } else {
@@ -955,7 +954,7 @@ impl Session {
                                                             }
                                                         }
                                                         _ => {
-                                                            format!("{}", msg)
+                                                            msg.to_string()
                                                         }
                                                     };
                                                     (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))

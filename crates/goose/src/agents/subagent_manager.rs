@@ -363,10 +363,14 @@ impl SubAgentManager {
                     turn_count + 1,
                     response_text
                 ));
-                conversation_result.push_str(&format!("\n[Task completed after {} turns]", turn_count + 1));
+                conversation_result.push_str(&format!(
+                    "\n[Task completed after {} turns]",
+                    turn_count + 1
+                ));
             }
             Err(e) => {
-                conversation_result.push_str(&format!("\n[Error after {} turns: {}]", turn_count, e));
+                conversation_result
+                    .push_str(&format!("\n[Error after {} turns: {}]", turn_count, e));
             }
         }
 
