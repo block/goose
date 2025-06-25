@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -176,45 +177,79 @@ func findTemporalCLI() (string, error) {
 
 	// If not found in PATH, try different possible locations for the temporal CLI
 	log.Println("Checking bundled/local locations for temporal CLI...")
-	possiblePaths := []string{
-		"./temporal", // Current directory
+	currentPaths := []string{
+		"./temporal",
+		"./temporal.exe",
+	}
+	if path, err := getExistingTemporalCLIFrom(currentPaths); err == nil {
+		return path, nil
+	} else {
+		log.Printf("Attempt to find in local directory failed: %s.", err)
 	}
 
 	// Also try relative to the current executable (most important for bundled apps)
-	if exePath, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exePath)
-		log.Printf("Executable directory: %s", exeDir)
-		additionalPaths := []string{
-			filepath.Join(exeDir, "temporal"),
-			filepath.Join(exeDir, "temporal.exe"), // Windows
-			// Also try one level up (for development)
-			filepath.Join(exeDir, "..", "temporal"),
-			filepath.Join(exeDir, "..", "temporal.exe"),
-		}
-		possiblePaths = append(possiblePaths, additionalPaths...)
-		log.Printf("Will check these additional paths: %v", additionalPaths)
-	} else {
+	exePath, err := os.Executable()
+	if err != nil {
 		log.Printf("Failed to get executable path: %v", err)
 	}
+	exeDir := filepath.Dir(exePath)
+	log.Printf("Executable directory: %s", exeDir)
+	additionalPaths := []string{
+		filepath.Join(exeDir, "temporal"),
+		filepath.Join(exeDir, "temporal.exe"), // Windows
+		// Also try one level up (for development)
+		filepath.Join(exeDir, "..", "temporal"),
+		filepath.Join(exeDir, "..", "temporal.exe"),
+	}
+	log.Printf("Will check these additional paths: %v", additionalPaths)
+	return getExistingTemporalCLIFrom(additionalPaths)
+}
 
+// getExistingTemporalCLIFrom gets a list of paths and returns one of those that is an existing and working Temporal CLI binary
+func getExistingTemporalCLIFrom(possiblePaths []string) (string, error) {
 	log.Printf("Checking %d possible paths for temporal CLI", len(possiblePaths))
 
-	// Test each possible path
+	// Check all possible paths in parallel, pick the first one that works.
+	pathFound := make(chan string)
+	var wg sync.WaitGroup
+	// This allows us to cancel whatever remaining work is done when we find a valid path.
+	psCtx, psCancel := context.WithCancel(context.Background())
 	for i, path := range possiblePaths {
-		log.Printf("Checking path %d/%d: %s", i+1, len(possiblePaths), path)
-		if _, err := os.Stat(path); err == nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			log.Printf("Checking path %d/%d: %s", i+1, len(possiblePaths), path)
+			if _, err := os.Stat(path); err != nil {
+				log.Printf("File does not exist at %s: %v", path, err)
+				return
+			}
 			log.Printf("File exists at: %s", path)
 			// File exists, test if it's executable and the right binary
-			cmd := exec.Command(path, "--version")
-			if err := cmd.Run(); err == nil {
-				log.Printf("Successfully verified temporal CLI at: %s", path)
-				return path, nil
-			} else {
+			cmd := exec.CommandContext(psCtx, path, "--version")
+			if err := cmd.Run(); err != nil {
 				log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
+				return
 			}
-		} else {
-			log.Printf("File does not exist at %s: %v", path, err)
-		}
+			select {
+			case pathFound <- path:
+				log.Printf("Successfully verified temporal CLI at: %s", path)
+			case <-psCtx.Done():
+				// No need to report the path not chosen.
+			}
+		}()
+	}
+	// We transform the workgroup wait into a channel so we can wait for either this or pathFound
+	pathNotFound := make(chan bool)
+	go func() {
+		wg.Wait()
+		pathNotFound <- true
+	}()
+	select {
+	case path := <-pathFound:
+		psCancel() // Cancel the remaining search functions otherwise they'll just exist eternally.
+		return path, nil
+	case <-pathNotFound:
+		// No need to do anything, this just says that none of the functions were able to do it and there's nothing left to cleanup
 	}
 
 	return "", fmt.Errorf("temporal CLI not found in PATH or any of the expected locations: %v", possiblePaths)
