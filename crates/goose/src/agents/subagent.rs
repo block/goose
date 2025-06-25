@@ -4,17 +4,20 @@ use crate::{
     providers::base::Provider,
     providers::errors::ProviderError,
     recipe::Recipe,
+    prompt_template::render_global_file,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use mcp_core::{handler::ToolError, role::Role, tool::Tool};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde_json;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument};
 use uuid::Uuid;
 
 use crate::agents::subagent_types::{SubAgentNotification, SubAgentUpdate, SubAgentUpdateType};
+use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -323,22 +326,46 @@ impl SubAgent {
         // Get the current conversation for context
         let mut messages = self.get_conversation().await;
 
-        // Get tools and system prompt from the extension manager
-        let tools: Vec<Tool> = extension_manager.get_prefixed_tools(None).await?;
+        // Get tools based on whether we're using a recipe or inheriting from parent
+        let tools: Vec<Tool> = if self.config.recipe.is_some() {
+            // Recipe mode: only get tools from the recipe's extensions
+            let recipe_extensions = self.recipe_extensions.lock().await;
+            let mut recipe_tools = Vec::new();
+            
+            debug!("Subagent {} operating in recipe mode with {} extensions", 
+                   self.id, recipe_extensions.len());
+            
+            for extension_name in recipe_extensions.iter() {
+                match extension_manager.get_prefixed_tools(Some(extension_name.clone())).await {
+                    Ok(mut ext_tools) => {
+                        debug!("Added {} tools from extension {}", ext_tools.len(), extension_name);
+                        recipe_tools.append(&mut ext_tools);
+                    }
+                    Err(e) => {
+                        debug!("Failed to get tools for extension {}: {}", extension_name, e);
+                    }
+                }
+            }
+            
+            debug!("Subagent {} has {} total recipe tools before filtering", self.id, recipe_tools.len());
+            // Filter out subagent tools from recipe tools
+            let filtered_tools = Self::filter_subagent_tools(recipe_tools);
+            debug!("Subagent {} has {} tools after filtering subagent tools", self.id, filtered_tools.len());
+            filtered_tools
+        } else {
+            // No recipe: inherit all tools from parent (but filter out subagent tools)
+            debug!("Subagent {} operating in inheritance mode, using all parent tools", self.id);
+            let parent_tools = extension_manager.get_prefixed_tools(None).await?;
+            debug!("Subagent {} has {} parent tools before filtering", self.id, parent_tools.len());
+            let filtered_tools = Self::filter_subagent_tools(parent_tools);
+            debug!("Subagent {} has {} tools after filtering subagent tools", self.id, filtered_tools.len());
+            filtered_tools
+        };
+        
         let toolshim_tools: Vec<Tool> = vec![];
 
-        // Build system prompt based on whether we have a recipe or direct instructions
-        let instructions = if let Some(recipe) = &self.config.recipe {
-            recipe.instructions.as_deref().unwrap_or("")
-        } else {
-            self.config.instructions.as_deref().unwrap_or("")
-        };
-
-        let system_prompt = format!(
-            "You are a helpful subagent that was spawned by goose. You converse with goose and can use the following tools: {}\n\n{}",
-            self.recipe_extensions.lock().await.join(", "),
-            instructions
-        );
+        // Build system prompt using the template
+        let system_prompt = self.build_system_prompt(&tools).await?;
 
         // Generate response from provider
         loop {
@@ -560,5 +587,94 @@ impl SubAgent {
     /// Get the list of extensions that weren't enabled
     pub async fn get_missing_extensions(&self) -> Vec<String> {
         self.missing_extensions.lock().await.clone()
+    }
+
+    /// Filter out subagent spawning tools to prevent infinite recursion
+    fn filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
+        let original_count = tools.len();
+        let filtered_tools: Vec<Tool> = tools
+            .into_iter()
+            .filter(|tool| {
+                let should_keep = tool.name != SUBAGENT_RUN_TASK_TOOL_NAME;
+                if !should_keep {
+                    debug!("Filtering out subagent tool: {}", tool.name);
+                }
+                should_keep
+            })
+            .collect();
+        
+        let filtered_count = filtered_tools.len();
+        if filtered_count < original_count {
+            debug!("Filtered {} subagent tool(s) from {} total tools", 
+                   original_count - filtered_count, original_count);
+        }
+        
+        filtered_tools
+    }
+
+    /// Build the system prompt for the subagent using the template
+    async fn build_system_prompt(&self, available_tools: &[Tool]) -> Result<String, anyhow::Error> {
+        let mut context = HashMap::new();
+        
+        // Add basic context
+        context.insert("current_date_time", serde_json::Value::String(Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()));
+        context.insert("subagent_id", serde_json::Value::String(self.id.clone()));
+        
+        // Add recipe information if available
+        if let Some(recipe) = &self.config.recipe {
+            context.insert("recipe_title", serde_json::Value::String(recipe.title.clone()));
+        }
+        
+        // Add max turns if configured
+        if let Some(max_turns) = self.config.max_turns {
+            context.insert("max_turns", serde_json::Value::Number(serde_json::Number::from(max_turns)));
+        }
+        
+        // Add task instructions
+        let instructions = if let Some(recipe) = &self.config.recipe {
+            recipe.instructions.as_deref().unwrap_or("")
+        } else {
+            self.config.instructions.as_deref().unwrap_or("")
+        };
+        context.insert("task_instructions", serde_json::Value::String(instructions.to_string()));
+        
+        // Add available extensions (only if we have a recipe and extensions)
+        if self.config.recipe.is_some() {
+            let extensions: Vec<String> = self.recipe_extensions.lock().await.clone();
+            if !extensions.is_empty() {
+                context.insert("extensions", serde_json::Value::Array(
+                    extensions.into_iter().map(serde_json::Value::String).collect()
+                ));
+            }
+        }
+        
+        // Add available tools with descriptions for better context
+        let tools_with_descriptions: Vec<String> = available_tools
+            .iter()
+            .map(|t| {
+                if t.description.is_empty() {
+                    t.name.clone()
+                } else {
+                    format!("{}: {}", t.name, t.description)
+                }
+            })
+            .collect();
+        
+        context.insert("available_tools", serde_json::Value::String(
+            if tools_with_descriptions.is_empty() {
+                "None".to_string()
+            } else {
+                tools_with_descriptions.join(", ")
+            }
+        ));
+        
+        // Add tool count for context
+        context.insert("tool_count", serde_json::Value::Number(serde_json::Number::from(available_tools.len())));
+        
+        // Render the subagent system prompt template
+        let system_prompt = render_global_file("subagent_system.md", &context)
+            .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
+        
+        Ok(system_prompt)
     }
 }
