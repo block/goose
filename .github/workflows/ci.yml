@@ -148,3 +148,31 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     with:
       signing: false
+
+  ensure-bindings-updated:
+    name: Ensure the Python and Kotlin bindings are up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
+        with:
+          toolchain: stable
+
+      - name: Install just
+        run: sudo apt-get install -y just
+
+      - name: Generate Bindings
+        run: just generate-kotlin-bindings
+
+      - name: Check No SCM Changes
+        run: |
+          if [[ -n $(git status -s) ]]
+          then
+            echo "Generating bindings resulted in changes, please run 'just generate-kotlin-bindings' and commit the changes to keep the bindings in sync with the Rust code."
+            git status -s
+            git --no-pager diff
+            exit 1
+          fi
