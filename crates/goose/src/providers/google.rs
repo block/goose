@@ -82,7 +82,7 @@ impl GoogleProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
@@ -104,7 +104,7 @@ impl GoogleProvider {
                 .client
                 .post(url.clone()) // Clone the URL for each retry
                 .header("CONTENT_TYPE", "application/json")
-                .json(&payload)
+                .json(payload)
                 .send()
                 .await;
 
@@ -175,7 +175,7 @@ impl Provider for GoogleProvider {
         let payload = create_request(&self.model, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
