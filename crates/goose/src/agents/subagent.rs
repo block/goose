@@ -18,6 +18,10 @@ use uuid::Uuid;
 
 use crate::agents::subagent_types::{SubAgentNotification, SubAgentUpdate, SubAgentUpdateType};
 use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
+use crate::agents::platform_tools::{
+    self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -349,20 +353,35 @@ impl SubAgent {
             
             debug!("Subagent {} has {} total recipe tools before filtering", self.id, recipe_tools.len());
             // Filter out subagent tools from recipe tools
-            let filtered_tools = Self::filter_subagent_tools(recipe_tools);
-            debug!("Subagent {} has {} tools after filtering subagent tools", self.id, filtered_tools.len());
+            let mut filtered_tools = Self::filter_subagent_tools(recipe_tools);
+            
+            // Add platform tools (except subagent tools)
+            Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
+            
+            debug!("Subagent {} has {} tools after filtering and adding platform tools", self.id, filtered_tools.len());
             filtered_tools
         } else {
             // No recipe: inherit all tools from parent (but filter out subagent tools)
             debug!("Subagent {} operating in inheritance mode, using all parent tools", self.id);
             let parent_tools = extension_manager.get_prefixed_tools(None).await?;
             debug!("Subagent {} has {} parent tools before filtering", self.id, parent_tools.len());
-            let filtered_tools = Self::filter_subagent_tools(parent_tools);
-            debug!("Subagent {} has {} tools after filtering subagent tools", self.id, filtered_tools.len());
+            let mut filtered_tools = Self::filter_subagent_tools(parent_tools);
+            
+            // Add platform tools (except subagent tools)
+            Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
+            
+            debug!("Subagent {} has {} tools after filtering and adding platform tools", self.id, filtered_tools.len());
             filtered_tools
         };
         
         let toolshim_tools: Vec<Tool> = vec![];
+
+        // Debug: Print the final list of tools available to the subagent
+        println!("=== Subagent {} Tool List ===", self.id);
+        for (i, tool) in tools.iter().enumerate() {
+            println!("  {}. {} - {}", i + 1, tool.name, tool.description);
+        }
+        println!("=== Total: {} tools ===\n", tools.len());
 
         // Build system prompt using the template
         let system_prompt = self.build_system_prompt(&tools).await?;
@@ -425,24 +444,30 @@ impl SubAgent {
                     // Process each tool request and create user response messages
                     for request in &tool_requests {
                         if let Ok(tool_call) = &request.tool_call {
-                            // Send notification about tool usage
-                            self.send_notification(
-                                format!("Using tool: {}", tool_call.name),
-                                false,
-                            )
-                            .await;
+                                                                // Send notification about tool usage
+                                    self.send_notification(
+                                        format!("Using tool: {}", tool_call.name),
+                                        false,
+                                    )
+                                    .await;
 
-                            match extension_manager
-                                .dispatch_tool_call(tool_call.clone())
-                                .await
+                                    // Handle platform tools or dispatch to extension manager
+                                    let tool_result = if self.is_platform_tool(&tool_call.name) {
+                                        self.handle_platform_tool_call(tool_call.clone(), &extension_manager).await
+                                    } else {
+                                        match extension_manager.dispatch_tool_call(tool_call.clone()).await {
+                                            Ok(result) => result.result.await,
+                                            Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+                                        }
+                                    };
+
+                                    match tool_result
                             {
                                 Ok(result) => {
-                                    let tool_response = result.result.await;
-
                                     // Create a user message with the tool response
                                     let tool_response_message = Message::user().with_tool_response(
                                         request.id.clone(),
-                                        tool_response.clone(),
+                                        Ok(result.clone()),
                                     );
                                     messages.push(tool_response_message);
 
@@ -610,6 +635,74 @@ impl SubAgent {
         }
         
         filtered_tools
+    }
+
+    /// Add platform tools to the subagent's tool list (excluding dangerous tools)
+    async fn add_platform_tools(tools: &mut Vec<Tool>, extension_manager: &ExtensionManager) {
+        debug!("Adding safe platform tools to subagent");
+        
+        // Add safe platform tools - subagents can search for extensions but can't manage them or schedules
+        tools.push(platform_tools::search_available_extensions_tool());
+        debug!("Added search_available_extensions tool");
+        
+        // Add resource tools if supported - these are generally safe for subagents
+        if extension_manager.supports_resources() {
+            tools.extend([
+                platform_tools::read_resource_tool(),
+                platform_tools::list_resources_tool(),
+            ]);
+            debug!("Added 2 resource platform tools");
+        }
+        
+        // Note: We explicitly do NOT add these tools for security reasons:
+        // - manage_extensions (could interfere with parent agent's extensions)
+        // - manage_schedule (could interfere with parent agent's scheduling)
+        // - subagent spawning tools (prevent recursion)
+        debug!("Platform tools added successfully (dangerous tools excluded)");
+    }
+
+    /// Check if a tool name is a platform tool that subagents can use
+    fn is_platform_tool(&self, tool_name: &str) -> bool {
+        matches!(
+            tool_name,
+            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
+                | PLATFORM_READ_RESOURCE_TOOL_NAME
+                | PLATFORM_LIST_RESOURCES_TOOL_NAME
+        )
+    }
+
+    /// Handle platform tool calls that are safe for subagents
+    async fn handle_platform_tool_call(
+        &self,
+        tool_call: mcp_core::tool::ToolCall,
+        extension_manager: &ExtensionManager,
+    ) -> Result<Vec<mcp_core::Content>, ToolError> {
+        debug!("Handling platform tool: {}", tool_call.name);
+
+        match tool_call.name.as_str() {
+            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
+                extension_manager
+                    .search_available_extensions()
+                    .await
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
+            }
+            PLATFORM_READ_RESOURCE_TOOL_NAME => {
+                extension_manager
+                    .read_resource(tool_call.arguments)
+                    .await
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
+            }
+            PLATFORM_LIST_RESOURCES_TOOL_NAME => {
+                extension_manager
+                    .list_resources(tool_call.arguments)
+                    .await
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
+            }
+            _ => Err(ToolError::ExecutionError(format!(
+                "Platform tool '{}' is not available to subagents for security reasons",
+                tool_call.name
+            ))),
+        }
     }
 
     /// Build the system prompt for the subagent using the template
