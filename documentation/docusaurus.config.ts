@@ -282,6 +282,11 @@ const config: Config = {
           position: "left",
           label: "Tutorials",
         },
+        {
+          to: "/docs/category/mcp-servers",
+          position: "left",
+          label: "MCPs",
+        },
         { to: "/blog", label: "Blog", position: "left" },
         {
           type: 'dropdown',
