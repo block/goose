@@ -369,7 +369,7 @@ impl SubAgentManager {
         // Set default max_turns if not provided
         let max_turns = args.max_turns.unwrap_or(10);
         config = config.with_max_turns(max_turns);
-        
+
         if let Some(timeout) = args.timeout_seconds {
             config = config.with_timeout(timeout);
         }
@@ -399,40 +399,56 @@ impl SubAgentManager {
         let mut conversation_result = String::new();
         let mut turn_count = 0;
         let current_message = args.message.clone();
-        
+
         loop {
             // Check max turns
             if turn_count >= max_turns {
-                conversation_result.push_str(&format!("\n[Task completed after {} turns (max reached)]", turn_count));
+                conversation_result.push_str(&format!(
+                    "\n[Task completed after {} turns (max reached)]",
+                    turn_count
+                ));
                 break;
             }
 
             // Send message to subagent and get response
             match subagent
-                .reply_subagent(current_message, Arc::clone(&provider), Arc::clone(&extension_manager))
+                .reply_subagent(
+                    current_message,
+                    Arc::clone(&provider),
+                    Arc::clone(&extension_manager),
+                )
                 .await
             {
                 Ok(response) => {
                     let response_text = response.as_concat_text();
-                    conversation_result.push_str(&format!("\n--- Turn {} ---\n{}", turn_count + 1, response_text));
-                    
+                    conversation_result.push_str(&format!(
+                        "\n--- Turn {} ---\n{}",
+                        turn_count + 1,
+                        response_text
+                    ));
+
                     // Check if the subagent has completed its task
                     if subagent.is_completed().await {
-                        conversation_result.push_str(&format!("\n[Task completed after {} turns]", turn_count + 1));
+                        conversation_result.push_str(&format!(
+                            "\n[Task completed after {} turns]",
+                            turn_count + 1
+                        ));
                         break;
                     }
-                    
+
                     turn_count += 1;
-                    
+
                     // For now, we just complete after one turn since we don't have a mechanism
                     // for the subagent to continue autonomously without user input
                     // In a future iteration, we could add logic for the subagent to continue
                     // working on multi-step tasks
-                    conversation_result.push_str(&format!("\n[Task completed after {} turns]", turn_count));
+                    conversation_result
+                        .push_str(&format!("\n[Task completed after {} turns]", turn_count));
                     break;
                 }
                 Err(e) => {
-                    conversation_result.push_str(&format!("\n[Error after {} turns: {}]", turn_count, e));
+                    conversation_result
+                        .push_str(&format!("\n[Error after {} turns: {}]", turn_count, e));
                     break;
                 }
             }
@@ -444,10 +460,7 @@ impl SubAgentManager {
         }
 
         // Return the complete conversation result
-        Ok(format!(
-            "Subagent task completed:\n{}",
-            conversation_result
-        ))
+        Ok(format!("Subagent task completed:\n{}", conversation_result))
     }
 }
 

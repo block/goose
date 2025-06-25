@@ -11,7 +11,10 @@ use crate::agents::Agent;
 
 impl Agent {
     /// Handle running a complete subagent task (replaces the individual spawn/send/check tools)
-    pub async fn handle_run_subagent_task(&self, arguments: Value) -> Result<Vec<Content>, ToolError> {
+    pub async fn handle_run_subagent_task(
+        &self,
+        arguments: Value,
+    ) -> Result<Vec<Content>, ToolError> {
         let subagent_manager = self.subagent_manager.lock().await;
         let manager = subagent_manager.as_ref().ok_or_else(|| {
             ToolError::ExecutionError("Subagent manager not initialized".to_string())

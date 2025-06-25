@@ -1,10 +1,10 @@
 use crate::{
     agents::{extension_manager::ExtensionManager, Agent},
     message::{Message, MessageContent, ToolRequest},
+    prompt_template::render_global_file,
     providers::base::Provider,
     providers::errors::ProviderError,
     recipe::Recipe,
-    prompt_template::render_global_file,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -16,12 +16,12 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument};
 use uuid::Uuid;
 
-use crate::agents::subagent_types::{SubAgentNotification, SubAgentUpdate, SubAgentUpdateType};
-use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 use crate::agents::platform_tools::{
     self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
+use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
+use crate::agents::subagent_types::{SubAgentNotification, SubAgentUpdate, SubAgentUpdateType};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -335,45 +335,77 @@ impl SubAgent {
             // Recipe mode: only get tools from the recipe's extensions
             let recipe_extensions = self.recipe_extensions.lock().await;
             let mut recipe_tools = Vec::new();
-            
-            debug!("Subagent {} operating in recipe mode with {} extensions", 
-                   self.id, recipe_extensions.len());
-            
+
+            debug!(
+                "Subagent {} operating in recipe mode with {} extensions",
+                self.id,
+                recipe_extensions.len()
+            );
+
             for extension_name in recipe_extensions.iter() {
-                match extension_manager.get_prefixed_tools(Some(extension_name.clone())).await {
+                match extension_manager
+                    .get_prefixed_tools(Some(extension_name.clone()))
+                    .await
+                {
                     Ok(mut ext_tools) => {
-                        debug!("Added {} tools from extension {}", ext_tools.len(), extension_name);
+                        debug!(
+                            "Added {} tools from extension {}",
+                            ext_tools.len(),
+                            extension_name
+                        );
                         recipe_tools.append(&mut ext_tools);
                     }
                     Err(e) => {
-                        debug!("Failed to get tools for extension {}: {}", extension_name, e);
+                        debug!(
+                            "Failed to get tools for extension {}: {}",
+                            extension_name, e
+                        );
                     }
                 }
             }
-            
-            debug!("Subagent {} has {} total recipe tools before filtering", self.id, recipe_tools.len());
+
+            debug!(
+                "Subagent {} has {} total recipe tools before filtering",
+                self.id,
+                recipe_tools.len()
+            );
             // Filter out subagent tools from recipe tools
             let mut filtered_tools = Self::filter_subagent_tools(recipe_tools);
-            
+
             // Add platform tools (except subagent tools)
             Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
-            
-            debug!("Subagent {} has {} tools after filtering and adding platform tools", self.id, filtered_tools.len());
+
+            debug!(
+                "Subagent {} has {} tools after filtering and adding platform tools",
+                self.id,
+                filtered_tools.len()
+            );
             filtered_tools
         } else {
             // No recipe: inherit all tools from parent (but filter out subagent tools)
-            debug!("Subagent {} operating in inheritance mode, using all parent tools", self.id);
+            debug!(
+                "Subagent {} operating in inheritance mode, using all parent tools",
+                self.id
+            );
             let parent_tools = extension_manager.get_prefixed_tools(None).await?;
-            debug!("Subagent {} has {} parent tools before filtering", self.id, parent_tools.len());
+            debug!(
+                "Subagent {} has {} parent tools before filtering",
+                self.id,
+                parent_tools.len()
+            );
             let mut filtered_tools = Self::filter_subagent_tools(parent_tools);
-            
+
             // Add platform tools (except subagent tools)
             Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
-            
-            debug!("Subagent {} has {} tools after filtering and adding platform tools", self.id, filtered_tools.len());
+
+            debug!(
+                "Subagent {} has {} tools after filtering and adding platform tools",
+                self.id,
+                filtered_tools.len()
+            );
             filtered_tools
         };
-        
+
         let toolshim_tools: Vec<Tool> = vec![];
 
         // Debug: Print the final list of tools available to the subagent
@@ -444,31 +476,35 @@ impl SubAgent {
                     // Process each tool request and create user response messages
                     for request in &tool_requests {
                         if let Ok(tool_call) = &request.tool_call {
-                                                                // Send notification about tool usage
-                                    self.send_notification(
-                                        format!("Using tool: {}", tool_call.name),
-                                        false,
-                                    )
-                                    .await;
+                            // Send notification about tool usage
+                            self.send_notification(
+                                format!("Using tool: {}", tool_call.name),
+                                false,
+                            )
+                            .await;
 
-                                    // Handle platform tools or dispatch to extension manager
-                                    let tool_result = if self.is_platform_tool(&tool_call.name) {
-                                        self.handle_platform_tool_call(tool_call.clone(), &extension_manager).await
-                                    } else {
-                                        match extension_manager.dispatch_tool_call(tool_call.clone()).await {
-                                            Ok(result) => result.result.await,
-                                            Err(e) => Err(ToolError::ExecutionError(e.to_string())),
-                                        }
-                                    };
+                            // Handle platform tools or dispatch to extension manager
+                            let tool_result = if self.is_platform_tool(&tool_call.name) {
+                                self.handle_platform_tool_call(
+                                    tool_call.clone(),
+                                    &extension_manager,
+                                )
+                                .await
+                            } else {
+                                match extension_manager
+                                    .dispatch_tool_call(tool_call.clone())
+                                    .await
+                                {
+                                    Ok(result) => result.result.await,
+                                    Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+                                }
+                            };
 
-                                    match tool_result
-                            {
+                            match tool_result {
                                 Ok(result) => {
                                     // Create a user message with the tool response
-                                    let tool_response_message = Message::user().with_tool_response(
-                                        request.id.clone(),
-                                        Ok(result.clone()),
-                                    );
+                                    let tool_response_message = Message::user()
+                                        .with_tool_response(request.id.clone(), Ok(result.clone()));
                                     messages.push(tool_response_message);
 
                                     // Send notification about tool completion
@@ -627,24 +663,27 @@ impl SubAgent {
                 should_keep
             })
             .collect();
-        
+
         let filtered_count = filtered_tools.len();
         if filtered_count < original_count {
-            debug!("Filtered {} subagent tool(s) from {} total tools", 
-                   original_count - filtered_count, original_count);
+            debug!(
+                "Filtered {} subagent tool(s) from {} total tools",
+                original_count - filtered_count,
+                original_count
+            );
         }
-        
+
         filtered_tools
     }
 
     /// Add platform tools to the subagent's tool list (excluding dangerous tools)
     async fn add_platform_tools(tools: &mut Vec<Tool>, extension_manager: &ExtensionManager) {
         debug!("Adding safe platform tools to subagent");
-        
+
         // Add safe platform tools - subagents can search for extensions but can't manage them or schedules
         tools.push(platform_tools::search_available_extensions_tool());
         debug!("Added search_available_extensions tool");
-        
+
         // Add resource tools if supported - these are generally safe for subagents
         if extension_manager.supports_resources() {
             tools.extend([
@@ -653,7 +692,7 @@ impl SubAgent {
             ]);
             debug!("Added 2 resource platform tools");
         }
-        
+
         // Note: We explicitly do NOT add these tools for security reasons:
         // - manage_extensions (could interfere with parent agent's extensions)
         // - manage_schedule (could interfere with parent agent's scheduling)
@@ -680,24 +719,18 @@ impl SubAgent {
         debug!("Handling platform tool: {}", tool_call.name);
 
         match tool_call.name.as_str() {
-            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
-                extension_manager
-                    .search_available_extensions()
-                    .await
-                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
-            }
-            PLATFORM_READ_RESOURCE_TOOL_NAME => {
-                extension_manager
-                    .read_resource(tool_call.arguments)
-                    .await
-                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
-            }
-            PLATFORM_LIST_RESOURCES_TOOL_NAME => {
-                extension_manager
-                    .list_resources(tool_call.arguments)
-                    .await
-                    .map_err(|e| ToolError::ExecutionError(e.to_string()))
-            }
+            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => extension_manager
+                .search_available_extensions()
+                .await
+                .map_err(|e| ToolError::ExecutionError(e.to_string())),
+            PLATFORM_READ_RESOURCE_TOOL_NAME => extension_manager
+                .read_resource(tool_call.arguments)
+                .await
+                .map_err(|e| ToolError::ExecutionError(e.to_string())),
+            PLATFORM_LIST_RESOURCES_TOOL_NAME => extension_manager
+                .list_resources(tool_call.arguments)
+                .await
+                .map_err(|e| ToolError::ExecutionError(e.to_string())),
             _ => Err(ToolError::ExecutionError(format!(
                 "Platform tool '{}' is not available to subagents for security reasons",
                 tool_call.name
@@ -708,39 +741,57 @@ impl SubAgent {
     /// Build the system prompt for the subagent using the template
     async fn build_system_prompt(&self, available_tools: &[Tool]) -> Result<String, anyhow::Error> {
         let mut context = HashMap::new();
-        
+
         // Add basic context
-        context.insert("current_date_time", serde_json::Value::String(Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()));
+        context.insert(
+            "current_date_time",
+            serde_json::Value::String(Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string()),
+        );
         context.insert("subagent_id", serde_json::Value::String(self.id.clone()));
-        
+
         // Add recipe information if available
         if let Some(recipe) = &self.config.recipe {
-            context.insert("recipe_title", serde_json::Value::String(recipe.title.clone()));
+            context.insert(
+                "recipe_title",
+                serde_json::Value::String(recipe.title.clone()),
+            );
         }
-        
+
         // Add max turns if configured
         if let Some(max_turns) = self.config.max_turns {
-            context.insert("max_turns", serde_json::Value::Number(serde_json::Number::from(max_turns)));
+            context.insert(
+                "max_turns",
+                serde_json::Value::Number(serde_json::Number::from(max_turns)),
+            );
         }
-        
+
         // Add task instructions
         let instructions = if let Some(recipe) = &self.config.recipe {
             recipe.instructions.as_deref().unwrap_or("")
         } else {
             self.config.instructions.as_deref().unwrap_or("")
         };
-        context.insert("task_instructions", serde_json::Value::String(instructions.to_string()));
-        
+        context.insert(
+            "task_instructions",
+            serde_json::Value::String(instructions.to_string()),
+        );
+
         // Add available extensions (only if we have a recipe and extensions)
         if self.config.recipe.is_some() {
             let extensions: Vec<String> = self.recipe_extensions.lock().await.clone();
             if !extensions.is_empty() {
-                context.insert("extensions", serde_json::Value::Array(
-                    extensions.into_iter().map(serde_json::Value::String).collect()
-                ));
+                context.insert(
+                    "extensions",
+                    serde_json::Value::Array(
+                        extensions
+                            .into_iter()
+                            .map(serde_json::Value::String)
+                            .collect(),
+                    ),
+                );
             }
         }
-        
+
         // Add available tools with descriptions for better context
         let tools_with_descriptions: Vec<String> = available_tools
             .iter()
@@ -752,22 +803,26 @@ impl SubAgent {
                 }
             })
             .collect();
-        
-        context.insert("available_tools", serde_json::Value::String(
-            if tools_with_descriptions.is_empty() {
+
+        context.insert(
+            "available_tools",
+            serde_json::Value::String(if tools_with_descriptions.is_empty() {
                 "None".to_string()
             } else {
                 tools_with_descriptions.join(", ")
-            }
-        ));
-        
+            }),
+        );
+
         // Add tool count for context
-        context.insert("tool_count", serde_json::Value::Number(serde_json::Number::from(available_tools.len())));
-        
+        context.insert(
+            "tool_count",
+            serde_json::Value::Number(serde_json::Number::from(available_tools.len())),
+        );
+
         // Render the subagent system prompt template
         let system_prompt = render_global_file("subagent_system.md", &context)
             .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
-        
+
         Ok(system_prompt)
     }
 }

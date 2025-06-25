@@ -45,9 +45,7 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use crate::agents::subagent_tools::{
-    SUBAGENT_RUN_TASK_TOOL_NAME,
-};
+use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 
 use super::platform_tools;
 use super::router_tools;
