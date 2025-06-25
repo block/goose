@@ -278,6 +278,7 @@ mod tests {
                 content: vec![MessageContent::text(
                     "What's the weather like in San Francisco?",
                 )],
+                branching_metadata: Default::default(),
             },
             Message {
                 role: Role::Assistant,
@@ -285,11 +286,13 @@ mod tests {
                 content: vec![MessageContent::text(
                     "Looks like it's 60 degrees Fahrenheit in San Francisco.",
                 )],
+                branching_metadata: Default::default(),
             },
             Message {
                 role: Role::User,
                 created: 2,
                 content: vec![MessageContent::text("How about New York?")],
+                branching_metadata: Default::default(),
             },
         ];
 

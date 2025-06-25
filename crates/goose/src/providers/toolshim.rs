@@ -363,6 +363,7 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
                     role: message.role.clone(),
                     content: new_content,
                     created: message.created,
+                    branching_metadata: message.branching_metadata.clone(),
                 }
             } else {
                 message.clone()

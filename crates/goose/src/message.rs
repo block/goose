@@ -7,7 +7,7 @@ use std::collections::HashSet;
 ///
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mcp_core::content::{Content, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
 use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
@@ -19,6 +19,41 @@ use serde_json::Value;
 use utoipa::ToSchema;
 
 mod tool_result_serde;
+
+/// Reference to a session that was branched from a message
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchReference {
+    /// ID of the session that was created as a branch
+    pub session_id: String,
+    /// Timestamp when the branch was created
+    pub created_at: DateTime<Utc>,
+    /// Optional ID of the first message in the branched session
+    pub branch_point_message_id: Option<String>,
+}
+
+/// Information about the source session that this session was branched from
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSource {
+    /// ID of the source session this was branched from
+    pub source_session_id: String,
+    /// ID of the message in the source session that was branched from
+    pub source_message_id: String,
+    /// Timestamp when this branch was created
+    pub branched_at: DateTime<Utc>,
+}
+
+/// Metadata about branching relationships for a message
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchingMetadata {
+    /// List of sessions that were branched from this message
+    #[serde(default)]
+    pub branches_created: Vec<BranchReference>,
+    /// Information about the source session if this message is in a branched session
+    pub branched_from: Option<BranchSource>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -306,6 +341,9 @@ pub struct Message {
     pub role: Role,
     pub created: i64,
     pub content: Vec<MessageContent>,
+    /// Metadata about branching relationships for this message
+    #[serde(default)]
+    pub branching_metadata: BranchingMetadata,
 }
 
 impl Message {
@@ -315,6 +353,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 
@@ -324,6 +363,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 
@@ -474,6 +514,36 @@ impl Message {
     /// Add summarization requested to the message
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
+    }
+
+    /// Add a branch reference to this message's branching metadata
+    pub fn add_branch_reference(&mut self, branch_ref: BranchReference) {
+        self.branching_metadata.branches_created.push(branch_ref);
+    }
+
+    /// Set the branch source for this message (indicating it's in a branched session)
+    pub fn set_branch_source(&mut self, branch_source: BranchSource) {
+        self.branching_metadata.branched_from = Some(branch_source);
+    }
+
+    /// Check if this message has any branches created from it
+    pub fn has_branches(&self) -> bool {
+        !self.branching_metadata.branches_created.is_empty()
+    }
+
+    /// Check if this message is in a branched session
+    pub fn is_in_branched_session(&self) -> bool {
+        self.branching_metadata.branched_from.is_some()
+    }
+
+    /// Get the branch references for this message
+    pub fn get_branch_references(&self) -> &[BranchReference] {
+        &self.branching_metadata.branches_created
+    }
+
+    /// Get the branch source for this message
+    pub fn get_branch_source(&self) -> Option<&BranchSource> {
+        self.branching_metadata.branched_from.as_ref()
     }
 }
 

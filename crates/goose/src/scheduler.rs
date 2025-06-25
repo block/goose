@@ -1270,6 +1270,7 @@ mod tests {
                         text: "Mocked scheduled response".to_string(),
                         annotations: None,
                     })],
+                    branching_metadata: Default::default(),
                 },
                 ProviderUsage::new("mock-scheduler-test".to_string(), Usage::default()),
             ))

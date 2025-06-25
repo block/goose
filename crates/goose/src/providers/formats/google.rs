@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::message::{BranchingMetadata, Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -213,6 +213,7 @@ pub fn response_to_message(response: Value) -> Result<Message> {
             role,
             created,
             content,
+            branching_metadata: BranchingMetadata::default(),
         });
     }
     let candidate = candidate.unwrap();
@@ -256,6 +257,7 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         role,
         created,
         content,
+        branching_metadata: BranchingMetadata::default(),
     })
 }
 
@@ -328,6 +330,7 @@ mod tests {
             role,
             created: 0,
             content: vec![MessageContent::text(text.to_string())],
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 
@@ -336,6 +339,7 @@ mod tests {
             role: Role::User,
             created: 0,
             content: vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 
@@ -349,6 +353,7 @@ mod tests {
                 tool_call.arguments.clone(),
                 Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
             )],
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 
@@ -360,6 +365,7 @@ mod tests {
                 id.to_string(),
                 Ok(tool_response),
             )],
+            branching_metadata: BranchingMetadata::default(),
         }
     }
 

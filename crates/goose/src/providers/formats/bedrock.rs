@@ -9,7 +9,7 @@ use mcp_core::{Content, ResourceContents, Role, Tool, ToolCall, ToolError, ToolR
 use serde_json::Value;
 
 use super::super::base::Usage;
-use crate::message::{Message, MessageContent};
+use crate::message::{BranchingMetadata, Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
@@ -233,6 +233,7 @@ pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
         role,
         content,
         created,
+        branching_metadata: BranchingMetadata::default(),
     })
 }
 

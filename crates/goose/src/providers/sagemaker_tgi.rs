@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
-use crate::message::{Message, MessageContent};
+use crate::message::{BranchingMetadata, Message, MessageContent};
 use crate::model::ModelConfig;
 use chrono::Utc;
 use mcp_core::content::TextContent;
@@ -210,6 +210,7 @@ impl SageMakerTgiProvider {
                 text: clean_text,
                 annotations: None,
             })],
+            branching_metadata: BranchingMetadata::default(),
         })
     }
 

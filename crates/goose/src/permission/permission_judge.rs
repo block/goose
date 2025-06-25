@@ -3,10 +3,9 @@ use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::Provider;
-use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
-use mcp_core::{tool::Tool, TextContent};
+use mcp_core::tool::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -81,22 +80,15 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
         })
         .collect();
     let mut check_messages = vec![];
-    check_messages.push(Message {
-        role: mcp_core::Role::User,
-        created: Utc::now().timestamp(),
-        content: vec![MessageContent::Text(TextContent {
-            text: format!(
-                "Here are the tool requests: {:?}\n\nAnalyze the tool requests and list the tools that perform read-only operations. \
-                \n\nGuidelines for Read-Only Operations: \
-                \n- Read-only operations do not modify any data or state. \
-                \n- Examples include file reading, SELECT queries in SQL, and directory listing. \
-                \n- Write operations include INSERT, UPDATE, DELETE, and file writing. \
-                \n\nPlease provide a list of tool names that qualify as read-only:",
-                tool_names.join(", "),
-            ),
-            annotations: None,
-        })],
-    });
+    check_messages.push(Message::user().with_text(format!(
+        "Here are the tool requests: {:?}\n\nAnalyze the tool requests and list the tools that perform read-only operations. \
+        \n\nGuidelines for Read-Only Operations: \
+        \n- Read-only operations do not modify any data or state. \
+        \n- Examples include file reading, SELECT queries in SQL, and directory listing. \
+        \n- Write operations include INSERT, UPDATE, DELETE, and file writing. \
+        \n\nPlease provide a list of tool names that qualify as read-only:",
+        tool_names.join(", "),
+    )));
     check_messages
 }
 
@@ -264,7 +256,7 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent, ToolRequest};
+    use crate::message::{BranchingMetadata, Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
@@ -308,6 +300,7 @@ mod tests {
                             }),
                         }),
                     })],
+                    branching_metadata: BranchingMetadata::default(),
                 },
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
@@ -366,6 +359,7 @@ mod tests {
                     }),
                 }),
             })],
+            branching_metadata: BranchingMetadata::default(),
         };
 
         let result = extract_read_only_tools(&message);

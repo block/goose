@@ -194,14 +194,7 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
-                        text: "Summarized content".to_string(),
-                        annotations: None,
-                    })],
-                },
+                Message::assistant().with_text("Summarized content"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
         }
@@ -224,30 +217,18 @@ mod tests {
     }
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message {
-            role,
-            created: 0,
-            content: vec![MessageContent::text(text.to_string())],
+        match role {
+            Role::User => Message::user().with_text(text),
+            Role::Assistant => Message::assistant().with_text(text),
         }
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
-        Message {
-            role: Role::Assistant,
-            created: 0,
-            content: vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
-        }
+        Message::assistant().with_tool_request(id, Ok(tool_call))
     }
 
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
-        Message {
-            role: Role::User,
-            created: 0,
-            content: vec![MessageContent::tool_response(
-                id.to_string(),
-                Ok(tool_response),
-            )],
-        }
+        Message::user().with_tool_response(id, Ok(tool_response))
     }
 
     #[tokio::test]
@@ -395,14 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reintegrate_removed_messages() {
-        let summarized_messages = vec![Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
-                text: "Summary".to_string(),
-                annotations: None,
-            })],
-        }];
+        let summarized_messages = vec![Message::assistant().with_text("Summary")];
         let arguments = json!({
             "param1": "value1"
         });

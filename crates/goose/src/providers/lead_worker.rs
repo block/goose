@@ -487,6 +487,7 @@ mod tests {
                         text: format!("Response from {}", self.name),
                         annotations: None,
                     })],
+                    branching_metadata: Default::default(),
                 },
                 ProviderUsage::new(self.name.clone(), Usage::default()),
             ))
@@ -650,6 +651,7 @@ mod tests {
                             text: format!("Response from {}", self.name),
                             annotations: None,
                         })],
+                        branching_metadata: Default::default(),
                     },
                     ProviderUsage::new(self.name.clone(), Usage::default()),
                 ))

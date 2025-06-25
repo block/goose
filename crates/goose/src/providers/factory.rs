@@ -185,6 +185,7 @@ mod tests {
                         ),
                         annotations: None,
                     })],
+                    branching_metadata: Default::default(),
                 },
                 ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
             ))

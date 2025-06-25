@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::message::{BranchingMetadata, Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -278,6 +278,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
         role: Role::Assistant,
         created: chrono::Utc::now().timestamp(),
         content,
+        branching_metadata: BranchingMetadata::default(),
     })
 }
 
