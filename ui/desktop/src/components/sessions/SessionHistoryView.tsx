@@ -9,8 +9,9 @@ import {
   Check,
   Target,
   LoaderCircle,
+  GitBranch,
 } from 'lucide-react';
-import { type SessionDetails } from '../../sessions';
+import { type SessionDetails, createSessionBranch } from '../../sessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { createSharedSession } from '../../sharedSessions';
@@ -43,6 +44,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [isBranching, setIsBranching] = useState(false);
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -106,6 +108,38 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       });
   };
 
+  const handleBranchFromMessage = async (messageIndex: number) => {
+    try {
+      setIsBranching(true);
+
+      // Use the API to create a branch
+      const newSessionId = await createSessionBranch(
+        session.session_id,
+        messageIndex,
+        `Branched from ${session.session_id}`
+      );
+
+      // Open a new chat window with the branch session ID
+      window.electron.createChatWindow(
+        undefined, // query
+        session.metadata.working_dir, // dir
+        undefined, // version
+        newSessionId, // resumeSessionId
+        undefined, // recipeConfig
+        undefined // viewType
+      );
+
+      toast.success(`Created new branch from message ${messageIndex + 1}`);
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      toast.error(
+        `Failed to create branch: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsBranching(false);
+    }
+  };
+
   return (
     <div className="h-screen w-full flex flex-col">
       <MoreMenuLayout showMenu={false} />
@@ -136,6 +170,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               <Folder className="w-4 h-4 mr-1" />
               {session.metadata.working_dir}
             </span>
+            {isBranching && (
+              <span className="flex items-center text-amber-400">
+                <LoaderCircle className="w-4 h-4 mr-1 animate-spin" />
+                Creating branch...
+              </span>
+            )}
           </div>
         </div>
 
@@ -164,6 +204,15 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             </button>
 
             <button
+              onClick={() => handleBranchFromMessage(session.messages.length - 1)}
+              title="Branch from latest message"
+              disabled={isBranching}
+              className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
+            >
+              <GitBranch className="w-7 h-7" />
+            </button>
+
+            <button
               onClick={onResume}
               title="Resume Session"
               className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
@@ -179,6 +228,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         isLoading={isLoading}
         error={error}
         onRetry={onRetry}
+        onBranchFromMessage={handleBranchFromMessage}
       />
 
       <Modal open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>

@@ -636,7 +636,6 @@
           {
             "name": "id",
             "in": "path",
-            "description": "ID of the schedule to kill",
             "required": true,
             "schema": {
               "type": "string"
@@ -645,23 +644,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Running job killed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KillJobResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Job is not currently running"
-          },
-          "404": {
-            "description": "Scheduled job not found"
-          },
-          "500": {
-            "description": "Internal server error"
+            "description": "Running job killed successfully"
           }
         }
       }

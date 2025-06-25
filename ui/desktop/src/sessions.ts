@@ -1,6 +1,7 @@
 import { Message } from './types/message';
 import { getSessionHistory, listSessions, SessionInfo } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
+import { client } from './api/client.gen';
 
 export interface SessionMetadata {
   description: string;
@@ -51,10 +52,6 @@ export function generateSessionId(): string {
   return `${year}${month}${day}_${hours}${minutes}${seconds}`;
 }
 
-/**
- * Fetches all available sessions from the API
- * @returns Promise with sessions data
- */
 /**
  * Fetches all available sessions from the API
  * @returns Promise with an array of Session objects
@@ -116,6 +113,49 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     };
   } catch (error) {
     console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Creates a branch from an existing session up to a specified message index
+ *
+ * @param sessionId - ID of the source session to branch from
+ * @param messageIndex - Index of the last message to include in the branch
+ * @param description - Optional description for the new branch
+ * @returns Promise with the ID of the newly created branch session
+ */
+export async function createSessionBranch(
+  sessionId: string,
+  messageIndex: number,
+  description?: string
+): Promise<string> {
+  try {
+    const requestBody = {
+      messageIndex: messageIndex,
+      description,
+    };
+
+    const response = await client.post<{ branchSessionId: string }, unknown, false>({
+      url: `/sessions/${sessionId}/branch`,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: requestBody,
+      throwOnError: false,
+    });
+
+    if (response.error) {
+      throw new Error(`Server error: ${JSON.stringify(response.error)}`);
+    }
+
+    if (!response.data || !response.data.branchSessionId) {
+      throw new Error(`Invalid response format: ${JSON.stringify(response.data)}`);
+    }
+
+    return response.data.branchSessionId;
+  } catch (error) {
+    console.error(`Error creating session branch for ${sessionId}:`, error);
     throw error;
   }
 }

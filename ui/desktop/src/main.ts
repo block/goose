@@ -16,7 +16,6 @@ import {
 import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { spawn } from 'child_process';

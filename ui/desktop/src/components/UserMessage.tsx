@@ -7,12 +7,15 @@ import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
+import { GitBranch } from 'lucide-react';
 
 interface UserMessageProps {
   message: Message;
+  messageIndex?: number;
+  onBranch?: (messageIndex: number) => void;
 }
 
-export default function UserMessage({ message }: UserMessageProps) {
+export default function UserMessage({ message, messageIndex, onBranch }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -56,7 +59,16 @@ export default function UserMessage({ message }: UserMessageProps) {
             <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
-            <div className="absolute right-0 pt-1">
+            <div className="absolute right-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {onBranch && messageIndex !== undefined && (
+                <button
+                  onClick={() => onBranch(messageIndex)}
+                  title="Branch from this message"
+                  className="text-textSubtle hover:text-textStandard transition-colors"
+                >
+                  <GitBranch className="w-4 h-4" />
+                </button>
+              )}
               <MessageCopyLink text={displayText} contentRef={contentRef} />
             </div>
           </div>
