@@ -692,7 +692,7 @@ impl Agent {
                     if let JsonRpcMessage::Notification(ref notif) = notification {
                         if let Some(params) = &notif.params {
                             if let Some(data) = params.get("data") {
-                                if let (Some(subagent_id), Some(message)) = (
+                                if let (Some(subagent_id), Some(_message)) = (
                                     data.get("subagent_id").and_then(|v| v.as_str()),
                                     data.get("message").and_then(|v| v.as_str())
                                 ) {

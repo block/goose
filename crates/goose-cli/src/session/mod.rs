@@ -8,7 +8,7 @@ mod thinking;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
-use console::{Color, style};
+use console::Color;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
@@ -52,8 +52,6 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
-    // Buffer for grouping subagent notifications
-    subagent_notifications: HashMap<String, Vec<String>>,
 }
 
 // Cache structure for completion data
@@ -132,7 +130,6 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
-            subagent_notifications: HashMap::new(),
         }
     }
 
@@ -205,27 +202,7 @@ impl Session {
         Ok(())
     }
 
-    /// Display grouped subagent notifications with visual formatting
-    fn display_subagent_group(&self, subagent_id: &str, notifications: &[String]) {
-        if notifications.is_empty() {
-            return;
-        }
 
-        // Short ID for display (first 8 characters)
-        let short_id = &subagent_id[..8.min(subagent_id.len())];
-        
-        println!("\n┌─ {} {} ─{}─",
-            style("Subagent").dim(),
-            style(short_id).cyan().bold(),
-            "─".repeat(50_usize.saturating_sub(15 + short_id.len()))
-        );
-        
-        for notification in notifications {
-            println!("│ {}", notification);
-        }
-        
-        println!("└{}\n", "─".repeat(65));
-    }
 
     /// Add a remote extension to the session
     ///
@@ -931,7 +908,7 @@ impl Session {
                                 match method.as_str() {
                                     "notifications/message" => {
                                         let data = o.get("data").unwrap_or(&Value::Null);
-                                        let (formatted_message, subagent_id, notification_type) = match data {
+                                        let (formatted_message, subagent_id, _notification_type) = match data {
                                             Value::String(s) => (s.clone(), None, None),
                                             Value::Object(o) => {
                                                 // Check for subagent notification structure first
@@ -954,6 +931,31 @@ impl Session {
                                                         "message_processing" | "turn_progress" => {
                                                             format!("💭 {}", msg)
                                                         }
+                                                        "response_generated" => {
+                                                            // Check verbosity setting for subagent response content
+                                                            let config = Config::global();
+                                                            let min_priority = config
+                                                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                                                                .ok()
+                                                                .unwrap_or(0.5);
+                                                            
+                                                            if min_priority > 0.1 && !self.debug {
+                                                                // High/Medium verbosity: show truncated response
+                                                                if msg.starts_with("Responded: ") {
+                                                                    let response_content = &msg[11..]; // Remove "Responded: " prefix
+                                                                    if response_content.len() > 100 {
+                                                                        format!("🤖 Responded: {}...", &response_content[..100])
+                                                                    } else {
+                                                                        format!("🤖 {}", msg)
+                                                                    }
+                                                                } else {
+                                                                    format!("🤖 {}", msg)
+                                                                }
+                                                            } else {
+                                                                // All verbosity or debug: show full response
+                                                                format!("🤖 {}", msg)
+                                                            }
+                                                        }
                                                         _ => {
                                                             format!("{}", msg)
                                                         }
@@ -971,35 +973,20 @@ impl Session {
                                             },
                                         };
                                         
-                                        // Handle subagent notifications with buffering
-                                        if let Some(id) = subagent_id {
-                                            // Add to buffer
-                                            self.subagent_notifications
-                                                .entry(id.clone())
-                                                .or_insert_with(Vec::new)
-                                                .push(formatted_message);
-                                            
-                                            // Check if this is a completion/termination notification
-                                            if let Some(ntype) = notification_type {
-                                                if ntype == "completed" || ntype == "terminated" {
-                                                    // Display the entire group
-                                                    if let Some(notifications) = self.subagent_notifications.remove(&id) {
-                                                        if interactive {
-                                                            let _ = progress_bars.hide();
-                                                            self.display_subagent_group(&id, &notifications);
-                                                        } else {
-                                                            // For non-interactive mode, still show grouped
-                                                            let group_message = format!("Subagent {} completed with {} notifications", &id[..8.min(id.len())], notifications.len());
-                                                            progress_bars.log(&group_message);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            // Non-subagent notification, display immediately
+                                        // Handle subagent notifications - show immediately
+                                        if let Some(_id) = subagent_id {
+                                            // Show subagent notifications immediately (no buffering) with compact spacing
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                output::render_text(&formatted_message, None, true);
+                                                println!("{}", console::style(&formatted_message).green().dim());
+                                            } else {
+                                                progress_bars.log(&formatted_message);
+                                            }
+                                        } else {
+                                            // Non-subagent notification, display immediately with compact spacing
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                                println!("{}", console::style(&formatted_message).green().dim());
                                             } else {
                                                 progress_bars.log(&formatted_message);
                                             }
@@ -1032,10 +1019,20 @@ impl Session {
                             }
                         }
                         Some(Ok(AgentEvent::SubagentNotification { subagent_id, message })) => {
-                            // Display subagent notification to user but don't persist to history
-                            if interactive {output::hide_thinking()};
-                            let _ = progress_bars.hide();
-                            output::render_text(&format!("Subagent {}: {}", subagent_id, message), None, true);
+                            // Check if subagent notifications should be shown based on verbosity setting
+                            let config = Config::global();
+                            let min_priority = config
+                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                                .ok()
+                                .unwrap_or(0.5);
+
+                            // Only show subagent notifications when verbosity is "All" (0.0) or in debug mode
+                            if min_priority <= 0.1 || self.debug {
+                                // Display subagent notification to user but don't persist to history
+                                if interactive {output::hide_thinking()};
+                                let _ = progress_bars.hide();
+                                output::render_text(&format!("Subagent {}: {}", subagent_id, message), None, true);
+                            }
                         }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
