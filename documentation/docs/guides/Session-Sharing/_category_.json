@@ -1,0 +1,8 @@
+{
+    "label": "Session Sharing",
+    "position": 21,
+    "link": {
+      "type": "generated-index",
+      "description": "Learn about building a server that enables session sharing"
+    }
+  }
