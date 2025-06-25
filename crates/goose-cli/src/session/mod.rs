@@ -1016,22 +1016,7 @@ impl Session {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
-                        Some(Ok(AgentEvent::SubagentNotification { subagent_id, message })) => {
-                            // Check if subagent notifications should be shown based on verbosity setting
-                            let config = Config::global();
-                            let min_priority = config
-                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
-                                .ok()
-                                .unwrap_or(0.5);
 
-                            // Only show subagent notifications when verbosity is "All" (0.0) or in debug mode
-                            if min_priority <= 0.1 || self.debug {
-                                // Display subagent notification to user but don't persist to history
-                                if interactive {output::hide_thinking()};
-                                let _ = progress_bars.hide();
-                                output::render_text(&format!("Subagent {}: {}", subagent_id, message), None, true);
-                            }
-                        }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);

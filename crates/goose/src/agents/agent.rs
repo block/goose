@@ -76,14 +76,7 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, JsonRpcMessage)),
-    ModelChange {
-        model: String,
-        mode: String,
-    },
-    SubagentNotification {
-        subagent_id: String,
-        message: String,
-    },
+    ModelChange { model: String, mode: String },
 }
 
 impl Default for Agent {

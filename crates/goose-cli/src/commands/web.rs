@@ -618,9 +618,7 @@ async fn process_message_streaming(
                         // Log model change
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
-                    Ok(AgentEvent::SubagentNotification { .. }) => {
-                        // Handle subagent notifications if needed
-                    }
+
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         let mut sender = sender.lock().await;
