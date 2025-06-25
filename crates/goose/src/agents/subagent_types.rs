@@ -10,14 +10,6 @@ pub struct SpawnSubAgentArgs {
     pub timeout_seconds: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubAgentNotification {
-    pub subagent_id: String,
-    pub message: String, // Simple string message for now
-    pub timestamp: DateTime<Utc>,
-    pub is_complete: bool, // Flag to indicate if this is a completion notification
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SubAgentUpdateType {
     Progress,   // Regular progress update

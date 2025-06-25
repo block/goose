@@ -69,6 +69,7 @@ pub struct Agent {
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) subagent_manager: Mutex<Option<SubAgentManager>>,
+    pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -130,6 +131,8 @@ impl Agent {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
+        // Add MCP notification channel
+        let (mcp_tx, mcp_rx) = mpsc::channel(100);
 
         Self {
             provider: Mutex::new(None),
@@ -145,7 +148,9 @@ impl Agent {
             tool_monitor: Mutex::new(None),
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
-            subagent_manager: Mutex::new(Some(SubAgentManager::new())),
+            // Initialize with MCP notification support
+            subagent_manager: Mutex::new(Some(SubAgentManager::new(mcp_tx))),
+            mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
         }
     }
 
@@ -680,14 +685,26 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
-                // Check for subagent notifications
-                let notifications = self.get_subagent_notifications().await;
-                for notification in notifications {
-                    // Convert notifications to SubagentNotification events (not persisted to history)
-                    yield AgentEvent::SubagentNotification {
-                        subagent_id: notification.subagent_id,
-                        message: notification.message,
-                    };
+                // Check for MCP notifications from subagents
+                let mcp_notifications = self.get_mcp_notifications().await;
+                for notification in mcp_notifications {
+                    // Extract subagent info from the notification data
+                    if let JsonRpcMessage::Notification(ref notif) = notification {
+                        if let Some(params) = &notif.params {
+                            if let Some(data) = params.get("data") {
+                                if let (Some(subagent_id), Some(message)) = (
+                                    data.get("subagent_id").and_then(|v| v.as_str()),
+                                    data.get("message").and_then(|v| v.as_str())
+                                ) {
+                                    // Emit as McpNotification event
+                                    yield AgentEvent::McpNotification((
+                                        subagent_id.to_string(),
+                                        notification.clone()
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
 
                 match Self::generate_response_from_provider(
@@ -892,18 +909,30 @@ impl Agent {
                         messages.push(response);
                         messages.push(final_message_tool_resp);
 
-                        // Check for subagent notifications again before next iteration
-                        let notifications = self.get_subagent_notifications().await;
-                        for notification in notifications {
-                            yield AgentEvent::Message(
-                                Message::assistant().with_text(
-                                    format!("Subagent {}: {}",
-                                        notification.subagent_id,
-                                        notification.message
-                                    )
-                                )
-                            );
-                        }
+                        // Check for MCP notifications from subagents again before next iteration
+                        // Note: These are already handled as McpNotification events above,
+                        // so we don't need to convert them to assistant messages here.
+                        // This was causing duplicate plain-text notifications.
+                        // let mcp_notifications = self.get_mcp_notifications().await;
+                        // for notification in mcp_notifications {
+                        //     // Extract subagent info from the notification data for assistant messages
+                        //     if let JsonRpcMessage::Notification(ref notif) = notification {
+                        //         if let Some(params) = &notif.params {
+                        //             if let Some(data) = params.get("data") {
+                        //                 if let (Some(subagent_id), Some(message)) = (
+                        //                     data.get("subagent_id").and_then(|v| v.as_str()),
+                        //                     data.get("message").and_then(|v| v.as_str())
+                        //                 ) {
+                        //                     yield AgentEvent::Message(
+                        //                         Message::assistant().with_text(
+                        //                             format!("Subagent {}: {}", subagent_id, message)
+                        //                         )
+                        //                     );
+                        //                 }
+                        //             }
+                        //         }
+                        //     }
+                        // }
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
                         // At this point, the last message should be a user message
@@ -934,13 +963,31 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
+    /// Get MCP notifications from subagents
+    pub async fn get_mcp_notifications(&self) -> Vec<JsonRpcMessage> {
+        let mut notifications = Vec::new();
+        let mut rx = self.mcp_notification_rx.lock().await;
+        
+        while let Ok(notification) = rx.try_recv() {
+            notifications.push(notification);
+        }
+        
+        notifications
+    }
+
     /// Update the provider
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        // Initialize subagent manager with the provider
-        *self.subagent_manager.lock().await = Some(SubAgentManager::new());
+        // Initialize subagent manager with MCP notification support  
+        // Need to recreate the MCP channel since we're replacing the manager
+        let (mcp_tx, mcp_rx) = mpsc::channel(100);
+        {
+            let mut rx_guard = self.mcp_notification_rx.lock().await;
+            *rx_guard = mcp_rx;
+        }
+        *self.subagent_manager.lock().await = Some(SubAgentManager::new(mcp_tx));
 
         self.update_router_tool_selector(Some(provider), None)
             .await?;

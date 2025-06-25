@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::agents::subagent_types::{
-    SpawnSubAgentArgs, SubAgentNotification, SubAgentUpdate, SubAgentUpdateType,
+    SpawnSubAgentArgs, SubAgentUpdate, SubAgentUpdateType,
 };
 use crate::agents::Agent;
 
@@ -77,16 +77,6 @@ impl Agent {
                 "Failed to run subagent task: {}",
                 e
             ))),
-        }
-    }
-
-    /// Get notifications from subagents
-    pub async fn get_subagent_notifications(&self) -> Vec<SubAgentNotification> {
-        let mut subagent_manager = self.subagent_manager.lock().await;
-        if let Some(manager) = subagent_manager.as_mut() {
-            manager.process_notifications().await
-        } else {
-            Vec::new()
         }
     }
 

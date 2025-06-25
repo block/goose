@@ -909,7 +909,32 @@ impl Session {
                                         let message = match data {
                                             Value::String(s) => s.clone(),
                                             Value::Object(o) => {
-                                                if let Some(Value::String(output)) = o.get("output") {
+                                                // Check for subagent notification structure first
+                                                if let Some(Value::String(msg)) = o.get("message") {
+                                                    // Extract subagent info for better display
+                                                    let subagent_id = o.get("subagent_id")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("unknown");
+                                                    let notification_type = o.get("type")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("");
+                                                    
+                                                    match notification_type {
+                                                        "subagent_created" | "completed" | "terminated" => {
+                                                            format!("🤖 Subagent {}: {}", subagent_id, msg)
+                                                        }
+                                                        "tool_usage" | "tool_completed" | "tool_error" => {
+                                                            format!("🔧 Subagent {}: {}", subagent_id, msg)
+                                                        }
+                                                        "message_processing" | "turn_progress" => {
+                                                            format!("💭 Subagent {}: {}", subagent_id, msg)
+                                                        }
+                                                        _ => {
+                                                            format!("Subagent {}: {}", subagent_id, msg)
+                                                        }
+                                                    }
+                                                } else if let Some(Value::String(output)) = o.get("output") {
+                                                    // Fallback for other MCP notification types
                                                     output.to_owned()
                                                 } else {
                                                     data.to_string()
@@ -919,8 +944,10 @@ impl Session {
                                                     v.to_string()
                                             },
                                         };
+                                        // Show subagent notifications as permanent messages, not thinking messages
                                         if interactive {
-                                            output::set_thinking_message(&message);
+                                            let _ = progress_bars.hide();
+                                            output::render_text(&message, None, true);
                                         } else {
                                             progress_bars.log(&message);
                                         }

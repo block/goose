@@ -5,10 +5,11 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument, warn};
+use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::subagent::{SubAgent, SubAgentConfig, SubAgentProgress, SubAgentStatus};
-use crate::agents::subagent_types::{SpawnSubAgentArgs, SubAgentNotification, SubAgentUpdate};
+use crate::agents::subagent_types::{SpawnSubAgentArgs, SubAgentUpdate};
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 
@@ -16,24 +17,21 @@ use crate::recipe::Recipe;
 pub struct SubAgentManager {
     subagents: Arc<RwLock<HashMap<String, Arc<SubAgent>>>>,
     handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
-    notification_rx: mpsc::Receiver<SubAgentNotification>,
-    notification_tx: mpsc::Sender<SubAgentNotification>,
     update_rx: mpsc::Receiver<SubAgentUpdate>,
     update_tx: mpsc::Sender<SubAgentUpdate>,
+    mcp_notification_tx: mpsc::Sender<JsonRpcMessage>,
 }
 
 impl SubAgentManager {
     /// Create a new subagent manager
-    pub fn new() -> Self {
-        let (notification_tx, notification_rx) = mpsc::channel(100); // Buffer size of 100
+    pub fn new(mcp_notification_tx: mpsc::Sender<JsonRpcMessage>) -> Self {
         let (update_tx, update_rx) = mpsc::channel(100); // Buffer size of 100
         Self {
             subagents: Arc::new(RwLock::new(HashMap::new())),
             handles: Arc::new(Mutex::new(HashMap::new())),
-            notification_rx,
-            notification_tx,
             update_rx,
             update_tx,
+            mcp_notification_tx,
         }
     }
 
@@ -74,8 +72,8 @@ impl SubAgentManager {
             config,
             Arc::clone(&provider),
             Arc::clone(&extension_manager),
-            self.notification_tx.clone(),
             self.update_tx.clone(),
+            self.mcp_notification_tx.clone(),
         )
         .await?;
         let subagent_id = subagent.id.clone();
@@ -294,41 +292,6 @@ impl SubAgentManager {
         subagents.contains_key(id)
     }
 
-    /// Process and retrieve pending notifications
-    pub async fn process_notifications(&mut self) -> Vec<SubAgentNotification> {
-        let mut notifications = Vec::new();
-        let mut completed_ids = Vec::new();
-
-        // Try to receive all pending notifications without blocking
-        while let Ok(notification) = self.notification_rx.try_recv() {
-            // If this is a completion notification, mark for cleanup
-            if notification.is_complete {
-                completed_ids.push(notification.subagent_id.clone());
-            }
-            notifications.push(notification);
-        }
-
-        // Clean up completed subagents
-        for id in completed_ids {
-            // Check if subagent still exists before terminating
-            let exists = {
-                let subagents = self.subagents.read().await;
-                subagents.contains_key(&id)
-            };
-
-            if exists {
-                if let Err(e) = self.terminate_subagent(&id).await {
-                    error!("Failed to terminate completed subagent {}: {}", id, e);
-                } else {
-                    debug!("Automatically terminated completed subagent {}", id);
-                }
-            } else {
-                debug!("Subagent {} already terminated, skipping", id);
-            }
-        }
-
-        notifications
-    }
     /// Process and retrieve pending updates (for main agent only)
     pub async fn process_updates(&mut self) -> Vec<SubAgentUpdate> {
         let mut updates = Vec::new();
@@ -379,8 +342,8 @@ impl SubAgentManager {
             config,
             Arc::clone(&provider),
             Arc::clone(&extension_manager),
-            self.notification_tx.clone(),
             self.update_tx.clone(),
+            self.mcp_notification_tx.clone(),
         )
         .await?;
         let subagent_id = subagent.id.clone();
@@ -466,7 +429,11 @@ impl SubAgentManager {
 
 impl Default for SubAgentManager {
     fn default() -> Self {
-        Self::new()
+        // Create a dummy channel for default implementation
+        // In practice, this should not be used - SubAgentManager should be created
+        // with a proper MCP notification sender
+        let (tx, _rx) = mpsc::channel(1);
+        Self::new(tx)
     }
 }
 

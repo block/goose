@@ -9,8 +9,9 @@ use crate::{
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use mcp_core::{handler::ToolError, role::Role, tool::Tool};
+use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::{self, json};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument};
@@ -21,7 +22,7 @@ use crate::agents::platform_tools::{
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
-use crate::agents::subagent_types::{SubAgentNotification, SubAgentUpdate, SubAgentUpdateType};
+use crate::agents::subagent_types::{SubAgentUpdate, SubAgentUpdateType};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -95,19 +96,19 @@ pub struct SubAgent {
     pub created_at: DateTime<Utc>,
     pub recipe_extensions: Arc<Mutex<Vec<String>>>,
     pub missing_extensions: Arc<Mutex<Vec<String>>>, // Track extensions that weren't enabled
-    pub notification_tx: mpsc::Sender<SubAgentNotification>, // For user-visible notifications
     pub update_tx: mpsc::Sender<SubAgentUpdate>,     // For main agent internal updates
+    pub mcp_notification_tx: mpsc::Sender<JsonRpcMessage>, // For MCP notifications
 }
 
 impl SubAgent {
     /// Create a new subagent with the given configuration and provider
-    #[instrument(skip(config, _provider, extension_manager, notification_tx, update_tx))]
+    #[instrument(skip(config, _provider, extension_manager, update_tx, mcp_notification_tx))]
     pub async fn new(
         config: SubAgentConfig,
         _provider: Arc<dyn Provider>,
         extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
-        notification_tx: mpsc::Sender<SubAgentNotification>,
         update_tx: mpsc::Sender<SubAgentUpdate>,
+        mcp_notification_tx: mpsc::Sender<JsonRpcMessage>,
     ) -> Result<(Arc<Self>, tokio::task::JoinHandle<()>), anyhow::Error> {
         debug!("Creating new subagent with id: {}", config.id);
 
@@ -143,14 +144,14 @@ impl SubAgent {
             created_at: Utc::now(),
             recipe_extensions: Arc::new(Mutex::new(recipe_extensions)),
             missing_extensions: Arc::new(Mutex::new(missing_extensions)),
-            notification_tx,
             update_tx,
+            mcp_notification_tx,
         });
 
-        // Send initial notification
+        // Send initial MCP notification
         let subagent_clone = Arc::clone(&subagent);
         subagent_clone
-            .send_notification("Subagent created and ready".to_string(), false)
+            .send_mcp_notification("subagent_created", "Subagent created and ready")
             .await;
 
         // Send initial update to main agent
@@ -185,10 +186,14 @@ impl SubAgent {
             *current_status = status.clone();
         } // Write lock is released here!
 
-        // Now send notifications without holding the lock
+        // Send MCP notifications based on status
         match &status {
+            SubAgentStatus::Processing => {
+                self.send_mcp_notification("status_changed", "Processing request")
+                    .await;
+            }
             SubAgentStatus::Completed(msg) => {
-                self.send_notification(format!("Completed: {}", msg), true)
+                self.send_mcp_notification("completed", &format!("Completed: {}", msg))
                     .await;
 
                 self.send_update(
@@ -198,7 +203,8 @@ impl SubAgent {
                 .await;
             }
             SubAgentStatus::Terminated => {
-                self.send_notification("Terminated".to_string(), true).await;
+                self.send_mcp_notification("terminated", "Subagent terminated")
+                    .await;
 
                 self.send_update(SubAgentUpdateType::Completion, "Terminated".to_string())
                     .await;
@@ -207,18 +213,26 @@ impl SubAgent {
         }
     }
 
-    /// Send a notification about the subagent's activity
-    pub async fn send_notification(&self, message: String, is_complete: bool) {
-        let notification = SubAgentNotification {
-            subagent_id: self.id.clone(),
-            message,
-            timestamp: Utc::now(),
-            is_complete,
-        };
+    /// Send an MCP notification about the subagent's activity
+    pub async fn send_mcp_notification(&self, notification_type: &str, message: &str) {
+        let notification = JsonRpcMessage::Notification(JsonRpcNotification {
+            jsonrpc: "2.0".to_string(),
+            method: "notifications/message".to_string(),
+            params: Some(json!({
+                "level": "info",
+                "logger": format!("subagent_{}", self.id),
+                "data": {
+                    "subagent_id": self.id,
+                    "type": notification_type,
+                    "message": message,
+                    "timestamp": Utc::now().to_rfc3339()
+                }
+            })),
+        });
 
-        if let Err(e) = self.notification_tx.send(notification).await {
+        if let Err(e) = self.mcp_notification_tx.send(notification).await {
             error!(
-                "Failed to send notification from subagent {}: {}",
+                "Failed to send MCP notification from subagent {}: {}",
                 self.id, e
             );
         }
@@ -278,7 +292,7 @@ impl SubAgent {
         extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
     ) -> Result<Message, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
-        self.send_notification(format!("Processing message: {}", message), false)
+        self.send_mcp_notification("message_processing", &format!("Processing: {}", message))
             .await;
 
         // Check if we've exceeded max turns
@@ -309,11 +323,10 @@ impl SubAgent {
         {
             let mut turn_count = self.turn_count.lock().await;
             *turn_count += 1;
-            self.send_notification(
-                format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0)),
-                false,
-            )
-            .await;
+            self.send_mcp_notification(
+                "turn_progress",
+                &format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0))
+            ).await;
 
             // Send update to main agent
             self.send_update(
@@ -408,13 +421,6 @@ impl SubAgent {
 
         let toolshim_tools: Vec<Tool> = vec![];
 
-        // Debug: Print the final list of tools available to the subagent
-        println!("=== Subagent {} Tool List ===", self.id);
-        for (i, tool) in tools.iter().enumerate() {
-            println!("  {}. {} - {}", i + 1, tool.name, tool.description);
-        }
-        println!("=== Total: {} tools ===\n", tools.len());
-
         // Build system prompt using the template
         let system_prompt = self.build_system_prompt(&tools).await?;
 
@@ -448,11 +454,10 @@ impl SubAgent {
                         self.add_message(response.clone()).await;
 
                         // Send notification about response
-                        self.send_notification(
-                            format!("Responded: {}", response.as_concat_text()),
-                            false,
-                        )
-                        .await;
+                        self.send_mcp_notification(
+                            "response_generated",
+                            &format!("Responded: {}", response.as_concat_text())
+                        ).await;
 
                         // Send update to main agent with the result
                         self.send_update(
@@ -477,11 +482,10 @@ impl SubAgent {
                     for request in &tool_requests {
                         if let Ok(tool_call) = &request.tool_call {
                             // Send notification about tool usage
-                            self.send_notification(
-                                format!("Using tool: {}", tool_call.name),
-                                false,
-                            )
-                            .await;
+                            self.send_mcp_notification(
+                                "tool_usage",
+                                &format!("Using tool: {}", tool_call.name)
+                            ).await;
 
                             // Handle platform tools or dispatch to extension manager
                             let tool_result = if self.is_platform_tool(&tool_call.name) {
@@ -508,11 +512,10 @@ impl SubAgent {
                                     messages.push(tool_response_message);
 
                                     // Send notification about tool completion
-                                    self.send_notification(
-                                        format!("Tool {} completed", tool_call.name),
-                                        false,
-                                    )
-                                    .await;
+                                    self.send_mcp_notification(
+                                        "tool_completed",
+                                        &format!("Tool {} completed successfully", tool_call.name)
+                                    ).await;
 
                                     // Send update to main agent
                                     self.send_update(
@@ -530,11 +533,8 @@ impl SubAgent {
                                     messages.push(tool_error_message);
 
                                     // Send notification about tool error
-                                    self.send_notification(
-                                        format!("Tool {} error: {}", tool_call.name, e),
-                                        false,
-                                    )
-                                    .await;
+                                    self.send_mcp_notification("tool_error", &format!("Tool {} error: {}", tool_call.name, e))
+                                        .await;
 
                                     // Send update to main agent
                                     self.send_update(
