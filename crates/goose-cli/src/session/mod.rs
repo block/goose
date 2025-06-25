@@ -8,7 +8,7 @@ mod thinking;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
-use console::Color;
+use console::{Color, style};
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
@@ -52,6 +52,8 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    // Buffer for grouping subagent notifications
+    subagent_notifications: HashMap<String, Vec<String>>,
 }
 
 // Cache structure for completion data
@@ -130,6 +132,7 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
+            subagent_notifications: HashMap::new(),
         }
     }
 
@@ -200,6 +203,28 @@ impl Session {
         self.invalidate_completion_cache().await;
 
         Ok(())
+    }
+
+    /// Display grouped subagent notifications with visual formatting
+    fn display_subagent_group(&self, subagent_id: &str, notifications: &[String]) {
+        if notifications.is_empty() {
+            return;
+        }
+
+        // Short ID for display (first 8 characters)
+        let short_id = &subagent_id[..8.min(subagent_id.len())];
+        
+        println!("\n┌─ {} {} ─{}─",
+            style("Subagent").dim(),
+            style(short_id).cyan().bold(),
+            "─".repeat(50_usize.saturating_sub(15 + short_id.len()))
+        );
+        
+        for notification in notifications {
+            println!("│ {}", notification);
+        }
+        
+        println!("└{}\n", "─".repeat(65));
     }
 
     /// Add a remote extension to the session
@@ -906,8 +931,8 @@ impl Session {
                                 match method.as_str() {
                                     "notifications/message" => {
                                         let data = o.get("data").unwrap_or(&Value::Null);
-                                        let message = match data {
-                                            Value::String(s) => s.clone(),
+                                        let (formatted_message, subagent_id, notification_type) = match data {
+                                            Value::String(s) => (s.clone(), None, None),
                                             Value::Object(o) => {
                                                 // Check for subagent notification structure first
                                                 if let Some(Value::String(msg)) = o.get("message") {
@@ -919,37 +944,65 @@ impl Session {
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("");
                                                     
-                                                    match notification_type {
+                                                    let formatted = match notification_type {
                                                         "subagent_created" | "completed" | "terminated" => {
-                                                            format!("🤖 Subagent {}: {}", subagent_id, msg)
+                                                            format!("🤖 {}", msg)
                                                         }
                                                         "tool_usage" | "tool_completed" | "tool_error" => {
-                                                            format!("🔧 Subagent {}: {}", subagent_id, msg)
+                                                            format!("🔧 {}", msg)
                                                         }
                                                         "message_processing" | "turn_progress" => {
-                                                            format!("💭 Subagent {}: {}", subagent_id, msg)
+                                                            format!("💭 {}", msg)
                                                         }
                                                         _ => {
-                                                            format!("Subagent {}: {}", subagent_id, msg)
+                                                            format!("{}", msg)
                                                         }
-                                                    }
+                                                    };
+                                                    (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
                                                 } else if let Some(Value::String(output)) = o.get("output") {
                                                     // Fallback for other MCP notification types
-                                                    output.to_owned()
+                                                    (output.to_owned(), None, None)
                                                 } else {
-                                                    data.to_string()
+                                                    (data.to_string(), None, None)
                                                 }
                                             },
                                             v => {
-                                                    v.to_string()
+                                                (v.to_string(), None, None)
                                             },
                                         };
-                                        // Show subagent notifications as permanent messages, not thinking messages
-                                        if interactive {
-                                            let _ = progress_bars.hide();
-                                            output::render_text(&message, None, true);
+                                        
+                                        // Handle subagent notifications with buffering
+                                        if let Some(id) = subagent_id {
+                                            // Add to buffer
+                                            self.subagent_notifications
+                                                .entry(id.clone())
+                                                .or_insert_with(Vec::new)
+                                                .push(formatted_message);
+                                            
+                                            // Check if this is a completion/termination notification
+                                            if let Some(ntype) = notification_type {
+                                                if ntype == "completed" || ntype == "terminated" {
+                                                    // Display the entire group
+                                                    if let Some(notifications) = self.subagent_notifications.remove(&id) {
+                                                        if interactive {
+                                                            let _ = progress_bars.hide();
+                                                            self.display_subagent_group(&id, &notifications);
+                                                        } else {
+                                                            // For non-interactive mode, still show grouped
+                                                            let group_message = format!("Subagent {} completed with {} notifications", &id[..8.min(id.len())], notifications.len());
+                                                            progress_bars.log(&group_message);
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         } else {
-                                            progress_bars.log(&message);
+                                            // Non-subagent notification, display immediately
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                                output::render_text(&formatted_message, None, true);
+                                            } else {
+                                                progress_bars.log(&formatted_message);
+                                            }
                                         }
                                     },
                                     "notifications/progress" => {
