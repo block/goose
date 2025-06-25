@@ -190,56 +190,63 @@ export default function UserMessage({
   }, [editContent, isEditing]);
 
   return (
-    <div className="flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
-      <div className="flex-col max-w-[85%]">
-        <div className="flex flex-col group">
-          {isEditing ? (
-            // Edit interface with improved styling and accessibility
-            <div className="flex flex-col bg-slate text-white rounded-xl rounded-br-none py-2 px-3 transition-all duration-200 ease-in-out">
-              <textarea
-                ref={textareaRef}
-                value={editContent}
-                onChange={handleContentChange}
-                onKeyDown={handleKeyDown}
-                className="bg-transparent text-white resize-none border-none outline-none w-full min-h-[60px] max-h-[200px] font-sans text-sm leading-relaxed focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                placeholder="Edit your message..."
-                aria-label="Edit message content"
-                aria-describedby={error ? `error-${message.id}` : undefined}
-              />
-
-              {/* Error message */}
-              {error && (
-                <div
-                  id={`error-${message.id}`}
-                  className="text-red-300 text-xs mt-1 mb-2"
-                  role="alert"
-                  aria-live="polite"
-                >
-                  {error}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 mt-2">
-                <button
-                  onClick={handleCancel}
-                  className="px-3 py-1 text-xs text-textSubtle hover:text-textProminent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                  aria-label="Cancel editing"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isLoadingResponse}
-                  className="px-3 py-1 text-xs bg-white text-slate rounded hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Save changes"
-                >
-                  {isLoadingResponse ? 'Saving...' : 'Save'}
-                </button>
+    <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
+      <div className="flex flex-col group">
+        {isEditing ? (
+          // Truly wide, centered, in-place edit box replacing the bubble
+          <div className="w-full max-w-4xl mx-auto bg-[#222] dark:bg-[#1a1a1a] text-white rounded-xl border border-[#444] shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
+            <textarea
+              ref={textareaRef}
+              value={editContent}
+              onChange={handleContentChange}
+              onKeyDown={handleKeyDown}
+              className="w-full resize-none bg-transparent text-white placeholder:text-white/50 border border-[#555] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-base leading-relaxed"
+              style={{
+                minHeight: '120px',
+                maxHeight: '300px',
+                padding: '16px',
+                fontFamily: 'inherit',
+                lineHeight: '1.6',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+              }}
+              placeholder="Edit your message..."
+              aria-label="Edit message content"
+              aria-describedby={error ? `error-${message.id}` : undefined}
+            />
+            {/* Error message */}
+            {error && (
+              <div
+                id={`error-${message.id}`}
+                className="text-red-300 text-xs mt-2 mb-2"
+                role="alert"
+                aria-live="polite"
+              >
+                {error}
               </div>
+            )}
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm text-textSubtle hover:text-textProminent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
+                aria-label="Cancel editing"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isLoadingResponse}
+                className="px-4 py-2 text-sm bg-white text-slate rounded hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Save changes"
+              >
+                {isLoadingResponse ? 'Saving...' : 'Save'}
+              </button>
             </div>
-          ) : (
-            // Normal message display
-            <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
+          </div>
+        ) : (
+          // Normal message display (bubble hugs content)
+          <div className="flex justify-end w-full">
+            <div className="inline-block bg-slate text-white rounded-xl rounded-br-none py-2 px-3 max-w-[75%] align-bottom">
               <div ref={contentRef}>
                 <MarkdownContent
                   content={displayText}
@@ -247,73 +254,73 @@ export default function UserMessage({
                 />
               </div>
             </div>
-          )}
-
-          {/* Edit mode indicator */}
-          {isEditing && (
-            <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-              ✏️ Edit mode active
-            </div>
-          )}
-
-          {/* Loading indicator for AI re-response */}
-          {isLoadingResponse && (
-            <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-              🤖 Generating new response...
-            </div>
-          )}
-
-          {/* Edited indicator */}
-          {hasBeenEdited && !isEditing && !isLoadingResponse && (
-            <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-              ✏️ Edited
-            </div>
-          )}
-
-          {/* Render images if any */}
-          {imagePaths.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {imagePaths.map((imagePath, index) => (
-                <ImagePreview key={index} src={imagePath} alt={`Pasted image ${index + 1}`} />
-              ))}
-            </div>
-          )}
-
-          <div className="relative h-[22px] flex justify-end">
-            <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-              {timestamp}
-            </div>
-            <div className="absolute right-0 pt-1 flex items-center gap-2">
-              <button
-                onClick={handleEditClick}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleEditClick();
-                  }
-                }}
-                className="flex items-center gap-1 text-xs text-textSubtle hover:cursor-pointer hover:text-textProminent transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                aria-label={`Edit message: ${displayText.substring(0, 50)}${displayText.length > 50 ? '...' : ''}`}
-                aria-expanded={isEditing}
-                title="Edit message"
-              >
-                <Edit className="h-3 w-3" />
-                <span>Edit</span>
-              </button>
-              <MessageCopyLink text={displayText} contentRef={contentRef} />
-            </div>
           </div>
-        </div>
+        )}
 
-        {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-        {false && urls.length > 0 && (
-          <div className="flex flex-wrap mt-2">
-            {urls.map((url, index) => (
-              <LinkPreview key={index} url={url} />
+        {/* Edit mode indicator */}
+        {isEditing && (
+          <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
+            ✏️ Edit mode active
+          </div>
+        )}
+
+        {/* Loading indicator for AI re-response */}
+        {isLoadingResponse && (
+          <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
+            🤖 Generating new response...
+          </div>
+        )}
+
+        {/* Edited indicator */}
+        {hasBeenEdited && !isEditing && !isLoadingResponse && (
+          <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
+            ✏️ Edited
+          </div>
+        )}
+
+        {/* Render images if any */}
+        {imagePaths.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {imagePaths.map((imagePath, index) => (
+              <ImagePreview key={index} src={imagePath} alt={`Pasted image ${index + 1}`} />
             ))}
           </div>
         )}
+
+        <div className="relative h-[22px] flex justify-end">
+          <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+            {timestamp}
+          </div>
+          <div className="absolute right-0 pt-1 flex items-center gap-2">
+            <button
+              onClick={handleEditClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleEditClick();
+                }
+              }}
+              className="flex items-center gap-1 text-xs text-textSubtle hover:cursor-pointer hover:text-textProminent transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
+              aria-label={`Edit message: ${displayText.substring(0, 50)}${displayText.length > 50 ? '...' : ''}`}
+              aria-expanded={isEditing}
+              title="Edit message"
+            >
+              <Edit className="h-3 w-3" />
+              <span>Edit</span>
+            </button>
+            <MessageCopyLink text={displayText} contentRef={contentRef} />
+          </div>
+        </div>
       </div>
+
+      {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+      {false && urls.length > 0 && (
+        <div className="flex flex-wrap mt-2">
+          {urls.map((url, index) => (
+            <LinkPreview key={index} url={url} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
