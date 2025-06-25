@@ -1138,9 +1138,17 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    let session_file_path = crate::session::storage::get_path(
+    let session_file_path = match crate::session::storage::get_path(
         crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-    );
+    ) {
+        Ok(path) => path,
+        Err(e) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Failed to get session file path: {}", e),
+            });
+        }
+    };
 
     if let Some(prompt_text) = recipe.prompt {
         let mut all_session_messages: Vec<Message> =
