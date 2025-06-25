@@ -54,12 +54,21 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
+  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
+  const [isComposing, setIsComposing] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
+  const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+
   // Update display value when draft is initialized or changes
+  // But don't override during history navigation
   useEffect(() => {
-    if (isInitialized) {
+    if (isInitialized && !isNavigatingHistory) {
       setDisplayValue(draftText);
     }
-  }, [draftText, isInitialized]);
+  }, [draftText, isInitialized, isNavigatingHistory]);
 
   // Update internal value when initialValue changes (but only if no draft exists)
   useEffect(() => {
@@ -81,16 +90,8 @@ export default function ChatInput({
 
     // Reset history index when input is cleared
     setHistoryIndex(-1);
-    setIsInGlobalHistory(false);
+    setIsNavigatingHistory(false);
   }, [initialValue, draftText, updateDraft]);
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
-  const [isComposing, setIsComposing] = useState(false);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -160,7 +161,7 @@ export default function ChatInput({
     () =>
       debounce((value: string) => {
         updateDraft(value);
-      }, 150),
+      }, 100), // Reduced from 150ms to 100ms for better responsiveness
     [updateDraft]
   );
 
@@ -184,7 +185,20 @@ export default function ChatInput({
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     setDisplayValue(val); // Update display immediately
-    debouncedUpdateDraft(val); // Debounce the draft update
+
+    // If user starts typing after history navigation, exit history mode and update draft
+    if (isNavigatingHistory) {
+      setIsNavigatingHistory(false);
+      setHistoryIndex(-1);
+      setSavedInput('');
+      // Cancel any pending draft updates to avoid conflicts
+      debouncedUpdateDraft.cancel();
+    }
+
+    // Only update draft if we're not in history navigation mode
+    if (!isNavigatingHistory) {
+      debouncedUpdateDraft(val);
+    }
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -298,48 +312,41 @@ export default function ChatInput({
 
     evt.preventDefault();
 
-    // Get global history once to avoid multiple calls
+    // Cancel any pending draft updates to prevent interference
+    debouncedUpdateDraft.cancel();
+
+    // Combine histories: command history first (most recent), then global history (excluding duplicates)
     const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+    const combinedHistory = [
+      ...commandHistory,
+      ...globalHistory.filter(msg => !commandHistory.includes(msg))
+    ];
 
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue || '');
-      setIsInGlobalHistory(commandHistory.length === 0);
+      setIsNavigatingHistory(true);
     }
 
-    // Determine which history we're using
-    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
     let newIndex = historyIndex;
     let newValue = '';
 
-    // Handle navigation
     if (isUp) {
-      // Moving up through history
-      if (newIndex < currentHistory.length - 1) {
-        // Still have items in current history
+      // Moving up through history (towards older messages)
+      if (newIndex < combinedHistory.length - 1) {
         newIndex = historyIndex + 1;
-        newValue = currentHistory[newIndex];
-      } else if (!isInGlobalHistory && globalHistory.length > 0) {
-        // Switch to global history
-        setIsInGlobalHistory(true);
-        newIndex = 0;
-        newValue = globalHistory[newIndex];
+        newValue = combinedHistory[newIndex];
       }
     } else {
-      // Moving down through history
+      // Moving down through history (towards newer messages)
       if (newIndex > 0) {
-        // Still have items in current history
         newIndex = historyIndex - 1;
-        newValue = currentHistory[newIndex];
-      } else if (isInGlobalHistory && commandHistory.length > 0) {
-        // Switch to chat history
-        setIsInGlobalHistory(false);
-        newIndex = commandHistory.length - 1;
-        newValue = commandHistory[newIndex];
+        newValue = combinedHistory[newIndex];
       } else {
         // Return to original input
         newIndex = -1;
         newValue = savedInput;
+        setIsNavigatingHistory(false);
       }
     }
 
@@ -349,10 +356,11 @@ export default function ChatInput({
       if (newIndex === -1) {
         const textToRestore = savedInput || '';
         setDisplayValue(textToRestore);
+        // Update draft when returning to saved input
         updateDraft(textToRestore);
       } else {
         setDisplayValue(newValue || '');
-        updateDraft(newValue || '');
+        // Don't update draft during active history navigation
       }
     }
   };
@@ -370,11 +378,8 @@ export default function ChatInput({
     }
 
     if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (validPastedImageFilesPaths.length > 0) {
-        LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
-      }
+      // Save the message to global history before submitting
+      LocalMessageStorage.addMessage(textToSend);
 
       handleSubmit(
         new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
@@ -385,7 +390,7 @@ export default function ChatInput({
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
-      setIsInGlobalHistory(false);
+      setIsNavigatingHistory(false);
     }
   };
 

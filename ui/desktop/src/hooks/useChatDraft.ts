@@ -15,7 +15,7 @@ export function useChatDraft(initialValue: string = '') {
     () =>
       debounce((text: string) => {
         LocalMessageStorage.saveDraft(text);
-      }, 500), // Save draft 500ms after user stops typing
+      }, 300), // Reduced from 500ms to 300ms for better responsiveness
     []
   );
 

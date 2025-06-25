@@ -55,8 +55,13 @@ export class LocalMessageStorage {
     const messages = this.getStoredMessages();
     const now = Date.now();
 
-    // Don't add duplicate of last message
-    if (messages.length > 0 && messages[messages.length - 1].content === content) {
+    // Duplicate prevention - check last few messages to avoid accidental rapid submissions
+    const isDuplicate = messages.some((msg, index) => {
+      // Check if it's the same content and within the last 5 messages
+      return msg.content === content && index >= messages.length - 5;
+    });
+
+    if (isDuplicate) {
       return;
     }
 
