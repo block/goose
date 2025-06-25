@@ -277,6 +277,7 @@ async fn handler(
                                 ).await;
                             }
                         }
+
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
                             let _ = stream_event(
@@ -392,6 +393,7 @@ async fn ask_handler(
                 // Handle notifications if needed
                 tracing::info!("Received notification: {:?}", n);
             }
+
             Err(e) => {
                 tracing::error!("Error processing as_ai message: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
