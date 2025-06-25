@@ -21,6 +21,18 @@ let cfg = {
       schemes: ["goose"]
     }
   ],
+  // macOS Info.plist extensions for drag-and-drop support
+  extendInfo: {
+    // Document types for drag-and-drop support onto dock icon
+    CFBundleDocumentTypes: [
+      {
+        CFBundleTypeName: "Folders",
+        CFBundleTypeRole: "Viewer", 
+        LSHandlerRank: "Alternate",
+        LSItemContentTypes: ["public.directory", "public.folder"]
+      }
+    ]
+  },
   // macOS specific configuration
   osxSign: {
     entitlements: 'entitlements.plist',
