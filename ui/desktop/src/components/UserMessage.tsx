@@ -257,24 +257,17 @@ export default function UserMessage({
           </div>
         )}
 
-        {/* Edit mode indicator */}
-        {isEditing && (
-          <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-            ✏️ Edit mode active
-          </div>
-        )}
-
         {/* Loading indicator for AI re-response */}
         {isLoadingResponse && (
           <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-            🤖 Generating new response...
+            Generating new response...
           </div>
         )}
 
         {/* Edited indicator */}
         {hasBeenEdited && !isEditing && !isLoadingResponse && (
           <div className="text-xs text-textSubtle mt-1 text-right transition-opacity duration-200">
-            ✏️ Edited
+            Edited
           </div>
         )}
 
