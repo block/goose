@@ -204,7 +204,8 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport = StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
+                let transport =
+                    StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
                 let handle = transport.start().await?;
                 Box::new(
                     McpClient::connect(
@@ -277,7 +278,7 @@ impl ExtensionManager {
         let init_result = client
             .initialize(info, capabilities)
             .await
-            .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
+            .map_err(|e| ExtensionError::Initialization(Box::new(config.clone()), e))?;
 
         if let Some(instructions) = init_result.instructions {
             self.instructions

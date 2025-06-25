@@ -19,14 +19,14 @@ async fn main() -> Result<()> {
     // Create example headers
     let mut headers = HashMap::new();
     headers.insert("X-Custom-Header".to_string(), "example-value".to_string());
-    headers.insert("User-Agent".to_string(), "MCP-StreamableHttp-Client/1.0".to_string());
+    headers.insert(
+        "User-Agent".to_string(),
+        "MCP-StreamableHttp-Client/1.0".to_string(),
+    );
 
     // Create the Streamable HTTP transport with headers
-    let transport = StreamableHttpTransport::with_headers(
-        "http://localhost:8000/mcp", 
-        HashMap::new(),
-        headers
-    );
+    let transport =
+        StreamableHttpTransport::with_headers("http://localhost:8000/mcp", HashMap::new(), headers);
 
     // Start transport
     let handle = transport.start().await?;
@@ -90,4 +90,4 @@ async fn main() -> Result<()> {
     println!("Streamable HTTP transport example completed successfully!");
 
     Ok(())
-} 
+}

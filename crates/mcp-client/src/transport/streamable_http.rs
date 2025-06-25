@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::time::Duration;
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 use url::Url;
 
 use super::{serialize_and_send, Transport, TransportHandle};
@@ -83,13 +83,17 @@ impl StreamableHttpActor {
         debug!("Sending message to MCP endpoint: {}", message_str);
 
         // Parse the message to determine if it's a request that expects a response
-        let parsed_message: JsonRpcMessage = serde_json::from_str(&message_str)
-            .map_err(|e| Error::Serialization(e))?;
+        let parsed_message: JsonRpcMessage =
+            serde_json::from_str(&message_str).map_err(Error::Serialization)?;
 
-        let expects_response = matches!(parsed_message, JsonRpcMessage::Request(JsonRpcRequest { id: Some(_), .. }));
+        let expects_response = matches!(
+            parsed_message,
+            JsonRpcMessage::Request(JsonRpcRequest { id: Some(_), .. })
+        );
 
         // Build the HTTP request
-        let mut request = self.http_client
+        let mut request = self
+            .http_client
             .post(&self.mcp_endpoint)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
@@ -106,7 +110,9 @@ impl StreamableHttpActor {
         }
 
         // Send the request
-        let response = request.send().await
+        let response = request
+            .send()
+            .await
             .map_err(|e| Error::StreamableHttpError(format!("HTTP request failed: {}", e)))?;
 
         // Handle HTTP error status codes
@@ -115,9 +121,13 @@ impl StreamableHttpActor {
             if status.as_u16() == 404 {
                 // Session not found - clear our session ID
                 *self.session_id.write().await = None;
-                return Err(Error::SessionError("Session expired or not found".to_string()));
+                return Err(Error::SessionError(
+                    "Session expired or not found".to_string(),
+                ));
             }
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(Error::HttpError {
                 status: status.as_u16(),
@@ -134,7 +144,8 @@ impl StreamableHttpActor {
         }
 
         // Handle the response based on content type
-        let content_type = response.headers()
+        let content_type = response
+            .headers()
             .get("content-type")
             .and_then(|h| h.to_str().ok())
             .unwrap_or("");
@@ -146,13 +157,14 @@ impl StreamableHttpActor {
             }
         } else if content_type.starts_with("application/json") || expects_response {
             // Handle single JSON response
-            let response_text = response.text().await
-                .map_err(|e| Error::StreamableHttpError(format!("Failed to read response: {}", e)))?;
-            
+            let response_text = response.text().await.map_err(|e| {
+                Error::StreamableHttpError(format!("Failed to read response: {}", e))
+            })?;
+
             if !response_text.is_empty() {
-                let json_message: JsonRpcMessage = serde_json::from_str(&response_text)
-                    .map_err(|e| Error::Serialization(e))?;
-                
+                let json_message: JsonRpcMessage =
+                    serde_json::from_str(&response_text).map_err(Error::Serialization)?;
+
                 let _ = self.sender.send(json_message).await;
             }
         }
@@ -162,20 +174,23 @@ impl StreamableHttpActor {
     }
 
     /// Handle streaming HTTP response that uses Server-Sent Events format
-    /// 
+    ///
     /// This is called when the server responds to an HTTP POST with `text/event-stream`
     /// content-type, indicating it wants to stream multiple JSON-RPC messages back
     /// rather than sending a single response. This is part of the Streamable HTTP
     /// specification, not a separate SSE transport.
-    async fn handle_streaming_response(&mut self, response: reqwest::Response) -> Result<(), Error> {
+    async fn handle_streaming_response(
+        &mut self,
+        response: reqwest::Response,
+    ) -> Result<(), Error> {
         use futures::StreamExt;
-        use tokio_util::io::StreamReader;
         use tokio::io::AsyncBufReadExt;
+        use tokio_util::io::StreamReader;
 
         // Convert the response body to a stream reader
-        let stream = response.bytes_stream().map(|result| {
-            result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-        });
+        let stream = response
+            .bytes_stream()
+            .map(|result| result.map_err(std::io::Error::other));
         let reader = StreamReader::new(stream);
         let mut lines = tokio::io::BufReader::new(reader).lines();
 
@@ -245,7 +260,8 @@ impl StreamableHttpTransportHandle {
     /// Manually terminate the session by sending HTTP DELETE
     pub async fn terminate_session(&self) -> Result<(), Error> {
         if let Some(session_id) = self.session_id.read().await.as_ref() {
-            let mut request = self.http_client
+            let mut request = self
+                .http_client
                 .delete(&self.mcp_endpoint)
                 .header("Mcp-Session-Id", session_id);
 
@@ -271,7 +287,8 @@ impl StreamableHttpTransportHandle {
 
     /// Create a GET request to establish a streaming connection for server-initiated messages
     pub async fn listen_for_server_messages(&self) -> Result<(), Error> {
-        let mut request = self.http_client
+        let mut request = self
+            .http_client
             .get(&self.mcp_endpoint)
             .header("Accept", "text/event-stream");
 
@@ -285,8 +302,9 @@ impl StreamableHttpTransportHandle {
             request = request.header(key, value);
         }
 
-        let response = request.send().await
-            .map_err(|e| Error::StreamableHttpError(format!("Failed to start GET streaming connection: {}", e)))?;
+        let response = request.send().await.map_err(|e| {
+            Error::StreamableHttpError(format!("Failed to start GET streaming connection: {}", e))
+        })?;
 
         if !response.status().is_success() {
             if response.status().as_u16() == 405 {
@@ -303,12 +321,15 @@ impl StreamableHttpTransportHandle {
         // Handle the streaming connection in a separate task
         let receiver = self.receiver.clone();
         let url = response.url().clone();
-        
+
         tokio::spawn(async move {
             let client = match eventsource_client::ClientBuilder::for_url(url.as_str()) {
                 Ok(builder) => builder.build(),
                 Err(e) => {
-                    error!("Failed to create streaming client for GET connection: {}", e);
+                    error!(
+                        "Failed to create streaming client for GET connection: {}",
+                        e
+                    );
                     return;
                 }
             };
@@ -355,7 +376,11 @@ impl StreamableHttpTransport {
         }
     }
 
-    pub fn with_headers<S: Into<String>>(mcp_endpoint: S, env: HashMap<String, String>, headers: HashMap<String, String>) -> Self {
+    pub fn with_headers<S: Into<String>>(
+        mcp_endpoint: S,
+        env: HashMap<String, String>,
+        headers: HashMap<String, String>,
+    ) -> Self {
         Self {
             mcp_endpoint: mcp_endpoint.into(),
             env,
@@ -419,4 +444,4 @@ impl Transport for StreamableHttpTransport {
         // No additional cleanup needed
         Ok(())
     }
-} 
+}

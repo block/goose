@@ -15,7 +15,7 @@ use crate::config::permission::PermissionLevel;
 #[derive(Error, Debug)]
 pub enum ExtensionError {
     #[error("Failed to start the MCP server from configuration `{0}` `{1}`")]
-    Initialization(ExtensionConfig, ClientError),
+    Initialization(Box<ExtensionConfig>, ClientError),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
     #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
@@ -227,7 +227,12 @@ impl ExtensionConfig {
         }
     }
 
-    pub fn streamable_http<S: Into<String>, T: Into<u64>>(name: S, uri: S, description: S, timeout: T) -> Self {
+    pub fn streamable_http<S: Into<String>, T: Into<u64>>(
+        name: S,
+        uri: S,
+        description: S,
+        timeout: T,
+    ) -> Self {
         Self::StreamableHttp {
             name: name.into(),
             uri: uri.into(),
@@ -309,7 +314,9 @@ impl std::fmt::Display for ExtensionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ExtensionConfig::Sse { name, uri, .. } => write!(f, "SSE({}: {})", name, uri),
-            ExtensionConfig::StreamableHttp { name, uri, .. } => write!(f, "StreamableHttp({}: {})", name, uri),
+            ExtensionConfig::StreamableHttp { name, uri, .. } => {
+                write!(f, "StreamableHttp({}: {})", name, uri)
+            }
             ExtensionConfig::Stdio {
                 name, cmd, args, ..
             } => {
