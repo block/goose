@@ -9,7 +9,7 @@ use tracing::{debug, error, instrument, warn};
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::subagent::{SubAgent, SubAgentConfig, SubAgentProgress, SubAgentStatus};
-use crate::agents::subagent_types::{SpawnSubAgentArgs, SubAgentUpdate};
+use crate::agents::subagent_types::SpawnSubAgentArgs;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 
@@ -17,20 +17,15 @@ use crate::recipe::Recipe;
 pub struct SubAgentManager {
     subagents: Arc<RwLock<HashMap<String, Arc<SubAgent>>>>,
     handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
-    update_rx: mpsc::Receiver<SubAgentUpdate>,
-    update_tx: mpsc::Sender<SubAgentUpdate>,
     mcp_notification_tx: mpsc::Sender<JsonRpcMessage>,
 }
 
 impl SubAgentManager {
     /// Create a new subagent manager
     pub fn new(mcp_notification_tx: mpsc::Sender<JsonRpcMessage>) -> Self {
-        let (update_tx, update_rx) = mpsc::channel(100); // Buffer size of 100
         Self {
             subagents: Arc::new(RwLock::new(HashMap::new())),
             handles: Arc::new(Mutex::new(HashMap::new())),
-            update_rx,
-            update_tx,
             mcp_notification_tx,
         }
     }
@@ -72,7 +67,6 @@ impl SubAgentManager {
             config,
             Arc::clone(&provider),
             Arc::clone(&extension_manager),
-            self.update_tx.clone(),
             self.mcp_notification_tx.clone(),
         )
         .await?;
@@ -292,18 +286,6 @@ impl SubAgentManager {
         subagents.contains_key(id)
     }
 
-    /// Process and retrieve pending updates (for main agent only)
-    pub async fn process_updates(&mut self) -> Vec<SubAgentUpdate> {
-        let mut updates = Vec::new();
-
-        // Try to receive all pending updates without blocking
-        while let Ok(update) = self.update_rx.try_recv() {
-            updates.push(update);
-        }
-
-        updates
-    }
-
     /// Run a complete subagent task (spawn, execute, cleanup)
     #[instrument(skip(self, args, provider, extension_manager))]
     pub async fn run_complete_subagent_task(
@@ -342,7 +324,6 @@ impl SubAgentManager {
             config,
             Arc::clone(&provider),
             Arc::clone(&extension_manager),
-            self.update_tx.clone(),
             self.mcp_notification_tx.clone(),
         )
         .await?;

@@ -1,10 +1,9 @@
 use anyhow::Result;
 use mcp_core::{Content, ToolError};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::agents::subagent_types::{SpawnSubAgentArgs, SubAgentUpdate, SubAgentUpdateType};
+use crate::agents::subagent_types::SpawnSubAgentArgs;
 use crate::agents::Agent;
 
 impl Agent {
@@ -76,38 +75,5 @@ impl Agent {
                 e
             ))),
         }
-    }
-
-    /// Get updates from subagents (not visible to user)
-    pub async fn get_subagent_updates(&self) -> Vec<SubAgentUpdate> {
-        let mut subagent_manager = self.subagent_manager.lock().await;
-        if let Some(manager) = subagent_manager.as_mut() {
-            manager.process_updates().await
-        } else {
-            Vec::new()
-        }
-    }
-
-    /// Process subagent updates and build a context map
-    pub async fn process_subagent_updates(&self) -> HashMap<String, String> {
-        let mut result_map = HashMap::new();
-        let updates = self.get_subagent_updates().await;
-
-        for update in updates {
-            // Only store results and completions in the context
-            if update.update_type == SubAgentUpdateType::Result
-                || update.update_type == SubAgentUpdateType::Completion
-            {
-                let key = format!("subagent_{}", update.subagent_id);
-                let value = if let Some(conversation) = update.conversation {
-                    format!("{}\n\nFull conversation:\n{}", update.content, conversation)
-                } else {
-                    update.content
-                };
-                result_map.insert(key, value);
-            }
-        }
-
-        result_map
     }
 }
