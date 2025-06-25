@@ -776,7 +776,7 @@ const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
   const result = (await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: ['openFile', 'openDirectory', 'createDirectory'],
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
