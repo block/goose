@@ -20,6 +20,7 @@ import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
 import { Gear } from './Gear';
+import { Microphone } from './Microphone';
 
 export {
   ArrowDown,
@@ -37,6 +38,7 @@ export {
   Edit,
   Idea,
   Gear,
+  Microphone,
   More,
   Refresh,
   SensitiveHidden,
