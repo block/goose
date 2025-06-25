@@ -11,6 +11,7 @@ import {
   Tray,
   App,
   globalShortcut,
+  Event,
 } from 'electron';
 import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -329,6 +330,67 @@ app.on('open-url', async (_event, url) => {
     }
   }
 });
+
+// Handle macOS drag-and-drop onto dock icon
+app.on('will-finish-launching', () => {
+  if (process.platform === 'darwin') {
+    app.setAboutPanelOptions({
+      applicationName: 'Goose',
+      applicationVersion: app.getVersion(),
+    });
+  }
+});
+
+// Handle drag-and-drop onto dock icon
+app.on('open-file', async (event, filePath) => {
+  event.preventDefault();
+  await handleFileOpen(filePath);
+});
+
+// Handle multiple files/folders
+app.on('open-files', async (event: Event, filePaths: string[]) => {
+  event.preventDefault();
+  for (const filePath of filePaths) {
+    await handleFileOpen(filePath);
+  }
+});
+
+async function handleFileOpen(filePath: string) {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      return;
+    }
+
+    const stats = fsSync.lstatSync(filePath);
+    let targetDir = filePath;
+
+    // If it's a file, use its parent directory
+    if (stats.isFile()) {
+      targetDir = path.dirname(filePath);
+    }
+
+    // Add to recent directories
+    addRecentDir(targetDir);
+
+    // Create new window for the directory
+    const newWindow = await createChat(app, undefined, targetDir);
+
+    // Focus the new window
+    if (newWindow) {
+      newWindow.show();
+      newWindow.focus();
+      newWindow.moveTop();
+    }
+  } catch (error) {
+    console.error('Failed to handle file open:', error);
+
+    // Show user-friendly error notification
+    new Notification({
+      title: 'Goose',
+      body: `Could not open directory: ${path.basename(filePath)}`,
+    }).show();
+  }
+}
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
