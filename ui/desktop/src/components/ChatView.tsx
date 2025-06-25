@@ -160,6 +160,7 @@ function ChatContent({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
+    reload,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
@@ -383,6 +384,104 @@ function ChatContent({
     } else {
       // If nothing was actually submitted (e.g. empty input and no images pasted)
       window.electron.stopPowerSaveBlocker();
+    }
+  };
+
+  // Handle message updates from UserMessage component
+  const handleMessageUpdate = (messageId: string, newContent: string) => {
+    window.electron.logInfo(`Updating message content: ${messageId} new content: ${newContent}`);
+
+    // Validate input
+    if (!messageId || typeof newContent !== 'string') {
+      window.electron.logInfo(
+        `Invalid message update parameters: ${JSON.stringify({ messageId, newContent })}`
+      );
+      return;
+    }
+
+    setMessages((currentMessages) => {
+      const messageIndex = currentMessages.findIndex((msg) => msg.id === messageId);
+
+      if (messageIndex === -1) {
+        window.electron.logInfo(`Message not found for update: ${messageId}`);
+        return currentMessages;
+      }
+
+      const updatedMessages = [...currentMessages];
+      const message = updatedMessages[messageIndex];
+
+      // Create a deep copy of the message
+      const updatedMessage = { ...message };
+
+      // Update the text content in the message
+      const updatedContent = message.content.map((content) => {
+        if (content.type === 'text') {
+          return { ...content, text: newContent };
+        }
+        return content;
+      });
+
+      updatedMessage.content = updatedContent;
+      updatedMessages[messageIndex] = updatedMessage;
+
+      window.electron.logInfo(`Message updated in parent state: ${messageId} ${newContent}`);
+      window.electron.logInfo(`Updated message object: ${JSON.stringify(updatedMessage, null, 2)}`);
+
+      return updatedMessages;
+    });
+  };
+
+  // Handle AI re-response for edited messages
+  const handleTriggerAIResponse = async (messageId: string, newContent: string) => {
+    window.electron.logInfo(
+      `Handling AI re-response for message: ${messageId} with content: ${newContent}`
+    );
+
+    try {
+      // Find the index of the edited message
+      const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+
+      if (messageIndex === -1) {
+        window.electron.logInfo(`Message not found for AI re-response: ${messageId}`);
+        return;
+      }
+
+      // Get messages up to and including the edited message
+      const messagesUpToEdit = messages.slice(0, messageIndex + 1);
+
+      // Remove all messages after the edited message (including AI responses)
+      setMessages(messagesUpToEdit);
+
+      window.electron.logInfo(
+        `Removed subsequent messages, keeping ${messagesUpToEdit.length} messages`
+      );
+      window.electron.logInfo(`Messages after edit: ${JSON.stringify(messagesUpToEdit, null, 2)}`);
+
+      // Update the message content in the final array
+      const updatedMessage = {
+        ...messagesUpToEdit[messageIndex],
+        content: messagesUpToEdit[messageIndex].content.map((content) => {
+          if (content.type === 'text') {
+            return { ...content, text: newContent };
+          }
+          return content;
+        }),
+      };
+
+      // Replace the message in the array
+      const finalMessages = [...messagesUpToEdit.slice(0, -1), updatedMessage];
+
+      setMessages(finalMessages);
+
+      // Use the existing reload function to trigger AI response
+      // This will regenerate the response based on the current message context
+      window.electron.logInfo(`Triggering AI response with updated message context`);
+      await reload();
+
+      window.electron.logInfo(`AI re-response triggered successfully for message: ${messageId}`);
+    } catch (error) {
+      window.electron.logInfo(`Failed to trigger AI re-response: ${error}`);
+      throw error;
     }
   };
 
@@ -614,7 +713,11 @@ function ChatContent({
                             contextType={getContextHandlerType(message)}
                           />
                         ) : (
-                          <UserMessage message={message} />
+                          <UserMessage
+                            message={message}
+                            onMessageUpdate={handleMessageUpdate}
+                            onTriggerAIResponse={handleTriggerAIResponse}
+                          />
                         )}
                       </>
                     ) : (
