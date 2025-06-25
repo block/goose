@@ -5,6 +5,23 @@
 
 export type Role = 'user' | 'assistant';
 
+export interface BranchReference {
+  sessionId: string;
+  createdAt: string; // ISO date string
+  branchPointMessageId?: string;
+}
+
+export interface BranchSource {
+  sourceSessionId: string;
+  sourceMessageId: string;
+  branchedAt: string; // ISO date string
+}
+
+export interface BranchingMetadata {
+  branchesCreated: BranchReference[];
+  branchedFrom?: BranchSource;
+}
+
 export interface TextContent {
   type: 'text';
   text: string;
@@ -97,6 +114,7 @@ export interface Message {
   role: Role;
   created: number;
   content: MessageContent[];
+  branchingMetadata?: BranchingMetadata;
   display?: boolean;
   sendToLLM?: boolean;
 }

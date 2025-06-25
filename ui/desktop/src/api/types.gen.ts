@@ -6,6 +6,24 @@ export type Annotations = {
     timestamp?: string;
 };
 
+/**
+ * Reference to a session that was branched from a message
+ */
+export type BranchReference = {
+    /**
+     * Optional ID of the first message in the branched session
+     */
+    branchPointMessageId?: string | null;
+    /**
+     * Timestamp when the branch was created
+     */
+    createdAt: string;
+    /**
+     * ID of the session that was created as a branch
+     */
+    sessionId: string;
+};
+
 export type BranchSessionRequest = {
     /**
      * Optional description for the new branch
@@ -22,6 +40,35 @@ export type BranchSessionResponse = {
      * ID of the newly created branch session
      */
     branchSessionId: string;
+};
+
+/**
+ * Information about the source session that this session was branched from
+ */
+export type BranchSource = {
+    /**
+     * Timestamp when this branch was created
+     */
+    branchedAt: string;
+    /**
+     * ID of the message in the source session that was branched from
+     */
+    sourceMessageId: string;
+    /**
+     * ID of the source session this was branched from
+     */
+    sourceSessionId: string;
+};
+
+/**
+ * Metadata about branching relationships for a message
+ */
+export type BranchingMetadata = {
+    branchedFrom?: BranchSource | null;
+    /**
+     * List of sessions that were branched from this message
+     */
+    branchesCreated?: Array<BranchReference>;
 };
 
 export type ConfigKey = {
@@ -209,6 +256,7 @@ export type ListSchedulesResponse = {
  * A message to or from an LLM
  */
 export type Message = {
+    branchingMetadata?: BranchingMetadata;
     content: Array<MessageContent>;
     created: number;
     role: Role;

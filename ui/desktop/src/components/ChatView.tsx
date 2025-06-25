@@ -562,6 +562,12 @@ function ChatContent({
         `Branched from ${chat.id}`
       );
 
+      // Fetch the updated session data to get the new branching metadata
+      const updatedSessionDetails = await fetchSessionDetails(chat.id);
+      
+      // Update the local messages state with the updated branching metadata
+      setMessages(updatedSessionDetails.messages);
+
       // Open a new chat window with the branch session ID
       window.electron.createChatWindow(
         undefined, // query
@@ -580,6 +586,27 @@ function ChatContent({
       );
     } finally {
       setIsBranching(false);
+    }
+  };
+
+  const handleOpenSession = async (sessionId: string) => {
+    try {
+      // Open a new chat window with the specified session ID
+      window.electron.createChatWindow(
+        undefined, // query
+        window.appConfig.get('GOOSE_WORKING_DIR') as string, // dir
+        undefined, // version
+        sessionId, // resumeSessionId
+        undefined, // recipeConfig
+        undefined // viewType
+      );
+
+      toast.success(`Opened session ${sessionId.slice(0, 8)}...`);
+    } catch (error) {
+      console.error('Error opening session:', error);
+      toast.error(
+        `Failed to open session: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -660,6 +687,7 @@ function ChatContent({
                               message={message}
                               messageIndex={index}
                               onBranch={handleBranchFromMessage}
+                              onOpenSession={handleOpenSession}
                           />
                         )}
                       </>
@@ -687,6 +715,7 @@ function ChatContent({
                             toolCallNotifications={toolCallNotifications}
                             messageIndex={index}
                             onBranch={handleBranchFromMessage}
+                            onOpenSession={handleOpenSession}
                           />
                         )}
                       </>

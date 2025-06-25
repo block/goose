@@ -961,6 +961,30 @@
           }
         }
       },
+      "BranchReference": {
+        "type": "object",
+        "description": "Reference to a session that was branched from a message",
+        "required": [
+          "sessionId",
+          "createdAt"
+        ],
+        "properties": {
+          "branchPointMessageId": {
+            "type": "string",
+            "description": "Optional ID of the first message in the branched session",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the branch was created"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "ID of the session that was created as a branch"
+          }
+        }
+      },
       "BranchSessionRequest": {
         "type": "object",
         "required": [
@@ -988,6 +1012,51 @@
           "branchSessionId": {
             "type": "string",
             "description": "ID of the newly created branch session"
+          }
+        }
+      },
+      "BranchSource": {
+        "type": "object",
+        "description": "Information about the source session that this session was branched from",
+        "required": [
+          "sourceSessionId",
+          "sourceMessageId",
+          "branchedAt"
+        ],
+        "properties": {
+          "branchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when this branch was created"
+          },
+          "sourceMessageId": {
+            "type": "string",
+            "description": "ID of the message in the source session that was branched from"
+          },
+          "sourceSessionId": {
+            "type": "string",
+            "description": "ID of the source session this was branched from"
+          }
+        }
+      },
+      "BranchingMetadata": {
+        "type": "object",
+        "description": "Metadata about branching relationships for a message",
+        "properties": {
+          "branchedFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchSource"
+              }
+            ],
+            "nullable": true
+          },
+          "branchesCreated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchReference"
+            },
+            "description": "List of sessions that were branched from this message"
           }
         }
       },
@@ -1542,6 +1611,9 @@
           "content"
         ],
         "properties": {
+          "branchingMetadata": {
+            "$ref": "#/components/schemas/BranchingMetadata"
+          },
           "content": {
             "type": "array",
             "items": {

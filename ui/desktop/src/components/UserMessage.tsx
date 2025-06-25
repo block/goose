@@ -6,6 +6,7 @@ import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
+import BranchingIndicator from './BranchingIndicator';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import { GitBranch } from 'lucide-react';
 
@@ -13,9 +14,10 @@ interface UserMessageProps {
   message: Message;
   messageIndex?: number;
   onBranch?: (messageIndex: number) => void;
+  onOpenSession?: (sessionId: string) => void;
 }
 
-export default function UserMessage({ message, messageIndex, onBranch }: UserMessageProps) {
+export default function UserMessage({ message, messageIndex, onBranch, onOpenSession }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -56,8 +58,15 @@ export default function UserMessage({ message, messageIndex, onBranch }: UserMes
           )}
 
           <div className="relative h-[22px] flex justify-end">
-            <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+            <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1">
               {timestamp}
+              {/* Show subtle branch icons next to timestamp when not hovering */}
+              {message.branchingMetadata?.branchesCreated && message.branchingMetadata.branchesCreated.length > 0 && (
+                <GitBranch className="w-3 h-3 opacity-60" title={`Branched to ${message.branchingMetadata.branchesCreated.length} session(s)`} />
+              )}
+              {message.branchingMetadata?.branchedFrom && (
+                <GitBranch className="w-3 h-3 opacity-60 rotate-180" title="Branched from another session" />
+              )}
             </div>
             <div className="absolute right-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               {onBranch && messageIndex !== undefined && (
@@ -70,6 +79,13 @@ export default function UserMessage({ message, messageIndex, onBranch }: UserMes
                 </button>
               )}
               <MessageCopyLink text={displayText} contentRef={contentRef} />
+              {/* Show detailed branching info on hover */}
+              {message.branchingMetadata && (
+                <BranchingIndicator
+                  branchingMetadata={message.branchingMetadata}
+                  onOpenSession={onOpenSession}
+                />
+              )}
             </div>
           </div>
         </div>

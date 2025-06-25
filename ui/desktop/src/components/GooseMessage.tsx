@@ -17,6 +17,7 @@ import {
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
+import BranchingIndicator from './BranchingIndicator';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { GitBranch } from 'lucide-react';
 
@@ -32,6 +33,7 @@ interface GooseMessageProps {
   appendMessage: (message: Message) => void;
   messageIndex?: number;
   onBranch?: (messageIndex: number) => void;
+  onOpenSession?: (sessionId: string) => void;
 }
 
 export default function GooseMessage({
@@ -44,6 +46,7 @@ export default function GooseMessage({
   appendMessage,
   messageIndex,
   onBranch,
+  onOpenSession,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -161,8 +164,15 @@ export default function GooseMessage({
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
             <div className="relative flex justify-start">
               {toolRequests.length === 0 && (
-                <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1">
                   {timestamp}
+                  {/* Show subtle branch icons next to timestamp when not hovering */}
+                  {message.branchingMetadata?.branchesCreated && message.branchingMetadata.branchesCreated.length > 0 && (
+                    <GitBranch className="w-3 h-3 opacity-60" title={`Branched to ${message.branchingMetadata.branchesCreated.length} session(s)`} />
+                  )}
+                  {message.branchingMetadata?.branchedFrom && (
+                    <GitBranch className="w-3 h-3 opacity-60 rotate-180" title="Branched from another session" />
+                  )}
                 </div>
               )}
               {displayText && message.content.every((content) => content.type === 'text') && (
@@ -177,6 +187,13 @@ export default function GooseMessage({
                     </button>
                   )}
                   <MessageCopyLink text={displayText} contentRef={contentRef} />
+                  {/* Show detailed branching info on hover */}
+                  {message.branchingMetadata && (
+                    <BranchingIndicator
+                      branchingMetadata={message.branchingMetadata}
+                      onOpenSession={onOpenSession}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -203,8 +220,15 @@ export default function GooseMessage({
               </div>
             ))}
             <div className="relative">
-              <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1">
                 {timestamp}
+                {/* Show subtle branch icons next to timestamp when not hovering */}
+                {message.branchingMetadata?.branchesCreated && message.branchingMetadata.branchesCreated.length > 0 && (
+                  <GitBranch className="w-3 h-3 opacity-60" title={`Branched to ${message.branchingMetadata.branchesCreated.length} session(s)`} />
+                )}
+                {message.branchingMetadata?.branchedFrom && (
+                  <GitBranch className="w-3 h-3 opacity-60 rotate-180" title="Branched from another session" />
+                )}
               </div>
               <div className="absolute left-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 {onBranch && messageIndex !== undefined && (
@@ -215,6 +239,13 @@ export default function GooseMessage({
                   >
                     <GitBranch className="w-4 h-4" />
                   </button>
+                )}
+                {/* Show detailed branching info on hover */}
+                {message.branchingMetadata && (
+                  <BranchingIndicator
+                    branchingMetadata={message.branchingMetadata}
+                    onOpenSession={onOpenSession}
+                  />
                 )}
               </div>
             </div>
