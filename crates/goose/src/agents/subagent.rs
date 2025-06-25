@@ -8,8 +8,8 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::{handler::ToolError, role::Role, tool::Tool};
 use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
+use mcp_core::{handler::ToolError, role::Role, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, json};
 use std::{collections::HashMap, sync::Arc};
@@ -325,8 +325,9 @@ impl SubAgent {
             *turn_count += 1;
             self.send_mcp_notification(
                 "turn_progress",
-                &format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0))
-            ).await;
+                &format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0)),
+            )
+            .await;
 
             // Send update to main agent
             self.send_update(
@@ -456,8 +457,9 @@ impl SubAgent {
                         // Send notification about response
                         self.send_mcp_notification(
                             "response_generated",
-                            &format!("Responded: {}", response.as_concat_text())
-                        ).await;
+                            &format!("Responded: {}", response.as_concat_text()),
+                        )
+                        .await;
 
                         // Send update to main agent with the result
                         self.send_update(
@@ -484,8 +486,9 @@ impl SubAgent {
                             // Send notification about tool usage
                             self.send_mcp_notification(
                                 "tool_usage",
-                                &format!("Using tool: {}", tool_call.name)
-                            ).await;
+                                &format!("Using tool: {}", tool_call.name),
+                            )
+                            .await;
 
                             // Handle platform tools or dispatch to extension manager
                             let tool_result = if self.is_platform_tool(&tool_call.name) {
@@ -514,8 +517,9 @@ impl SubAgent {
                                     // Send notification about tool completion
                                     self.send_mcp_notification(
                                         "tool_completed",
-                                        &format!("Tool {} completed successfully", tool_call.name)
-                                    ).await;
+                                        &format!("Tool {} completed successfully", tool_call.name),
+                                    )
+                                    .await;
 
                                     // Send update to main agent
                                     self.send_update(
@@ -533,8 +537,11 @@ impl SubAgent {
                                     messages.push(tool_error_message);
 
                                     // Send notification about tool error
-                                    self.send_mcp_notification("tool_error", &format!("Tool {} error: {}", tool_call.name, e))
-                                        .await;
+                                    self.send_mcp_notification(
+                                        "tool_error",
+                                        &format!("Tool {} error: {}", tool_call.name, e),
+                                    )
+                                    .await;
 
                                     // Send update to main agent
                                     self.send_update(

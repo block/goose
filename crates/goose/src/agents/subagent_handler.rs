@@ -4,9 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::agents::subagent_types::{
-    SpawnSubAgentArgs, SubAgentUpdate, SubAgentUpdateType,
-};
+use crate::agents::subagent_types::{SpawnSubAgentArgs, SubAgentUpdate, SubAgentUpdateType};
 use crate::agents::Agent;
 
 impl Agent {

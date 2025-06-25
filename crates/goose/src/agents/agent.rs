@@ -967,11 +967,11 @@ impl Agent {
     pub async fn get_mcp_notifications(&self) -> Vec<JsonRpcMessage> {
         let mut notifications = Vec::new();
         let mut rx = self.mcp_notification_rx.lock().await;
-        
+
         while let Ok(notification) = rx.try_recv() {
             notifications.push(notification);
         }
-        
+
         notifications
     }
 
@@ -980,7 +980,7 @@ impl Agent {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        // Initialize subagent manager with MCP notification support  
+        // Initialize subagent manager with MCP notification support
         // Need to recreate the MCP channel since we're replacing the manager
         let (mcp_tx, mcp_rx) = mpsc::channel(100);
         {

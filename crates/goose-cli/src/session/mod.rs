@@ -202,8 +202,6 @@ impl Session {
         Ok(())
     }
 
-
-
     /// Add a remote extension to the session
     ///
     /// # Arguments
@@ -920,7 +918,7 @@ impl Session {
                                                     let notification_type = o.get("type")
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("");
-                                                    
+
                                                     let formatted = match notification_type {
                                                         "subagent_created" | "completed" | "terminated" => {
                                                             format!("🤖 {}", msg)
@@ -938,7 +936,7 @@ impl Session {
                                                                 .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                                                                 .ok()
                                                                 .unwrap_or(0.5);
-                                                            
+
                                                             if min_priority > 0.1 && !self.debug {
                                                                 // High/Medium verbosity: show truncated response
                                                                 if msg.starts_with("Responded: ") {
@@ -972,7 +970,7 @@ impl Session {
                                                 (v.to_string(), None, None)
                                             },
                                         };
-                                        
+
                                         // Handle subagent notifications - show immediately
                                         if let Some(_id) = subagent_id {
                                             // Show subagent notifications immediately (no buffering) with compact spacing

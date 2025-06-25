@@ -3,9 +3,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use mcp_core::protocol::JsonRpcMessage;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument, warn};
-use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::subagent::{SubAgent, SubAgentConfig, SubAgentProgress, SubAgentStatus};
