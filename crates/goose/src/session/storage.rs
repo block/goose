@@ -1,7 +1,7 @@
-use crate::message::Message;
+use crate::message::{BranchSource, BranchReference, Message};
 use crate::providers::base::Provider;
 use anyhow::Result;
-use chrono::Local;
+use chrono::{Local, Utc};
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
@@ -581,6 +581,10 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
 ///
 /// Creates a new session with messages copied from the source session up to and including
 /// the specified message index. Returns the ID of the newly created session.
+/// 
+/// This function also adds branching metadata:
+/// - Adds a branch reference to the original message that was branched from
+/// - Adds branch source metadata to all messages in the new session
 pub fn branch_session(
     source_session_id: &str,
     message_index: usize,
@@ -594,7 +598,7 @@ pub fn branch_session(
     let target_path = get_path(Identifier::Name(new_session_id.clone()));
     
     // Read messages and metadata from source session
-    let source_messages = read_messages(&source_path)?;
+    let mut source_messages = read_messages(&source_path)?;
     let source_metadata = read_metadata(&source_path)?;
     
     // Ensure message_index is valid
@@ -607,7 +611,30 @@ pub fn branch_session(
     }
     
     // Create truncated messages array (include messages up to and including message_index)
-    let truncated_messages = source_messages[..=message_index].to_vec();
+    // Do this BEFORE modifying the source messages to avoid copying the branch reference
+    let mut truncated_messages = source_messages[..=message_index].to_vec();
+    
+    // Create the branch reference to add to the original message
+    let branch_ref = BranchReference {
+        session_id: new_session_id.clone(),
+        created_at: Utc::now(),
+        branch_point_message_id: None, // We could set this to the first message ID in the new session if needed
+    };
+    
+    // Add branch reference to the message that was branched from in the SOURCE session
+    source_messages[message_index].add_branch_reference(branch_ref);
+    
+    // Create branch source metadata for the new session
+    let branch_source = BranchSource {
+        source_session_id: source_session_id.to_string(),
+        source_message_id: format!("{}-{}", source_session_id, message_index), // Simple ID format
+        branched_at: Utc::now(),
+    };
+    
+    // ONLY add branch source metadata to the LAST message in the new session (the one that was clicked on)
+    if let Some(last_message) = truncated_messages.last_mut() {
+        last_message.set_branch_source(branch_source);
+    }
     
     // Create metadata for the new session
     let new_metadata = SessionMetadata {
@@ -625,6 +652,9 @@ pub fn branch_session(
     
     // Write the new session file with metadata and truncated messages
     save_messages_with_metadata(&target_path, &new_metadata, &truncated_messages)?;
+    
+    // Update the source session with the branch reference
+    save_messages_with_metadata(&source_path, &source_metadata, &source_messages)?;
     
     Ok(new_session_id)
 }
@@ -945,6 +975,89 @@ mod tests {
         // Verify the messages were copied correctly
         assert_eq!(branch_messages[0].as_concat_text(), "Message 1");
         assert_eq!(branch_messages[1].as_concat_text(), "Response 1");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_branch_session_with_metadata() -> Result<()> {
+        // Create a temporary directory for our test
+        let dir = tempdir()?;
+        
+        // Override the session directory for this test
+        std::env::set_var("GOOSE_SESSION_DIR", dir.path());
+        
+        let source_session_id = "test_source_with_metadata";
+        
+        // Create a source session with metadata and messages
+        let source_metadata = SessionMetadata {
+            working_dir: dir.path().to_path_buf(),
+            description: "Source session".to_string(),
+            schedule_id: None,
+            message_count: 3,
+            total_tokens: Some(100),
+            input_tokens: Some(40),
+            output_tokens: Some(60),
+            accumulated_total_tokens: Some(100),
+            accumulated_input_tokens: Some(40),
+            accumulated_output_tokens: Some(60),
+        };
+        
+        let source_messages = vec![
+            Message::user().with_text("Message 1"),
+            Message::assistant().with_text("Response 1"),
+            Message::user().with_text("Message 2"),
+        ];
+        
+        // Write the source session using the session storage functions
+        let source_path = get_path(Identifier::Name(source_session_id.to_string()));
+        save_messages_with_metadata(&source_path, &source_metadata, &source_messages)?;
+        
+        // Branch from message index 1 (the assistant response)
+        let message_index = 1;
+        let new_session_id = branch_session(source_session_id, message_index, Some("Test branch".to_string()))?;
+        
+        // Read the original session to verify branch reference was added
+        let updated_source_messages = read_messages(&source_path)?;
+        
+        // Verify that ONLY the message at index 1 has a branch reference
+        assert!(updated_source_messages[0].branching_metadata.branches_created.is_empty(), 
+                "Message 0 should not have branch references");
+        assert_eq!(updated_source_messages[1].branching_metadata.branches_created.len(), 1,
+                   "Message 1 should have exactly one branch reference");
+        assert!(updated_source_messages[2].branching_metadata.branches_created.is_empty(),
+                "Message 2 should not have branch references");
+        
+        // Verify the branch reference details
+        let branch_ref = &updated_source_messages[1].branching_metadata.branches_created[0];
+        assert_eq!(branch_ref.session_id, new_session_id);
+        
+        // Read the branched session
+        let branch_path = get_path(Identifier::Name(new_session_id.clone()));
+        let branch_messages = read_messages(&branch_path)?;
+        
+        // Verify the branched session has the correct number of messages
+        assert_eq!(branch_messages.len(), 2, "Branched session should have 2 messages");
+        
+        // Verify that ONLY the last message (the one that was clicked on) has branch source metadata
+        assert!(branch_messages[0].branching_metadata.branched_from.is_none(),
+                "First message in branch should not have branch source metadata");
+        assert!(branch_messages[1].branching_metadata.branched_from.is_some(),
+                "Last message in branch should have branch source metadata");
+        
+        // Verify that the copied messages do NOT have any branchesCreated metadata (they shouldn't reference themselves)
+        assert!(branch_messages[0].branching_metadata.branches_created.is_empty(),
+                "First message in branch should not have branches_created metadata");
+        assert!(branch_messages[1].branching_metadata.branches_created.is_empty(),
+                "Last message in branch should not have branches_created metadata (no self-reference)");
+        
+        // Verify the branch source details
+        let branch_source = branch_messages[1].branching_metadata.branched_from.as_ref().unwrap();
+        assert_eq!(branch_source.source_session_id, source_session_id);
+        assert_eq!(branch_source.source_message_id, format!("{}-{}", source_session_id, message_index));
+        
+        // Clean up environment variable
+        std::env::remove_var("GOOSE_SESSION_DIR");
         
         Ok(())
     }

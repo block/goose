@@ -802,9 +802,166 @@ mod tests {
     }
 
     #[test]
+    fn test_branching_metadata_serialization() {
+        // Create a message with branching metadata
+        let mut message = Message::user().with_text("Test message");
+        
+        // Add a branch reference (simulating a branch created from this message)
+        let branch_ref = BranchReference {
+            session_id: "20250625_123456".to_string(),
+            created_at: Utc::now(),
+            branch_point_message_id: Some("msg_001".to_string()),
+        };
+        message.add_branch_reference(branch_ref);
+        
+        // Add a branch source (simulating this message is in a branched session)
+        let branch_source = BranchSource {
+            source_session_id: "20250625_120000".to_string(),
+            source_message_id: "msg_original".to_string(),
+            branched_at: Utc::now(),
+        };
+        message.set_branch_source(branch_source);
+        
+        // Serialize to JSON (this is what gets sent to the frontend)
+        let json = serde_json::to_string_pretty(&message).unwrap();
+        println!("Serialized message with branching metadata:");
+        println!("{}", json);
+        
+        // Verify the JSON contains the expected camelCase fields
+        assert!(json.contains("branchingMetadata"));
+        assert!(json.contains("branchesCreated"));
+        assert!(json.contains("branchedFrom"));
+        assert!(json.contains("sessionId"));
+        assert!(json.contains("createdAt"));
+        assert!(json.contains("sourceSessionId"));
+        assert!(json.contains("sourceMessageId"));
+        assert!(json.contains("branchedAt"));
+        
+        // Test deserialization
+        let deserialized: Message = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.has_branches());
+        assert!(deserialized.is_in_branched_session());
+        assert_eq!(deserialized.get_branch_references().len(), 1);
+        
+        let branch_source = deserialized.get_branch_source().unwrap();
+        assert_eq!(branch_source.source_session_id, "20250625_120000");
+        assert_eq!(branch_source.source_message_id, "msg_original");
+        
+        let branch_ref = &deserialized.get_branch_references()[0];
+        assert_eq!(branch_ref.session_id, "20250625_123456");
+        assert_eq!(branch_ref.branch_point_message_id, Some("msg_001".to_string()));
+    }
+
+    #[test]
     fn test_message_with_text() {
         let message = Message::user().with_text("Hello");
         assert_eq!(message.as_concat_text(), "Hello");
+    }
+
+    #[tokio::test]
+    async fn test_branching_integration() {
+        use crate::session::{self, Identifier};
+        use crate::session::storage::save_messages_with_metadata;
+        use tempfile::TempDir;
+        use std::env;
+        
+        // Create a temporary directory for test sessions
+        let temp_dir = TempDir::new().unwrap();
+        let temp_path = temp_dir.path().to_str().unwrap();
+        
+        // Set the session directory to our temp directory
+        env::set_var("GOOSE_SESSION_DIR", temp_path);
+        
+        // Create a test session with some messages
+        let session_id = "test_session_001";
+        let session_path = session::get_path(Identifier::Name(session_id.to_string()));
+        
+        // Create some test messages
+        let messages = vec![
+            Message::user().with_text("Hello, this is the first message"),
+            Message::assistant().with_text("Hi! How can I help you?"),
+            Message::user().with_text("Can you help me with a task?"),
+            Message::assistant().with_text("Of course! What do you need help with?"),
+        ];
+        
+        // Create metadata for the session
+        let metadata = session::SessionMetadata {
+            working_dir: temp_dir.path().to_path_buf(),
+            description: "Test session for branching".to_string(),
+            schedule_id: None,
+            message_count: messages.len(),
+            total_tokens: Some(100),
+            input_tokens: Some(40),
+            output_tokens: Some(60),
+            accumulated_total_tokens: Some(100),
+            accumulated_input_tokens: Some(40),
+            accumulated_output_tokens: Some(60),
+        };
+        
+        // Write the session
+        save_messages_with_metadata(&session_path, &metadata, &messages).unwrap();
+        
+        println!("Created test session: {}", session_id);
+        println!("Session path: {:?}", session_path);
+        
+        // Now branch from message index 2 (the second user message)
+        let branch_session_id = session::branch_session(session_id, 2, Some("Test branch".to_string())).unwrap();
+        
+        println!("Created branch session: {}", branch_session_id);
+        
+        // Read the original session messages to check branching metadata
+        let original_messages = session::read_messages(&session_path).unwrap();
+        println!("\nOriginal session messages after branching:");
+        for (i, msg) in original_messages.iter().enumerate() {
+            println!("Message {}: has_branches={}, is_in_branched_session={}", 
+                     i, msg.has_branches(), msg.is_in_branched_session());
+            if msg.has_branches() {
+                println!("  Branch references: {:?}", msg.get_branch_references());
+            }
+            if msg.is_in_branched_session() {
+                println!("  Branch source: {:?}", msg.get_branch_source());
+            }
+        }
+        
+        // Read the branch session messages to check branching metadata
+        let branch_session_path = session::get_path(Identifier::Name(branch_session_id.clone()));
+        let branch_messages = session::read_messages(&branch_session_path).unwrap();
+        println!("\nBranch session messages:");
+        for (i, msg) in branch_messages.iter().enumerate() {
+            println!("Message {}: has_branches={}, is_in_branched_session={}", 
+                     i, msg.has_branches(), msg.is_in_branched_session());
+            if msg.has_branches() {
+                println!("  Branch references: {:?}", msg.get_branch_references());
+            }
+            if msg.is_in_branched_session() {
+                println!("  Branch source: {:?}", msg.get_branch_source());
+            }
+        }
+        
+        // Test serialization of a message with branching metadata
+        if let Some(msg_with_branches) = original_messages.iter().find(|m| m.has_branches()) {
+            let json = serde_json::to_string_pretty(msg_with_branches).unwrap();
+            println!("\nSerialized message with branching metadata:");
+            println!("{}", json);
+            
+            // Verify it contains the expected fields
+            assert!(json.contains("branchingMetadata"));
+            assert!(json.contains("branchesCreated"));
+            assert!(json.contains("sessionId"));
+        }
+        
+        if let Some(msg_from_branch) = branch_messages.iter().find(|m| m.is_in_branched_session()) {
+            let json = serde_json::to_string_pretty(msg_from_branch).unwrap();
+            println!("\nSerialized message from branched session:");
+            println!("{}", json);
+            
+            // Verify it contains the expected fields
+            assert!(json.contains("branchingMetadata"));
+            assert!(json.contains("branchedFrom"));
+            assert!(json.contains("sourceSessionId"));
+        }
+        
+        println!("\n✅ Branching integration test passed!");
     }
 
     #[test]
