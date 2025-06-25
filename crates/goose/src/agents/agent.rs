@@ -22,7 +22,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
@@ -45,14 +45,21 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
+use crate::agents::subagent_tools::{
+    SUBAGENT_CHECK_PROGRESS_TOOL_NAME, SUBAGENT_LIST_TOOL_NAME, SUBAGENT_SEND_MESSAGE_TOOL_NAME,
+    SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME,
+};
+
 use super::platform_tools;
 use super::router_tools;
+use super::subagent_manager::SubAgentManager;
+use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) extension_manager: RwLock<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -64,59 +71,21 @@ pub struct Agent {
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
+    pub(super) subagent_manager: Mutex<Option<SubAgentManager>>,
 }
 
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
     McpNotification((String, JsonRpcMessage)),
-    ModelChange { model: String, mode: String },
-}
-
-impl Agent {
-    pub fn new() -> Self {
-        // Create channels with buffer size 32 (adjust if needed)
-        let (confirm_tx, confirm_rx) = mpsc::channel(32);
-        let (tool_tx, tool_rx) = mpsc::channel(32);
-
-        Self {
-            provider: Mutex::new(None),
-            extension_manager: Mutex::new(ExtensionManager::new()),
-            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
-            frontend_tools: Mutex::new(HashMap::new()),
-            frontend_instructions: Mutex::new(None),
-            prompt_manager: Mutex::new(PromptManager::new()),
-            confirmation_tx: confirm_tx,
-            confirmation_rx: Mutex::new(confirm_rx),
-            tool_result_tx: tool_tx,
-            tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor: Mutex::new(None),
-            router_tool_selector: Mutex::new(None),
-            scheduler_service: Mutex::new(None),
-        }
-    }
-
-    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
-        let mut tool_monitor = self.tool_monitor.lock().await;
-        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
-    }
-
-    pub async fn get_tool_stats(&self) -> Option<HashMap<String, u32>> {
-        let tool_monitor = self.tool_monitor.lock().await;
-        tool_monitor.as_ref().map(|monitor| monitor.get_stats())
-    }
-
-    pub async fn reset_tool_monitor(&self) {
-        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
-            monitor.reset();
-        }
-    }
-
-    /// Set the scheduler service for this agent
-    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
-        let mut scheduler_service = self.scheduler_service.lock().await;
-        *scheduler_service = Some(scheduler);
-    }
+    ModelChange {
+        model: String,
+        mode: String,
+    },
+    SubagentNotification {
+        subagent_id: String,
+        message: String,
+    },
 }
 
 impl Default for Agent {
@@ -160,6 +129,51 @@ where
 }
 
 impl Agent {
+    pub fn new() -> Self {
+        // Create channels with buffer size 32 (adjust if needed)
+        let (confirm_tx, confirm_rx) = mpsc::channel(32);
+        let (tool_tx, tool_rx) = mpsc::channel(32);
+
+        Self {
+            provider: Mutex::new(None),
+            extension_manager: RwLock::new(ExtensionManager::new()),
+            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
+            frontend_tools: Mutex::new(HashMap::new()),
+            frontend_instructions: Mutex::new(None),
+            prompt_manager: Mutex::new(PromptManager::new()),
+            confirmation_tx: confirm_tx,
+            confirmation_rx: Mutex::new(confirm_rx),
+            tool_result_tx: tool_tx,
+            tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            tool_monitor: Mutex::new(None),
+            router_tool_selector: Mutex::new(None),
+            scheduler_service: Mutex::new(None),
+            subagent_manager: Mutex::new(Some(SubAgentManager::new())),
+        }
+    }
+
+    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
+        let mut tool_monitor = self.tool_monitor.lock().await;
+        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    }
+
+    pub async fn get_tool_stats(&self) -> Option<HashMap<String, u32>> {
+        let tool_monitor = self.tool_monitor.lock().await;
+        tool_monitor.as_ref().map(|monitor| monitor.get_stats())
+    }
+
+    pub async fn reset_tool_monitor(&self) {
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            monitor.reset();
+        }
+    }
+
+    /// Set the scheduler service for this agent
+    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
+        let mut scheduler_service = self.scheduler_service.lock().await;
+        *scheduler_service = Some(scheduler);
+    }
+
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {
@@ -182,7 +196,7 @@ impl Agent {
     pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = self
             .extension_manager
-            .lock()
+            .read()
             .await
             .get_prefixed_tools(None)
             .await?;
@@ -249,7 +263,7 @@ impl Agent {
             return (request_id, Ok(ToolCallResult::from(result)));
         }
 
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
 
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
@@ -271,6 +285,23 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
+        } else if tool_call.name == SUBAGENT_SPAWN_INTERACTIVE_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_spawn_subagent(tool_call.arguments.clone())
+                    .await,
+            )
+        } else if tool_call.name == SUBAGENT_LIST_TOOL_NAME {
+            ToolCallResult::from(self.handle_list_subagents().await)
+        } else if tool_call.name == SUBAGENT_CHECK_PROGRESS_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_get_subagent_status(tool_call.arguments.clone())
+                    .await,
+            )
+        } else if tool_call.name == SUBAGENT_SEND_MESSAGE_TOOL_NAME {
+            ToolCallResult::from(
+                self.handle_send_message_to_subagent(tool_call.arguments.clone())
+                    .await,
+            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ToolError::ExecutionError(
@@ -333,13 +364,13 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let mut extension_manager = self.extension_manager.write().await;
 
         let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector,
@@ -407,6 +438,33 @@ impl Agent {
             })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
+        // Update vector index if operation was successful and vector routing is enabled
+        if result.is_ok() {
+            let selector = self.router_tool_selector.lock().await.clone();
+            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+                if let Some(selector) = selector {
+                    let vector_action = if action == "disable" { "remove" } else { "add" };
+                    let extension_manager = self.extension_manager.read().await;
+                    let selector = Arc::new(selector);
+                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                        &selector,
+                        &extension_manager,
+                        &extension_name,
+                        vector_action,
+                    )
+                    .await
+                    {
+                        return (
+                            request_id,
+                            Err(ToolError::ExecutionError(format!(
+                                "Failed to update vector index: {}",
+                                e
+                            ))),
+                        );
+                    }
+                }
+            }
+        }
         (request_id, result)
     }
 
@@ -439,7 +497,7 @@ impl Agent {
                 }
             }
             _ => {
-                let mut extension_manager = self.extension_manager.lock().await;
+                let mut extension_manager = self.extension_manager.write().await;
                 extension_manager.add_extension(extension.clone()).await?;
             }
         }
@@ -448,7 +506,7 @@ impl Agent {
         let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector,
@@ -471,7 +529,7 @@ impl Agent {
     }
 
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let mut prefixed_tools = extension_manager
             .get_prefixed_tools(extension_name.clone())
             .await
@@ -484,6 +542,15 @@ impl Agent {
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
             ]);
+
+            // Add subagent tools (only if ALPHA_FEATURES is enabled)
+            let config = Config::global();
+            if config.get_param::<bool>("ALPHA_FEATURES").unwrap_or(false) {
+                prefixed_tools.push(subagent_tools::spawn_interactive_subagent_tool());
+                prefixed_tools.push(subagent_tools::list_subagents_tool());
+                prefixed_tools.push(subagent_tools::check_subagent_progress_tool());
+                prefixed_tools.push(subagent_tools::send_message_to_subagent_tool());
+            }
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -521,7 +588,7 @@ impl Agent {
         let selector = self.router_tool_selector.lock().await.clone();
         if let Some(selector) = selector {
             if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 // Add recent tool calls to the list, avoiding duplicates
                 for tool_name in recent_calls {
                     // Find the tool in the extension manager's tools
@@ -541,11 +608,14 @@ impl Agent {
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
+        let mut extension_manager = self.extension_manager.write().await;
+        extension_manager.remove_extension(name).await?;
+
         // If vector tool selection is enabled, remove tools from the index
         let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
-                let extension_manager = self.extension_manager.lock().await;
+                let extension_manager = self.extension_manager.read().await;
                 ToolRouterIndexManager::update_extension_tools(
                     &selector,
                     &extension_manager,
@@ -556,14 +626,11 @@ impl Agent {
             }
         }
 
-        let mut extension_manager = self.extension_manager.lock().await;
-        extension_manager.remove_extension(name).await?;
-
         Ok(())
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         extension_manager
             .list_extensions()
             .await
@@ -631,6 +698,16 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
+                // Check for subagent notifications
+                let notifications = self.get_subagent_notifications().await;
+                for notification in notifications {
+                    // Convert notifications to SubagentNotification events (not persisted to history)
+                    yield AgentEvent::SubagentNotification {
+                        subagent_id: notification.subagent_id,
+                        message: notification.message,
+                    };
+                }
+
                 match Self::generate_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
@@ -832,6 +909,19 @@ impl Agent {
 
                         messages.push(response);
                         messages.push(final_message_tool_resp);
+
+                        // Check for subagent notifications again before next iteration
+                        let notifications = self.get_subagent_notifications().await;
+                        for notification in notifications {
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
+                                    format!("Subagent {}: {}",
+                                        notification.subagent_id,
+                                        notification.message
+                                    )
+                                )
+                            );
+                        }
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
                         // At this point, the last message should be a user message
@@ -862,9 +952,14 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    /// Update the provider used by this agent
+    /// Update the provider
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
-        *self.provider.lock().await = Some(provider.clone());
+        let mut current_provider = self.provider.lock().await;
+        *current_provider = Some(provider.clone());
+
+        // Initialize subagent manager with the provider
+        *self.subagent_manager.lock().await = Some(SubAgentManager::new());
+
         self.update_router_tool_selector(Some(provider), None)
             .await?;
         Ok(())
@@ -876,7 +971,7 @@ impl Agent {
         reindex_all: Option<bool>,
     ) -> Result<()> {
         let config = Config::global();
-        let extension_manager = self.extension_manager.lock().await;
+        let _extension_manager = self.extension_manager.read().await;
         let provider = match provider {
             Some(p) => p,
             None => self.provider().await?,
@@ -910,6 +1005,7 @@ impl Agent {
         };
 
         // First index platform tools
+        let extension_manager = self.extension_manager.read().await;
         ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
@@ -934,6 +1030,7 @@ impl Agent {
 
         // Update the selector
         *self.router_tool_selector.lock().await = Some(selector.clone());
+
         Ok(())
     }
 
@@ -944,7 +1041,7 @@ impl Agent {
     }
 
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         extension_manager
             .list_prompts()
             .await
@@ -952,7 +1049,7 @@ impl Agent {
     }
 
     pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
 
         // First find which extension has this prompt
         let prompts = extension_manager
@@ -975,7 +1072,7 @@ impl Agent {
     }
 
     pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
         let tools_info = tools
             .into_iter()
@@ -1001,7 +1098,7 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider

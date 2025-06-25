@@ -951,6 +951,12 @@ impl Session {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
+                        Some(Ok(AgentEvent::SubagentNotification { subagent_id, message })) => {
+                            // Display subagent notification to user but don't persist to history
+                            if interactive {output::hide_thinking()};
+                            let _ = progress_bars.hide();
+                            output::render_text(&format!("Subagent {}: {}", subagent_id, message), None, true);
+                        }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);

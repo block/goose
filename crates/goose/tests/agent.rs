@@ -142,6 +142,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
+            Ok(AgentEvent::SubagentNotification { .. }) => {
+                println!("Subagent Notification received");
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
