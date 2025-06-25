@@ -250,7 +250,14 @@ async fn list_sessions() -> Json<serde_json::Value> {
 async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
-    let session_file = session::get_path(session::Identifier::Name(session_id));
+    let session_file = match session::get_path(session::Identifier::Name(session_id)) {
+        Ok(path) => path,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "error": format!("Invalid session ID: {}", e)
+            }));
+        }
+    };
 
     match session::read_messages(&session_file) {
         Ok(messages) => {
@@ -288,8 +295,15 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                             ..
                         }) => {
                             // Get session file path from session_id
-                            let session_file =
-                                session::get_path(session::Identifier::Name(session_id.clone()));
+                            let session_file = match session::get_path(session::Identifier::Name(
+                                session_id.clone(),
+                            )) {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    tracing::error!("Failed to get session path: {}", e);
+                                    continue;
+                                }
+                            };
 
                             // Get or create session in memory (for fast access during processing)
                             let session_messages = {

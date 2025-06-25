@@ -801,9 +801,19 @@ impl TemporalScheduler {
                 let mut has_active_session = false;
 
                 for (session_name, _) in recent_sessions {
-                    let session_path = crate::session::storage::get_path(
-                        crate::session::storage::Identifier::Name(session_name),
-                    );
+                    let session_path = match crate::session::storage::get_path(
+                        crate::session::storage::Identifier::Name(session_name.clone()),
+                    ) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to get session path for '{}': {}",
+                                session_name,
+                                e
+                            );
+                            continue;
+                        }
+                    };
 
                     // Check if session file was modified recently (within last 5 minutes instead of 2)
                     if let Ok(metadata) = std::fs::metadata(&session_path) {
@@ -899,9 +909,23 @@ impl TemporalScheduler {
 
                         if let Some((session_name, _session_metadata)) = recent_sessions.first() {
                             // Check if this session is still active by looking at the session file
-                            let session_path = crate::session::storage::get_path(
+                            let session_path = match crate::session::storage::get_path(
                                 crate::session::storage::Identifier::Name(session_name.clone()),
-                            );
+                            ) {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to get session path for '{}': {}",
+                                        session_name,
+                                        e
+                                    );
+                                    // Fallback: return a temporal session ID with current time
+                                    let session_id =
+                                        format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
+                                    let start_time = Utc::now();
+                                    return Ok(Some((session_id, start_time)));
+                                }
+                            };
 
                             // If the session file was modified recently (within last 5 minutes),
                             // consider it as the current running session
