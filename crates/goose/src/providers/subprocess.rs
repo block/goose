@@ -210,6 +210,12 @@ impl SubprocessProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
+        println!("=== SUBPROCESS PROVIDER DEBUG ===");
+        println!("Command: {}", self.command);
+        println!("System prompt: {}", system);
+        println!("Messages JSON: {}", serde_json::to_string_pretty(&messages_json).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        println!("================================");
+
         let mut cmd = Command::new(&self.command);
         cmd.arg("-p")
             .arg(messages_json.to_string())
