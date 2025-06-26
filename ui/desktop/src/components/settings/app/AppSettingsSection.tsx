@@ -293,7 +293,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           )}
 
           {/* Pricing Status - only show if cost tracking is enabled */}
-          {showPricing && (
+          {COST_TRACKING_ENABLED && showPricing && (
             <>
               <div className="flex items-center justify-between text-xs mb-2 px-4">
                 <span className="text-textSubtle">Pricing Source:</span>
