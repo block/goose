@@ -334,44 +334,15 @@ pub async fn init_config(
         return Ok(Json("Config already exists".to_string()));
     }
 
-    let workspace_root = match std::env::current_exe() {
-        Ok(mut exe_path) => {
-            while let Some(parent) = exe_path.parent() {
-                let cargo_toml = parent.join("Cargo.toml");
-                if cargo_toml.exists() {
-                    if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                        if content.contains("[workspace]") {
-                            exe_path = parent.to_path_buf();
-                            break;
-                        }
-                    }
-                }
-                exe_path = parent.to_path_buf();
-            }
-            exe_path
-        }
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let init_config_path = workspace_root.join("init-config.yaml");
-    if !init_config_path.exists() {
-        return Ok(Json(
+    // Use the shared function to load init-config.yaml
+    match goose::config::base::load_init_config_from_workspace() {
+        Ok(init_values) => match config.save_values(init_values) {
+            Ok(_) => Ok(Json("Config initialized successfully".to_string())),
+            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        },
+        Err(_) => Ok(Json(
             "No init-config.yaml found, using default configuration".to_string(),
-        ));
-    }
-
-    let init_content = match std::fs::read_to_string(&init_config_path) {
-        Ok(content) => content,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-    let init_values: HashMap<String, Value> = match serde_yaml::from_str(&init_content) {
-        Ok(values) => values,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    match config.save_values(init_values) {
-        Ok(_) => Ok(Json("Config initialized successfully".to_string())),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        )),
     }
 }
 

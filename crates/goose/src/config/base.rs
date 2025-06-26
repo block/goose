@@ -227,17 +227,28 @@ impl Config {
 
                 // Last resort: create a fresh default config file
                 tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
-                let default_config = HashMap::new();
+
+                // Try to load from init-config.yaml if it exists, otherwise use empty config
+                let default_config = self
+                    .load_init_config_if_exists()
+                    .unwrap_or_else(|_| HashMap::new());
 
                 // Try to write the clean default config to disk
                 match self.save_values(default_config.clone()) {
                     Ok(_) => {
-                        tracing::info!("Created fresh default config file");
+                        if default_config.is_empty() {
+                            tracing::info!("Created fresh empty config file");
+                        } else {
+                            tracing::info!(
+                                "Created fresh config file from init-config.yaml with {} keys",
+                                default_config.len()
+                            );
+                        }
                         Ok(default_config)
                     }
                     Err(write_error) => {
                         tracing::error!("Failed to write default config file: {}", write_error);
-                        // Even if we can't write to disk, return empty config so app can still run
+                        // Even if we can't write to disk, return config so app can still run
                         Ok(default_config)
                     }
                 }
@@ -326,6 +337,11 @@ impl Config {
         }
 
         paths
+    }
+
+    // Try to load init-config.yaml from workspace root if it exists
+    fn load_init_config_if_exists(&self) -> Result<HashMap<String, Value>, ConfigError> {
+        load_init_config_from_workspace()
     }
 
     // Save current values to the config file
@@ -655,6 +671,60 @@ impl Config {
         };
         Ok(())
     }
+}
+
+/// Load init-config.yaml from workspace root if it exists.
+/// This function is shared between the config recovery and the init_config endpoint.
+pub fn load_init_config_from_workspace() -> Result<HashMap<String, Value>, ConfigError> {
+    let workspace_root = match std::env::current_exe() {
+        Ok(mut exe_path) => {
+            while let Some(parent) = exe_path.parent() {
+                let cargo_toml = parent.join("Cargo.toml");
+                if cargo_toml.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+                        if content.contains("[workspace]") {
+                            exe_path = parent.to_path_buf();
+                            break;
+                        }
+                    }
+                }
+                exe_path = parent.to_path_buf();
+            }
+            exe_path
+        }
+        Err(_) => {
+            return Err(ConfigError::FileError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Could not determine executable path",
+            )))
+        }
+    };
+
+    let init_config_path = workspace_root.join("init-config.yaml");
+    if !init_config_path.exists() {
+        return Err(ConfigError::NotFound(
+            "init-config.yaml not found".to_string(),
+        ));
+    }
+
+    let init_content = std::fs::read_to_string(&init_config_path)?;
+    let init_values: HashMap<String, Value> =
+        match serde_yaml::from_str::<serde_yaml::Value>(&init_content) {
+            Ok(yaml_value) => {
+                let json_value: Value = serde_json::to_value(yaml_value)?;
+                match json_value {
+                    Value::Object(map) => map.into_iter().collect(),
+                    _ => HashMap::new(),
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to parse init-config.yaml: {}", e);
+                return Err(ConfigError::DeserializeError(e.to_string()));
+            }
+        };
+
+    tracing::info!("Loaded init-config.yaml with {} keys", init_values.len());
+    Ok(init_values)
 }
 
 #[cfg(test)]
