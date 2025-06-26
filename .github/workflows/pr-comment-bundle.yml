@@ -26,7 +26,7 @@ jobs:
   trigger-on-command:
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request && contains(github.event.comment.body, ".bundle"))
+      (github.event.issue.pull_request && contains(github.event.comment.body, '.bundle'))
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     outputs:

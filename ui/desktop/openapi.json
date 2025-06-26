@@ -480,6 +480,12 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid cron expression or recipe file"
+          },
+          "409": {
+            "description": "Job ID already exists"
+          },
           "500": {
             "description": "Internal server error"
           }
@@ -1084,6 +1090,10 @@
         "properties": {
           "cron": {
             "type": "string"
+          },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
           },
           "id": {
             "type": "string"
@@ -1917,6 +1927,10 @@
           },
           "currently_running": {
             "type": "boolean"
+          },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
           },
           "id": {
             "type": "string"

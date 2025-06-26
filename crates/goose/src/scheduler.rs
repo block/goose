@@ -27,6 +27,34 @@ use crate::session::storage::SessionMetadata;
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
+/// Converts a 5-field cron expression to a 6-field expression by prepending "0" for seconds
+/// If the expression already has 6 fields, returns it unchanged
+/// If the expression is invalid, returns the original expression
+pub fn normalize_cron_expression(cron_expr: &str) -> String {
+    let fields: Vec<&str> = cron_expr.split_whitespace().collect();
+
+    match fields.len() {
+        5 => {
+            // 5-field cron: minute hour day month weekday
+            // Convert to 6-field: second minute hour day month weekday
+            format!("0 {}", cron_expr)
+        }
+        6 => {
+            // Already 6-field, return as-is
+            cron_expr.to_string()
+        }
+        _ => {
+            // Invalid number of fields, return original (will likely fail parsing later)
+            tracing::warn!(
+                "Invalid cron expression '{}': expected 5 or 6 fields, got {}",
+                cron_expr,
+                fields.len()
+            );
+            cron_expr.to_string()
+        }
+    }
+}
+
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let strategy = choose_app_strategy(config::APP_STRATEGY.clone())
         .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e.to_string()))?;
@@ -122,6 +150,8 @@ pub struct ScheduledJob {
     pub current_session_id: Option<String>,
     #[serde(default)]
     pub process_start_time: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub execution_mode: Option<String>, // "foreground" or "background"
 }
 
 async fn persist_jobs_from_arc(
@@ -231,7 +261,16 @@ impl Scheduler {
         let storage_path_for_task = self.storage_path.clone();
         let running_tasks_for_task = self.running_tasks.clone();
 
-        let cron_task = Job::new_async(&stored_job.cron, move |_uuid, _l| {
+        tracing::info!("Attempting to parse cron expression: '{}'", stored_job.cron);
+        let normalized_cron = normalize_cron_expression(&stored_job.cron);
+        if normalized_cron != stored_job.cron {
+            tracing::info!(
+                "Normalized cron expression from '{}' to '{}'",
+                stored_job.cron,
+                normalized_cron
+            );
+        }
+        let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
             let task_job_id = job_for_task.id.clone();
             let current_jobs_arc = jobs_arc_for_task.clone();
             let local_storage_path = storage_path_for_task.clone();
@@ -387,7 +426,20 @@ impl Scheduler {
             let storage_path_for_task = self.storage_path.clone();
             let running_tasks_for_task = self.running_tasks.clone();
 
-            let cron_task = Job::new_async(&job_to_load.cron, move |_uuid, _l| {
+            tracing::info!(
+                "Loading job '{}' with cron expression: '{}'",
+                job_to_load.id,
+                job_to_load.cron
+            );
+            let normalized_cron = normalize_cron_expression(&job_to_load.cron);
+            if normalized_cron != job_to_load.cron {
+                tracing::info!(
+                    "Normalized cron expression from '{}' to '{}'",
+                    job_to_load.cron,
+                    normalized_cron
+                );
+            }
+            let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
                 let task_job_id = job_for_task.id.clone();
                 let current_jobs_arc = jobs_arc_for_task.clone();
                 let local_storage_path = storage_path_for_task.clone();
@@ -745,7 +797,20 @@ impl Scheduler {
                 let storage_path_for_task = self.storage_path.clone();
                 let running_tasks_for_task = self.running_tasks.clone();
 
-                let cron_task = Job::new_async(&new_cron, move |_uuid, _l| {
+                tracing::info!(
+                    "Updating job '{}' with new cron expression: '{}'",
+                    sched_id,
+                    new_cron
+                );
+                let normalized_cron = normalize_cron_expression(&new_cron);
+                if normalized_cron != new_cron {
+                    tracing::info!(
+                        "Normalized cron expression from '{}' to '{}'",
+                        new_cron,
+                        normalized_cron
+                    );
+                }
+                let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
                     let task_job_id = job_for_task.id.clone();
                     let current_jobs_arc = jobs_arc_for_task.clone();
                     let local_storage_path = storage_path_for_task.clone();
@@ -1059,6 +1124,10 @@ async fn run_scheduled_job_internal(
     }
     tracing::info!("Agent configured with provider for job '{}'", job.id);
 
+    // Log the execution mode
+    let execution_mode = job.execution_mode.as_deref().unwrap_or("background");
+    tracing::info!("Job '{}' running in {} mode", job.id, execution_mode);
+
     let session_id_for_return = session::generate_session_id();
 
     // Update the job with the session ID if we have access to the jobs arc
@@ -1069,9 +1138,17 @@ async fn run_scheduled_job_internal(
         }
     }
 
-    let session_file_path = crate::session::storage::get_path(
+    let session_file_path = match crate::session::storage::get_path(
         crate::session::storage::Identifier::Name(session_id_for_return.clone()),
-    );
+    ) {
+        Ok(path) => path,
+        Err(e) => {
+            return Err(JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Failed to get session file path: {}", e),
+            });
+        }
+    };
 
     if let Some(prompt_text) = recipe.prompt {
         let mut all_session_messages: Vec<Message> =
@@ -1091,6 +1168,7 @@ async fn run_scheduled_job_internal(
             id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
+            execution_mode: job.execution_mode.clone(),
         };
 
         match agent
@@ -1117,6 +1195,7 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::ModelChange { .. }) => {
                             // Model change events are informational, just continue
                         }
+
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
@@ -1304,6 +1383,7 @@ mod tests {
             author: None,
             parameters: None,
             settings: None,
+            sub_recipes: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;
         writeln!(
@@ -1323,6 +1403,7 @@ mod tests {
             paused: false,
             current_session_id: None,
             process_start_time: None,
+            execution_mode: Some("background".to_string()), // Default for test
         };
 
         // Create the mock provider instance for the test

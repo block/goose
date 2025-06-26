@@ -116,7 +116,7 @@ Without tool calling, LLMs would only guess answers based on their training data
 
 It's worth noting that not all agents are the same when it comes to tool access. Most proprietary agents are tightly scoped to a specific LLM and a predefined set of tools, as companies build agents tailored for their own applications.
 
-Other agents, like Goose, are more extensible, allowing users to configure it with the LLM of their choice, as well as add tools for various APIs, databases, and even [local environments like IDEs](/docs/tutorials/jetbrains-mcp). However, for agents to scale across different tools and systems without requiring custom integrations for each one, they need a standardized way to discover, call, and manage tools. This is exactly what the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) provides.
+Other agents, like Goose, are more extensible, allowing users to configure it with the LLM of their choice, as well as add tools for various APIs, databases, and even [local environments like IDEs](/docs/mcp/jetbrains-mcp). However, for agents to scale across different tools and systems without requiring custom integrations for each one, they need a standardized way to discover, call, and manage tools. This is exactly what the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) provides.
 
 ## MCP Ecosystem
 
@@ -132,9 +132,9 @@ At the time of this writing, there are more than [1000 MCP servers](https://www.
 
 For example, let's say I want Goose to develop a new web app for me in my WebStorm IDE based on a Figma design and then commit the code to a new repo in GitHub. I can add the following MCP Servers as Goose extensions to give it all of these capabilities:
 
-* [Figma](/docs/tutorials/figma-mcp)
-* [JetBrains](/docs/tutorials/jetbrains-mcp)
-* [GitHub](/docs/tutorials/github-mcp)
+* [Figma](/docs/mcp/figma-mcp)
+* [JetBrains](/docs/mcp/jetbrains-mcp)
+* [GitHub](/docs/mcp/github-mcp)
 
 With this, I can prompt my AI agent in natural language and it'll take care of the work:
 
