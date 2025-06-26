@@ -42,6 +42,35 @@ impl SubprocessProvider {
         Ok(Self { command, model })
     }
 
+    /// Create a simplified system prompt without Extensions section
+    fn create_simplified_system_prompt(&self) -> String {
+        let current_date = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
+        let current_dir = std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+
+        format!(
+            "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.
+
+The current date is {}.
+
+You are working in the directory: {}
+
+You have access to your own built-in tools for file operations, shell commands, and other tasks. Use them as needed to help the user accomplish their goals.
+
+# Response Guidelines
+
+- Use Markdown formatting for all responses.
+- Follow best practices for Markdown, including:
+  - Using headers for organization.
+  - Bullet points for lists.
+  - Links formatted correctly.
+- For code examples, use fenced code blocks with language identifiers.
+- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
+            current_date, current_dir
+        )
+    }
+
     /// Convert goose messages to the format expected by claude CLI
     fn messages_to_claude_format(&self, _system: &str, messages: &[Message]) -> Result<Value> {
         let mut claude_messages = Vec::new();
@@ -210,17 +239,23 @@ impl SubprocessProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        println!("=== SUBPROCESS PROVIDER DEBUG ===");
-        println!("Command: {}", self.command);
-        println!("System prompt: {}", system);
-        println!("Messages JSON: {}", serde_json::to_string_pretty(&messages_json).unwrap_or_else(|_| "Failed to serialize".to_string()));
-        println!("================================");
+        // Create a simplified system prompt without Extensions section
+        let simplified_system = self.create_simplified_system_prompt();
+
+        if std::env::var("GOOSE_SUBPROCESS_DEBUG").is_ok() {
+            println!("=== SUBPROCESS PROVIDER DEBUG ===");
+            println!("Command: {}", self.command);
+            println!("Original system prompt length: {} chars", system.len());
+            println!("Simplified system prompt: {}", simplified_system);
+            println!("Messages JSON: {}", serde_json::to_string_pretty(&messages_json).unwrap_or_else(|_| "Failed to serialize".to_string()));
+            println!("================================");
+        }
 
         let mut cmd = Command::new(&self.command);
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
-            .arg(system)
+            .arg(&simplified_system)  // Use simplified prompt instead of original
             .arg("--verbose")
             .arg("--output-format")
             .arg("json");
