@@ -81,8 +81,8 @@ futures-util = "0.3.31"
 tokio-stream = "0.1.17"
 
 # Vector database for tool selection
-lancedb = "0.13"
-arrow = "52.2"
+lancedb = "0.20"
+arrow = "55.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

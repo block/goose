@@ -8,10 +8,8 @@ use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
-// Type alias to reduce complexity
 type ErrorRegistry = RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>;
 
-// Global registry for error vectors
 static ERROR_REGISTRY: Lazy<ErrorRegistry> = Lazy::new(|| RwLock::new(None));
 
 pub struct ErrorCaptureLayer;
@@ -39,7 +37,6 @@ where
     S: Subscriber,
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        // Only capture error and warning level events
         if *event.metadata().level() <= tracing::Level::WARN {
             let mut visitor = JsonVisitor::new();
             event.record(&mut visitor);
@@ -51,7 +48,6 @@ where
                     timestamp: Utc::now(),
                 };
 
-                // Get the current error vector from the registry
                 if let Ok(registry) = ERROR_REGISTRY.read() {
                     if let Some(errors) = registry.clone() {
                         tokio::spawn(async move {

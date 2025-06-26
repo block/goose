@@ -2,7 +2,7 @@
   {
     "id": "developer",
     "name": "Developer",
-    "description": "General development tools useful for software engineering.",
+    "description": "Essential software development tools for coding, building, testing, and debugging applications. Includes shell access, file editing, code management, and visual debugging capabilities specifically designed for software engineers and development workflows.",
     "enabled": true,
     "type": "builtin",
     "env_keys": [],
@@ -11,7 +11,7 @@
   {
     "id": "computercontroller",
     "name": "Computer Controller",
-    "description": "General computer control tools that don't require you to be a developer or engineer.",
+    "description": "User-friendly automation and data processing tools for non-developers. Includes web scraping, document processing (PDF/Word/Excel), system automation, file management, and scripting capabilities designed for business users and everyday computer tasks.",
     "enabled": false,
     "type": "builtin",
     "env_keys": [],

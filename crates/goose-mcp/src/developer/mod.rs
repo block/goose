@@ -123,45 +123,70 @@ impl DeveloperRouter {
         // Get OS-specific shell tool description
         let shell_tool_desc = match std::env::consts::OS {
             "windows" => indoc! {r#"
-                Execute a command in the shell.
+                Execute shell commands for software development tasks including codebase exploration, building, testing, package management, version control, and system operations.
+                This tool is essential for developers who need to understand how systems work, explore codebases, run development workflows, and interact with development tools.
+                Use this tool when you need to:
+                - EXPLORE AND UNDERSTAND CODEBASES: Search through source code to understand how systems, features, or components work
+                - INVESTIGATE CODE ARCHITECTURE: Find related files, trace code paths, and understand system structure
+                - ANSWER "HOW DOES X WORK?" QUESTIONS: Use file searching to locate relevant code and configuration files
+                - RESEARCH CODE PATTERNS: Find examples of how certain functionality is implemented across the codebase
+                - Run build systems, compilation commands, and development scripts (npm, cargo, make, etc.)
+                - Execute testing frameworks and test suites (pytest, jest, cargo test, etc.)
+                - Manage dependencies and packages (pip, npm install, cargo add, etc.)
+                - Interact with version control systems (git commands, repository operations)
+                - Perform file operations, directory navigation, and system management tasks
+                - Run development servers, debugging tools, and monitoring utilities
 
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
+                The tool executes commands in PowerShell on Windows and returns combined stdout/stderr output with success/failure status.
+                Commands have a 400,000 character output limit to prevent overwhelming responses. For large outputs, redirect to files.
 
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+                **CRITICAL FOR CODE EXPLORATION AND UNDERSTANDING**: 
+                ALWAYS use ripgrep (`rg`) for file and code searching - it respects .gitignore patterns and provides accurate, development-focused results:
+                  - Find files by name: `rg --files | rg example.py` or `rg --files | rg router`
+                  - Search within files: `rg 'class Example'`, `rg 'function.*process'`, `rg 'toolrouter'`, `rg 'strategy'`
+                  - List files containing pattern: `rg 'import React' -l` or `rg 'RouterTool' -l`
+                  - Understand system architecture: `rg 'pub struct.*Router' -A 5` to see struct definitions with context
 
-                **Important**: For searching files and code:
+                Fallback Windows commands (only if ripgrep unavailable):
+                  - File location: `dir /s /b example.py`
+                  - Content search: `findstr /s /i "class Example" *.py`
+                Note: Fallback commands may include ignored/hidden files that should be excluded from development workflows.
 
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
-
-                Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py`
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-                Note: Alternative commands may show ignored/hidden files that should be excluded.
+                Each command runs in an isolated process - directory changes, environment variables, and sourced scripts don't persist between calls.
+                Chain commands when needed: `cd project && npm test` or use absolute paths.
             "#},
             _ => indoc! {r#"
-                Execute a command in the shell.
+                Execute shell commands for software development tasks including codebase exploration, building, testing, package management, version control, and system operations.
+                This tool is essential for developers who need to understand how systems work, explore codebases, run development workflows, and interact with development tools.
+                Use this tool when you need to:
+                - EXPLORE AND UNDERSTAND CODEBASES: Search through source code to understand how systems, features, or components work
+                - INVESTIGATE CODE ARCHITECTURE: Find related files, trace code paths, and understand system structure
+                - ANSWER "HOW DOES X WORK?" QUESTIONS: Use file searching to locate relevant code and configuration files
+                - RESEARCH CODE PATTERNS: Find examples of how certain functionality is implemented across the codebase
+                - Run build systems, compilation commands, and development scripts (npm, cargo, make, etc.)
+                - Execute testing frameworks and test suites (pytest, jest, cargo test, etc.)
+                - Manage dependencies and packages (pip, npm install, cargo add, etc.)
+                - Interact with version control systems (git commands, repository operations)
+                - Perform file operations, directory navigation, and system management tasks
+                - Run development servers, debugging tools, and monitoring utilities
 
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
+                The tool executes commands in bash/sh and returns combined stdout/stderr output with success/failure status.
+                Commands have a 400,000 character output limit to prevent overwhelming responses. For large outputs, redirect to files.
+                Background long-running processes to prevent timeouts: `uvicorn main:app &` or `npm start &`.
 
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-                If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-                this tool does not run indefinitely.
+                **Critical Process Isolation**: Each command runs in a separate process. Directory changes, environment variables, and sourced files do NOT persist between tool calls.
+                Chain commands when persistence is needed: `cd project && npm test` or `source env/bin/activate && pip install package`.
 
-                **Important**: Each shell command runs in its own process. Things like directory changes or
-                sourcing files do not persist between tool calls. So you may need to repeat them each time by
-                stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
+                **CRITICAL FOR CODE EXPLORATION AND UNDERSTANDING**: 
+                ALWAYS use ripgrep (`rg`) for file and code searching - it respects .gitignore patterns and provides development-focused results:
+                  - Find files by name: `rg --files | rg filename` or `rg --files | rg router`
+                  - Search within files: `rg 'pattern'`, `rg 'regex.*expression'`, `rg 'toolrouter'`, `rg 'strategy'`
+                  - List files containing pattern: `rg 'import.*module' -l` or `rg 'RouterTool' -l`
+                  - Understand system architecture: `rg 'pub struct.*Router' -A 5` to see struct definitions with context
+                  - Trace function implementations: `rg 'fn select_tools' -A 10` to see function bodies
+                NEVER use `find` or `ls -r` for code searching as they may include build artifacts, dependencies, and ignored files.
 
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
+                This tool is optimized for software development workflows and integrates with ignore patterns from .gitignore and .gooseignore files.
             "#},
         };
 
@@ -182,37 +207,57 @@ impl DeveloperRouter {
         let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
             (
                 formatdoc! {r#"
-                Perform text editing operations on files.
+                Comprehensive file editing tool designed for software development workflows including viewing, creating, modifying, and managing source code and configuration files.
+                This tool is essential for developers who need to explore codebases, understand how systems work, and programmatically read, write, and modify files.
+                Use this tool when you need to:
+                - EXPLORE AND UNDERSTAND CODE: Read source code files to understand how systems, features, or components are implemented
+                - INVESTIGATE SYSTEM ARCHITECTURE: Examine configuration files, module definitions, and project structure to understand design patterns
+                - ANALYZE CODE FLOW: Review file contents to trace execution paths and understand system behavior
+                - RESEARCH IMPLEMENTATIONS: Study existing code to understand how specific functionality works
+                - Create new files like source code modules, configuration files, scripts, or documentation
+                - Make precise modifications to existing code using intelligent editing capabilities
+                - Review file contents for debugging, code review, or analysis purposes
+                - Manage file history with undo capabilities for safe iterative editing
 
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `edit_file`: Edit the file with the new content.
-                - `undo_edit`: Undo the last edit made to a file.
+                The `command` parameter specifies the operation to perform. Available operations:
+                - `view`: Read and display file contents with syntax highlighting and line numbers (supports up to 400KB files)
+                - `write`: Create new files or completely replace existing file contents (use with caution on existing files)
+                - `edit_file`: Intelligently modify files using AI-powered editing with context awareness and syntax understanding
+                - `undo_edit`: Revert the last modification made to a file (maintains edit history per file)
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+                For the write command, specify `file_text` containing the complete new file content. This performs a full overwrite, so include all desired content.
+                For the edit_file command, specify both `old_str` and `new_str` parameters. {}
+                
+                The tool respects .gooseignore and .gitignore patterns and will not access restricted files or directories.
+                Maximum file size for viewing is 400KB. Files are automatically normalized for consistent line endings across platforms.
             "#, editor.get_str_replace_description()},
                 "edit_file",
             )
         } else {
             (indoc! {r#"
-                Perform text editing operations on files.
+                Comprehensive file editing tool designed for software development workflows including viewing, creating, modifying, and managing source code and configuration files.
+                This tool is essential for developers who need to explore codebases, understand how systems work, and programmatically read, write, and modify files.
+                Use this tool when you need to:
+                - EXPLORE AND UNDERSTAND CODE: Read source code files to understand how systems, features, or components are implemented
+                - INVESTIGATE SYSTEM ARCHITECTURE: Examine configuration files, module definitions, and project structure to understand design patterns
+                - ANALYZE CODE FLOW: Review file contents to trace execution paths and understand system behavior
+                - RESEARCH IMPLEMENTATIONS: Study existing code to understand how specific functionality works
+                - Create new files like source code modules, configuration files, scripts, or documentation
+                - Make precise modifications to existing code using string replacement techniques
+                - Review file contents for debugging, code review, or analysis purposes
+                - Manage file history with undo capabilities for safe iterative editing
 
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace a string in a file with a new string.
-                - `undo_edit`: Undo the last edit made to a file.
+                The `command` parameter specifies the operation to perform. Available operations:
+                - `view`: Read and display file contents with syntax highlighting and line numbers (supports up to 400KB files)
+                - `write`: Create new files or completely replace existing file contents (use with caution on existing files)
+                - `str_replace`: Precisely replace specific text sections using exact string matching
+                - `undo_edit`: Revert the last modification made to a file (maintains edit history per file)
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`.
+                For the write command, specify `file_text` containing the complete new file content. This performs a full overwrite, so include all desired content.
+                For the str_replace command, specify both `old_str` and `new_str` parameters. The `old_str` must exactly match a unique section of the original file, including all whitespace and formatting. Include sufficient context to ensure the match is unambiguous. The entire matched string will be replaced with `new_str`.
+                
+                The tool respects .gooseignore and .gitignore patterns and will not access restricted files or directories.
+                Maximum file size for viewing is 400KB. Files are automatically normalized for consistent line endings across platforms.
             "#}.to_string(), "str_replace")
         };
 
@@ -243,9 +288,15 @@ impl DeveloperRouter {
         let list_windows_tool = Tool::new(
             "list_windows",
             indoc! {r#"
-                List all available window titles that can be used with screen_capture.
-                Returns a list of window titles that can be used with the window_title parameter
-                of the screen_capture tool.
+                List all available window titles currently open on the system that can be captured using the screen_capture tool.
+                This tool is specifically designed for development and debugging workflows where you need to visually inspect applications, websites, or development environments.
+                Use this tool when you need to capture specific application windows rather than the entire screen for tasks like:
+                - Debugging user interfaces and layout issues
+                - Documenting software behavior or bugs
+                - Capturing specific development tool outputs (IDE, terminal, browser developer tools)
+                - Taking screenshots of running applications for code reviews or documentation
+                Returns a complete list of window titles that can be used with the window_title parameter of the screen_capture tool.
+                This is a read-only operation that does not modify any system state.
             "#},
             json!({
                 "type": "object",
@@ -264,12 +315,24 @@ impl DeveloperRouter {
         let screen_capture_tool = Tool::new(
             "screen_capture",
             indoc! {r#"
-                Capture a screenshot of a specified display or window.
-                You can capture either:
-                1. A full display (monitor) using the display parameter
-                2. A specific window by its title using the window_title parameter
+                Capture high-quality screenshots of displays or specific application windows for development and debugging purposes.
+                This tool is essential for software engineers who need visual documentation, debugging assistance, or code review materials.
+                Use this tool when you need to:
+                - Debug visual issues in applications, websites, or user interfaces
+                - Document software behavior for bug reports or feature requests
+                - Capture development tool outputs (IDE interfaces, terminal commands, browser developer tools)
+                - Create visual evidence for code reviews or technical discussions
+                - Inspect UI layouts, styling, or responsive design behavior
+                - Monitor application state during development or testing
 
-                Only one of display or window_title should be specified.
+                You can capture either:
+                1. A full display (monitor) using the display parameter (0 = primary display, 1+ = additional monitors)
+                2. A specific application window by its exact title using the window_title parameter (use list_windows tool first to get available titles)
+
+                The tool automatically resizes large images to a maximum width of 768 pixels while maintaining aspect ratio for optimal viewing.
+                Images are returned as base64-encoded PNG data for immediate use in conversations.
+                Only specify either display OR window_title, never both parameters simultaneously.
+                This is a read-only operation that does not modify any system state or application windows.
             "#},
             json!({
                 "type": "object",
@@ -299,12 +362,24 @@ impl DeveloperRouter {
         let image_processor_tool = Tool::new(
             "image_processor",
             indoc! {r#"
-                Process an image file from disk. The image will be:
-                1. Resized if larger than max width while maintaining aspect ratio
-                2. Converted to PNG format
-                3. Returned as base64 encoded data
+                Process and optimize image files from the local filesystem for analysis, documentation, or integration into development workflows.
+                This tool is designed for software developers who need to work with existing image assets, design files, or visual content in their projects.
+                Use this tool when you need to:
+                - Analyze design mockups, wireframes, or visual specifications stored as image files
+                - Process screenshots or images that were saved to disk rather than captured live
+                - Optimize image assets for inclusion in documentation or code reviews
+                - Examine existing visual content in repositories, design folders, or asset directories
+                - Convert and resize images for consistent viewing and analysis
 
-                This allows processing image files for use in the conversation.
+                The tool performs several optimizations automatically:
+                1. Resizes images larger than maximum width while preserving aspect ratio for optimal viewing
+                2. Converts images to standardized PNG format for consistent handling
+                3. Returns optimized images as base64-encoded data for immediate display and analysis
+                4. Handles various input formats commonly used in development projects
+
+                Maximum file size limit is 10MB to ensure efficient processing.
+                This is a read-only operation that does not modify the original image file on disk.
+                Use screen_capture tool instead if you need to capture live application windows or displays.
             "#},
             json!({
                 "type": "object",

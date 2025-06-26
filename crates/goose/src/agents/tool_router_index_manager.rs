@@ -25,9 +25,16 @@ impl ToolRouterIndexManager {
                     .await?;
 
                 if !tools.is_empty() {
-                    // Index all tools at once
+                    // Get extension description from extension manager
+                    let extensions_info = extension_manager.get_extensions_info().await;
+                    let extension_description = extensions_info
+                        .iter()
+                        .find(|info| info.name == extension_name)
+                        .map(|info| info.instructions.as_str());
+
+                    // Index all tools at once with extension description
                     selector
-                        .index_tools(&tools, extension_name)
+                        .index_tools(&tools, extension_name, extension_description)
                         .await
                         .map_err(|e| {
                             anyhow!(
@@ -92,9 +99,10 @@ impl ToolRouterIndexManager {
             tools.push(platform_tools::list_resources_tool());
         }
 
-        // Index all platform tools at once
+        // Index all platform tools at once with description
+        let platform_description = "Built-in platform tools for managing extensions and resources";
         selector
-            .index_tools(&tools, "platform")
+            .index_tools(&tools, "platform", Some(platform_description))
             .await
             .map_err(|e| anyhow!("Failed to index platform tools: {}", e))?;
 
@@ -104,8 +112,18 @@ impl ToolRouterIndexManager {
 
     /// Helper to check if vector or llm tool router is enabled
     pub fn is_tool_router_enabled(selector: &Option<Arc<Box<dyn RouterToolSelector>>>) -> bool {
-        selector.is_some()
-            && (selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Vector
-                || selector.as_ref().unwrap().selector_type() == RouterToolSelectionStrategy::Llm)
+        if let Some(selector) = selector.as_ref() {
+            matches!(
+                selector.selector_type(),
+                RouterToolSelectionStrategy::Vector
+                    | RouterToolSelectionStrategy::VectorWithExtension
+                    | RouterToolSelectionStrategy::Llm
+                    | RouterToolSelectionStrategy::VectorPassthrough
+                    | RouterToolSelectionStrategy::VectorWithExtensionPassthrough
+                    | RouterToolSelectionStrategy::LlmPassthrough
+            )
+        } else {
+            false
+        }
     }
 }

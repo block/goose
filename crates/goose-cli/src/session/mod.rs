@@ -260,6 +260,25 @@ impl Session {
         Ok(())
     }
 
+    pub async fn cleanup_extensions(&self) -> Result<()> {
+        let extensions = self.agent.list_extensions().await;
+        for extension_name in extensions {
+            let remove_timeout = tokio::time::Duration::from_secs(360);
+            match tokio::time::timeout(remove_timeout, self.agent.remove_extension(&extension_name))
+                .await
+            {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    tracing::warn!("Failed to remove extension {}: {}", extension_name, e);
+                }
+                Err(_timeout) => {
+                    tracing::warn!("Timeout removing extension {}", extension_name);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub async fn list_prompts(
         &mut self,
         extension: Option<String>,
@@ -1202,6 +1221,10 @@ impl Session {
         self.messages.clone()
     }
 
+    pub async fn override_system_prompt(&self, override_prompt: String) {
+        self.agent.override_system_prompt(override_prompt).await
+    }
+
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
         if self.messages.is_empty() {
@@ -1364,6 +1387,14 @@ impl Session {
         serde_yaml::to_writer(file, recipe).context("Failed to save recipe")?;
 
         Ok(path)
+    }
+
+    pub fn get_agent(&self) -> &Agent {
+        &self.agent
+    }
+
+    pub fn into_parts(self) -> (Agent, Vec<Message>, PathBuf) {
+        (self.agent, self.messages, self.session_file)
     }
 }
 

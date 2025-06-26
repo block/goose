@@ -5,6 +5,8 @@ use crate::runners::model_runner::ModelRunner;
 use crate::utilities::{await_process_exits, parallel_bench_cmd};
 use anyhow::Context;
 use std::path::PathBuf;
+use std::fs;
+use std::env;
 
 #[derive(Clone)]
 pub struct BenchRunner {
@@ -42,32 +44,39 @@ impl BenchRunner {
         Ok(BenchRunner { config })
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        // split models that must run serial from those that can be run in parallel
-        let (parallel_models, serial_models): &(Vec<BenchModel>, Vec<BenchModel>) = &self
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        let (parallel_models, serial_models): (Vec<BenchModel>, Vec<BenchModel>) = self
             .config
             .models
             .clone()
             .into_iter()
             .partition(|model| model.parallel_safe);
 
-        // exec parallel models
-        let mut parallel_models_handle = Vec::new();
-        for model in parallel_models {
-            self.config.models = vec![model.clone()];
-            let cfg = self.config.to_string()?;
-            let model_handle = parallel_bench_cmd("eval-model".to_string(), cfg, Vec::new());
-            parallel_models_handle.push(model_handle);
+
+        let mut parallel_handles = Vec::new();
+        for (idx, model) in parallel_models.into_iter().enumerate() {
+            self.config.models = vec![model];
+            // Write config to temp file
+            let config_path = env::current_dir()
+                .context("Failed to get current directory")?
+                .join(format!("temp_model_config_{}.json", idx));
+            fs::write(&config_path, self.config.to_string()?)
+                .context("Failed to write temporary config file")?;
+            parallel_handles.push(parallel_bench_cmd("eval-model".to_string(), config_path.to_string_lossy().to_string(), Vec::new()));
         }
 
-        // exec serial models
-        for model in serial_models {
-            self.config.models = vec![model.clone()];
-            ModelRunner::from(self.config.to_string()?)?.run()?;
+        for (idx, model) in serial_models.into_iter().enumerate() {
+            self.config.models = vec![model];
+            // Write config to temp file
+            let config_path = env::current_dir()
+                .context("Failed to get current directory")?
+                .join(format!("temp_model_config_serial_{}.json", idx));
+            fs::write(&config_path, self.config.to_string()?)
+                .context("Failed to write temporary config file")?;
+            ModelRunner::new(config_path.clone())?.run().await?;
         }
 
-        await_process_exits(&mut parallel_models_handle, Vec::new());
-
+        await_process_exits(&mut parallel_handles, Vec::new());
         Ok(())
     }
 

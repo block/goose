@@ -52,13 +52,25 @@ impl ComputerControllerRouter {
         let web_scrape_tool = Tool::new(
             "web_scrape",
             indoc! {r#"
-                Fetch and save content from a web page. The content can be saved as:
-                - text (for HTML pages)
-                - json (for API responses)
-                - binary (for images and other files)
+                Fetch and download content from web pages, APIs, and online resources for data collection, analysis, and automation workflows.
+                This tool is designed for non-developer users who need to gather information from websites without writing code or using complex scraping frameworks.
+                Use this tool when you need to:
+                - Collect data from websites for research, business intelligence, or personal projects
+                - Download content from APIs that provide JSON data or structured information
+                - Save web pages as text files for offline reading or analysis
+                - Retrieve binary files (images, documents, etc.) from websites for local processing
+                - Gather information for reports, spreadsheets, or presentations
+                - Monitor websites for changes or updates by comparing downloaded content
 
-                The content is cached locally and can be accessed later using the cache_path
-                returned in the response.
+                Content can be saved in different formats:
+                - text: Best for HTML pages, documentation, articles (extracts readable text content)
+                - json: Ideal for API responses, structured data feeds (preserves data structure)
+                - binary: Required for images, PDFs, and other file downloads (saves as-is)
+
+                All downloaded content is automatically cached locally with organized file paths for easy access and management.
+                Use the cache tool to view, organize, or clean up downloaded files later.
+                This tool handles basic web requests and is optimized for simple content retrieval rather than complex JavaScript-heavy sites.
+                For interactive websites or complex automation, consider using the computer_control tool instead.
             "#},
             json!({
                 "type": "object",
@@ -153,26 +165,59 @@ impl ComputerControllerRouter {
 
         let quick_script_desc = match std::env::consts::OS {
             "windows" => indoc! {r#"
-                Create and run small PowerShell or Batch scripts for automation tasks.
-                PowerShell is recommended for most tasks.
+                Create and execute small automation scripts for data processing, file manipulation, and simple task automation without requiring programming expertise.
+                This tool is designed for non-developer users who need to automate repetitive tasks, process data files, or perform system operations using user-friendly scripting.
+                Use this tool when you need to:
+                - Process and transform data files (CSV, text, JSON) for analysis or reporting
+                - Automate repetitive file operations like renaming, organizing, or batch processing
+                - Extract specific information from documents or data files
+                - Perform simple calculations or data aggregations
+                - Convert between file formats or clean up messy data
+                - Create simple workflows that combine multiple file operations
 
-                The script is saved to a temporary file and executed.
-                Some examples:
-                - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
-                - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
-                - Find text: Select-String -Pattern "pattern" -Path file.txt
+                Supports PowerShell (recommended) and Batch scripting on Windows:
+                - PowerShell: Modern, powerful scripting with rich data processing capabilities
+                - Batch: Traditional Windows command scripting for simple file operations
+
+                Scripts are automatically saved to temporary files and executed safely with output capture.
+                Common PowerShell examples for non-developers:
+                - Sort and remove duplicates: Get-Content file.txt | Sort-Object -Unique
+                - Extract specific CSV column: Import-Csv data.csv | Select-Object -ExpandProperty "Column Name"
+                - Find text in files: Select-String -Pattern "search term" -Path "*.txt"
+                - File operations: Get-ChildItem "*.jpg" | Move-Item -Destination "Photos/"
+
+                This tool focuses on practical automation for everyday computer tasks rather than software development.
+                Use computer_control tool for more complex system automation or UI interaction needs.
             "#},
             _ => indoc! {r#"
-                Create and run small scripts for automation tasks.
-                Supports Shell and Ruby (on macOS).
+                Create and execute small automation scripts for data processing, file manipulation, and simple task automation without requiring programming expertise.
+                This tool is designed for non-developer users who need to automate repetitive tasks, process data files, or perform system operations using accessible scripting.
+                Use this tool when you need to:
+                - Process and transform data files (CSV, text, JSON) for analysis or reporting
+                - Automate repetitive file operations like renaming, organizing, or batch processing
+                - Extract specific information from documents or data files
+                - Perform simple calculations or data aggregations
+                - Convert between file formats or clean up messy data
+                - Create simple workflows that combine multiple file operations
 
-                The script is saved to a temporary file and executed.
-                Consider using shell script (bash) for most simple tasks first.
-                Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
-                Some examples of shell:
-                    - create a sorted list of unique lines: sort file.txt | uniq
-                    - extract 2nd column in csv: awk -F "," '{ print $2}'
-                    - pattern matching: grep pattern file.txt
+                Supports Shell (bash) and Ruby scripting on Unix systems:
+                - Shell (bash): Recommended for most file operations and simple data processing tasks
+                - Ruby: Better for complex text processing and when you need more sophisticated data manipulation
+
+                Scripts are automatically saved to temporary files and executed safely with output capture.
+                Common shell examples for non-developers:
+                - Sort and remove duplicates: sort file.txt | uniq
+                - Extract specific CSV column: awk -F "," '{print $2}' data.csv
+                - Find text in files: grep "search term" *.txt
+                - File operations: find . -name "*.jpg" -exec mv {} Photos/ \;
+
+                Common Ruby examples for data processing:
+                - CSV manipulation: CSV processing with headers and data transformation
+                - Text processing: Regular expression matching and string manipulation
+                - File analysis: Counting, statistics, and pattern detection
+
+                This tool focuses on practical automation for everyday computer tasks rather than software development.
+                Use computer_control tool for more complex system automation or UI interaction needs.
             "#},
         };
 
@@ -205,11 +250,24 @@ impl ComputerControllerRouter {
         let cache_tool = Tool::new(
             "cache",
             indoc! {r#"
-                Manage cached files and data:
-                - list: List all cached files
-                - view: View content of a cached file
-                - delete: Delete a cached file
-                - clear: Clear all cached files
+                Manage and organize cached files downloaded by web_scrape and other tools for easy access and cleanup.
+                This tool helps non-developer users organize their downloaded content and manage local storage efficiently.
+                Use this tool when you need to:
+                - Review what content has been downloaded and cached from previous web scraping operations
+                - Access previously downloaded files without re-downloading them from websites
+                - View the contents of cached files to verify they contain the expected data
+                - Clean up storage space by removing outdated or unnecessary cached files
+                - Organize your downloaded content library for research or analysis projects
+
+                Available cache management operations:
+                - list: Display all cached files with their names, sizes, and download dates for easy browsing
+                - view: Read and display the contents of a specific cached file to review its data
+                - delete: Remove a specific cached file to free up space or remove outdated content
+                - clear: Remove all cached files at once for a fresh start or storage cleanup
+
+                Cached files are organized by type and source for easy navigation and include metadata about when they were downloaded.
+                This tool is essential for managing the data collection workflow when using web_scrape and maintaining an organized local content library.
+                Use this tool regularly to keep your cached content organized and prevent storage issues.
             "#},
             json!({
                 "type": "object",
@@ -232,12 +290,24 @@ impl ComputerControllerRouter {
         let pdf_tool = Tool::new(
             "pdf_tool",
             indoc! {r#"
-                Process PDF files to extract text and images.
-                Supports operations:
-                - extract_text: Extract all text content from the PDF
-                - extract_images: Extract and save embedded images to PNG files
+                Extract text content and images from PDF documents for analysis, data processing, and content management workflows.
+                This tool is designed for non-developer users who need to work with PDF documents in business, research, or personal projects.
+                Use this tool when you need to:
+                - Extract readable text from PDF reports, documents, or forms for analysis or editing
+                - Convert PDF content to text format for use in spreadsheets, presentations, or other documents
+                - Retrieve images, charts, or diagrams embedded in PDF files for separate use
+                - Process multiple PDF files to gather information or create summaries
+                - Prepare PDF content for integration with other tools or workflows
+                - Analyze document structure and content without manual copying
 
-                Use this when there is a .pdf file or files that need to be processed.
+                Supported operations:
+                - extract_text: Extracts all readable text content from the PDF, preserving structure and formatting where possible
+                - extract_images: Locates and saves all embedded images, photos, charts, and diagrams as separate PNG files
+
+                The tool handles various PDF types including scanned documents, native PDFs, and mixed content files.
+                Extracted text maintains paragraph structure and formatting for readability.
+                Images are saved with descriptive names and optimized PNG format for easy use in other applications.
+                This tool is ideal for document processing workflows and content extraction tasks that don't require programming knowledge.
             "#},
             json!({
                 "type": "object",
@@ -266,17 +336,29 @@ impl ComputerControllerRouter {
         let docx_tool = Tool::new(
             "docx_tool",
             indoc! {r#"
-                Process DOCX files to extract text and create/update documents.
-                Supports operations:
-                - extract_text: Extract all text content and structure (headings, TOC) from the DOCX
-                - update_doc: Create a new DOCX or update existing one with provided content
-                  Modes:
-                  - append: Add content to end of document (default)
-                  - replace: Replace specific text with new content
-                  - structured: Add content with specific heading level and styling
-                  - add_image: Add an image to the document (with optional caption)
+                Extract content from and create/modify Microsoft Word documents for document processing, report generation, and content management workflows.
+                This tool is designed for non-developer users who need to automate document creation, extract information from Word files, or manage document workflows.
+                Use this tool when you need to:
+                - Extract text content, headings, and structure from existing Word documents for analysis or repurposing
+                - Create professional documents programmatically with proper formatting and structure
+                - Update existing documents by adding new content, replacing sections, or inserting images
+                - Automate report generation with consistent formatting and styling
+                - Process multiple Word documents to extract information or standardize formatting
+                - Create templates and populate them with dynamic content
 
-                Use this when there is a .docx file that needs to be processed or created.
+                Supported operations:
+                - extract_text: Extracts all text content including headings, body text, and document structure (tables of contents, etc.)
+                - update_doc: Creates new Word documents or modifies existing ones with sophisticated content management
+
+                Update modes for document modification:
+                - append: Add new content to the end of the document (default, safest option)
+                - replace: Find and replace specific text sections with new content
+                - structured: Add content with specific heading levels and professional styling
+                - add_image: Insert images into the document with optional captions and sizing
+
+                The tool supports rich formatting including bold, italic, underline, font sizes, colors, text alignment, and heading styles.
+                Documents are created with professional formatting and maintain compatibility with Microsoft Word and other office applications.
+                This tool is ideal for business document workflows, report automation, and content management tasks without requiring programming expertise.
             "#},
             json!({
                 "type": "object",
@@ -365,17 +447,30 @@ impl ComputerControllerRouter {
         let xlsx_tool = Tool::new(
             "xlsx_tool",
             indoc! {r#"
-                Process Excel (XLSX) files to read and manipulate spreadsheet data.
-                Supports operations:
-                - list_worksheets: List all worksheets in the workbook (returns name, index, column_count, row_count)
-                - get_columns: Get column names from a worksheet (returns values from the first row)
-                - get_range: Get values and formulas from a cell range (e.g., "A1:C10") (returns a 2D array organized as [row][column])
-                - find_text: Search for text in a worksheet (returns a list of (row, column) coordinates)
-                - update_cell: Update a single cell's value (returns confirmation message)
-                - get_cell: Get value and formula from a specific cell (returns both value and formula if present)
-                - save: Save changes back to the file (returns confirmation message)
+                Analyze, manipulate, and process Excel spreadsheet data for business intelligence, data analysis, and reporting workflows.
+                This tool is designed for non-developer users who need to work with Excel files for data analysis, reporting, or business operations.
+                Use this tool when you need to:
+                - Analyze business data stored in Excel files for insights and reporting
+                - Extract specific information from large spreadsheets for presentations or summaries
+                - Automate data entry and updates to existing Excel files
+                - Search through spreadsheet data to find specific records or patterns
+                - Process multiple worksheets and combine data from different sources
+                - Generate reports based on Excel data without manual copying and pasting
+                - Validate and clean data in spreadsheets for accuracy and consistency
 
-                Use this when working with Excel spreadsheets to analyze or modify data.
+                Comprehensive spreadsheet operations:
+                - list_worksheets: Discover all worksheets in a workbook with metadata (names, dimensions, row/column counts)
+                - get_columns: Extract column headers and names from worksheets for data structure understanding
+                - get_range: Read data from specific cell ranges (e.g., "A1:C10") returning organized 2D arrays for analysis
+                - find_text: Search for specific text, numbers, or patterns across worksheets with precise location coordinates
+                - update_cell: Modify individual cell values with data validation and confirmation
+                - get_cell: Retrieve both display values and underlying formulas from specific cells
+                - save: Persist all changes back to the Excel file with integrity checking
+
+                The tool handles complex Excel features including formulas, formatting, multiple worksheets, and data types.
+                Results are returned in structured formats that are easy to process and analyze.
+                This tool is ideal for business users who need Excel automation without VBA programming or complex macro development.
+                All operations maintain Excel file integrity and compatibility with Microsoft Excel and other spreadsheet applications.
             "#},
             json!({
                 "type": "object",

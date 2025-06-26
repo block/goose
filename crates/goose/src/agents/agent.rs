@@ -36,7 +36,12 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
+use crate::agents::router_tools::{
+    ROUTER_LLM_SEARCH_PARALLEL_TOOL_NAME, ROUTER_LLM_SEARCH_PASSTHROUGH_TOOL_NAME,
+    ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_PASSTHROUGH_TOOL_NAME,
+    ROUTER_VECTOR_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_WITH_EXTENSION_PASSTHROUGH_TOOL_NAME,
+    ROUTER_VECTOR_SEARCH_WITH_EXTENSION_TOOL_NAME,
+};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
@@ -211,11 +216,12 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, user_message), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
+        user_message: Option<&str>,
     ) -> (String, Result<ToolCallResult, ToolError>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -291,22 +297,62 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
             )))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
+            || tool_call.name == ROUTER_VECTOR_SEARCH_WITH_EXTENSION_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
+            || tool_call.name == ROUTER_LLM_SEARCH_PARALLEL_TOOL_NAME
+            || tool_call.name == ROUTER_VECTOR_SEARCH_PASSTHROUGH_TOOL_NAME
+            || tool_call.name == ROUTER_VECTOR_SEARCH_WITH_EXTENSION_PASSTHROUGH_TOOL_NAME
+            || tool_call.name == ROUTER_LLM_SEARCH_PASSTHROUGH_TOOL_NAME
         {
+            // Log the tool call details
+            tracing::warn!(
+                "Router tool search called: tool={}, arguments={}",
+                tool_call.name,
+                serde_json::to_string_pretty(&tool_call.arguments)
+                    .unwrap_or_else(|_| "invalid json".to_string())
+            );
+
             let selector = self.router_tool_selector.lock().await.clone();
+
+            // Determine if this is a passthrough tool
+            let is_passthrough = tool_call.name == ROUTER_VECTOR_SEARCH_PASSTHROUGH_TOOL_NAME
+                || tool_call.name == ROUTER_VECTOR_SEARCH_WITH_EXTENSION_PASSTHROUGH_TOOL_NAME
+                || tool_call.name == ROUTER_LLM_SEARCH_PASSTHROUGH_TOOL_NAME;
+
             let selected_tools = match selector.as_ref() {
-                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
-                    Ok(tools) => tools,
-                    Err(e) => {
-                        return (
-                            request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to select tools: {}",
-                                e
-                            ))),
-                        )
+                Some(selector) => {
+                    if is_passthrough {
+                        // Pass the actual user's last message for passthrough strategies
+                        match selector
+                            .select_tools_with_context(tool_call.arguments.clone(), user_message)
+                            .await
+                        {
+                            Ok(tools) => tools,
+                            Err(e) => {
+                                return (
+                                    request_id,
+                                    Err(ToolError::ExecutionError(format!(
+                                        "Failed to select tools with context: {}",
+                                        e
+                                    ))),
+                                )
+                            }
+                        }
+                    } else {
+                        match selector.select_tools(tool_call.arguments.clone()).await {
+                            Ok(tools) => tools,
+                            Err(e) => {
+                                return (
+                                    request_id,
+                                    Err(ToolError::ExecutionError(format!(
+                                        "Failed to select tools: {}",
+                                        e
+                                    ))),
+                                )
+                            }
+                        }
                     }
-                },
+                }
                 None => {
                     return (
                         request_id,
@@ -558,8 +604,23 @@ impl Agent {
             Some(RouterToolSelectionStrategy::Vector) => {
                 prefixed_tools.push(router_tools::vector_search_tool());
             }
+            Some(RouterToolSelectionStrategy::VectorWithExtension) => {
+                prefixed_tools.push(router_tools::vector_search_tool_with_extension());
+            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 prefixed_tools.push(router_tools::llm_search_tool());
+            }
+            Some(RouterToolSelectionStrategy::VectorPassthrough) => {
+                prefixed_tools.push(router_tools::vector_search_passthrough_tool());
+            }
+            Some(RouterToolSelectionStrategy::VectorWithExtensionPassthrough) => {
+                prefixed_tools.push(router_tools::vector_search_with_extension_passthrough_tool());
+            }
+            Some(RouterToolSelectionStrategy::LlmPassthrough) => {
+                prefixed_tools.push(router_tools::llm_search_passthrough_tool());
+            }
+            Some(RouterToolSelectionStrategy::LlmParallel) => {
+                prefixed_tools.push(router_tools::llm_search_parallel_tool());
             }
             None => {}
         }
@@ -667,12 +728,15 @@ impl Agent {
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);
 
-        if let Some(content) = messages
+        // Extract the user's last message for passthrough router strategies
+        let user_message_content = messages
             .last()
             .and_then(|msg| msg.content.first())
             .and_then(|c| c.as_text())
-        {
-            debug!("user_message" = &content);
+            .map(|s| s.to_string());
+
+        if let Some(content) = &user_message_content {
+            debug!("user_message" = content);
         }
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -815,7 +879,7 @@ impl Agent {
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call, request.id.clone()).await;
+                                    let (req_id, tool_result) = self.dispatch_tool_call(tool_call, request.id.clone(), user_message_content.as_deref()).await;
 
                                     tool_futures.push((req_id, match tool_result {
                                         Ok(result) => tool_stream(
@@ -1005,7 +1069,14 @@ impl Agent {
 
         let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "vector_with_extension" => Some(RouterToolSelectionStrategy::VectorWithExtension),
             "llm" => Some(RouterToolSelectionStrategy::Llm),
+            "vector_passthrough" => Some(RouterToolSelectionStrategy::VectorPassthrough),
+            "vector_with_extension_passthrough" => {
+                Some(RouterToolSelectionStrategy::VectorWithExtensionPassthrough)
+            }
+            "llm_passthrough" => Some(RouterToolSelectionStrategy::LlmPassthrough),
+            "llm_parallel" => Some(RouterToolSelectionStrategy::LlmParallel),
             _ => None,
         };
 
@@ -1017,8 +1088,41 @@ impl Agent {
                     .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
                 Arc::new(selector)
             }
+            Some(RouterToolSelectionStrategy::VectorWithExtension) => {
+                let table_name = generate_table_id();
+                let selector = create_tool_selector(strategy, provider, Some(table_name))
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 let selector = create_tool_selector(strategy, provider.clone(), None)
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::VectorPassthrough) => {
+                let table_name = generate_table_id();
+                let selector = create_tool_selector(strategy, provider, Some(table_name))
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::VectorWithExtensionPassthrough) => {
+                let table_name = generate_table_id();
+                let selector = create_tool_selector(strategy, provider, Some(table_name))
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::LlmPassthrough) => {
+                let selector = create_tool_selector(strategy, provider, None)
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::LlmParallel) => {
+                let selector = create_tool_selector(strategy, provider, None)
                     .await
                     .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
                 Arc::new(selector)
@@ -1129,12 +1233,15 @@ impl Agent {
         let model_name = &model_config.model_name;
 
         let prompt_manager = self.prompt_manager.lock().await;
+        // TODO: Determine when vector_search_with_extension should be enabled
+        let vector_search_with_extension_enabled = false;
         let system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
             None,
+            vector_search_with_extension_enabled,
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;

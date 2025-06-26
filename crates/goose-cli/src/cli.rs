@@ -4,6 +4,7 @@ use clap::{Args, Parser, Subcommand};
 use goose::config::{Config, ExtensionConfig};
 
 use crate::commands::bench::agent_generator;
+
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
@@ -77,7 +78,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
     }
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum SessionCommand {
     #[command(about = "List all available sessions")]
     List {
@@ -174,7 +175,7 @@ enum SchedulerCommand {
     CronHelp {},
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum BenchCommand {
     #[command(name = "init-config", about = "Create a new starter-config")]
     InitConfig {
@@ -204,14 +205,14 @@ pub enum BenchCommand {
 
     #[command(name = "eval-model", about = "Run an eval of model")]
     EvalModel {
-        #[arg(short, long, help = "A serialized config file for the model only.")]
-        config: String,
+        #[arg(short, long, help = "Path to a config file for the model only.")]
+        config: PathBuf,
     },
 
     #[command(name = "exec-eval", about = "run a single eval")]
     ExecEval {
-        #[arg(short, long, help = "A serialized config file for the eval only.")]
-        config: String,
+        #[arg(short, long, help = "Path to a config file for the eval only.")]
+        config: PathBuf,
     },
 
     #[command(
@@ -228,7 +229,7 @@ pub enum BenchCommand {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum RecipeCommand {
     /// Validate a recipe file
     #[command(about = "Validate a recipe")]
@@ -249,7 +250,7 @@ enum RecipeCommand {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -892,7 +893,9 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Bench { cmd }) => {
             match cmd {
-                BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
+                BenchCommand::Selectors { config } => {
+                    BenchRunner::list_selectors(config)?
+                },
                 BenchCommand::InitConfig { name } => {
                     let mut config = BenchRunConfig::default();
                     let cwd =
@@ -900,10 +903,14 @@ pub async fn cli() -> Result<()> {
                     config.output_dir = Some(cwd);
                     config.save(name);
                 }
-                BenchCommand::Run { config } => BenchRunner::new(config)?.run()?,
-                BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
+                BenchCommand::Run { config } => {
+                    BenchRunner::new(config)?.run().await?
+                },
+                BenchCommand::EvalModel { config } => {
+                    ModelRunner::new(config)?.run().await?
+                },
                 BenchCommand::ExecEval { config } => {
-                    EvalRunner::from(config)?.run(agent_generator).await?
+                    EvalRunner::new(config)?.run(agent_generator).await?
                 }
                 BenchCommand::GenerateLeaderboard { benchmark_dir } => {
                     MetricAggregator::generate_csv_from_benchmark_dir(&benchmark_dir)?

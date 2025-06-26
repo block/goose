@@ -4,7 +4,11 @@ use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{llm_search_tool_prompt, vector_search_tool_prompt};
+use crate::agents::router_tools::{
+    llm_search_parallel_tool_prompt, llm_search_passthrough_tool_prompt, llm_search_tool_prompt,
+    vector_search_passthrough_tool_prompt, vector_search_tool_prompt,
+    vector_search_tool_with_extension_prompt, vector_search_with_extension_passthrough_tool_prompt,
+};
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template};
 
@@ -63,6 +67,7 @@ impl PromptManager {
     ///
     /// * `extensions_info` – extension information for each extension/MCP
     /// * `frontend_instructions` – instructions for the "frontend" tool
+    /// * `vector_search_with_extension_enabled` – whether the extension-specific vector search tool is enabled
     pub fn build_system_prompt(
         &self,
         extensions_info: Vec<ExtensionInfo>,
@@ -70,6 +75,7 @@ impl PromptManager {
         suggest_disable_extensions_prompt: Value,
         model_name: Option<&str>,
         tool_selection_strategy: Option<RouterToolSelectionStrategy>,
+        vector_search_with_extension_enabled: bool,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -83,7 +89,15 @@ impl PromptManager {
             ));
         }
 
-        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+        // Only include extension information if the extension-specific vector search tool is enabled
+        if vector_search_with_extension_enabled {
+            context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+        } else {
+            context.insert(
+                "extensions",
+                serde_json::to_value(Vec::<ExtensionInfo>::new()).unwrap(),
+            );
+        }
 
         match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
@@ -92,10 +106,40 @@ impl PromptManager {
                     Value::String(vector_search_tool_prompt()),
                 );
             }
+            Some(RouterToolSelectionStrategy::VectorWithExtension) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(vector_search_tool_with_extension_prompt()),
+                );
+            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 context.insert(
                     "tool_selection_strategy",
                     Value::String(llm_search_tool_prompt()),
+                );
+            }
+            Some(RouterToolSelectionStrategy::VectorPassthrough) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(vector_search_passthrough_tool_prompt()),
+                );
+            }
+            Some(RouterToolSelectionStrategy::VectorWithExtensionPassthrough) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(vector_search_with_extension_passthrough_tool_prompt()),
+                );
+            }
+            Some(RouterToolSelectionStrategy::LlmPassthrough) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(llm_search_passthrough_tool_prompt()),
+                );
+            }
+            Some(RouterToolSelectionStrategy::LlmParallel) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(llm_search_parallel_tool_prompt()),
                 );
             }
             None => {}

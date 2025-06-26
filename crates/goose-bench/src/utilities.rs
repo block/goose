@@ -7,16 +7,19 @@ use tracing;
 pub fn await_process_exits(child_processes: &mut [Child], handles: Vec<JoinHandle<Result<()>>>) {
     for child in child_processes.iter_mut() {
         match child.wait() {
-            Ok(status) => tracing::info!("Child exited with status: {}", status),
-            Err(e) => tracing::error!("Error waiting for child: {}", e),
+            Ok(status) => {
+                tracing::info!("Child exited with status: {}", status);
+            },
+            Err(e) => {
+                tracing::error!("Error waiting for child: {}", e);
+            },
         }
     }
 
-    for handle in handles {
+    for handle in handles.into_iter() {
         match handle.join() {
-            Ok(_res) => (),
+            Ok(_res) => {},
             Err(e) => {
-                // Handle thread panic
                 tracing::error!("Thread panicked: {:?}", e);
             }
         }
