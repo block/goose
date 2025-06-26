@@ -201,6 +201,8 @@ export type Message = {
  */
 export type MessageContent = (TextContent & {
     type: 'text';
+}) | (SessionFiles & {
+    type: 'sessionFiles';
 }) | (ImageContent & {
     type: 'image';
 }) | (ToolRequest & {
@@ -338,6 +340,20 @@ export type SessionDisplayInfo = {
     scheduleId?: string | null;
     totalTokens?: number | null;
     workingDir: string;
+};
+
+export type SessionFile = {
+    data_url?: string | null;
+    error?: string | null;
+    file_path?: string | null;
+    id: string;
+    is_loading?: boolean | null;
+    path: string;
+    type: string;
+};
+
+export type SessionFiles = {
+    files: Array<SessionFile>;
 };
 
 export type SessionHistoryResponse = {

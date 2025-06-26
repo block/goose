@@ -4,8 +4,9 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent,
+    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    SessionFiles, SessionFile,
 };
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
@@ -81,6 +82,8 @@ use utoipa::OpenApi;
         ResourceContents,
         ContextLengthExceeded,
         SummarizationRequested,
+        SessionFiles,
+        SessionFile,
         Role,
         ProviderMetadata,
         ExtensionEntry,

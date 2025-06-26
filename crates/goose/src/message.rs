@@ -97,10 +97,29 @@ pub struct SummarizationRequested {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SessionFile {
+    pub id: String,
+    pub path: String,
+    #[serde(rename = "type")]
+    pub file_type: String, // "file", "directory", or "image"
+    // Image-specific properties (only present for images)
+    pub data_url: Option<String>, // For immediate preview
+    pub file_path: Option<String>, // Path on filesystem after saving (for images)
+    pub is_loading: Option<bool>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct SessionFiles {
+    pub files: Vec<SessionFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
     Text(TextContent),
+    SessionFiles(SessionFiles),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -182,6 +201,10 @@ impl MessageContent {
         MessageContent::SummarizationRequested(SummarizationRequested { msg: msg.into() })
     }
 
+    pub fn session_files(files: Vec<SessionFile>) -> Self {
+        MessageContent::SessionFiles(SessionFiles { files })
+    }
+
     // Add this new method to check for summarization requested content
     pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
         if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
@@ -250,6 +273,14 @@ impl MessageContent {
     pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
         match self {
             MessageContent::RedactedThinking(redacted) => Some(redacted),
+            _ => None,
+        }
+    }
+
+    /// Get the session files content if this is a SessionFiles variant
+    pub fn as_session_files(&self) -> Option<&SessionFiles> {
+        match self {
+            MessageContent::SessionFiles(session_files) => Some(session_files),
             _ => None,
         }
     }
@@ -474,6 +505,11 @@ impl Message {
     /// Add summarization requested to the message
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
+    }
+
+    /// Add session files to the message
+    pub fn with_session_files(self, files: Vec<SessionFile>) -> Self {
+        self.with_content(MessageContent::session_files(files))
     }
 }
 

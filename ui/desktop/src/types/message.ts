@@ -83,6 +83,22 @@ export interface SummarizationRequestedContent {
   msg: string;
 }
 
+export interface SessionFile {
+  id: string;
+  path: string;
+  type: 'file' | 'directory' | 'image';
+  // Image-specific properties (only present for images)
+  dataUrl?: string; // For immediate preview
+  filePath?: string; // Path on filesystem after saving (for images)
+  isLoading?: boolean;
+  error?: string;
+}
+
+export interface SessionFilesContent {
+  type: 'sessionFiles';
+  files: SessionFile[];
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
@@ -90,7 +106,8 @@ export type MessageContent =
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
   | ContextLengthExceededContent
-  | SummarizationRequestedContent;
+  | SummarizationRequestedContent
+  | SessionFilesContent;
 
 export interface Message {
   id?: string;
@@ -102,12 +119,44 @@ export interface Message {
 }
 
 // Helper functions to create messages
-export function createUserMessage(text: string): Message {
+export function createUserMessage(text: string, sessionFiles: SessionFile[] = []): Message {
+  const content: MessageContent[] = [];
+
+  // Add text content if there's text
+  if (text.trim()) {
+    content.push({ type: 'text', text: text.trim() });
+  }
+
+  // Separate images from other session files
+  const imageFiles = sessionFiles.filter((file) => file.type === 'image');
+  const nonImageFiles = sessionFiles.filter((file) => file.type !== 'image');
+
+  // Add image content for each image file
+  for (const imageFile of imageFiles) {
+    if (imageFile.dataUrl && !imageFile.error && !imageFile.isLoading) {
+      // Extract the base64 data and mime type from the data URL
+      const dataUrlMatch = imageFile.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUrlMatch) {
+        const [, mimeType, base64Data] = dataUrlMatch;
+        content.push({
+          type: 'image',
+          data: base64Data,
+          mimeType: mimeType,
+        });
+      }
+    }
+  }
+
+  // Add session files content only if there are non-image session files
+  if (nonImageFiles.length > 0) {
+    content.push({ type: 'sessionFiles', files: nonImageFiles });
+  }
+
   return {
     id: generateId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
+    content,
   };
 }
 
@@ -179,6 +228,13 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
       },
     ],
   };
+}
+
+// Helper functions for session files
+export function getSessionFilesFromMessage(message: Message): SessionFile[] {
+  return message.content
+    .filter((content): content is SessionFilesContent => content.type === 'sessionFiles')
+    .flatMap((content) => content.files);
 }
 
 // Generate a unique ID for messages

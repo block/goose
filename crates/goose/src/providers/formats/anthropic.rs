@@ -80,6 +80,17 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }));
                 }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
+                MessageContent::SessionFiles(session_files) => {
+                    // Convert session files to text content
+                    let files_text = format!(
+                        "The following files have been added to the context:\n{}",
+                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
+                    );
+                    content.push(json!({
+                        "type": "text",
+                        "text": files_text
+                    }));
+                }
                 MessageContent::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({

@@ -66,6 +66,8 @@ type ElectronAPI = {
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
   selectFileOrDirectory: () => Promise<string | null>;
+  selectMultipleFiles: () => Promise<string[]>;
+  getPathType: (filePath: string) => Promise<'file' | 'directory' | 'unknown'>;
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
   getBinaryPath: (binaryName: string) => Promise<string>;
@@ -98,6 +100,8 @@ type ElectronAPI = {
   deleteTempFile: (filePath: string) => void;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
+  // Function to read image files and convert to data URL
+  readImageFile: (filePath: string) => Promise<string | null>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -144,6 +148,8 @@ const electronAPI: ElectronAPI = {
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
   selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
+  selectMultipleFiles: () => ipcRenderer.invoke('select-multiple-files'),
+  getPathType: (filePath: string) => ipcRenderer.invoke('get-path-type', filePath),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
@@ -187,6 +193,9 @@ const electronAPI: ElectronAPI = {
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);
+  },
+  readImageFile: (filePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('read-image-file', filePath);
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';

@@ -1495,6 +1495,27 @@
           {
             "allOf": [
               {
+                "$ref": "#/components/schemas/SessionFiles"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "sessionFiles"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
                 "$ref": "#/components/schemas/ImageContent"
               },
               {
@@ -1995,6 +2016,55 @@
           },
           "workingDir": {
             "type": "string"
+          }
+        }
+      },
+      "SessionFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "type"
+        ],
+        "properties": {
+          "data_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "file_path": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_loading": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionFiles": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionFile"
+            }
           }
         }
       },

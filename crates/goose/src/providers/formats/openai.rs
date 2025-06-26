@@ -157,6 +157,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Handle direct image content
                     converted["content"] = json!([convert_image(image, image_format)]);
                 }
+                MessageContent::SessionFiles(session_files) => {
+                    // Convert session files to text content
+                    let files_text = format!(
+                        "The following files have been added to the context:\n{}",
+                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
+                    );
+                    converted["content"] = json!({
+                        "type": "text",
+                        "text": files_text
+                    });
+                }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);

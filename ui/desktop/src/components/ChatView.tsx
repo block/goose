@@ -43,7 +43,12 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
   TextContent,
+  SessionFile,
 } from '../types/message';
+
+// Constants for image handling
+const MAX_IMAGES_PER_MESSAGE = 5;
+const MAX_IMAGE_SIZE_MB = 5;
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -107,8 +112,7 @@ function ChatContent({
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
-  const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
-  const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
+  const [sessionFiles, setSessionFiles] = useState<SessionFile[]>([]);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -122,16 +126,6 @@ function ChatContent({
     hasContextHandlerContent,
     getContextHandlerType,
   } = useChatContextManager();
-
-  useEffect(() => {
-    // Log all messages when the component first mounts
-    window.electron.logInfo(
-      'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
-    );
-    // Set ready for auto user prompt after component initialization
-    setReadyForAutoUserPrompt(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array means this runs once on mount;
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
@@ -307,19 +301,13 @@ function ChatContent({
     }
   }, [messages]);
 
-  // Pre-fill input with recipe prompt instead of auto-sending it
-  const initialPrompt = useMemo(() => {
-    return recipeConfig?.prompt || '';
-  }, [recipeConfig?.prompt]);
-
   // Auto-send the prompt for scheduled executions
   useEffect(() => {
     if (
       recipeConfig?.isScheduledExecution &&
       recipeConfig?.prompt &&
       messages.length === 0 &&
-      !isLoading &&
-      readyForAutoUserPrompt
+      !isLoading
     ) {
       console.log('Auto-sending prompt for scheduled execution:', recipeConfig.prompt);
 
@@ -341,7 +329,6 @@ function ChatContent({
     recipeConfig?.prompt,
     messages.length,
     isLoading,
-    readyForAutoUserPrompt,
     append,
     setLastInteractionTime,
   ]);
@@ -350,15 +337,22 @@ function ChatContent({
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
     const customEvent = e as unknown as CustomEvent;
-    // ChatInput now sends a single 'value' field with text and appended image paths
     const combinedTextFromInput = customEvent.detail?.value || '';
+    const submittedSessionFiles = customEvent.detail?.sessionFiles || [];
 
-    if (combinedTextFromInput.trim()) {
+    // Allow submission if there's text or session files
+    const hasText = combinedTextFromInput.trim();
+    const hasSessionFiles = submittedSessionFiles.length > 0;
+    const hasContent = hasText || hasSessionFiles;
+
+    if (hasContent) {
       setLastInteractionTime(Date.now());
 
-      // createUserMessage was reverted to only accept text.
-      // It will create a Message with a single TextContent part containing text + paths.
-      const userMessage = createUserMessage(combinedTextFromInput.trim());
+      // Create user message with text (if any) and session files
+      const userMessage = createUserMessage(
+        hasText ? combinedTextFromInput.trim() : '',
+        submittedSessionFiles // Use submitted session files
+      );
 
       if (summarizedThread.length > 0) {
         resetMessagesWithSummary(
@@ -380,6 +374,9 @@ function ChatContent({
           scrollRef.current.scrollToBottom();
         }
       }
+
+      // Clear sessionFiles after sending the message
+      setSessionFiles([]);
     } else {
       // If nothing was actually submitted (e.g. empty input and no images pasted)
       window.electron.stopPowerSaveBlocker();
@@ -533,22 +530,6 @@ function ChatContent({
     }
   }, [chat.id, messages]);
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const paths: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        paths.push(window.electron.getPathForFile(files[i]));
-      }
-      setDroppedFiles(paths);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
   const toolCallNotifications = notifications.reduce((map, item) => {
     const key = item.request_id;
     if (!map.has(key)) {
@@ -557,6 +538,146 @@ function ChatContent({
     map.get(key).push(item);
     return map;
   }, new Map());
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    const nonImageFiles = files.filter((file) => !file.type.startsWith('image/'));
+
+    // Handle non-image files first - add them to sessionFiles
+    if (nonImageFiles.length > 0) {
+      const processNonImageFiles = async () => {
+        // Collect all new session files first
+        const newSessionFiles: SessionFile[] = [];
+
+        for (const file of nonImageFiles) {
+          try {
+            // Get the file path using the electron API
+            const filePath = window.electron.getPathForFile(file);
+            if (filePath) {
+              // Get the path type
+              const pathType = await window.electron.getPathType(filePath);
+
+              // Check if this path is already in sessionFiles
+              const isAlreadyAdded = sessionFiles.some((item) => item.path === filePath);
+
+              if (!isAlreadyAdded) {
+                const newSessionFile: SessionFile = {
+                  id: `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                  path: filePath,
+                  type: pathType === 'directory' ? 'directory' : 'file',
+                };
+                newSessionFiles.push(newSessionFile);
+              }
+            }
+          } catch (error) {
+            console.error('Error processing dropped file:', error);
+          }
+        }
+
+        // Update sessionFiles with all new items at once
+        if (newSessionFiles.length > 0) {
+          setSessionFiles([...sessionFiles, ...newSessionFiles]);
+        }
+      };
+      processNonImageFiles();
+    }
+
+    // Handle image files with the same logic as paste functionality
+    if (imageFiles.length === 0) return;
+
+    // Check if adding these images would exceed the limit
+    if (sessionFiles.length + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
+      // Show error message to user
+      setSessionFiles((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          path: '',
+          type: 'image',
+          dataUrl: '',
+          isLoading: false,
+          error: `Cannot drop ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed.`,
+        },
+      ]);
+
+      // Remove the error message after 3 seconds
+      setTimeout(() => {
+        setSessionFiles((prev) => prev.filter((file) => !file.id.startsWith('error-')));
+      }, 3000);
+
+      return;
+    }
+
+    for (const file of imageFiles) {
+      // Check individual file size before processing
+      if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+        const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        setSessionFiles((prev) => [
+          ...prev,
+          {
+            id: errorId,
+            path: '',
+            type: 'image',
+            dataUrl: '',
+            isLoading: false,
+            error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
+          },
+        ]);
+
+        // Remove the error message after 3 seconds
+        setTimeout(() => {
+          setSessionFiles((prev) => prev.filter((file) => file.id !== errorId));
+        }, 3000);
+
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        if (dataUrl) {
+          const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          setSessionFiles((prev) => [
+            ...prev,
+            {
+              id: imageId,
+              path: '',
+              type: 'image',
+              dataUrl,
+              isLoading: true,
+            },
+          ]);
+
+          try {
+            const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
+            setSessionFiles((prev) =>
+              prev.map((file) =>
+                file.id === result.id
+                  ? { ...file, path: result.filePath || '', error: result.error, isLoading: false }
+                  : file
+              )
+            );
+          } catch (err) {
+            console.error('Error saving dropped image:', err);
+            setSessionFiles((prev) =>
+              prev.map((file) =>
+                file.id === imageId
+                  ? { ...file, error: 'Failed to save image via Electron.', isLoading: false }
+                  : file
+              )
+            );
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
 
   return (
     <CurrentModelContext.Provider value={currentModelInfo}>
@@ -680,13 +801,12 @@ function ChatContent({
               isLoading={isLoading}
               onStop={onStopGoose}
               commandHistory={commandHistory}
-              initialValue={_input || (hasMessages ? _input : initialPrompt)}
               setView={setView}
-              hasMessages={hasMessages}
               numTokens={sessionTokenCount}
-              droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
+              sessionFiles={sessionFiles}
+              setSessionFiles={setSessionFiles}
             />
           </div>
         </Card>

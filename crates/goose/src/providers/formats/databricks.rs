@@ -187,11 +187,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 }
                 MessageContent::Image(image) => {
                     // Handle direct image content
+                    content_array.push(convert_image(&image, image_format));
+                }
+                MessageContent::SessionFiles(session_files) => {
+                    // Convert session files to text content
+                    let files_text = format!(
+                        "The following files have been added to the context:\n{}",
+                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
+                    );
                     content_array.push(json!({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": convert_image(image, image_format)
-                        }
+                        "type": "text",
+                        "text": files_text
                     }));
                 }
                 MessageContent::FrontendToolRequest(req) => {

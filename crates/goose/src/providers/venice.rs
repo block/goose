@@ -325,12 +325,26 @@ impl Provider for VeniceProvider {
             let content = match msg.role {
                 Role::User => {
                     // For user messages, concatenate all text content
-                    let text_content: String = msg
+                    let text_parts: Vec<String> = msg
                         .content
                         .iter()
-                        .filter_map(|c| c.as_text())
-                        .collect::<Vec<_>>()
-                        .join("\n");
+                        .filter_map(|c| {
+                            // Handle both Text and SessionFiles content
+                            match c {
+                                MessageContent::Text(text) => Some(text.text.clone()),
+                                MessageContent::SessionFiles(session_files) => {
+                                    let files_text = format!(
+                                        "The following files have been added to the context:\n{}",
+                                        session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
+                                    );
+                                    Some(files_text)
+                                }
+                                _ => None,
+                            }
+                        })
+                        .collect();
+
+                    let text_content = text_parts.join("\n");
 
                     // If we have text content, use it directly
                     if !text_content.is_empty() {

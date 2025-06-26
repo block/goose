@@ -111,6 +111,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
 
+                    MessageContent::SessionFiles(session_files) => {
+                        // Convert session files to text content
+                        let files_text = format!(
+                            "The following files have been added to the context:\n{}",
+                            session_files.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>().join("\n")
+                        );
+                        parts.push(json!({"text": files_text}));
+                    }
+
                     _ => {}
                 }
             }

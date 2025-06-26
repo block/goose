@@ -1032,6 +1032,61 @@ ipcMain.handle('select-file-or-directory', async () => {
   return null;
 });
 
+// Add multi-select file/directory selection handler
+ipcMain.handle('select-multiple-files', async (event) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender);
+
+  let result: OpenDialogReturnValue;
+  if (parentWindow) {
+    result = (await dialog.showOpenDialog(parentWindow, {
+      properties:
+        process.platform === 'darwin'
+          ? ['openFile', 'openDirectory', 'multiSelections']
+          : ['openFile', 'multiSelections'],
+    })) as unknown as OpenDialogReturnValue;
+  } else {
+    result = (await dialog.showOpenDialog({
+      properties:
+        process.platform === 'darwin'
+          ? ['openFile', 'openDirectory', 'multiSelections']
+          : ['openFile', 'multiSelections'],
+    })) as unknown as OpenDialogReturnValue;
+  }
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths;
+  }
+  return [];
+});
+
+// Add file/directory type detection handler
+ipcMain.handle('get-path-type', async (_event, filePath: string) => {
+  try {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    const stats = await fs.lstat(expandedPath);
+
+    if (stats.isSymbolicLink()) {
+      // For symlinks, check the target
+      const realPath = await fs.realpath(expandedPath);
+      const realStats = await fs.lstat(realPath);
+      return realStats.isDirectory() ? 'directory' : 'file';
+    } else if (stats.isDirectory()) {
+      return 'directory';
+    } else if (stats.isFile()) {
+      return 'file';
+    } else {
+      return 'unknown';
+    }
+  } catch (error) {
+    console.error('Error getting path type:', error);
+    return 'unknown';
+  }
+});
+
 // IPC handler to save data URL to a temporary file
 ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
   console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
@@ -1168,6 +1223,7 @@ ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
     return null;
   }
 });
+
 ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
@@ -2061,5 +2117,68 @@ app.on('window-all-closed', () => {
   // Only quit if we're not on macOS or don't have a tray icon
   if (process.platform !== 'darwin' || !tray) {
     app.quit();
+  }
+});
+
+// IPC handler to read image files and convert to data URL
+ipcMain.handle('read-image-file', async (_event, filePath: string) => {
+  console.log(`[Main] Received read-image-file for path: ${filePath}`);
+
+  // Input validation
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('[Main] Invalid file path provided for image reading');
+    return null;
+  }
+
+  try {
+    // Expand tilde to home directory
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
+
+    // Check if it's a regular file
+    const stats = await fs.lstat(expandedPath);
+    if (!stats.isFile()) {
+      console.warn(`[Main] Not a regular file, refusing to read: ${expandedPath}`);
+      return null;
+    }
+
+    // Read the file and return as base64 data URL
+    const fileBuffer = await fs.readFile(expandedPath);
+    const fileExtension = path.extname(expandedPath).toLowerCase().substring(1);
+
+    // Validate file extension
+    const allowedExtensions = [
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'webp',
+      'bmp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+    ];
+    if (!allowedExtensions.includes(fileExtension)) {
+      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
+      return null;
+    }
+
+    // Check file size (max 5MB)
+    if (fileBuffer.length > 5 * 1024 * 1024) {
+      console.warn(`[Main] Image too large: ${Math.round(fileBuffer.length / (1024 * 1024))}MB`);
+      return null;
+    }
+
+    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
+    const base64Data = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    console.log(`[Main] Read image file: ${expandedPath}`);
+    return dataUrl;
+  } catch (error) {
+    console.error(`[Main] Failed to read image file: ${filePath}`, error);
+    return null;
   }
 });
