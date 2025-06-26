@@ -10,6 +10,7 @@ import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Message } from '../../types/message';
 import { ManualSummarizeButton } from '../context_management/ManualSummaryButton';
 import { CostTracker } from './CostTracker';
+import { COST_TRACKING_ENABLED } from '../../updates';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
@@ -223,12 +224,18 @@ export default function BottomMenu({
         </div>
 
         {/* Cost Tracker - no separator before it */}
-        <div className="flex items-center h-full ml-1">
-          <CostTracker inputTokens={inputTokens} outputTokens={outputTokens} sessionCosts={sessionCosts} />
-        </div>
-
-        {/* Separator between cost and model */}
-        <div className="w-[1px] h-4 bg-borderSubtle mx-1.5" />
+        {COST_TRACKING_ENABLED && (
+          <>
+            <div className="flex items-center h-full ml-1">
+              <CostTracker
+                inputTokens={inputTokens}
+                outputTokens={outputTokens}
+                sessionCosts={sessionCosts}
+              />
+            </div>
+            <div className="w-[1px] h-4 bg-borderSubtle mx-1.5" />
+          </>
+        )}
 
         {/* Model Selector Dropdown */}
         <div className="flex items-center h-full">
