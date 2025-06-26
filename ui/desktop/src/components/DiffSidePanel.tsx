@@ -5,6 +5,8 @@ import {
   BetweenHorizontalStart,
   FileDiff,
   PanelRightOpen,
+  // Check,
+  // X,
 } from 'lucide-react';
 
 interface DiffLine {
@@ -35,8 +37,8 @@ interface DiffSidePanelProps {
   onClose: () => void;
   onApplyHunk?: (fileIndex: number, hunkId: string) => void;
   onRejectHunk?: (fileIndex: number, hunkId: string) => void;
-  onApplyFile?: (fileIndex: number) => void;
-  onRejectFile?: (fileIndex: number) => void;
+  // onApplyFile?: (fileIndex: number) => void;
+  // onRejectFile?: (fileIndex: number) => void;
 }
 
 export default function DiffSidePanel({
@@ -45,8 +47,8 @@ export default function DiffSidePanel({
   onClose,
   onApplyHunk,
   onRejectHunk,
-  onApplyFile,
-  onRejectFile,
+  // onApplyFile,
+  // onRejectFile,
 }: DiffSidePanelProps) {
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
   const [appliedHunks, setAppliedHunks] = useState<Set<string>>(new Set());
@@ -74,113 +76,111 @@ export default function DiffSidePanel({
     onRejectHunk?.(fileIndex, hunkId);
   };
 
-  const handleApplyFile = (fileIndex: number) => {
-    const file = parsedDiff[fileIndex];
-    const hunkIds = file.hunks.map((h) => h.id);
-    setAppliedHunks((prev) => new Set([...prev, ...hunkIds]));
-    setRejectedHunks((prev) => {
-      const newSet = new Set(prev);
-      hunkIds.forEach((id) => newSet.delete(id));
-      return newSet;
-    });
-    onApplyFile?.(fileIndex);
-  };
+  // const handleApplyFile = (fileIndex: number) => {
+  //   const file = parsedDiff[fileIndex];
+  //   const hunkIds = file.hunks.map((h) => h.id);
+  //   setAppliedHunks((prev) => new Set([...prev, ...hunkIds]));
+  //   setRejectedHunks((prev) => {
+  //     const newSet = new Set(prev);
+  //     hunkIds.forEach((id) => newSet.delete(id));
+  //     return newSet;
+  //   });
+  //   onApplyFile?.(fileIndex);
+  // };
 
-  const handleRejectFile = (fileIndex: number) => {
-    const file = parsedDiff[fileIndex];
-    const hunkIds = file.hunks.map((h) => h.id);
-    setRejectedHunks((prev) => new Set([...prev, ...hunkIds]));
-    setAppliedHunks((prev) => {
-      const newSet = new Set(prev);
-      hunkIds.forEach((id) => newSet.delete(id));
-      return newSet;
-    });
-    onRejectFile?.(fileIndex);
-  };
+  // const handleRejectFile = (fileIndex: number) => {
+  //   const file = parsedDiff[fileIndex];
+  //   const hunkIds = file.hunks.map((h) => h.id);
+  //   setRejectedHunks((prev) => new Set([...prev, ...hunkIds]));
+  //   setAppliedHunks((prev) => {
+  //     const newSet = new Set(prev);
+  //     hunkIds.forEach((id) => newSet.delete(id));
+  //     return newSet;
+  //   });
+  //   onRejectFile?.(fileIndex);
+  // };
 
   if (!isOpen) return null;
 
-  const toggleBaseStyles = 'flex items-center gap-1 [&_svg]:size-4 h-8 px-4 text-xs';
-  const toggleActiveStyles = `${toggleBaseStyles} bg-gray-800 text-white`;
-  const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textStandard`;
+  const toggleBaseStyles =
+    'flex items-center gap-1 [&_svg]:size-4 h-8 px-4 text-xs  hover:text-textStandard';
+  const toggleActiveStyles = `${toggleBaseStyles}  bg-bgSubtle text-textStandard`;
+  const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textSubtle`;
 
   return (
-    <div className="flex-1 p-8 bg-bgSubtle">
+    <div className="flex-1 p-6 bg-bgSubtle">
       <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-textSubtle text-sm inline-flex items-center gap-2">
+        <div className="flex items-center justify-between p-3 border-b border-borderSubtle ">
+          <h2 className="text-textSubtle font-medi text-sm inline-flex items-center gap-2">
             <FileDiff size={16} />
             Diff Viewer
           </h2>
 
-          <div className="flex items-center gap-4">
-            <div className="flex border hover:cursor-pointer border-borderSubtle hover:border-borderStandard rounded-lg overflow-hidden transition-colors">
-              <button
-                className={viewMode === 'unified' ? toggleActiveStyles : toggleInactiveStyles}
-                onClick={() => setViewMode('unified')}
-              >
-                <BetweenHorizontalStart size={16} className="" />
-                Unified
-              </button>
-              <button
-                className={viewMode === 'split' ? toggleActiveStyles : toggleInactiveStyles}
-                onClick={() => setViewMode('split')}
-              >
-                <SquareSplitHorizontal size={16} className="" />
-                Split
-              </button>
-            </div>
-
+          <div className="flex border hover:cursor-pointer border-borderSubtle hover:border-borderStandard rounded-lg overflow-hidden transition-colors">
             <button
-              onClick={onClose}
-              className="w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard flex items-center justify-center"
-              title="Close diff viewer"
+              className={viewMode === 'unified' ? toggleActiveStyles : toggleInactiveStyles}
+              onClick={() => setViewMode('unified')}
             >
-              <PanelRightOpen size={16} />
+              <BetweenHorizontalStart size={16} className="" />
+              Unified
+            </button>
+            <button
+              className={viewMode === 'split' ? toggleActiveStyles : toggleInactiveStyles}
+              onClick={() => setViewMode('split')}
+            >
+              <SquareSplitHorizontal size={16} className="" />
+              Split
             </button>
           </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard flex items-center justify-center  text-textSubtle"
+            title="Close diff viewer"
+          >
+            <PanelRightOpen size={16} />
+          </button>
         </div>
-
         {/* Content */}
-
         <ScrollArea className="h-full">
           {parsedDiff.map((file, fileIndex) => (
-            <div key={fileIndex}>
+            <div key={fileIndex} className="m-4  ">
               {/* File header */}
-              <div className="bg-bgApp p-3 flex items-center justify-between sticky top-0 z-10">
-                <div className="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">
-                  {file.fileName}
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
+              <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)]">
+                <div className="font-mono text-sm truncate">{file.fileName}</div>
+                {/* hide reject/apply for now */}
+                {/* <div className="flex gap-4 flex-shrink-0 text-xs">
                   <button
                     onClick={() => handleRejectFile(fileIndex)}
-                    className="px-3 py-1 text-xs text-red-500"
+                    className="flex items-center text-red-500"
                   >
+                    <X strokeWidth="3" size={16} />
                     Reject All
                   </button>
                   <button
                     onClick={() => handleApplyFile(fileIndex)}
-                    className="px-3 py-1 text-xs text-green-500"
+                    className="text-green-500 flex items-center"
                   >
+                    <Check size={16} strokeWidth={2} />
                     Apply All
                   </button>
-                </div>
+                </div> */}
               </div>
-
-              {/* Hunks */}
-              {file.hunks.map((hunk) => (
-                <DiffHunkView
-                  key={hunk.id}
-                  hunk={hunk}
-                  fileIndex={fileIndex}
-                  viewMode={viewMode}
-                  isApplied={appliedHunks.has(hunk.id)}
-                  isRejected={rejectedHunks.has(hunk.id)}
-                  onApply={() => handleApplyHunk(fileIndex, hunk.id)}
-                  onReject={() => handleRejectHunk(fileIndex, hunk.id)}
-                />
-              ))}
+              <div className="rounded-b-lg overflow-hidden border border-borderSubtle border-t-0">
+                {/* Hunks */}
+                {file.hunks.map((hunk) => (
+                  <DiffHunkView
+                    key={hunk.id}
+                    hunk={hunk}
+                    fileIndex={fileIndex}
+                    viewMode={viewMode}
+                    isApplied={appliedHunks.has(hunk.id)}
+                    isRejected={rejectedHunks.has(hunk.id)}
+                    onApply={() => handleApplyHunk(fileIndex, hunk.id)}
+                    onReject={() => handleRejectHunk(fileIndex, hunk.id)}
+                  />
+                ))}
+              </div>
             </div>
           ))}
         </ScrollArea>
@@ -204,15 +204,15 @@ function DiffHunkView({
   viewMode,
   isApplied,
   isRejected,
-  onApply,
-  onReject,
+  // onApply,
+  // onReject,
 }: DiffHunkViewProps) {
   const getHunkStatus = () => {
     if (isApplied) return 'applied';
     if (isRejected) return 'rejected';
     return 'pending';
   };
-
+  console.log('hunk', hunk);
   const status = getHunkStatus();
 
   return (
@@ -226,11 +226,12 @@ function DiffHunkView({
       }`}
     >
       {/* Hunk header */}
-      <div className="p-2 flex items-center justify-between">
+      <div className="p-2 flex items-center justify-between bg-bgSubtle">
         <div className="font-mono text-xs text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">
           {hunk.header}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        {/* hide apply/reject for now */}
+        {/* <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={onApply}
             disabled={isApplied}
@@ -253,7 +254,7 @@ function DiffHunkView({
           >
             {isRejected ? 'Rejected' : 'Reject'}
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Hunk content */}
@@ -269,41 +270,43 @@ function DiffHunkView({
 function UnifiedDiffView({ lines }: { lines: DiffLine[] }) {
   return (
     <div className="font-mono text-sm">
-      {lines.map((line, index) => (
-        <div
-          key={index}
-          className={`flex ${
-            line.type === 'added'
-              ? 'bg-green-100 dark:bg-green-900/30'
-              : line.type === 'removed'
-                ? 'bg-red-100 dark:bg-red-900/30'
-                : line.type === 'header'
-                  ? 'bg-blue-100 dark:bg-blue-900/30'
-                  : ''
-          }`}
-        >
-          <div className="w-12 px-1 py-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
-            {line.oldLineNumber || ''}
-          </div>
-          <div className="w-12 px-1 py-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
-            {line.newLineNumber || ''}
-          </div>
-          <div className="flex-1 px-2 py-1 overflow-x-auto">
-            <span
-              className={`inline-block w-4 ${
-                line.type === 'added'
-                  ? 'text-green-600 dark:text-green-400'
-                  : line.type === 'removed'
-                    ? 'text-red-600 dark:text-red-400'
+      {lines
+        .filter((line) => line.type !== 'header')
+        .map((line, index) => (
+          <div
+            key={index}
+            className={`flex ${
+              line.type === 'added'
+                ? 'bg-green-100 dark:bg-green-900/30'
+                : line.type === 'removed'
+                  ? 'bg-red-100 dark:bg-red-900/30'
+                  : line.type === 'header'
+                    ? 'bg-blue-100 dark:bg-blue-900/30'
                     : ''
-              }`}
-            >
-              {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
-            </span>
-            <span className="ml-1 text-xs">{line.content}</span>
+            }`}
+          >
+            <div className="w-12 px-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
+              {line.oldLineNumber || ''}
+            </div>
+            <div className="w-12 px-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
+              {line.newLineNumber || ''}
+            </div>
+            <div className="flex-1 px-2  overflow-x-auto">
+              <span
+                className={`inline-block w-4 ${
+                  line.type === 'added'
+                    ? 'text-green-600 dark:text-green-400'
+                    : line.type === 'removed'
+                      ? 'text-red-600 dark:text-red-400'
+                      : ''
+                }`}
+              >
+                {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
+              </span>
+              <span className="ml-1 text-xs">{line.content}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
     </div>
   );
 }
@@ -314,6 +317,7 @@ function SplitDiffView({ lines }: { lines: DiffLine[] }) {
 
   // Group lines for split view
   for (const line of lines) {
+    console.log('line', line);
     if (line.type === 'removed') {
       leftLines.push(line);
       rightLines.push({
@@ -362,62 +366,66 @@ function SplitDiffView({ lines }: { lines: DiffLine[] }) {
     <div className="flex font-mono text-sm break-all">
       {/* Left side (old) */}
       <div className="flex-1 border-r border-gray-200 dark:border-gray-700">
-        {leftLines.map((line, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              line.type === 'removed'
-                ? 'bg-red-100 dark:bg-red-900/30'
-                : line.type === 'header'
-                  ? 'bg-blue-100 dark:bg-blue-900/30'
-                  : ''
-            }`}
-          >
-            <div className="w-12 px-1 py-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
-              {line.oldLineNumber || ''}
+        {leftLines
+          .filter((line) => line.type !== 'header')
+          .map((line, index) => (
+            <div
+              key={index}
+              className={`flex ${
+                line.type === 'removed'
+                  ? 'bg-red-100 dark:bg-red-900/30'
+                  : line.type === 'header'
+                    ? 'bg-blue-100 dark:bg-blue-900/30'
+                    : ''
+              }`}
+            >
+              <div className="w-12 px-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
+                {line.oldLineNumber || ''}
+              </div>
+              <div className="flex-1 px-2 overflow-x-auto">
+                <span
+                  className={`inline-block w-4 ${
+                    line.type === 'removed' ? 'text-red-600 dark:text-red-400' : ''
+                  }`}
+                >
+                  {line.type === 'removed' ? '-' : ' '}
+                </span>
+                <span className="ml-1 text-xs">{line.content}</span>
+              </div>
             </div>
-            <div className="flex-1 px-2 py-1 overflow-x-auto">
-              <span
-                className={`inline-block w-4 ${
-                  line.type === 'removed' ? 'text-red-600 dark:text-red-400' : ''
-                }`}
-              >
-                {line.type === 'removed' ? '-' : ' '}
-              </span>
-              <span className="ml-1 text-xs">{line.content}</span>
-            </div>
-          </div>
-        ))}
+          ))}
       </div>
 
       {/* Right side (new) */}
       <div className="flex-1">
-        {rightLines.map((line, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              line.type === 'added'
-                ? 'bg-green-100 dark:bg-green-900/30'
-                : line.type === 'header'
-                  ? 'bg-blue-100 dark:bg-blue-900/30'
-                  : ''
-            }`}
-          >
-            <div className="w-12 px-1 py-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
-              {line.newLineNumber || ''}
+        {rightLines
+          .filter((line) => line.type !== 'header')
+          .map((line, index) => (
+            <div
+              key={index}
+              className={`flex ${
+                line.type === 'added'
+                  ? 'bg-green-100 dark:bg-green-900/30'
+                  : line.type === 'header'
+                    ? 'bg-blue-100 dark:bg-blue-900/30'
+                    : ''
+              }`}
+            >
+              <div className="w-12 px-1 text-gray-500 dark:text-gray-400 text-right border-r border-gray-200 dark:border-gray-700 text-xs">
+                {line.newLineNumber || ''}
+              </div>
+              <div className="flex-1 px-2 overflow-x-auto">
+                <span
+                  className={`inline-block w-4 ${
+                    line.type === 'added' ? 'text-green-600 dark:text-green-400' : ''
+                  }`}
+                >
+                  {line.type === 'added' ? '+' : ' '}
+                </span>
+                <span className="ml-1 text-xs">{line.content}</span>
+              </div>
             </div>
-            <div className="flex-1 px-2 py-1 overflow-x-auto">
-              <span
-                className={`inline-block w-4 ${
-                  line.type === 'added' ? 'text-green-600 dark:text-green-400' : ''
-                }`}
-              >
-                {line.type === 'added' ? '+' : ' '}
-              </span>
-              <span className="ml-1 text-xs">{line.content}</span>
-            </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );
