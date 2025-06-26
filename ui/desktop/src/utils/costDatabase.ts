@@ -59,18 +59,16 @@ function getRecentlyUsedModels(): RecentlyUsedModel[] {
 function addToRecentlyUsed(provider: string, model: string): void {
   try {
     let recentModels = getRecentlyUsedModels();
-    
+
     // Remove existing entry if present
-    recentModels = recentModels.filter(
-      (m) => !(m.provider === provider && m.model === model)
-    );
-    
+    recentModels = recentModels.filter((m) => !(m.provider === provider && m.model === model));
+
     // Add to front
     recentModels.unshift({ provider, model, lastUsed: Date.now() });
-    
+
     // Keep only the most recent models
     recentModels = recentModels.slice(0, MAX_RECENTLY_USED_MODELS);
-    
+
     localStorage.setItem(RECENTLY_USED_MODELS_KEY, JSON.stringify(recentModels));
   } catch (error) {
     console.error('Error saving recently used models:', error);
@@ -84,20 +82,22 @@ function loadPricingFromLocalStorage(): PricingCacheData | null {
   try {
     const cached = localStorage.getItem(PRICING_CACHE_KEY);
     const timestamp = localStorage.getItem(PRICING_CACHE_TIMESTAMP_KEY);
-    
+
     if (cached && timestamp) {
       const cacheAge = Date.now() - parseInt(timestamp, 10);
       if (cacheAge < CACHE_TTL_MS) {
         const fullCache = JSON.parse(cached) as PricingCacheData;
         const recentModels = getRecentlyUsedModels();
-        
+
         // Filter to only include recently used models
         const filteredPricing = fullCache.pricing.filter((p) =>
           recentModels.some((r) => r.provider === p.provider && r.model === p.model)
         );
-        
-        console.log(`Loading ${filteredPricing.length} recently used models from cache (out of ${fullCache.pricing.length} total)`);
-        
+
+        console.log(
+          `Loading ${filteredPricing.length} recently used models from cache (out of ${fullCache.pricing.length} total)`
+        );
+
         return {
           pricing: filteredPricing,
           timestamp: fullCache.timestamp,
@@ -122,18 +122,18 @@ function savePricingToLocalStorage(data: PricingCacheData, mergeWithExisting = t
       const existingCached = localStorage.getItem(PRICING_CACHE_KEY);
       if (existingCached) {
         const existingData = JSON.parse(existingCached) as PricingCacheData;
-        
+
         // Create a map of existing pricing for quick lookup
-        const pricingMap = new Map<string, typeof data.pricing[0]>();
+        const pricingMap = new Map<string, (typeof data.pricing)[0]>();
         existingData.pricing.forEach((p) => {
           pricingMap.set(`${p.provider}/${p.model}`, p);
         });
-        
+
         // Update with new data
         data.pricing.forEach((p) => {
           pricingMap.set(`${p.provider}/${p.model}`, p);
         });
-        
+
         // Convert back to array
         data = {
           pricing: Array.from(pricingMap.values()),
@@ -141,7 +141,7 @@ function savePricingToLocalStorage(data: PricingCacheData, mergeWithExisting = t
         };
       }
     }
-    
+
     localStorage.setItem(PRICING_CACHE_KEY, JSON.stringify(data));
     localStorage.setItem(PRICING_CACHE_TIMESTAMP_KEY, data.timestamp.toString());
     console.log(`Saved ${data.pricing.length} models to localStorage cache`);
@@ -176,43 +176,45 @@ async function fetchPricingForModel(
 
     if (!response.ok) {
       console.error('Failed to fetch pricing data:', response.status);
-      return null;
+      throw new Error(`API request failed with status ${response.status}`);
     }
 
     const data = await response.json();
     console.log('Pricing response:', data);
 
     // Find the specific model pricing
-    const pricing = data.pricing?.find((p: {
-      provider: string;
-      model: string;
-      input_token_cost: number;
-      output_token_cost: number;
-      currency: string;
-    }) => {
-      const providerMatch = p.provider.toLowerCase() === provider.toLowerCase();
-      
-      // More flexible model matching - handle versioned models
-      let modelMatch = p.model === model;
-      
-      // If exact match fails, try matching without version suffix
-      if (!modelMatch && model.includes('-20')) {
-        // Remove date suffix like -20241022
-        const modelWithoutDate = model.replace(/-20\d{6}$/, '');
-        modelMatch = p.model === modelWithoutDate;
-        
-        // Also try with dots instead of dashes (claude-3-5-sonnet vs claude-3.5-sonnet)
-        if (!modelMatch) {
-          const modelWithDots = modelWithoutDate.replace(/-(\d)-/g, '.$1.');
-          modelMatch = p.model === modelWithDots;
+    const pricing = data.pricing?.find(
+      (p: {
+        provider: string;
+        model: string;
+        input_token_cost: number;
+        output_token_cost: number;
+        currency: string;
+      }) => {
+        const providerMatch = p.provider.toLowerCase() === provider.toLowerCase();
+
+        // More flexible model matching - handle versioned models
+        let modelMatch = p.model === model;
+
+        // If exact match fails, try matching without version suffix
+        if (!modelMatch && model.includes('-20')) {
+          // Remove date suffix like -20241022
+          const modelWithoutDate = model.replace(/-20\d{6}$/, '');
+          modelMatch = p.model === modelWithoutDate;
+
+          // Also try with dots instead of dashes (claude-3-5-sonnet vs claude-3.5-sonnet)
+          if (!modelMatch) {
+            const modelWithDots = modelWithoutDate.replace(/-(\d)-/g, '.$1.');
+            modelMatch = p.model === modelWithDots;
+          }
         }
+
+        console.log(
+          `Comparing: ${p.provider}/${p.model} with ${provider}/${model} - Provider match: ${providerMatch}, Model match: ${modelMatch}`
+        );
+        return providerMatch && modelMatch;
       }
-      
-      console.log(
-        `Comparing: ${p.provider}/${p.model} with ${provider}/${model} - Provider match: ${providerMatch}, Model match: ${modelMatch}`
-      );
-      return providerMatch && modelMatch;
-    });
+    );
 
     console.log(`Found pricing for ${provider}/${model}:`, pricing);
 
@@ -226,15 +228,15 @@ async function fetchPricingForModel(
 
     console.log(
       `No pricing found for ${provider}/${model} in:`,
-      data.pricing?.map((p: {
-        provider: string;
-        model: string;
-      }) => `${p.provider}/${p.model}`)
+      data.pricing?.map((p: { provider: string; model: string }) => `${p.provider}/${p.model}`)
     );
+
+    // API call succeeded but model not found in pricing data
     return null;
   } catch (error) {
     console.error('Error fetching pricing data:', error);
-    return null;
+    // Re-throw the error so the caller can distinguish between API failure and model not found
+    throw error;
   }
 }
 
@@ -245,7 +247,7 @@ export async function initializeCostDatabase(): Promise<void> {
   try {
     // Clean up any existing large caches first
     cleanupPricingCache();
-    
+
     // First check if we have valid cached data
     const cachedData = loadPricingFromLocalStorage();
     if (cachedData && cachedData.pricing.length > 0) {
@@ -275,15 +277,15 @@ export async function initializeCostDatabase(): Promise<void> {
 
     // Get recently used models
     const recentModels = getRecentlyUsedModels();
-    
+
     // Combine common and recent models (deduplicated)
     const modelsToFetch = new Map<string, { provider: string; model: string }>();
-    
+
     // Add common models
     commonModels.forEach((m) => {
       modelsToFetch.set(`${m.provider}/${m.model}`, m);
     });
-    
+
     // Add recent models
     recentModels.forEach((m) => {
       modelsToFetch.set(`${m.provider}/${m.model}`, { provider: m.provider, model: m.model });
@@ -303,9 +305,9 @@ export async function initializeCostDatabase(): Promise<void> {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         configured_only: false,
-        models: Array.from(modelsToFetch.values())  // Send specific models if API supports it
+        models: Array.from(modelsToFetch.values()), // Send specific models if API supports it
       }),
     });
 
@@ -348,7 +350,7 @@ export async function updateAllModelCosts(): Promise<void> {
 export function getCostForModel(provider: string, model: string): ModelCostInfo | null {
   // Track this model as recently used
   addToRecentlyUsed(provider, model);
-  
+
   // Check if it's the same model we already have cached in memory
   if (
     currentModelPricing &&
@@ -375,23 +377,23 @@ export function getCostForModel(provider: string, model: string): ModelCostInfo 
   if (cachedData) {
     const pricing = cachedData.pricing.find((p) => {
       const providerMatch = p.provider.toLowerCase() === provider.toLowerCase();
-      
+
       // More flexible model matching - handle versioned models
       let modelMatch = p.model === model;
-      
+
       // If exact match fails, try matching without version suffix
       if (!modelMatch && model.includes('-20')) {
         // Remove date suffix like -20241022
         const modelWithoutDate = model.replace(/-20\d{6}$/, '');
         modelMatch = p.model === modelWithoutDate;
-        
+
         // Also try with dots instead of dashes (claude-3-5-sonnet vs claude-3.5-sonnet)
         if (!modelMatch) {
           const modelWithDots = modelWithoutDate.replace(/-(\d)-/g, '.$1.');
           modelMatch = p.model === modelWithDots;
         }
       }
-      
+
       return providerMatch && modelMatch;
     });
 
@@ -417,15 +419,15 @@ export function getCostForModel(provider: string, model: string): ModelCostInfo 
 export async function fetchAndCachePricing(
   provider: string,
   model: string
-): Promise<ModelCostInfo | null> {
+): Promise<{ costInfo: ModelCostInfo | null; error?: string } | null> {
   try {
     const costInfo = await fetchPricingForModel(provider, model);
 
-    // Cache the result in memory (even if null)
-    currentModelPricing = { provider, model, costInfo };
-
-    // If we got pricing data, update localStorage cache with this new data
     if (costInfo) {
+      // Cache the result in memory
+      currentModelPricing = { provider, model, costInfo };
+
+      // Update localStorage cache with this new data
       const cachedData = loadPricingFromLocalStorage();
       if (cachedData) {
         // Check if this model already exists in cache
@@ -452,11 +454,19 @@ export async function fetchAndCachePricing(
         // Save updated cache
         savePricingToLocalStorage(cachedData);
       }
-    }
 
-    return costInfo;
+      return { costInfo };
+    } else {
+      // Cache the null result in memory
+      currentModelPricing = { provider, model, costInfo: null };
+
+      // Check if the API call succeeded but model wasn't found
+      // We can determine this by checking if we got a response but no matching model
+      return { costInfo: null, error: 'model_not_found' };
+    }
   } catch (error) {
     console.error('Error in fetchAndCachePricing:', error);
+    // This is a real API/network error
     return null;
   }
 }
@@ -473,10 +483,10 @@ export async function refreshPricing(): Promise<boolean> {
     if (secretKey) {
       headers['X-Secret-Key'] = secretKey;
     }
-    
+
     // Get recently used models to refresh
     const recentModels = getRecentlyUsedModels();
-    
+
     // Add some common models as well
     const commonModels = [
       { provider: 'openai', model: 'gpt-4o' },
@@ -484,14 +494,14 @@ export async function refreshPricing(): Promise<boolean> {
       { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
       { provider: 'google', model: 'gemini-1.5-pro' },
     ];
-    
+
     // Combine and deduplicate
     const modelsToRefresh = new Map<string, { provider: string; model: string }>();
-    
+
     commonModels.forEach((m) => {
       modelsToRefresh.set(`${m.provider}/${m.model}`, m);
     });
-    
+
     recentModels.forEach((m) => {
       modelsToRefresh.set(`${m.provider}/${m.model}`, { provider: m.provider, model: m.model });
     });
@@ -501,21 +511,21 @@ export async function refreshPricing(): Promise<boolean> {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         configured_only: false,
-        models: Array.from(modelsToRefresh.values())  // Send specific models if API supports it
+        models: Array.from(modelsToRefresh.values()), // Send specific models if API supports it
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
-      
+
       if (data.pricing && data.pricing.length > 0) {
         // Filter to only the models we requested (in case API returns all)
         const filteredPricing = data.pricing.filter((p: PricingItem) =>
           modelsToRefresh.has(`${p.provider}/${p.model}`)
         );
-        
+
         // Save fresh data to localStorage (merge with existing)
         const cacheData: PricingCacheData = {
           pricing: filteredPricing.length > 0 ? filteredPricing : data.pricing.slice(0, 50),
@@ -523,7 +533,7 @@ export async function refreshPricing(): Promise<boolean> {
         };
         savePricingToLocalStorage(cacheData, true); // Merge with existing
       }
-      
+
       // Clear current memory cache to force re-fetch
       currentModelPricing = null;
       return true;
@@ -543,14 +553,12 @@ export function cleanupPricingCache(): void {
   try {
     const recentModels = getRecentlyUsedModels();
     const cachedData = localStorage.getItem(PRICING_CACHE_KEY);
-    
+
     if (!cachedData) return;
-    
+
     const fullCache = JSON.parse(cachedData) as PricingCacheData;
-    const recentModelKeys = new Set(
-      recentModels.map((m) => `${m.provider}/${m.model}`)
-    );
-    
+    const recentModelKeys = new Set(recentModels.map((m) => `${m.provider}/${m.model}`));
+
     // Keep only recently used models and common models
     const commonModelKeys = new Set([
       'openai/gpt-4o',
@@ -561,22 +569,22 @@ export function cleanupPricingCache(): void {
       'google/gemini-1.5-pro',
       'google/gemini-1.5-flash',
     ]);
-    
+
     const filteredPricing = fullCache.pricing.filter((p) => {
       const key = `${p.provider}/${p.model}`;
       return recentModelKeys.has(key) || commonModelKeys.has(key);
     });
-    
+
     if (filteredPricing.length < fullCache.pricing.length) {
       console.log(
         `Cleaned up pricing cache: reduced from ${fullCache.pricing.length} to ${filteredPricing.length} models`
       );
-      
+
       const cleanedCache: PricingCacheData = {
         pricing: filteredPricing,
         timestamp: fullCache.timestamp,
       };
-      
+
       localStorage.setItem(PRICING_CACHE_KEY, JSON.stringify(cleanedCache));
     }
   } catch (error) {

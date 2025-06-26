@@ -8,7 +8,6 @@ import ChevronDown from './ChevronDown';
 import ChevronUp from './ChevronUp';
 import { ChevronRight } from './ChevronRight';
 import Close from './Close';
-import Coins from './Coins';
 import Copy from './Copy';
 import Document from './Document';
 import Edit from './Edit';
@@ -33,7 +32,6 @@ export {
   ChevronRight,
   ChevronUp,
   Close,
-  Coins,
   Copy,
   Document,
   Edit,
