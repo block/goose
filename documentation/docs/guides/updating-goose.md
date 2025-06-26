@@ -74,11 +74,6 @@ The Goose CLI and desktop apps are under active and continuous development. To g
           4. Run `sudo dpkg -i (filename).deb`
           5. Launch Goose from the app menu
 
-          **For Red Hat/Fedora-based distributions:**
-          2. Download the RPM file
-          3. Navigate to the directory where it is saved in a terminal
-          4. Run `sudo dnf install (filename).rpm` or `sudo rpm -i (filename).rpm`
-          5. Launch Goose from the app menu
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">

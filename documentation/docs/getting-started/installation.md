@@ -95,13 +95,7 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
           2. Navigate to the directory where it is saved in a terminal
           3. Run `sudo dpkg -i (filename).deb`
           4. Launch Goose from the app menu
-
-          **For Red Hat/Fedora-based distributions:**
-          1. Download the RPM file
-          2. Navigate to the directory where it is saved in a terminal
-          3. Run `sudo dnf install (filename).rpm` or `sudo rpm -i (filename).rpm`
-          4. Launch Goose from the app menu
-
+          
           :::tip Updating Goose
           It's best to keep Goose updated by periodically running the installation steps again.
           :::
