@@ -58,7 +58,7 @@ export default function ChatInput({
   const {
     isRecording,
     isTranscribing,
-    hasOpenAIKey,
+    canUseDictation,
     audioContext,
     analyser,
     startRecording,
@@ -574,8 +574,8 @@ export default function ChatInput({
           </Button>
         ) : (
           <>
-            {/* Microphone button - only show if OpenAI is configured */}
-            {hasOpenAIKey && (
+            {/* Microphone button - only show if dictation is enabled and configured */}
+            {canUseDictation && (
               <>
                 <Button
                   type="button"
@@ -615,7 +615,9 @@ export default function ChatInput({
                         Transcribing...
                       </span>
                     ) : (
-                      <span className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}>
+                      <span
+                        className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                      >
                         <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                         {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
                         {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}

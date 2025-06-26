@@ -549,6 +549,10 @@ const createChat = async (
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Enable features needed for Web Speech API
+      webSecurity: true,
+      nodeIntegration: false,
+      contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
@@ -1020,6 +1024,65 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   }
 });
 
+// Handle macOS dictation
+ipcMain.handle('trigger-dictation', async () => {
+  if (process.platform !== 'darwin') {
+    return { error: 'Dictation is only available on macOS' };
+  }
+
+  try {
+    // Use AppleScript to trigger macOS dictation
+    return new Promise((resolve) => {
+      const script = `
+        tell application "System Events"
+          keystroke "d" using command down & shift down
+        end tell
+      `;
+
+      const appleScript = spawn('osascript', ['-e', script]);
+      let errorOutput = '';
+
+      appleScript.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      appleScript.on('close', (code) => {
+        if (code !== 0) {
+          console.error('Error triggering dictation:', errorOutput);
+
+          // Check for specific accessibility permission error
+          if (
+            errorOutput.includes('is not allowed to send keystrokes') ||
+            errorOutput.includes('1002')
+          ) {
+            resolve({
+              error:
+                'Goose needs accessibility permissions to trigger dictation. Please go to System Settings → Privacy & Security → Accessibility and allow Goose to control your computer.',
+            });
+          } else {
+            resolve({
+              error:
+                'Failed to trigger dictation. Make sure dictation is enabled in System Settings → Keyboard → Dictation.',
+            });
+          }
+        } else {
+          // Note: We can't directly capture the dictation text from macOS
+          // The user will need to manually insert it
+          resolve({ text: '', error: 'Please use macOS dictation to input text' });
+        }
+      });
+
+      appleScript.on('error', (error) => {
+        console.error('Error executing AppleScript:', error);
+        resolve({ error: 'Failed to execute dictation command' });
+      });
+    });
+  } catch (error) {
+    console.error('Error in trigger-dictation handler:', error);
+    return { error: 'Failed to trigger dictation' };
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = (await dialog.showOpenDialog({
@@ -1444,6 +1507,18 @@ app.whenReady().then(async () => {
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
+  // Handle microphone permission requests
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    console.log('Permission requested:', permission);
+    // Allow microphone and media access for dictation
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      // Default behavior for other permissions
+      callback(true);
+    }
+  });
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1465,8 +1540,8 @@ app.whenReady().then(async () => {
           "frame-src 'none';" +
           // Font sources
           "font-src 'self';" +
-          // Media sources
-          "media-src 'none';" +
+          // Media sources - allow microphone for dictation
+          "media-src 'self' mediastream:;" +
           // Form actions
           "form-action 'none';" +
           // Base URI restriction

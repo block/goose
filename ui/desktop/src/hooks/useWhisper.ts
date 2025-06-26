@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl, getSecretKey } from '../config';
+import { useDictationSettings } from './useDictationSettings';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -17,6 +18,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+  const [canUseDictation, setCanUseDictation] = useState(false);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -30,6 +32,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
   const currentSizeRef = useRef<number>(0);
 
   const { getProviders } = useConfig();
+  const { settings: dictationSettings, hasElevenLabsKey } = useDictationSettings();
 
   // Check if OpenAI API key is configured (regardless of current provider)
   useEffect(() => {
@@ -56,20 +59,49 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     checkOpenAIKey();
   }, [getProviders]); // Re-check when providers change
 
+  // Check if dictation can be used based on settings
+  useEffect(() => {
+    if (!dictationSettings) {
+      setCanUseDictation(false);
+      return;
+    }
+
+    if (!dictationSettings.enabled) {
+      setCanUseDictation(false);
+      return;
+    }
+
+    // Check provider availability
+    switch (dictationSettings.provider) {
+      case 'openai':
+        setCanUseDictation(hasOpenAIKey);
+        break;
+      case 'elevenlabs':
+        setCanUseDictation(hasElevenLabsKey);
+        break;
+      default:
+        setCanUseDictation(false);
+    }
+  }, [dictationSettings, hasOpenAIKey, hasElevenLabsKey]);
+
   const transcribeAudio = useCallback(
     async (audioBlob: Blob) => {
+      if (!dictationSettings) {
+        onError?.(new Error('Dictation settings not loaded'));
+        return;
+      }
+
       setIsTranscribing(true);
 
       try {
         // Check final size
         const sizeMB = audioBlob.size / (1024 * 1024);
         if (sizeMB > MAX_AUDIO_SIZE_MB) {
-          throw new Error(`Audio file too large (${sizeMB.toFixed(1)}MB). Maximum size is ${MAX_AUDIO_SIZE_MB}MB.`);
+          throw new Error(
+            `Audio file too large (${sizeMB.toFixed(1)}MB). Maximum size is ${MAX_AUDIO_SIZE_MB}MB.`
+          );
         }
 
-        // IMPORTANT: This is the proper way to implement audio transcription in Goose.
-        // The API keys are securely stored on the backend and should never be exposed to the frontend.
-        
         // Convert blob to base64 for easier transport
         const reader = new FileReader();
         const base64Audio = await new Promise<string>((resolve, reject) => {
@@ -80,30 +112,51 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           reader.onerror = reject;
           reader.readAsDataURL(audioBlob);
         });
-        
-        // The backend endpoint should be implemented to handle this request
-        const response = await fetch(getApiUrl('/audio/transcribe'), {
+
+        let endpoint = '';
+        let headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        };
+        let body: Record<string, string> = {
+          audio: base64Audio,
+          mime_type: 'audio/webm',
+        };
+
+        // Choose endpoint based on provider
+        switch (dictationSettings.provider) {
+          case 'openai':
+            endpoint = '/audio/transcribe';
+            break;
+          case 'elevenlabs':
+            endpoint = '/audio/transcribe/elevenlabs';
+            break;
+          default:
+            throw new Error(`Unsupported provider: ${dictationSettings.provider}`);
+        }
+
+        const response = await fetch(getApiUrl(endpoint), {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
-          },
-          body: JSON.stringify({
-            audio: base64Audio,
-            mime_type: 'audio/webm',
-          }),
+          headers,
+          body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(
-              'Audio transcription endpoint not found. Please implement /audio/transcribe endpoint in the Goose backend.'
+              `Audio transcription endpoint not found. Please implement ${endpoint} endpoint in the Goose backend.`
             );
+          } else if (response.status === 401) {
+            throw new Error('Invalid API key. Please check your API key is correct.');
+          } else if (response.status === 402) {
+            throw new Error('API quota exceeded. Please check your account limits.');
           }
-          const errorData = await response.json().catch(() => ({ error: { message: 'Transcription failed' } }));
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: { message: 'Transcription failed' } }));
           throw new Error(errorData.error?.message || 'Transcription failed');
         }
-        
+
         const data = await response.json();
         if (data.text) {
           onTranscription?.(data.text);
@@ -117,7 +170,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         setEstimatedSize(0);
       }
     },
-    [onTranscription, onError]
+    [onTranscription, onError, dictationSettings]
   );
 
   // Define stopRecording before startRecording to avoid circular dependency
@@ -148,6 +201,11 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
   }, [audioContext]);
 
   const startRecording = useCallback(async () => {
+    if (!dictationSettings) {
+      onError?.(new Error('Dictation settings not loaded'));
+      return;
+    }
+
     try {
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -177,20 +235,24 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       durationIntervalRef.current = setInterval(() => {
         const elapsed = (Date.now() - (recordingStartTimeRef.current || 0)) / 1000;
         setRecordingDuration(elapsed);
-        
+
         // Estimate size based on typical webm bitrate (~128kbps)
         const estimatedSizeMB = (elapsed * 128 * 1024) / (8 * 1024 * 1024);
         setEstimatedSize(estimatedSizeMB);
-        
+
         // Check if we're approaching the limit
         if (estimatedSizeMB > WARNING_SIZE_MB) {
           onSizeWarning?.(estimatedSizeMB);
         }
-        
+
         // Auto-stop if we hit the duration limit
         if (elapsed >= MAX_RECORDING_DURATION_SECONDS) {
           stopRecording();
-          onError?.(new Error(`Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached.`));
+          onError?.(
+            new Error(
+              `Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached.`
+            )
+          );
         }
       }, 100);
 
@@ -198,7 +260,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
           currentSizeRef.current += event.data.size;
-          
+
           // Check actual size
           const actualSizeMB = currentSizeRef.current / (1024 * 1024);
           if (actualSizeMB > MAX_AUDIO_SIZE_MB) {
@@ -219,12 +281,13 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       console.error('Error starting recording:', error);
       onError?.(error as Error);
     }
-  }, [onError, onSizeWarning, transcribeAudio, stopRecording]);
+  }, [onError, onSizeWarning, transcribeAudio, stopRecording, dictationSettings]);
 
   return {
     isRecording,
     isTranscribing,
     hasOpenAIKey,
+    canUseDictation,
     audioContext,
     analyser,
     startRecording,
