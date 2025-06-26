@@ -306,6 +306,29 @@
         }
       }
     },
+    "/config/recover": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "recover_config",
+        "responses": {
+          "200": {
+            "description": "Config recovery attempted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/remove": {
       "post": {
         "tags": [
@@ -371,6 +394,29 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/validate": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "validate_config",
+        "responses": {
+          "200": {
+            "description": "Config validation result",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Config file is corrupted"
           }
         }
       }

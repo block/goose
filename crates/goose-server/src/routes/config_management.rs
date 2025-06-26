@@ -432,12 +432,88 @@ pub async fn backup_config(
         backup_name.push(".bak");
 
         let backup = config_path.with_file_name(backup_name);
-        match std::fs::rename(&config_path, &backup) {
-            Ok(_) => Ok(Json(format!("Moved {:?} to {:?}", config_path, backup))),
+        match std::fs::copy(&config_path, &backup) {
+            Ok(_) => Ok(Json(format!("Copied {:?} to {:?}", config_path, backup))),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/recover",
+    responses(
+        (status = 200, description = "Config recovery attempted", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn recover_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+
+    // Force a reload which will trigger recovery if needed
+    match config.load_values() {
+        Ok(values) => {
+            let recovered_keys: Vec<String> = values.keys().cloned().collect();
+            if recovered_keys.is_empty() {
+                Ok(Json("Config recovery completed, but no data was recoverable. Starting with empty configuration.".to_string()))
+            } else {
+                Ok(Json(format!(
+                    "Config recovery completed. Recovered {} keys: {}",
+                    recovered_keys.len(),
+                    recovered_keys.join(", ")
+                )))
+            }
+        }
+        Err(e) => {
+            tracing::error!("Config recovery failed: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/validate",
+    responses(
+        (status = 200, description = "Config validation result", body = String),
+        (status = 422, description = "Config file is corrupted")
+    )
+)]
+pub async fn validate_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    let config_path = config_dir.join("config.yaml");
+
+    if !config_path.exists() {
+        return Ok(Json("Config file does not exist".to_string()));
+    }
+
+    match std::fs::read_to_string(&config_path) {
+        Ok(content) => match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+            Ok(_) => Ok(Json("Config file is valid".to_string())),
+            Err(e) => {
+                tracing::warn!("Config validation failed: {}", e);
+                Err(StatusCode::UNPROCESSABLE_ENTITY)
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to read config file: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -473,6 +549,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers", get(providers))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
+        .route("/config/recover", post(recover_config))
+        .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
         .route("/config/current-model", get(get_current_model))
         .with_state(state)
