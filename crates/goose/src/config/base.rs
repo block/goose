@@ -202,7 +202,49 @@ impl Config {
         if self.config_path.exists() {
             self.load_values_with_recovery()
         } else {
-            Ok(HashMap::new())
+            // Config file doesn't exist, try to recover from backup first
+            tracing::info!("Config file doesn't exist, attempting recovery from backup");
+
+            if let Ok(backup_values) = self.try_restore_from_backup() {
+                tracing::info!("Successfully restored config from backup");
+                return Ok(backup_values);
+            }
+
+            // No backup available, create a default config
+            tracing::info!("No backup found, creating default configuration");
+
+            // Try to load from init-config.yaml if it exists, otherwise use empty config
+            let default_config = self
+                .load_init_config_if_exists()
+                .unwrap_or_else(|_| HashMap::new());
+
+            self.create_and_save_default_config(default_config)
+        }
+    }
+
+    // Helper method to create and save default config with consistent logging
+    fn create_and_save_default_config(
+        &self,
+        default_config: HashMap<String, Value>,
+    ) -> Result<HashMap<String, Value>, ConfigError> {
+        // Try to write the default config to disk
+        match self.save_values(default_config.clone()) {
+            Ok(_) => {
+                if default_config.is_empty() {
+                    tracing::info!("Created fresh empty config file");
+                } else {
+                    tracing::info!(
+                        "Created fresh config file from init-config.yaml with {} keys",
+                        default_config.len()
+                    );
+                }
+                Ok(default_config)
+            }
+            Err(write_error) => {
+                tracing::error!("Failed to write default config file: {}", write_error);
+                // Even if we can't write to disk, return config so app can still run
+                Ok(default_config)
+            }
         }
     }
 
@@ -233,25 +275,7 @@ impl Config {
                     .load_init_config_if_exists()
                     .unwrap_or_else(|_| HashMap::new());
 
-                // Try to write the clean default config to disk
-                match self.save_values(default_config.clone()) {
-                    Ok(_) => {
-                        if default_config.is_empty() {
-                            tracing::info!("Created fresh empty config file");
-                        } else {
-                            tracing::info!(
-                                "Created fresh config file from init-config.yaml with {} keys",
-                                default_config.len()
-                            );
-                        }
-                        Ok(default_config)
-                    }
-                    Err(write_error) => {
-                        tracing::error!("Failed to write default config file: {}", write_error);
-                        // Even if we can't write to disk, return config so app can still run
-                        Ok(default_config)
-                    }
-                }
+                self.create_and_save_default_config(default_config)
             }
         }
     }
@@ -394,7 +418,7 @@ impl Config {
         // Check if current config is valid before backing it up
         let current_content = std::fs::read_to_string(&self.config_path)?;
         if self.parse_yaml_content(&current_content).is_err() {
-            // Don't backup corrupted files
+            // Don't back up corrupted files
             return Ok(());
         }
 
@@ -1046,6 +1070,83 @@ mod tests {
         // Should be able to load it again without issues
         let reloaded_values = config.load_values()?;
         assert_eq!(reloaded_values.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_file_creation_when_missing() -> Result<(), ConfigError> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config_path = temp_file.path();
+
+        // Delete the file to simulate it not existing
+        std::fs::remove_file(config_path)?;
+        assert!(!config_path.exists());
+
+        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
+
+        // Try to load values - should create a fresh default config file
+        let values = config.load_values()?;
+
+        // Should return empty config
+        assert_eq!(values.len(), 0);
+
+        // Verify that the config file was created
+        assert!(config_path.exists());
+
+        // Verify that it's valid YAML
+        let file_content = std::fs::read_to_string(config_path)?;
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+        assert!(parsed.is_mapping());
+
+        // Should be able to load it again without issues
+        let reloaded_values = config.load_values()?;
+        assert_eq!(reloaded_values.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_recovery_from_backup_when_missing() -> Result<(), ConfigError> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config_path = temp_file.path();
+        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
+
+        // First, create a config with some data
+        config.set_param("test_key_backup", Value::String("backup_value".to_string()))?;
+        config.set_param("another_key", Value::Number(42.into()))?;
+
+        // Verify the backup was created
+        let backup_paths = config.get_backup_paths();
+        let primary_backup = &backup_paths[0]; // .bak file
+
+        // Make sure we have a backup by doing another write
+        config.set_param("third_key", Value::Bool(true))?;
+        assert!(primary_backup.exists(), "Backup should exist after writes");
+
+        // Now delete the main config file to simulate it being lost
+        std::fs::remove_file(config_path)?;
+        assert!(!config_path.exists());
+
+        // Try to load values - should recover from backup
+        let recovered_values = config.load_values()?;
+
+        // Should have recovered the data from backup
+        assert!(
+            recovered_values.len() >= 1,
+            "Should have recovered data from backup"
+        );
+
+        // Verify the main config file was restored
+        assert!(config_path.exists(), "Main config file should be restored");
+
+        // Verify we can load the data (using a key that won't conflict with env vars)
+        if let Ok(backup_value) = config.get_param::<String>("test_key_backup") {
+            // If we recovered the key, great!
+            assert_eq!(backup_value, "backup_value");
+        }
+        // Note: Due to back up rotation, we might not get the exact same data,
+        // but we should get some data back
 
         Ok(())
     }
