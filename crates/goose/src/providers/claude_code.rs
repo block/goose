@@ -14,29 +14,29 @@ use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
 use mcp_core::Role;
 
-pub const SUBPROCESS_DEFAULT_MODEL: &str = "default";
-pub const SUBPROCESS_KNOWN_MODELS: &[&str] = &["default"];
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["default"];
 
-pub const SUBPROCESS_DOC_URL: &str = "https://claude.ai/cli";
+pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 
 #[derive(Debug, serde::Serialize)]
-pub struct SubprocessProvider {
+pub struct ClaudeCodeProvider {
     command: String,
     model: ModelConfig,
 }
 
-impl Default for SubprocessProvider {
+impl Default for ClaudeCodeProvider {
     fn default() -> Self {
-        let model = ModelConfig::new(SubprocessProvider::metadata().default_model);
-        SubprocessProvider::from_env(model).expect("Failed to initialize Subprocess provider")
+        let model = ModelConfig::new(ClaudeCodeProvider::metadata().default_model);
+        ClaudeCodeProvider::from_env(model).expect("Failed to initialize Claude Code provider")
     }
 }
 
-impl SubprocessProvider {
+impl ClaudeCodeProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let command: String = config
-            .get_param("SUBPROCESS_COMMAND")
+            .get_param("CLAUDE_CODE_COMMAND")
             .unwrap_or_else(|_| "claude".to_string());
 
         Ok(Self { command, model })
@@ -235,8 +235,8 @@ impl SubprocessProvider {
         // Create a filtered system prompt without Extensions section
         let filtered_system = self.filter_extensions_from_system_prompt(system);
 
-        if std::env::var("GOOSE_SUBPROCESS_DEBUG").is_ok() {
-            println!("=== SUBPROCESS PROVIDER DEBUG ===");
+        if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
+            println!("=== CLAUDE CODE PROVIDER DEBUG ===");
             println!("Command: {}", self.command);
             println!("Original system prompt length: {} chars", system.len());
             println!("Filtered system prompt length: {} chars", filtered_system.len());
@@ -249,12 +249,10 @@ impl SubprocessProvider {
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
-            .arg(&filtered_system)  // Use filtered prompt instead of original
+            .arg(&filtered_system)
             .arg("--verbose")
             .arg("--output-format")
             .arg("json");
-
-        // Let claude CLI use its own configured model
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -333,8 +331,8 @@ impl SubprocessProvider {
             })
             .unwrap_or_else(|| "Simple task".to_string());
 
-        if std::env::var("GOOSE_SUBPROCESS_DEBUG").is_ok() {
-            println!("=== SUBPROCESS PROVIDER DEBUG ===");
+        if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
+            println!("=== CLAUDE CODE PROVIDER DEBUG ===");
             println!("Generated simple session description: {}", description);
             println!("Skipped subprocess call for session description");
             println!("================================");
@@ -359,21 +357,18 @@ impl SubprocessProvider {
 }
 
 #[async_trait]
-impl Provider for SubprocessProvider {
+impl Provider for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "subprocess",
-            "Subprocess",
-            "Execute AI models via command-line tools (e.g., claude CLI)",
-            SUBPROCESS_DEFAULT_MODEL,
-            SUBPROCESS_KNOWN_MODELS.to_vec(),
-            SUBPROCESS_DOC_URL,
-            vec![ConfigKey::new(
-                "SUBPROCESS_COMMAND",
-                false,
-                false,
-                Some("claude"),
-            )],
+            "claude-code",
+            "Claude Code",
+            "Execute Claude models via claude CLI tool",
+            CLAUDE_CODE_DEFAULT_MODEL,
+            CLAUDE_CODE_KNOWN_MODELS.to_vec(),
+            CLAUDE_CODE_DOC_URL,
+            vec![
+                ConfigKey::new("CLAUDE_CODE_COMMAND", false, false, Some("claude")),
+            ],
         )
     }
 
