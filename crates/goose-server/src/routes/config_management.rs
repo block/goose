@@ -13,6 +13,7 @@ use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
+use goose::providers::pricing::{get_all_pricing, get_model_pricing, refresh_pricing};
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
@@ -314,6 +315,128 @@ pub async fn providers(
     Ok(Json(providers_response))
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct PricingData {
+    pub provider: String,
+    pub model: String,
+    pub input_token_cost: f64,
+    pub output_token_cost: f64,
+    pub currency: String,
+    pub context_length: Option<u32>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct PricingResponse {
+    pub pricing: Vec<PricingData>,
+    pub source: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct PricingQuery {
+    /// If true, only return pricing for configured providers. If false, return all.
+    pub configured_only: Option<bool>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/pricing",
+    request_body = PricingQuery,
+    responses(
+        (status = 200, description = "Model pricing data retrieved successfully", body = PricingResponse)
+    )
+)]
+pub async fn get_pricing(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(query): Json<PricingQuery>,
+) -> Result<Json<PricingResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let configured_only = query.configured_only.unwrap_or(true);
+
+    // If refresh requested (configured_only = false), refresh the cache
+    if !configured_only {
+        if let Err(e) = refresh_pricing().await {
+            tracing::error!("Failed to refresh pricing data: {}", e);
+        }
+    }
+
+    let mut pricing_data = Vec::new();
+
+    if !configured_only {
+        // Get ALL pricing data from the cache
+        let all_pricing = get_all_pricing().await;
+
+        for (provider, models) in all_pricing {
+            for (model, pricing) in models {
+                pricing_data.push(PricingData {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    input_token_cost: pricing.input_cost,
+                    output_token_cost: pricing.output_cost,
+                    currency: "$".to_string(),
+                    context_length: pricing.context_length,
+                });
+            }
+        }
+    } else {
+        // Get only configured providers' pricing
+        let providers_metadata = get_providers();
+
+        for metadata in providers_metadata {
+            // Skip unconfigured providers if filtering
+            if !check_provider_configured(&metadata) {
+                continue;
+            }
+
+            for model_info in &metadata.known_models {
+                // Try to get pricing from cache
+                if let Some(pricing) = get_model_pricing(&metadata.name, &model_info.name).await {
+                    pricing_data.push(PricingData {
+                        provider: metadata.name.clone(),
+                        model: model_info.name.clone(),
+                        input_token_cost: pricing.input_cost,
+                        output_token_cost: pricing.output_cost,
+                        currency: "$".to_string(),
+                        context_length: pricing.context_length,
+                    });
+                }
+                // Check if the model has embedded pricing data
+                else if let (Some(input_cost), Some(output_cost)) =
+                    (model_info.input_token_cost, model_info.output_token_cost)
+                {
+                    pricing_data.push(PricingData {
+                        provider: metadata.name.clone(),
+                        model: model_info.name.clone(),
+                        input_token_cost: input_cost,
+                        output_token_cost: output_cost,
+                        currency: model_info
+                            .currency
+                            .clone()
+                            .unwrap_or_else(|| "$".to_string()),
+                        context_length: Some(model_info.context_limit as u32),
+                    });
+                }
+            }
+        }
+    }
+
+    tracing::info!(
+        "Returning pricing for {} models{}",
+        pricing_data.len(),
+        if configured_only {
+            " (configured providers only)"
+        } else {
+            " (all cached models)"
+        }
+    );
+
+    Ok(Json(PricingResponse {
+        pricing: pricing_data,
+        source: "openrouter".to_string(),
+    }))
+}
+
 #[utoipa::path(
     post,
     path = "/config/init",
@@ -471,6 +594,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/permissions", post(upsert_permissions))

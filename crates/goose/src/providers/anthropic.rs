@@ -5,7 +5,7 @@ use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::anthropic::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model};
@@ -122,12 +122,18 @@ impl AnthropicProvider {
 #[async_trait]
 impl Provider for AnthropicProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::with_models(
             "anthropic",
             "Anthropic",
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
-            ANTHROPIC_KNOWN_MODELS.to_vec(),
+            vec![
+                ModelInfo::with_cost("claude-3-5-sonnet-20241022", 200000, 0.000003, 0.000015),
+                ModelInfo::with_cost("claude-3-5-haiku-20241022", 200000, 0.000001, 0.000005),
+                ModelInfo::with_cost("claude-3-opus-20240229", 200000, 0.000015, 0.000075),
+                ModelInfo::with_cost("claude-3-sonnet-20240229", 200000, 0.000003, 0.000015),
+                ModelInfo::with_cost("claude-3-haiku-20240307", 200000, 0.00000025, 0.00000125),
+            ],
             ANTHROPIC_DOC_URL,
             vec![
                 ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),

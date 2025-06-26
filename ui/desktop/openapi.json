@@ -1700,9 +1700,26 @@
             "description": "The maximum context length this model supports",
             "minimum": 0
           },
+          "currency": {
+            "type": "string",
+            "description": "Currency for the costs (default: \"$\")",
+            "nullable": true
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for input (optional)",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "description": "The name of the model"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for output (optional)",
+            "nullable": true
           }
         }
       },

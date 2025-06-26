@@ -230,9 +230,21 @@ export type ModelInfo = {
      */
     context_limit: number;
     /**
+     * Currency for the costs (default: "$")
+     */
+    currency?: string | null;
+    /**
+     * Cost per token for input (optional)
+     */
+    input_token_cost?: number | null;
+    /**
      * The name of the model
      */
     name: string;
+    /**
+     * Cost per token for output (optional)
+     */
+    output_token_cost?: number | null;
 };
 
 export type PermissionConfirmationRequest = {
