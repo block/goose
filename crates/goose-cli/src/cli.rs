@@ -560,7 +560,7 @@ enum Command {
     },
 
     /// Start a web server with a chat interface
-    #[command(about = "Start a web server with a chat interface")]
+    #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
         /// Port to run the web server on
         #[arg(
