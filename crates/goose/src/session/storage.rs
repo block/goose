@@ -934,8 +934,7 @@ pub async fn persist_messages(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
-    let result = persist_messages_with_schedule_id(session_file, messages, provider, None).await;
-    result
+    persist_messages_with_schedule_id(session_file, messages, provider, None).await
 }
 
 /// Write messages to a session file with metadata, including an optional scheduled job ID
