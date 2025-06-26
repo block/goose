@@ -24,18 +24,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Parse recipe from issue
+      - name: Parse recipe from issue and inject author
         id: parse
         run: |
           ISSUE_BODY=$(jq -r .issue.body "$GITHUB_EVENT_PATH")
           RECIPE_JSON=$(echo "$ISSUE_BODY" | awk '/```/,/```/' | sed '1d;$d')
-          echo "$RECIPE_JSON" > recipe.json
+
+          echo "$RECIPE_JSON" > raw-recipe.json
+
+          # Inject GitHub handle from issue opener
+          AUTHOR="${{ github.event.issue.user.login }}"
+          jq --arg author "$AUTHOR" '. + {author: $author}' raw-recipe.json > recipe.json
 
           TITLE=$(jq -r .title recipe.json | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
           BRANCH_NAME="add-recipe-${TITLE}"
 
           echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
-          echo "recipe_json=${RECIPE_JSON}" >> $GITHUB_OUTPUT
+          echo "recipe_json=$(cat recipe.json | jq -c)" >> $GITHUB_OUTPUT
+
 
       - name: Validate recipe fields
         run: |

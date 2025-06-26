@@ -16,7 +16,7 @@ body:
 
         🪄 **What Happens After?**
         - If accepted, we'll publish your recipe to the [Goose Recipes Cookbook](https://block.github.io/goose/recipes)
-        - You'll receive **LLM API credits** as a thank-you!
+        - You'll receive OpenRouter **LLM API credits** as a thank you!
         - Your GitHub handle will be displayed and linked on the recipe card
         - If you provide an email below, we'll email you your credits when your recipe is approved and merged.
 
@@ -36,7 +36,6 @@ body:
           "category": "Entertainment",
           "extensions": ["Developer"],
           "activities": ["Tell a joke", "Daily humor"],
-          "author": "your-github-handle"
         }
     validations:
       required: true
@@ -63,4 +62,3 @@ body:
         - `"category"` is the type of user this recipe is for (e.g., `Developer`, `Entertainment`)
         - `"extensions"` are the Goose tools this recipe uses
         - `"activities"` are the main steps or capabilities of your recipe
-        - `"author"` is your GitHub handle — we'll link to your profile in the Cookbook
