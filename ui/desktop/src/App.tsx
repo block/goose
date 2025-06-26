@@ -552,9 +552,9 @@ export default function App() {
           onCancel={handleCancel}
         />
       )}
-      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex">
         <div className="titlebar-drag-region" />
-        <div className={`transition-all duration-300 ${isDiffSidePanelOpen ? 'mr-[50vw]' : ''}`}>
+        <div className="flex-1">
           {view === 'loading' && <SuspenseLoader />}
           {view === 'welcome' && (
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />

@@ -94,7 +94,9 @@ export default function DiffViewer({
       {/* Header */}
       <div className="flex items-center justify-between pl-[86px] p-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Diff Viewer</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Diff Viewer DIFF VIEWER
+          </h2>
           <div className="flex gap-2">
             <button
               onClick={() => setViewMode('unified')}

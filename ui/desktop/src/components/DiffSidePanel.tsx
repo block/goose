@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react';
 import { ScrollArea } from './ui/scroll-area';
-import { X } from 'lucide-react';
+import {
+  SquareSplitHorizontal,
+  BetweenHorizontalStart,
+  FileDiff,
+  PanelRightOpen,
+} from 'lucide-react';
 
 interface DiffLine {
   type: 'context' | 'added' | 'removed' | 'header';
@@ -95,69 +100,70 @@ export default function DiffSidePanel({
 
   if (!isOpen) return null;
 
+  const toggleBaseStyles = 'flex items-center gap-1 [&_svg]:size-4 h-8 px-4 text-xs';
+  const toggleActiveStyles = `${toggleBaseStyles} bg-gray-800 text-white`;
+  const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textStandard`;
+
   return (
-    <div className="fixed inset-y-0 right-0 w-1/2 bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Diff Viewer</h2>
-          <div className="flex gap-2">
+    <div className="flex-1 p-8 bg-bgSubtle">
+      <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle">
+        {/* Header */}
+        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-textSubtle text-sm inline-flex items-center gap-2">
+            <FileDiff size={16} />
+            Diff Viewer
+          </h2>
+
+          <div className="flex items-center gap-4">
+            <div className="flex border hover:cursor-pointer border-borderSubtle hover:border-borderStandard rounded-lg overflow-hidden transition-colors">
+              <button
+                className={viewMode === 'unified' ? toggleActiveStyles : toggleInactiveStyles}
+                onClick={() => setViewMode('unified')}
+              >
+                <BetweenHorizontalStart size={16} className="" />
+                Unified
+              </button>
+              <button
+                className={viewMode === 'split' ? toggleActiveStyles : toggleInactiveStyles}
+                onClick={() => setViewMode('split')}
+              >
+                <SquareSplitHorizontal size={16} className="" />
+                Split
+              </button>
+            </div>
+
             <button
-              onClick={() => setViewMode('unified')}
-              className={`px-3 py-1 text-sm rounded ${
-                viewMode === 'unified'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
+              onClick={onClose}
+              className="w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard flex items-center justify-center"
+              title="Close diff viewer"
             >
-              Unified
-            </button>
-            <button
-              onClick={() => setViewMode('split')}
-              className={`px-3 py-1 text-sm rounded ${
-                viewMode === 'split'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              Split
+              <PanelRightOpen size={16} />
             </button>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
-          title="Close diff viewer"
-        >
-          <X size={20} className="text-gray-600 dark:text-gray-400" />
-        </button>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
+        {/* Content */}
+
         <ScrollArea className="h-full">
           {parsedDiff.map((file, fileIndex) => (
-            <div
-              key={fileIndex}
-              className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-            >
+            <div key={fileIndex}>
               {/* File header */}
-              <div className="bg-gray-50 dark:bg-gray-900 p-3 flex items-center justify-between sticky top-0 z-10">
+              <div className="bg-bgApp p-3 flex items-center justify-between sticky top-0 z-10">
                 <div className="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">
                   {file.fileName}
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button
-                    onClick={() => handleApplyFile(fileIndex)}
-                    className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
-                  >
-                    Apply All
-                  </button>
-                  <button
                     onClick={() => handleRejectFile(fileIndex)}
-                    className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                    className="px-3 py-1 text-xs text-red-500"
                   >
                     Reject All
+                  </button>
+                  <button
+                    onClick={() => handleApplyFile(fileIndex)}
+                    className="px-3 py-1 text-xs text-green-500"
+                  >
+                    Apply All
                   </button>
                 </div>
               </div>
@@ -211,16 +217,16 @@ function DiffHunkView({
 
   return (
     <div
-      className={`border-l-4 ${
+      className={`${
         status === 'applied'
-          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+          ? 'bg-green-50 dark:bg-green-900/20'
           : status === 'rejected'
-            ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-            : 'border-gray-300 dark:border-gray-600'
+            ? 'bg-red-50 dark:bg-red-900/20'
+            : ''
       }`}
     >
       {/* Hunk header */}
-      <div className="bg-gray-100 dark:bg-gray-800 p-2 flex items-center justify-between">
+      <div className="p-2 flex items-center justify-between">
         <div className="font-mono text-xs text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">
           {hunk.header}
         </div>
@@ -353,7 +359,7 @@ function SplitDiffView({ lines }: { lines: DiffLine[] }) {
   }
 
   return (
-    <div className="flex font-mono text-sm">
+    <div className="flex font-mono text-sm break-all">
       {/* Left side (old) */}
       <div className="flex-1 border-r border-gray-200 dark:border-gray-700">
         {leftLines.map((line, index) => (
