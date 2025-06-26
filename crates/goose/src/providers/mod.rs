@@ -20,6 +20,7 @@ pub mod openai;
 pub mod openrouter;
 pub mod sagemaker_tgi;
 pub mod snowflake;
+pub mod subprocess;
 pub mod toolshim;
 pub mod utils;
 pub mod utils_universal_openai_stream;
