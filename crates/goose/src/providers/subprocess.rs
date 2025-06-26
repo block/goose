@@ -42,33 +42,26 @@ impl SubprocessProvider {
         Ok(Self { command, model })
     }
 
-    /// Create a simplified system prompt without Extensions section
-    fn create_simplified_system_prompt(&self) -> String {
-        let current_date = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S");
-        let current_dir = std::env::current_dir()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        format!(
-            "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.
-
-The current date is {}.
-
-You are working in the directory: {}
-
-You have access to your own built-in tools for file operations, shell commands, and other tasks. Use them as needed to help the user accomplish their goals.
-
-# Response Guidelines
-
-- Use Markdown formatting for all responses.
-- Follow best practices for Markdown, including:
-  - Using headers for organization.
-  - Bullet points for lists.
-  - Links formatted correctly.
-- For code examples, use fenced code blocks with language identifiers.
-- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.",
-            current_date, current_dir
-        )
+    /// Filter out the Extensions section from the system prompt
+    fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
+        // Find the Extensions section and remove it
+        if let Some(extensions_start) = system.find("# Extensions") {
+            // Look for the next major section that starts with #
+            let after_extensions = &system[extensions_start..];
+            if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
+                // Found next section, keep everything before Extensions and after the next section
+                let before_extensions = &system[..extensions_start];
+                let next_section_start = extensions_start + next_section_pos + 1;
+                let after_next_section = &system[next_section_start..];
+                format!("{}{}", before_extensions.trim_end(), after_next_section)
+            } else {
+                // No next section found, just remove everything from Extensions onward
+                system[..extensions_start].trim_end().to_string()
+            }
+        } else {
+            // No Extensions section found, return original
+            system.to_string()
+        }
     }
 
     /// Convert goose messages to the format expected by claude CLI
@@ -239,14 +232,15 @@ You have access to your own built-in tools for file operations, shell commands, 
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        // Create a simplified system prompt without Extensions section
-        let simplified_system = self.create_simplified_system_prompt();
+        // Create a filtered system prompt without Extensions section
+        let filtered_system = self.filter_extensions_from_system_prompt(system);
 
         if std::env::var("GOOSE_SUBPROCESS_DEBUG").is_ok() {
             println!("=== SUBPROCESS PROVIDER DEBUG ===");
             println!("Command: {}", self.command);
             println!("Original system prompt length: {} chars", system.len());
-            println!("Simplified system prompt: {}", simplified_system);
+            println!("Filtered system prompt length: {} chars", filtered_system.len());
+            println!("Filtered system prompt: {}", filtered_system);
             println!("Messages JSON: {}", serde_json::to_string_pretty(&messages_json).unwrap_or_else(|_| "Failed to serialize".to_string()));
             println!("================================");
         }
@@ -255,7 +249,7 @@ You have access to your own built-in tools for file operations, shell commands, 
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
-            .arg(&simplified_system)  // Use simplified prompt instead of original
+            .arg(&filtered_system)  // Use filtered prompt instead of original
             .arg("--verbose")
             .arg("--output-format")
             .arg("json");
@@ -314,6 +308,54 @@ You have access to your own built-in tools for file operations, shell commands, 
 
         Ok(lines)
     }
+
+    /// Generate a simple session description without calling subprocess
+    fn generate_simple_session_description(
+        &self,
+        messages: &[Message],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Extract the first user message text
+        let description = messages
+            .iter()
+            .find(|m| m.role == mcp_core::Role::User)
+            .and_then(|m| {
+                m.content.iter().find_map(|c| match c {
+                    MessageContent::Text(text_content) => Some(&text_content.text),
+                    _ => None,
+                })
+            })
+            .map(|text| {
+                // Take first few words, limit to 4 words
+                text.split_whitespace()
+                    .take(4)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .unwrap_or_else(|| "Simple task".to_string());
+
+        if std::env::var("GOOSE_SUBPROCESS_DEBUG").is_ok() {
+            println!("=== SUBPROCESS PROVIDER DEBUG ===");
+            println!("Generated simple session description: {}", description);
+            println!("Skipped subprocess call for session description");
+            println!("================================");
+        }
+
+        let message = Message {
+            role: mcp_core::Role::Assistant,
+            created: chrono::Utc::now().timestamp(),
+            content: vec![MessageContent::Text(mcp_core::content::TextContent {
+                text: description.clone(),
+                annotations: None,
+            })],
+        };
+
+        let usage = Usage::default();
+
+        Ok((
+            message,
+            ProviderUsage::new(self.model.model_name.clone(), usage),
+        ))
+    }
 }
 
 #[async_trait]
@@ -349,6 +391,11 @@ impl Provider for SubprocessProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Check if this is a session description request (short system prompt asking for 4 words or less)
+        if system.contains("four words or less") || system.contains("4 words or less") {
+            return self.generate_simple_session_description(messages);
+        }
+
         let json_lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
