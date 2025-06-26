@@ -70,12 +70,12 @@ impl GeminiCliProvider {
     ) -> Result<Vec<String>, ProviderError> {
         // Create a simple prompt combining system + conversation
         let mut full_prompt = String::new();
-        
+
         // Add system prompt
         let filtered_system = self.filter_extensions_from_system_prompt(system);
         full_prompt.push_str(&filtered_system);
         full_prompt.push_str("\n\n");
-        
+
         // Add conversation history
         for message in messages {
             let role_prefix = match message.role {
@@ -83,7 +83,7 @@ impl GeminiCliProvider {
                 Role::Assistant => "Assistant: ",
             };
             full_prompt.push_str(role_prefix);
-            
+
             for content in &message.content {
                 if let MessageContent::Text(text_content) = content {
                     full_prompt.push_str(&text_content.text);
@@ -92,7 +92,7 @@ impl GeminiCliProvider {
             }
             full_prompt.push('\n');
         }
-        
+
         full_prompt.push_str("Assistant: ");
 
         if std::env::var("GOOSE_GEMINI_CLI_DEBUG").is_ok() {
@@ -103,9 +103,7 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        cmd.arg("-p")
-            .arg(&full_prompt)
-            .arg("--yolo");
+        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -152,21 +150,23 @@ impl GeminiCliProvider {
             )));
         }
 
-        tracing::debug!("Gemini CLI executed successfully, got {} lines", lines.len());
+        tracing::debug!(
+            "Gemini CLI executed successfully, got {} lines",
+            lines.len()
+        );
 
         Ok(lines)
     }
 
     /// Parse simple text response
-    fn parse_response(
-        &self,
-        lines: &[String],
-    ) -> Result<(Message, Usage), ProviderError> {
+    fn parse_response(&self, lines: &[String]) -> Result<(Message, Usage), ProviderError> {
         // Join all lines into a single response
         let response_text = lines.join("\n");
-        
+
         if response_text.trim().is_empty() {
-            return Err(ProviderError::RequestFailed("Empty response from gemini command".to_string()));
+            return Err(ProviderError::RequestFailed(
+                "Empty response from gemini command".to_string(),
+            ));
         }
 
         let message = Message {

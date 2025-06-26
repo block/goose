@@ -134,8 +134,9 @@ impl ClaudeCodeProvider {
 
         // Join all lines and parse as a single JSON array
         let full_response = json_lines.join("");
-        let json_array: Vec<Value> = serde_json::from_str(&full_response)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON response: {}", e)))?;
+        let json_array: Vec<Value> = serde_json::from_str(&full_response).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse JSON response: {}", e))
+        })?;
 
         for parsed in json_array {
             if let Some(msg_type) = parsed.get("type").and_then(|t| t.as_str()) {
@@ -143,11 +144,16 @@ impl ClaudeCodeProvider {
                     "assistant" => {
                         if let Some(message) = parsed.get("message") {
                             // Extract text content from this assistant message
-                            if let Some(content) = message.get("content").and_then(|c| c.as_array()) {
+                            if let Some(content) = message.get("content").and_then(|c| c.as_array())
+                            {
                                 for item in content {
-                                    if let Some(content_type) = item.get("type").and_then(|t| t.as_str()) {
+                                    if let Some(content_type) =
+                                        item.get("type").and_then(|t| t.as_str())
+                                    {
                                         if content_type == "text" {
-                                            if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
+                                            if let Some(text) =
+                                                item.get("text").and_then(|t| t.as_str())
+                                            {
                                                 all_text_content.push(text.to_string());
                                             }
                                         }
@@ -203,7 +209,9 @@ impl ClaudeCodeProvider {
         // Combine all text content into a single message
         let combined_text = all_text_content.join("\n\n");
         if combined_text.is_empty() {
-            return Err(ProviderError::RequestFailed("No text content found in response".to_string()));
+            return Err(ProviderError::RequestFailed(
+                "No text content found in response".to_string(),
+            ));
         }
 
         let message_content = vec![MessageContent::Text(TextContent {
@@ -239,9 +247,16 @@ impl ClaudeCodeProvider {
             println!("=== CLAUDE CODE PROVIDER DEBUG ===");
             println!("Command: {}", self.command);
             println!("Original system prompt length: {} chars", system.len());
-            println!("Filtered system prompt length: {} chars", filtered_system.len());
+            println!(
+                "Filtered system prompt length: {} chars",
+                filtered_system.len()
+            );
             println!("Filtered system prompt: {}", filtered_system);
-            println!("Messages JSON: {}", serde_json::to_string_pretty(&messages_json).unwrap_or_else(|_| "Failed to serialize".to_string()));
+            println!(
+                "Messages JSON: {}",
+                serde_json::to_string_pretty(&messages_json)
+                    .unwrap_or_else(|_| "Failed to serialize".to_string())
+            );
             println!("================================");
         }
 
@@ -366,9 +381,12 @@ impl Provider for ClaudeCodeProvider {
             CLAUDE_CODE_DEFAULT_MODEL,
             CLAUDE_CODE_KNOWN_MODELS.to_vec(),
             CLAUDE_CODE_DOC_URL,
-            vec![
-                ConfigKey::new("CLAUDE_CODE_COMMAND", false, false, Some("claude")),
-            ],
+            vec![ConfigKey::new(
+                "CLAUDE_CODE_COMMAND",
+                false,
+                false,
+                Some("claude"),
+            )],
         )
     }
 
