@@ -215,7 +215,8 @@ export default function ChatInput({
     if (imageFiles.length === 0) return;
 
     // Check if adding these images would exceed the limit
-    if (currentSessionFiles.length + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
+    const currentImageCount = currentSessionFiles.filter((file) => file.type === 'image').length;
+    if (currentImageCount + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
       // Show error message to user
       setSessionFilesFn((prev) => [
         ...prev,
@@ -503,7 +504,10 @@ export default function ChatInput({
             if (isImageFile) {
               // Handle image files like pasted images
               // Check if adding this image would exceed the limit
-              if (currentSessionFiles.length + 1 > MAX_IMAGES_PER_MESSAGE) {
+              const currentImageCount = currentSessionFiles.filter(
+                (file) => file.type === 'image'
+              ).length;
+              if (currentImageCount + 1 > MAX_IMAGES_PER_MESSAGE) {
                 // Show error message to user
                 setSessionFilesFn((prev) => [
                   ...prev,
@@ -689,7 +693,8 @@ export default function ChatInput({
     if (imageFiles.length === 0) return;
 
     // Check if adding these images would exceed the limit
-    if (currentSessionFiles.length + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
+    const currentImageCount = currentSessionFiles.filter((file) => file.type === 'image').length;
+    if (currentImageCount + imageFiles.length > MAX_IMAGES_PER_MESSAGE) {
       // Show error message to user
       setSessionFilesFn((prev) => [
         ...prev,

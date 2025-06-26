@@ -971,13 +971,25 @@ ipcMain.handle('select-file-or-directory', async () => {
 });
 
 // Add multi-select file/directory selection handler
-ipcMain.handle('select-multiple-files', async () => {
-  const result = (await dialog.showOpenDialog({
-    properties:
-      process.platform === 'darwin'
-        ? ['openFile', 'openDirectory', 'multiSelections']
-        : ['openFile', 'multiSelections'],
-  })) as unknown as OpenDialogReturnValue;
+ipcMain.handle('select-multiple-files', async (event) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender);
+
+  let result: OpenDialogReturnValue;
+  if (parentWindow) {
+    result = (await dialog.showOpenDialog(parentWindow, {
+      properties:
+        process.platform === 'darwin'
+          ? ['openFile', 'openDirectory', 'multiSelections']
+          : ['openFile', 'multiSelections'],
+    })) as unknown as OpenDialogReturnValue;
+  } else {
+    result = (await dialog.showOpenDialog({
+      properties:
+        process.platform === 'darwin'
+          ? ['openFile', 'openDirectory', 'multiSelections']
+          : ['openFile', 'multiSelections'],
+    })) as unknown as OpenDialogReturnValue;
+  }
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths;
