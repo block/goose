@@ -7,6 +7,7 @@ import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
+import { useChatDraft } from '../hooks/useChatDraft';
 
 interface PastedImage {
   id: string;
@@ -58,15 +59,35 @@ export default function ChatInput({
   setMessages,
   sessionCosts,
 }: ChatInputProps) {
-  const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  // Use the draft hook to manage persistent input state
+  const { draftText, updateDraft, clearDraft, isInitialized } = useChatDraft(initialValue);
+
+  const [displayValue, setDisplayValue] = useState(''); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
-  // Update internal value when initialValue changes
+  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
+  const [isComposing, setIsComposing] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
+  const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+
+  // Update display value when draft is initialized or changes
+  // But don't override during history navigation
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    if (isInitialized && !isNavigatingHistory) {
+      setDisplayValue(draftText);
+    }
+  }, [draftText, isInitialized, isNavigatingHistory]);
+
+  // Update internal value when initialValue changes (but only if no draft exists)
+  useEffect(() => {
+    if (initialValue && !draftText) {
+      setDisplayValue(initialValue);
+      updateDraft(initialValue);
+    }
 
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
@@ -81,16 +102,8 @@ export default function ChatInput({
 
     // Reset history index when input is cleared
     setHistoryIndex(-1);
-    setIsInGlobalHistory(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
-  const [isComposing, setIsComposing] = useState(false);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+    setIsNavigatingHistory(false);
+  }, [initialValue, draftText, updateDraft]);
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -149,19 +162,19 @@ export default function ChatInput({
         : droppedFiles.join(' ');
 
       setDisplayValue(joinedPaths);
-      setValue(joinedPaths);
+      updateDraft(joinedPaths);
       textAreaRef.current?.focus();
       setProcessedFilePaths(droppedFiles);
     }
-  }, [droppedFiles, processedFilePaths, displayValue]);
+  }, [droppedFiles, processedFilePaths, displayValue, updateDraft]);
 
-  // Debounced function to update actual value
-  const debouncedSetValue = useMemo(
+  // Debounced function to update draft
+  const debouncedUpdateDraft = useMemo(
     () =>
       debounce((value: string) => {
-        setValue(value);
-      }, 150),
-    [setValue]
+        updateDraft(value);
+      }, 100), // Reduced from 150ms to 100ms for better responsiveness
+    [updateDraft]
   );
 
   // Debounced autosize function
@@ -184,7 +197,20 @@ export default function ChatInput({
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     setDisplayValue(val); // Update display immediately
-    debouncedSetValue(val); // Debounce the actual state update
+
+    // If user starts typing after history navigation, exit history mode and update draft
+    if (isNavigatingHistory) {
+      setIsNavigatingHistory(false);
+      setHistoryIndex(-1);
+      setSavedInput('');
+      // Cancel any pending draft updates to avoid conflicts
+      debouncedUpdateDraft.cancel();
+    }
+
+    // Only update draft if we're not in history navigation mode
+    if (!isNavigatingHistory) {
+      debouncedUpdateDraft(val);
+    }
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -273,10 +299,10 @@ export default function ChatInput({
   // Cleanup debounced functions on unmount
   useEffect(() => {
     return () => {
-      debouncedSetValue.cancel?.();
+      debouncedUpdateDraft.cancel?.();
       debouncedAutosize.cancel?.();
     };
-  }, [debouncedSetValue, debouncedAutosize]);
+  }, [debouncedUpdateDraft, debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -298,48 +324,41 @@ export default function ChatInput({
 
     evt.preventDefault();
 
-    // Get global history once to avoid multiple calls
+    // Cancel any pending draft updates to prevent interference
+    debouncedUpdateDraft.cancel();
+
+    // Combine histories: command history first (most recent), then global history (excluding duplicates)
     const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+    const combinedHistory = [
+      ...commandHistory,
+      ...globalHistory.filter(msg => !commandHistory.includes(msg))
+    ];
 
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
       setSavedInput(displayValue || '');
-      setIsInGlobalHistory(commandHistory.length === 0);
+      setIsNavigatingHistory(true);
     }
 
-    // Determine which history we're using
-    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
     let newIndex = historyIndex;
     let newValue = '';
 
-    // Handle navigation
     if (isUp) {
-      // Moving up through history
-      if (newIndex < currentHistory.length - 1) {
-        // Still have items in current history
+      // Moving up through history (towards older messages)
+      if (newIndex < combinedHistory.length - 1) {
         newIndex = historyIndex + 1;
-        newValue = currentHistory[newIndex];
-      } else if (!isInGlobalHistory && globalHistory.length > 0) {
-        // Switch to global history
-        setIsInGlobalHistory(true);
-        newIndex = 0;
-        newValue = globalHistory[newIndex];
+        newValue = combinedHistory[newIndex];
       }
     } else {
-      // Moving down through history
+      // Moving down through history (towards newer messages)
       if (newIndex > 0) {
-        // Still have items in current history
         newIndex = historyIndex - 1;
-        newValue = currentHistory[newIndex];
-      } else if (isInGlobalHistory && commandHistory.length > 0) {
-        // Switch to chat history
-        setIsInGlobalHistory(false);
-        newIndex = commandHistory.length - 1;
-        newValue = commandHistory[newIndex];
+        newValue = combinedHistory[newIndex];
       } else {
         // Return to original input
         newIndex = -1;
         newValue = savedInput;
+        setIsNavigatingHistory(false);
       }
     }
 
@@ -347,11 +366,13 @@ export default function ChatInput({
     if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
       if (newIndex === -1) {
-        setDisplayValue(savedInput || '');
-        setValue(savedInput || '');
+        const textToRestore = savedInput || '';
+        setDisplayValue(textToRestore);
+        // Update draft when returning to saved input
+        updateDraft(textToRestore);
       } else {
         setDisplayValue(newValue || '');
-        setValue(newValue || '');
+        // Don't update draft during active history navigation
       }
     }
   };
@@ -369,22 +390,19 @@ export default function ChatInput({
     }
 
     if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (validPastedImageFilesPaths.length > 0) {
-        LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
-      }
+      // Save the message to global history before submitting
+      LocalMessageStorage.addMessage(textToSend);
 
       handleSubmit(
         new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
       );
 
       setDisplayValue('');
-      setValue('');
+      clearDraft();
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
-      setIsInGlobalHistory(false);
+      setIsNavigatingHistory(false);
     }
   };
 
@@ -402,7 +420,7 @@ export default function ChatInput({
       if (evt.altKey) {
         const newValue = displayValue + '\n';
         setDisplayValue(newValue);
-        setValue(newValue);
+        updateDraft(newValue);
         return;
       }
 
@@ -433,7 +451,7 @@ export default function ChatInput({
     if (path) {
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
       setDisplayValue(newValue);
-      setValue(newValue);
+      updateDraft(newValue);
       textAreaRef.current?.focus();
     }
   };
