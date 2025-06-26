@@ -54,8 +54,17 @@ Let's begin 🚀
       <TabItem value="ui" label="Goose Desktop" default>
         <LinuxDesktopInstallButtons/>
         <div style={{ marginTop: '1rem' }}>
-          1. Extract the downloaded tar.bz2 file.
-          2. Run the executable file to launch the Goose Desktop application.
+          **For Debian/Ubuntu-based distributions:**
+          1. Download the DEB file
+          2. Navigate to the directory where it is saved in a terminal
+          3. Run `sudo dpkg -i (filename).deb`
+          4. Launch Goose from the app menu
+
+          **For Red Hat/Fedora-based distributions:**
+          1. Download the RPM file
+          2. Navigate to the directory where it is saved in a terminal
+          3. Run `sudo dnf install (filename).rpm` or `sudo rpm -i (filename).rpm`
+          4. Launch Goose from the app menu
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
