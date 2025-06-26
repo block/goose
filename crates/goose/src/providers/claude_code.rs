@@ -391,7 +391,8 @@ impl Provider for ClaudeCodeProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+        // Return a custom config with 200K token limit for Claude Code
+        ModelConfig::new("claude-3-5-sonnet-latest".to_string()).with_context_limit(Some(200_000))
     }
 
     #[tracing::instrument(
@@ -432,5 +433,19 @@ impl Provider for ClaudeCodeProvider {
             message,
             ProviderUsage::new(self.model.model_name.clone(), usage),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_claude_code_model_config() {
+        let provider = ClaudeCodeProvider::default();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "claude-3-5-sonnet-latest");
+        assert_eq!(config.context_limit(), 200_000);
     }
 }

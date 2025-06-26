@@ -247,7 +247,8 @@ impl Provider for GeminiCliProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+        // Return a custom config with 1M token limit for Gemini CLI
+        ModelConfig::new("gemini-1.5-pro".to_string()).with_context_limit(Some(1_000_000))
     }
 
     #[tracing::instrument(
@@ -288,5 +289,19 @@ impl Provider for GeminiCliProvider {
             message,
             ProviderUsage::new(self.model.model_name.clone(), usage),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gemini_cli_model_config() {
+        let provider = GeminiCliProvider::default();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "gemini-1.5-pro");
+        assert_eq!(config.context_limit(), 1_000_000);
     }
 }
