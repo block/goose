@@ -372,65 +372,56 @@ impl DeveloperRouter {
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
         // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
-
-        // Check for global GOOSE.md file
-        let global_goose_md_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir("GOOSE.md"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/GOOSE.md").to_string())
-            });
+        let get_global_path = |filename: &str| -> PathBuf {
+            choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(filename))
+                .unwrap_or_else(|_| {
+                    PathBuf::from(shellexpand::tilde(&format!("~/.config/goose/{}", filename)).to_string())
+                })
+        };
 
         // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let config_dir = get_global_path(".goosehints").parent().unwrap().to_path_buf();
+        let _ = std::fs::create_dir_all(&config_dir);
 
-        // Check for local hints in current directory
-        let local_hints_path = cwd.join(".goosehints");
-        let local_goose_md_path = cwd.join("GOOSE.md");
+        // Define hint files to check: (filename, global_header, local_header)
+        let hint_files = [
+            (".goosehints", 
+             "### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n",
+             "### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n"),
+            ("GOOSE.md", 
+             "### Global GOOSE.md\nThe developer extension includes global documentation from GOOSE.md that applies to all projects & directories.\n",
+             "### Project GOOSE.md\nThe developer extension includes project documentation from GOOSE.md for working on the project in this directory.\n"),
+        ];
 
-        // Read global hints if they exist
         let mut hints = String::new();
-        if global_hints_path.is_file() {
-            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
-                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                hints.push_str(&global_hints);
-            }
-        }
 
-        // Read global GOOSE.md if it exists
-        if global_goose_md_path.is_file() {
-            if let Ok(global_goose_md) = std::fs::read_to_string(&global_goose_md_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
+        // Process each hint file type
+        for (filename, global_header, local_header) in hint_files.iter() {
+            // Check global file
+            let global_path = get_global_path(filename);
+            if global_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&global_path) {
+                    if !hints.is_empty() {
+                        hints.push_str("\n\n");
+                    } else {
+                        hints.push('\n');
+                    }
+                    hints.push_str(global_header);
+                    hints.push_str(&content);
                 }
-                hints.push_str("### Global GOOSE.md\nThe developer extension includes global documentation from GOOSE.md that applies to all projects & directories.\n");
-                hints.push_str(&global_goose_md);
             }
-        }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
-            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
+            // Check local file
+            let local_path = cwd.join(filename);
+            if local_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&local_path) {
+                    if !hints.is_empty() {
+                        hints.push_str("\n\n");
+                    }
+                    hints.push_str(local_header);
+                    hints.push_str(&content);
                 }
-                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                hints.push_str(&local_hints);
-            }
-        }
-
-        // Read local GOOSE.md if it exists
-        if local_goose_md_path.is_file() {
-            if let Ok(local_goose_md) = std::fs::read_to_string(&local_goose_md_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
-                }
-                hints.push_str("### Project GOOSE.md\nThe developer extension includes project documentation from GOOSE.md for working on the project in this directory.\n");
-                hints.push_str(&local_goose_md);
             }
         }
 
