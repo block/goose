@@ -1,5 +1,5 @@
 name: 🧑‍🍳 Submit a Recipe to the Goose Cookbook
-description: Share a reusable Goose session (aka a recipe) to help the community!
+description: Share a reusable Goose recipe to help the community!
 title: "[Recipe] <your recipe title here>"
 labels: ["recipe submission"]
 body:
@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for contributing to the Goose Cookbook! 🍳  
-        Recipes are reusable sessions created in Goose Desktop or CLI and shared with the community to help others vibe-code faster.
+        Recipes are reusable sessions created in Goose Desktop or CLI and shared with the community to help others vibe code faster.
 
         📌 **How to Submit**
         - Create your recipe using Goose ("Make Agent from this session")
@@ -18,7 +18,7 @@ body:
         - If accepted, we'll publish your recipe to the [Goose Recipes Cookbook](https://block.github.io/goose/recipes)
         - You'll receive **LLM API credits** as a thank-you!
         - Your GitHub handle will be displayed and linked on the recipe card
-        - If you provide an email below, we’ll email you your credits when your recipe is approved and merged.
+        - If you provide an email below, we'll email you your credits when your recipe is approved and merged.
 
   - type: textarea
     id: recipe-json
