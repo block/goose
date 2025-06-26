@@ -149,12 +149,16 @@ impl Usage {
 use async_trait::async_trait;
 
 /// Trait for LeadWorkerProvider-specific functionality
+#[async_trait]
 pub trait LeadWorkerProviderTrait {
     /// Get information about the lead and worker models for logging
     fn get_model_info(&self) -> (String, String);
 
-    /// Get the currently active model name
+    /// Get the currently active model name (configured name, not usage name)
     fn get_active_model(&self) -> String;
+
+    /// Get the current mode (Lead or Worker)
+    async fn get_current_mode(&self) -> crate::providers::lead_worker::LeadWorkerMode;
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)

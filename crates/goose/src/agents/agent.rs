@@ -17,6 +17,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
+use crate::providers::lead_worker::LeadWorkerMode;
 use crate::recipe::{Author, Recipe, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
@@ -711,20 +712,15 @@ impl Agent {
                         // Emit model change event if provider is lead-worker
                         let provider = self.provider().await?;
                         if let Some(lead_worker) = provider.as_lead_worker() {
-                            // The actual model used is in the usage
-                            let active_model = usage.model.clone();
-                            let (lead_model, worker_model) = lead_worker.get_model_info();
-                            let mode = if active_model == lead_model {
-                                "lead"
-                            } else if active_model == worker_model {
-                                "worker"
-                            } else {
-                                "unknown"
+                            let current_mode = lead_worker.get_current_mode().await;
+                            let mode_str = match current_mode {
+                                LeadWorkerMode::Lead => "lead",
+                                LeadWorkerMode::Worker => "worker",
                             };
 
                             yield AgentEvent::ModelChange {
-                                model: active_model,
-                                mode: mode.to_string(),
+                                model: provider.get_active_model_name(),
+                                mode: mode_str.to_string(),
                             };
                         }
 

@@ -23,28 +23,40 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
+  const [leadModel, setLeadModel] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [isModelTruncated, setIsModelTruncated] = useState(false);
   // eslint-disable-next-line no-undef
   const modelRef = useRef<HTMLSpanElement>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
-  // Check if lead/worker mode is active
+  // Check if lead/worker mode is active and get the lead model
   useEffect(() => {
     const checkLeadWorker = async () => {
       try {
-        const leadModel = await read('GOOSE_LEAD_MODEL', false);
-        setIsLeadWorkerActive(!!leadModel);
+        const leadModelValue = await read('GOOSE_LEAD_MODEL', false);
+        setLeadModel(leadModelValue as string | null);
+        setIsLeadWorkerActive(!!leadModelValue);
       } catch (error) {
+        setLeadModel(null);
         setIsLeadWorkerActive(false);
       }
     };
     checkLeadWorker();
   }, [read]);
 
-  // Determine which model to display - activeModel takes priority when lead/worker is active
-  const displayModel = (isLeadWorkerActive && currentModelInfo?.model) ? currentModelInfo.model : (currentModel || 'Select Model');
+  // Determine which model to display - priority order:
+  // 1. currentModelInfo.model (from stream events) when lead/worker is active
+  // 2. leadModel (from config) when lead/worker is active but no stream info yet
+  // 3. currentModel (regular model) as fallback
+  const displayModel = isLeadWorkerActive 
+    ? (currentModelInfo?.model || leadModel || currentModel || 'Select Model')
+    : (currentModel || 'Select Model');
   const modelMode = currentModelInfo?.mode;
+  
+  // Show mode indicator: use stream mode if available, otherwise show "lead" if using lead model from config
+  const showModeIndicator = isLeadWorkerActive && (modelMode || (leadModel && !currentModelInfo?.model));
+  const modeText = modelMode || (leadModel && !currentModelInfo?.model ? 'lead' : '');
 
   // Update display provider when current provider changes
   useEffect(() => {
@@ -105,9 +117,9 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                   className="truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block"
                 >
                   {displayModel}
-                  {isLeadWorkerActive && modelMode && (
+                  {showModeIndicator && (
                     <span className="ml-1 text-[10px] opacity-60">
-                      ({modelMode})
+                      ({modeText})
                     </span>
                   )}
                 </span>
@@ -115,9 +127,9 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
               {isModelTruncated && (
                 <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
                   {displayModel}
-                  {isLeadWorkerActive && modelMode && (
+                  {showModeIndicator && (
                     <span className="ml-1 text-[10px] opacity-60">
-                      ({modelMode})
+                      ({modeText})
                     </span>
                   )}
                 </TooltipContent>
