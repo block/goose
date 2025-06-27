@@ -191,6 +191,12 @@ impl AsyncTokenCounter {
     }
 }
 
+impl Default for TokenCounter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenCounter {
     /// Creates a new `TokenCounter` using the fixed o200k_base encoding.
     pub fn new() -> Self {
@@ -449,8 +455,14 @@ mod tests {
         println!("Total tokens with tools: {}", token_count_with_tools);
 
         // Basic sanity checks - with o200k_base the exact counts may differ from the old tokenizer
-        assert!(token_count_without_tools > 0, "Should have some tokens without tools");
-        assert!(token_count_with_tools > token_count_without_tools, "Should have more tokens with tools");
+        assert!(
+            token_count_without_tools > 0,
+            "Should have some tokens without tools"
+        );
+        assert!(
+            token_count_with_tools > token_count_without_tools,
+            "Should have more tokens with tools"
+        );
     }
 
     #[tokio::test]
@@ -544,8 +556,14 @@ mod tests {
         println!("Async total tokens with tools: {}", token_count_with_tools);
 
         // Basic sanity checks
-        assert!(token_count_without_tools > 0, "Should have some tokens without tools");
-        assert!(token_count_with_tools > token_count_without_tools, "Should have more tokens with tools");
+        assert!(
+            token_count_without_tools > 0,
+            "Should have some tokens without tools"
+        );
+        assert!(
+            token_count_with_tools > token_count_without_tools,
+            "Should have more tokens with tools"
+        );
     }
 
     #[tokio::test]
@@ -573,9 +591,7 @@ mod tests {
     async fn test_concurrent_token_counter_creation() {
         // Test concurrent creation of token counters to verify no race conditions
         let handles: Vec<_> = (0..10)
-            .map(|_| {
-                tokio::spawn(async { create_async_token_counter().await.unwrap() })
-            })
+            .map(|_| tokio::spawn(async { create_async_token_counter().await.unwrap() }))
             .collect();
 
         let counters: Vec<_> = futures::future::join_all(handles)
@@ -619,8 +635,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_cache_operations() {
-        let counter =
-            std::sync::Arc::new(create_async_token_counter().await.unwrap());
+        let counter = std::sync::Arc::new(create_async_token_counter().await.unwrap());
 
         // Test concurrent token counting operations
         let handles: Vec<_> = (0..20)
@@ -658,14 +673,17 @@ mod tests {
 
         // Test that the tokenizer is working correctly
         assert!(sync_count > 0, "Sync tokenizer should produce tokens");
-        
+
         // Test with different text lengths
         let short_text = "Hi";
         let long_text = "This is a much longer text that should produce significantly more tokens than the short text";
-        
+
         let short_count = sync_counter.count_tokens(short_text);
         let long_count = sync_counter.count_tokens(long_text);
-        
-        assert!(short_count < long_count, "Longer text should have more tokens");
+
+        assert!(
+            short_count < long_count,
+            "Longer text should have more tokens"
+        );
     }
 }
