@@ -178,7 +178,11 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
             // Handle path validation with Windows-compatible logic
             let is_path_allowed = validate_path_within_session_dir(&path, &session_dir)?;
             if !is_path_allowed {
-                tracing::warn!("Attempted access outside session directory: {:?} not within {:?}", path, session_dir);
+                tracing::warn!(
+                    "Attempted access outside session directory: {:?} not within {:?}",
+                    path,
+                    session_dir
+                );
                 return Err(anyhow::anyhow!("Path not allowed"));
             }
 
@@ -205,7 +209,9 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
 /// - Drive letter casing inconsistencies
 fn validate_path_within_session_dir(path: &Path, session_dir: &Path) -> Result<bool> {
     // First, try the simple case - if canonicalization works cleanly
-    if let (Ok(canonical_path), Ok(canonical_session_dir)) = (path.canonicalize(), session_dir.canonicalize()) {
+    if let (Ok(canonical_path), Ok(canonical_session_dir)) =
+        (path.canonicalize(), session_dir.canonicalize())
+    {
         if canonical_path.starts_with(&canonical_session_dir) {
             return Ok(true);
         }
@@ -214,7 +220,7 @@ fn validate_path_within_session_dir(path: &Path, session_dir: &Path) -> Result<b
     // Fallback approach for Windows: normalize paths manually
     let normalized_path = normalize_path_for_comparison(path);
     let normalized_session_dir = normalize_path_for_comparison(session_dir);
-    
+
     // Check if the normalized path starts with the normalized session directory
     if normalized_path.starts_with(&normalized_session_dir) {
         return Ok(true);
@@ -260,7 +266,7 @@ fn normalize_path_for_comparison(path: &Path) -> PathBuf {
         // Convert the path to components and rebuild it normalized
         let components: Vec<_> = absolute_path.components().collect();
         let mut normalized = PathBuf::new();
-        
+
         for component in components {
             match component {
                 std::path::Component::Prefix(prefix) => {
@@ -288,10 +294,10 @@ fn normalize_path_for_comparison(path: &Path) -> PathBuf {
                 }
             }
         }
-        
+
         normalized
     }
-    
+
     #[cfg(not(windows))]
     {
         absolute_path
@@ -1693,24 +1699,33 @@ mod tests {
         let temp_dir = tempfile::tempdir()?;
         let session_dir = temp_dir.path().join("sessions");
         fs::create_dir_all(&session_dir)?;
-        
+
         // Test case 1: Valid path within session directory
         let valid_path = session_dir.join("test.jsonl");
         assert!(validate_path_within_session_dir(&valid_path, &session_dir)?);
-        
+
         // Test case 2: Invalid path outside session directory
         let invalid_path = temp_dir.path().join("outside.jsonl");
-        assert!(!validate_path_within_session_dir(&invalid_path, &session_dir)?);
-        
+        assert!(!validate_path_within_session_dir(
+            &invalid_path,
+            &session_dir
+        )?);
+
         // Test case 3: Path with different separators (simulate Windows issue)
         let mixed_sep_path = session_dir.join("subdir").join("test.jsonl");
         fs::create_dir_all(mixed_sep_path.parent().unwrap())?;
-        assert!(validate_path_within_session_dir(&mixed_sep_path, &session_dir)?);
-        
+        assert!(validate_path_within_session_dir(
+            &mixed_sep_path,
+            &session_dir
+        )?);
+
         // Test case 4: Non-existent path within session directory
         let nonexistent_path = session_dir.join("nonexistent").join("test.jsonl");
-        assert!(validate_path_within_session_dir(&nonexistent_path, &session_dir)?);
-        
+        assert!(validate_path_within_session_dir(
+            &nonexistent_path,
+            &session_dir
+        )?);
+
         Ok(())
     }
 
@@ -1718,11 +1733,11 @@ mod tests {
     fn test_path_normalization() {
         let temp_dir = tempfile::tempdir().unwrap();
         let test_path = temp_dir.path().join("test");
-        
+
         // Test that normalization doesn't crash and returns a path
         let normalized = normalize_path_for_comparison(&test_path);
         assert!(!normalized.as_os_str().is_empty());
-        
+
         // Test with existing path
         fs::create_dir_all(&test_path).unwrap();
         let normalized_existing = normalize_path_for_comparison(&test_path);
