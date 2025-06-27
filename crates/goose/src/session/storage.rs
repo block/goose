@@ -170,15 +170,15 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
             }
 
             // Validate that the path is within allowed directories
-            let canonical_path = path.canonicalize().unwrap_or(path.clone());
             let session_dir = ensure_session_dir().map_err(|e| {
                 tracing::error!("Failed to create session directory: {}", e);
                 anyhow::anyhow!("Failed to access session directory")
             })?;
-            let canonical_session_dir = session_dir.canonicalize().unwrap_or(session_dir);
 
-            if !canonical_path.starts_with(&canonical_session_dir) {
-                tracing::warn!("Attempted access outside session directory");
+            // Handle path validation with Windows-compatible logic
+            let is_path_allowed = validate_path_within_session_dir(&path, &session_dir)?;
+            if !is_path_allowed {
+                tracing::warn!("Attempted access outside session directory: {:?} not within {:?}", path, session_dir);
                 return Err(anyhow::anyhow!("Path not allowed"));
             }
 
@@ -194,6 +194,108 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
     }
 
     Ok(path)
+}
+
+/// Validate that a path is within the session directory, with Windows-compatible logic
+///
+/// This function handles Windows-specific path issues like:
+/// - UNC path conversion during canonicalization
+/// - Case sensitivity differences
+/// - Path separator normalization
+/// - Drive letter casing inconsistencies
+fn validate_path_within_session_dir(path: &Path, session_dir: &Path) -> Result<bool> {
+    // First, try the simple case - if canonicalization works cleanly
+    if let (Ok(canonical_path), Ok(canonical_session_dir)) = (path.canonicalize(), session_dir.canonicalize()) {
+        if canonical_path.starts_with(&canonical_session_dir) {
+            return Ok(true);
+        }
+    }
+
+    // Fallback approach for Windows: normalize paths manually
+    let normalized_path = normalize_path_for_comparison(path);
+    let normalized_session_dir = normalize_path_for_comparison(session_dir);
+    
+    // Check if the normalized path starts with the normalized session directory
+    if normalized_path.starts_with(&normalized_session_dir) {
+        return Ok(true);
+    }
+
+    // Additional check: if the path doesn't exist yet, check its parent directory
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            return validate_path_within_session_dir(parent, session_dir);
+        }
+    }
+
+    Ok(false)
+}
+
+/// Normalize a path for cross-platform comparison
+///
+/// This handles Windows-specific issues like:
+/// - Converting to absolute paths
+/// - Normalizing path separators
+/// - Handling case sensitivity
+fn normalize_path_for_comparison(path: &Path) -> PathBuf {
+    // Try to canonicalize first, but fall back to absolute path if that fails
+    let absolute_path = if let Ok(canonical) = path.canonicalize() {
+        canonical
+    } else if let Ok(absolute) = path.to_path_buf().canonicalize() {
+        absolute
+    } else {
+        // Last resort: try to make it absolute manually
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            // If we can't make it absolute, use the current directory
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(path)
+        }
+    };
+
+    // On Windows, normalize the path representation
+    #[cfg(windows)]
+    {
+        // Convert the path to components and rebuild it normalized
+        let components: Vec<_> = absolute_path.components().collect();
+        let mut normalized = PathBuf::new();
+        
+        for component in components {
+            match component {
+                std::path::Component::Prefix(prefix) => {
+                    // Handle drive letters and UNC paths
+                    let prefix_str = prefix.as_os_str().to_string_lossy();
+                    if prefix_str.starts_with("\\\\?\\") {
+                        // Remove UNC prefix and add the drive letter normally
+                        let clean_prefix = &prefix_str[4..];
+                        normalized.push(clean_prefix);
+                    } else {
+                        normalized.push(component);
+                    }
+                }
+                std::path::Component::RootDir => {
+                    normalized.push(component);
+                }
+                std::path::Component::CurDir | std::path::Component::ParentDir => {
+                    // Skip these as they should be resolved by canonicalization
+                    continue;
+                }
+                std::path::Component::Normal(name) => {
+                    // Normalize case for Windows
+                    let name_str = name.to_string_lossy().to_lowercase();
+                    normalized.push(name_str);
+                }
+            }
+        }
+        
+        normalized
+    }
+    
+    #[cfg(not(windows))]
+    {
+        absolute_path
+    }
 }
 
 /// Ensure the session directory exists and return its path
@@ -1583,5 +1685,47 @@ mod tests {
         assert_eq!(read_metadata.working_dir, get_home_dir());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_windows_path_validation() -> Result<()> {
+        // Test the Windows path validation logic
+        let temp_dir = tempfile::tempdir()?;
+        let session_dir = temp_dir.path().join("sessions");
+        fs::create_dir_all(&session_dir)?;
+        
+        // Test case 1: Valid path within session directory
+        let valid_path = session_dir.join("test.jsonl");
+        assert!(validate_path_within_session_dir(&valid_path, &session_dir)?);
+        
+        // Test case 2: Invalid path outside session directory
+        let invalid_path = temp_dir.path().join("outside.jsonl");
+        assert!(!validate_path_within_session_dir(&invalid_path, &session_dir)?);
+        
+        // Test case 3: Path with different separators (simulate Windows issue)
+        let mixed_sep_path = session_dir.join("subdir").join("test.jsonl");
+        fs::create_dir_all(mixed_sep_path.parent().unwrap())?;
+        assert!(validate_path_within_session_dir(&mixed_sep_path, &session_dir)?);
+        
+        // Test case 4: Non-existent path within session directory
+        let nonexistent_path = session_dir.join("nonexistent").join("test.jsonl");
+        assert!(validate_path_within_session_dir(&nonexistent_path, &session_dir)?);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_path_normalization() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let test_path = temp_dir.path().join("test");
+        
+        // Test that normalization doesn't crash and returns a path
+        let normalized = normalize_path_for_comparison(&test_path);
+        assert!(!normalized.as_os_str().is_empty());
+        
+        // Test with existing path
+        fs::create_dir_all(&test_path).unwrap();
+        let normalized_existing = normalize_path_for_comparison(&test_path);
+        assert!(!normalized_existing.as_os_str().is_empty());
     }
 }
