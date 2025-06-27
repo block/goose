@@ -32,8 +32,10 @@ async fn main() -> Result<()> {
     println!("---------------");
     let mut usage = Usage::default();
     while let Some(Ok((msg, usage_part))) = stream.next().await {
-        dbg!(msg.content);
-        usage += usage_part.usage;
+        dbg!(msg);
+        usage_part.map(|u| {
+            usage += u.usage;
+        });
     }
     println!("\nToken Usage:");
     println!("------------");
