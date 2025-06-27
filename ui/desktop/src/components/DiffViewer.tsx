@@ -30,6 +30,7 @@ interface DiffViewerProps {
   onRejectHunk?: (fileIndex: number, hunkId: string) => void;
   onApplyFile?: (fileIndex: number) => void;
   onRejectFile?: (fileIndex: number) => void;
+  enableActions?: boolean;
 }
 
 export default function DiffViewer({
@@ -38,6 +39,7 @@ export default function DiffViewer({
   onRejectHunk,
   onApplyFile,
   onRejectFile,
+  enableActions = true,
 }: DiffViewerProps) {
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
   const [appliedHunks, setAppliedHunks] = useState<Set<string>>(new Set());
@@ -133,20 +135,22 @@ export default function DiffViewer({
             <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
               {file.fileName}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleApplyFile(fileIndex)}
-                className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
-              >
-                Apply All
-              </button>
-              <button
-                onClick={() => handleRejectFile(fileIndex)}
-                className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
-              >
-                Reject All
-              </button>
-            </div>
+            {enableActions && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleApplyFile(fileIndex)}
+                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded"
+                >
+                  Apply All
+                </button>
+                <button
+                  onClick={() => handleRejectFile(fileIndex)}
+                  className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                >
+                  Reject All
+                </button>
+              </div>
+            )}
           </div>
           <ScrollArea className="h-full w-full">
             {/* Hunks */}
@@ -160,6 +164,7 @@ export default function DiffViewer({
                 isRejected={rejectedHunks.has(hunk.id)}
                 onApply={() => handleApplyHunk(fileIndex, hunk.id)}
                 onReject={() => handleRejectHunk(fileIndex, hunk.id)}
+                enableActions={enableActions}
               />
             ))}
           </ScrollArea>
@@ -177,6 +182,7 @@ interface DiffHunkViewProps {
   isRejected: boolean;
   onApply: () => void;
   onReject: () => void;
+  enableActions: boolean;
 }
 
 function DiffHunkView({
@@ -186,6 +192,7 @@ function DiffHunkView({
   isRejected,
   onApply,
   onReject,
+  enableActions,
 }: DiffHunkViewProps) {
   const getHunkStatus = () => {
     if (isApplied) return 'applied';
@@ -208,30 +215,32 @@ function DiffHunkView({
       {/* Hunk header */}
       <div className="bg-gray-100 dark:bg-gray-800 p-2 flex items-center justify-between">
         <div className="font-mono text-xs text-gray-600 dark:text-gray-400">{hunk.header}</div>
-        <div className="flex gap-2">
-          <button
-            onClick={onApply}
-            disabled={isApplied}
-            className={`px-2 py-1 text-xs rounded ${
-              isApplied
-                ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
-                : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
-          >
-            {isApplied ? 'Applied' : 'Apply'}
-          </button>
-          <button
-            onClick={onReject}
-            disabled={isRejected}
-            className={`px-2 py-1 text-xs rounded ${
-              isRejected
-                ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
-                : 'bg-red-500 hover:bg-red-600 text-white'
-            }`}
-          >
-            {isRejected ? 'Rejected' : 'Reject'}
-          </button>
-        </div>
+        {enableActions && (
+          <div className="flex gap-2">
+            <button
+              onClick={onApply}
+              disabled={isApplied}
+              className={`px-2 py-1 text-xs rounded ${
+                isApplied
+                  ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              {isApplied ? 'Applied' : 'Apply'}
+            </button>
+            <button
+              onClick={onReject}
+              disabled={isRejected}
+              className={`px-2 py-1 text-xs rounded ${
+                isRejected
+                  ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              {isRejected ? 'Rejected' : 'Reject'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Hunk content */}

@@ -5,8 +5,8 @@ import {
   BetweenHorizontalStart,
   FileDiff,
   PanelRightOpen,
-  // Check,
-  // X,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface DiffLine {
@@ -37,8 +37,9 @@ interface DiffSidePanelProps {
   onClose: () => void;
   onApplyHunk?: (fileIndex: number, hunkId: string) => void;
   onRejectHunk?: (fileIndex: number, hunkId: string) => void;
-  // onApplyFile?: (fileIndex: number) => void;
-  // onRejectFile?: (fileIndex: number) => void;
+  onApplyFile?: (fileIndex: number) => void;
+  onRejectFile?: (fileIndex: number) => void;
+  enableActions?: boolean;
 }
 
 export default function DiffSidePanel({
@@ -47,8 +48,9 @@ export default function DiffSidePanel({
   onClose,
   onApplyHunk,
   onRejectHunk,
-  // onApplyFile,
-  // onRejectFile,
+  onApplyFile,
+  onRejectFile,
+  enableActions = true,
 }: DiffSidePanelProps) {
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
   const [appliedHunks, setAppliedHunks] = useState<Set<string>>(new Set());
@@ -76,29 +78,29 @@ export default function DiffSidePanel({
     onRejectHunk?.(fileIndex, hunkId);
   };
 
-  // const handleApplyFile = (fileIndex: number) => {
-  //   const file = parsedDiff[fileIndex];
-  //   const hunkIds = file.hunks.map((h) => h.id);
-  //   setAppliedHunks((prev) => new Set([...prev, ...hunkIds]));
-  //   setRejectedHunks((prev) => {
-  //     const newSet = new Set(prev);
-  //     hunkIds.forEach((id) => newSet.delete(id));
-  //     return newSet;
-  //   });
-  //   onApplyFile?.(fileIndex);
-  // };
+  const handleApplyFile = (fileIndex: number) => {
+    const file = parsedDiff[fileIndex];
+    const hunkIds = file.hunks.map((h) => h.id);
+    setAppliedHunks((prev) => new Set([...prev, ...hunkIds]));
+    setRejectedHunks((prev) => {
+      const newSet = new Set(prev);
+      hunkIds.forEach((id) => newSet.delete(id));
+      return newSet;
+    });
+    onApplyFile?.(fileIndex);
+  };
 
-  // const handleRejectFile = (fileIndex: number) => {
-  //   const file = parsedDiff[fileIndex];
-  //   const hunkIds = file.hunks.map((h) => h.id);
-  //   setRejectedHunks((prev) => new Set([...prev, ...hunkIds]));
-  //   setAppliedHunks((prev) => {
-  //     const newSet = new Set(prev);
-  //     hunkIds.forEach((id) => newSet.delete(id));
-  //     return newSet;
-  //   });
-  //   onRejectFile?.(fileIndex);
-  // };
+  const handleRejectFile = (fileIndex: number) => {
+    const file = parsedDiff[fileIndex];
+    const hunkIds = file.hunks.map((h) => h.id);
+    setRejectedHunks((prev) => new Set([...prev, ...hunkIds]));
+    setAppliedHunks((prev) => {
+      const newSet = new Set(prev);
+      hunkIds.forEach((id) => newSet.delete(id));
+      return newSet;
+    });
+    onRejectFile?.(fileIndex);
+  };
 
   if (!isOpen) return null;
 
@@ -148,23 +150,24 @@ export default function DiffSidePanel({
               {/* File header */}
               <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)]">
                 <div className="font-mono text-sm truncate">{file.fileName}</div>
-                {/* hide reject/apply for now */}
-                {/* <div className="flex gap-4 flex-shrink-0 text-xs">
-                  <button
-                    onClick={() => handleRejectFile(fileIndex)}
-                    className="flex items-center text-red-500"
-                  >
-                    <X strokeWidth="3" size={16} />
-                    Reject All
-                  </button>
-                  <button
-                    onClick={() => handleApplyFile(fileIndex)}
-                    className="text-green-500 flex items-center"
-                  >
-                    <Check size={16} strokeWidth={2} />
-                    Apply All
-                  </button>
-                </div> */}
+                {enableActions && (
+                  <div className="flex gap-4 flex-shrink-0 text-xs">
+                    <button
+                      onClick={() => handleRejectFile(fileIndex)}
+                      className="flex items-center text-red-500"
+                    >
+                      <X strokeWidth="3" size={16} />
+                      Reject All
+                    </button>
+                    <button
+                      onClick={() => handleApplyFile(fileIndex)}
+                      className="text-green-500 flex items-center"
+                    >
+                      <Check size={16} strokeWidth={2} />
+                      Apply All
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="rounded-b-lg overflow-hidden border border-borderSubtle border-t-0">
                 {/* Hunks */}
@@ -178,6 +181,7 @@ export default function DiffSidePanel({
                     isRejected={rejectedHunks.has(hunk.id)}
                     onApply={() => handleApplyHunk(fileIndex, hunk.id)}
                     onReject={() => handleRejectHunk(fileIndex, hunk.id)}
+                    enableActions={enableActions}
                   />
                 ))}
               </div>
@@ -197,6 +201,7 @@ interface DiffHunkViewProps {
   isRejected: boolean;
   onApply: () => void;
   onReject: () => void;
+  enableActions: boolean;
 }
 
 function DiffHunkView({
@@ -204,8 +209,9 @@ function DiffHunkView({
   viewMode,
   isApplied,
   isRejected,
-  // onApply,
-  // onReject,
+  onApply,
+  onReject,
+  enableActions,
 }: DiffHunkViewProps) {
   const getHunkStatus = () => {
     if (isApplied) return 'applied';
@@ -230,31 +236,33 @@ function DiffHunkView({
         <div className="font-mono text-xs text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">
           {hunk.header}
         </div>
-        {/* hide apply/reject for now */}
-        {/* <div className="flex gap-2 flex-shrink-0">
-          <button
-            onClick={onApply}
-            disabled={isApplied}
-            className={`px-2 py-1 text-xs rounded ${
-              isApplied
-                ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
-                : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
-          >
-            {isApplied ? 'Applied' : 'Apply'}
-          </button>
-          <button
-            onClick={onReject}
-            disabled={isRejected}
-            className={`px-2 py-1 text-xs rounded ${
-              isRejected
-                ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
-                : 'bg-red-500 hover:bg-red-600 text-white'
-            }`}
-          >
-            {isRejected ? 'Rejected' : 'Reject'}
-          </button>
-        </div> */}
+
+        {enableActions && (
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={onApply}
+              disabled={isApplied}
+              className={`px-2 py-1 text-xs rounded ${
+                isApplied
+                  ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              {isApplied ? 'Applied' : 'Apply'}
+            </button>
+            <button
+              onClick={onReject}
+              disabled={isRejected}
+              className={`px-2 py-1 text-xs rounded ${
+                isRejected
+                  ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              {isRejected ? 'Rejected' : 'Reject'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Hunk content */}

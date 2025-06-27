@@ -618,6 +618,7 @@ export default function App() {
             <DiffViewer
               diffContent={(viewOptions?.diffContent as string) || ''}
               onClose={() => window.close()}
+              enableActions={true}
             />
           )}
           {view === 'recipes' && <RecipesView onBack={() => setView('chat')} />}
@@ -633,6 +634,7 @@ export default function App() {
           diffContent={diffSidePanelContent}
           isOpen={isDiffSidePanelOpen}
           onClose={() => setIsDiffSidePanelOpen(false)}
+          enableActions={false}
         />
       </div>
       {isGoosehintsModalOpen && (
