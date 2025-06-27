@@ -700,7 +700,7 @@ impl DeveloperRouter {
                 let view_range = params
                     .get("view_range")
                     .and_then(|v| v.as_array())
-                    .map(|arr| {
+                    .and_then(|arr| {
                         if arr.len() == 2 {
                             let start = arr[0].as_i64().unwrap_or(1) as usize;
                             let end = arr[1].as_i64().unwrap_or(-1);
@@ -708,8 +708,7 @@ impl DeveloperRouter {
                         } else {
                             None
                         }
-                    })
-                    .flatten();
+                    });
                 self.text_editor_view(&path, view_range).await
             }
             "write" => {
