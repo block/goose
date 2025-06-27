@@ -480,14 +480,14 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(TextContent {
                         text: format!("Response from {}", self.name),
                         annotations: None,
                     })],
-                },
+                ),
                 ProviderUsage::new(self.name.clone(), Usage::default()),
             ))
         }
@@ -643,14 +643,14 @@ mod tests {
                 ))
             } else {
                 Ok((
-                    Message {
-                        role: Role::Assistant,
-                        created: Utc::now().timestamp(),
-                        content: vec![MessageContent::Text(TextContent {
+                    Message::new(
+                        Role::Assistant,
+                        Utc::now().timestamp(),
+                        vec![MessageContent::Text(TextContent {
                             text: format!("Response from {}", self.name),
                             annotations: None,
                         })],
-                    },
+                    ),
                     ProviderUsage::new(self.name.clone(), Usage::default()),
                 ))
             }
