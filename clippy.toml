@@ -1,0 +1,6 @@
+# Clippy configuration file
+# This file configures clippy lints for the entire workspace
+
+# Allow mixed uninlined format arguments
+# This prevents clippy::uninlined_format_args warnings
+allow-mixed-uninlined-format-args = true
