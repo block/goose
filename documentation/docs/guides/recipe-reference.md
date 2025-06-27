@@ -33,6 +33,7 @@ Files should be named either:
 | `instructions` | String | Template instructions that can include parameter substitutions |
 | `prompt` | String | A template prompt that can include parameter substitutions |
 | `parameters` | Array | List of parameter definitions |
+| `extensions` | Array | List of extension configurations |
 
 ## Parameters
 
@@ -65,6 +66,44 @@ Each parameter in the `parameters` array has the following structure:
 - Parameter keys must match any template variables used in instructions or prompt
 :::
 
+## Extensions
+
+The `extensions` field allows you to specify which Model Context Protocol (MCP) servers and other extensions the recipe needs to function. Each extension in the array has the following structure:
+
+### Extension Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | String | Type of extension (e.g., "stdio") |
+| `name` | String | Unique name for the extension |
+| `cmd` | String | Command to run the extension |
+| `args` | Array | List of arguments for the command |
+| `timeout` | Number | Timeout in seconds |
+| `bundled` | Boolean | (Optional) Whether the extension is bundled with Goose |
+| `description` | String | Description of what the extension does |
+
+### Example Extension Configuration
+
+```yaml
+extensions:
+  - type: stdio
+    name: codesearch
+    cmd: uvx
+    args:
+      - mcp_codesearch@latest
+    timeout: 300
+    bundled: true
+    description: "Query https://codesearch.sqprod.co/ directly from goose"
+  
+  - type: stdio
+    name: presidio
+    timeout: 300
+    cmd: uvx
+    args:
+      - 'mcp_presidio@latest'
+    description: "For searching logs using Presidio"
+```
+
 ## Template Support
 
 Recipes support Jinja-style template syntax in both `instructions` and `prompt` fields:
@@ -89,7 +128,7 @@ Advanced template features include:
 |-----------|-------------|
 | `recipe_dir` | Automatically set to the directory containing the recipe file |
 
-## Example Recipe
+## Complete Recipe Example
 
 ```yaml
 version: "1.0.0"
@@ -113,6 +152,16 @@ parameters:
     input_type: string
     requirement: user_prompt
     description: "Will prompt user if not provided"
+
+extensions:
+  - type: stdio
+    name: codesearch
+    cmd: uvx
+    args:
+      - mcp_codesearch@latest
+    timeout: 300
+    bundled: true
+    description: "Query codesearch directly from goose"
 ```
 
 ## Template Inheritance
@@ -167,5 +216,6 @@ Common errors to watch for:
 - Template variables without parameter definitions
 - Invalid YAML/JSON syntax
 - Missing required fields
+- Invalid extension configurations
 
 When these occur, Goose will provide helpful error messages indicating what needs to be fixed.
