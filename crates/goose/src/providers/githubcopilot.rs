@@ -139,7 +139,7 @@ impl GithubCopilotProvider {
 
     async fn post(&self, mut payload: Value) -> Result<Value, ProviderError> {
         use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
-        use futures_util::StreamExt;
+        use futures::StreamExt;
         // Detect gpt-4.1 and stream
         let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
         let stream_only_model = GITHUB_COPILOT_STREAM_MODELS
