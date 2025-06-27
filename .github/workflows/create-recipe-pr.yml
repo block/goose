@@ -72,15 +72,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          VALIDATION_B64: ${{ steps.validate.outputs.validation_output }}
         run: |
           if [ "${{ steps.validate.outcome }}" == "failure" ]; then
-            OUTPUT=$(echo "${{ steps.validate.outputs.validation_output }}" | base64 --decode)
-            printf "❌ Recipe validation failed:\n\n\`\`\`\n%s\n\`\`\`\nPlease fix the above issues and resubmit." "$OUTPUT" | gh issue comment "$ISSUE_NUMBER"
+            OUTPUT=$(echo "$VALIDATION_B64" | base64 --decode)
+            COMMENT="❌ Recipe validation failed:\n\n\`\`\`\n$OUTPUT\n\`\`\`\nPlease fix the above issues and resubmit."
+            echo -e "$COMMENT" | gh issue comment "$ISSUE_NUMBER"
             gh issue close "$ISSUE_NUMBER"
             exit 1
           else
             gh issue comment "$ISSUE_NUMBER" --body "✅ Recipe validated successfully!"
           fi
+
 
       - name: Generate recipeUrl and save updated recipe
         run: |
