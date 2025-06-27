@@ -1,6 +1,6 @@
 ---
 sidebar_position: 18
-title: Creating Recipes
+title: Recipe Reference Guide
 sidebar_label: Recipes
 ---
 
