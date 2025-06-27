@@ -99,6 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         async_count_time.as_nanos() / cached_time.as_nanos().max(1)
     );
     println!("   • Proper async patterns throughout");
+    println!("   • Robust network failure handling with exponential backoff");
+    println!("   • Download validation and corruption detection");
+    println!("   • Progress reporting for large tokenizer downloads");
+    println!("   • Smart retry logic (3 attempts, server errors only)");
 
     Ok(())
 }

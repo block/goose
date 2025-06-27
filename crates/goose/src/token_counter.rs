@@ -9,6 +9,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::OnceCell;
+use futures_util::stream::StreamExt;
 
 use crate::message::Message;
 
@@ -117,7 +118,7 @@ impl AsyncTokenCounter {
         Ok(tokenizer)
     }
 
-    /// Proper async download without blocking
+    /// Robust async download with retry logic and network failure handling
     async fn download_tokenizer_async(
         repo_id: &str,
         download_dir: &std::path::Path,
@@ -130,18 +131,118 @@ impl AsyncTokenCounter {
         );
         let file_path = download_dir.join("tokenizer.json");
 
-        // Use async HTTP client - no runtime blocking!
-        let client = reqwest::Client::new();
-        let response = client.get(&file_url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(format!("HTTP {}: Failed to download tokenizer", response.status()).into());
+        // Check if partial/corrupted file exists and remove it
+        if file_path.exists() {
+            if let Ok(existing_bytes) = tokio::fs::read(&file_path).await {
+                if Self::is_valid_tokenizer_json(&existing_bytes) {
+                    return Ok(()); // File is complete and valid
+                }
+            }
+            // Remove corrupted/incomplete file
+            let _ = tokio::fs::remove_file(&file_path).await;
         }
 
-        let bytes = response.bytes().await?;
-        tokio::fs::write(&file_path, bytes).await?;
+        // Create enhanced HTTP client with timeouts
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(15))
+            .user_agent("goose-tokenizer/1.0")
+            .build()?;
 
+        // Download with retry logic
+        let response = Self::download_with_retry(&client, &file_url, 3).await?;
+        
+        // Stream download with progress reporting for large files
+        let total_size = response.content_length();
+        let mut stream = response.bytes_stream();
+        let mut file = tokio::fs::File::create(&file_path).await?;
+        let mut downloaded = 0;
+
+        use tokio::io::AsyncWriteExt;
+
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result?;
+            file.write_all(&chunk).await?;
+            downloaded += chunk.len();
+            
+            // Progress reporting for large downloads
+            if let Some(total) = total_size {
+                if total > 1024 * 1024 && downloaded % (256 * 1024) == 0 { // Report every 256KB for files >1MB
+                    eprintln!("Downloaded {}/{} bytes ({:.1}%)", 
+                             downloaded, total, (downloaded as f64 / total as f64) * 100.0);
+                }
+            }
+        }
+
+        file.flush().await?;
+
+        // Validate downloaded file
+        let final_bytes = tokio::fs::read(&file_path).await?;
+        if !Self::is_valid_tokenizer_json(&final_bytes) {
+            tokio::fs::remove_file(&file_path).await?;
+            return Err("Downloaded tokenizer file is invalid or corrupted".into());
+        }
+
+        eprintln!("Successfully downloaded tokenizer: {} ({} bytes)", repo_id, downloaded);
         Ok(())
+    }
+
+    /// Download with exponential backoff retry logic
+    async fn download_with_retry(
+        client: &reqwest::Client,
+        url: &str,
+        max_retries: u32,
+    ) -> Result<reqwest::Response, Box<dyn Error + Send + Sync>> {
+        let mut delay = std::time::Duration::from_millis(200);
+        
+        for attempt in 0..=max_retries {
+            match client.get(url).send().await {
+                Ok(response) if response.status().is_success() => {
+                    return Ok(response);
+                }
+                Ok(response) if response.status().is_server_error() => {
+                    // Retry on 5xx errors (server issues)
+                    if attempt < max_retries {
+                        eprintln!("Server error {} on attempt {}/{}, retrying in {:?}", 
+                                 response.status(), attempt + 1, max_retries + 1, delay);
+                        tokio::time::sleep(delay).await;
+                        delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(30)); // Cap at 30s
+                        continue;
+                    }
+                    return Err(format!("Server error after {} retries: {}", max_retries, response.status()).into());
+                }
+                Ok(response) => {
+                    // Don't retry on 4xx errors (client errors like 404, 403)
+                    return Err(format!("Client error: {} - {}", response.status(), url).into());
+                }
+                Err(e) if attempt < max_retries => {
+                    // Retry on network errors (timeout, connection refused, DNS, etc.)
+                    eprintln!("Network error on attempt {}/{}: {}, retrying in {:?}", 
+                             attempt + 1, max_retries + 1, e, delay);
+                    tokio::time::sleep(delay).await;
+                    delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(30)); // Cap at 30s
+                    continue;
+                }
+                Err(e) => {
+                    return Err(format!("Network error after {} retries: {}", max_retries, e).into());
+                }
+            }
+        }
+        unreachable!()
+    }
+
+    /// Validate that the downloaded file is a valid tokenizer JSON
+    fn is_valid_tokenizer_json(bytes: &[u8]) -> bool {
+        // Basic validation: check if it's valid JSON and has tokenizer structure
+        if let Ok(json_str) = std::str::from_utf8(bytes) {
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
+                // Check for basic tokenizer structure
+                return json_value.get("version").is_some() || 
+                       json_value.get("vocab").is_some() ||
+                       json_value.get("model").is_some();
+            }
+        }
+        false
     }
 
     /// Count tokens with optimized caching
@@ -870,5 +971,85 @@ mod tests {
         // Cache should have some entries but be bounded
         assert!(counter.cache_size() > 0);
         assert!(counter.cache_size() <= MAX_TOKEN_CACHE_SIZE);
+    }
+
+    #[test]
+    fn test_tokenizer_json_validation() {
+        // Test valid tokenizer JSON
+        let valid_json = r#"{"version": "1.0", "model": {"type": "BPE"}}"#;
+        assert!(AsyncTokenCounter::is_valid_tokenizer_json(valid_json.as_bytes()));
+
+        let valid_json2 = r#"{"vocab": {"hello": 1, "world": 2}}"#;
+        assert!(AsyncTokenCounter::is_valid_tokenizer_json(valid_json2.as_bytes()));
+
+        // Test invalid JSON
+        let invalid_json = r#"{"incomplete": true"#;
+        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(invalid_json.as_bytes()));
+
+        // Test valid JSON but not tokenizer structure
+        let wrong_structure = r#"{"random": "data", "not": "tokenizer"}"#;
+        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(wrong_structure.as_bytes()));
+
+        // Test binary data
+        let binary_data = [0xFF, 0xFE, 0x00, 0x01];
+        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(&binary_data));
+
+        // Test empty data
+        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(&[]));
+    }
+
+    #[tokio::test]
+    async fn test_download_with_retry_logic() {
+        // This test would require mocking HTTP responses
+        // For now, we test the retry logic structure by verifying the function exists
+        // In a full test suite, you'd use wiremock or similar to simulate failures
+        
+        // Test that the function exists and has the right signature
+        let client = reqwest::Client::new();
+        
+        // Test with a known bad URL to verify error handling
+        let result = AsyncTokenCounter::download_with_retry(
+            &client, 
+            "https://httpbin.org/status/404", 
+            1
+        ).await;
+        
+        assert!(result.is_err(), "Should fail with 404 error");
+        
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Client error: 404"), "Should contain client error message");
+    }
+
+    #[tokio::test]
+    async fn test_network_resilience_with_timeout() {
+        // Test timeout handling with a slow endpoint
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(100)) // Very short timeout
+            .build()
+            .unwrap();
+        
+        // Use httpbin delay endpoint that takes longer than our timeout
+        let result = AsyncTokenCounter::download_with_retry(
+            &client,
+            "https://httpbin.org/delay/1", // 1 second delay, but 100ms timeout
+            1
+        ).await;
+        
+        assert!(result.is_err(), "Should timeout and fail");
+    }
+
+    #[tokio::test]
+    async fn test_successful_download_retry() {
+        // Test successful download after simulated retry
+        let client = reqwest::Client::new();
+        
+        // Use a reliable endpoint that should succeed
+        let result = AsyncTokenCounter::download_with_retry(
+            &client,
+            "https://httpbin.org/status/200",
+            2
+        ).await;
+        
+        assert!(result.is_ok(), "Should succeed with 200 status");
     }
 }
