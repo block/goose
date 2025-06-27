@@ -142,7 +142,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
-      # 8) Build the Rust goosed binary
+      # 8) Set up Go for building temporal-service
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
+        with:
+          go-version: '1.21'
+
+      # 9) Build temporal-service using build.sh script
+      - name: Build temporal-service
+        run: |
+          echo "Building temporal-service using build.sh script..."
+          cd temporal-service
+          ./build.sh
+          echo "temporal-service built successfully"
+
+      # 10) Build the Rust goosed binary
       - name: Build goosed binary
         run: |
           echo "Building goosed binary for Linux..."
@@ -150,7 +164,7 @@ jobs:
           ls -la target/release/
           file target/release/goosed
 
-      # 9) Clean up build artifacts to save space
+      # 11) Clean up build artifacts to save space
       - name: Clean up build artifacts
         run: |
           echo "Cleaning up to save disk space..."
@@ -167,16 +181,18 @@ jobs:
           # Check disk space
           df -h
 
-      # 10) Copy binary to Electron folder
-      - name: Copy binary into Electron folder
+      # 12) Copy binaries to Electron folder
+      - name: Copy binaries into Electron folder
         run: |
-          echo "Copying goosed binary to ui/desktop/src/bin/"
+          echo "Copying binaries to ui/desktop/src/bin/"
           mkdir -p ui/desktop/src/bin
           cp target/release/goosed ui/desktop/src/bin/
+          cp temporal-service/temporal-service ui/desktop/src/bin/
           chmod +x ui/desktop/src/bin/goosed
+          chmod +x ui/desktop/src/bin/temporal-service
           ls -la ui/desktop/src/bin/
 
-      # 10a) Final cleanup before npm build
+      # 13) Final cleanup before npm build
       - name: Final cleanup before npm build
         run: |
           echo "Final cleanup before npm build..."
@@ -188,7 +204,7 @@ jobs:
           # Check final disk space
           df -h
 
-      # 12) Install npm dependencies
+      # 14) Install npm dependencies
       - name: Install npm dependencies
         run: |
           cd ui/desktop
@@ -199,7 +215,7 @@ jobs:
           # Verify installation
           ls -la node_modules/.bin/ | head -5
 
-      # 13) Build Electron app with Linux makers (.deb and .rpm)
+      # 15) Build Electron app with Linux makers (.deb and .rpm)
       - name: Build Linux packages
         run: |
           cd ui/desktop
@@ -212,7 +228,7 @@ jobs:
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" | head -10
 
-      # 14) List all generated files for debugging
+      # 16) List all generated files for debugging
       - name: List generated files
         run: |
           echo "=== All files in out/ directory ==="
@@ -224,7 +240,7 @@ jobs:
           echo "=== File sizes ==="
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
 
-      # 15) Upload .deb package
+      # 17) Upload .deb package
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         with:
@@ -232,7 +248,7 @@ jobs:
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
-      # 16) Upload .rpm package  
+      # 18) Upload .rpm package  
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         with:
@@ -240,7 +256,7 @@ jobs:
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
-      # 17) Create combined artifact with both packages
+      # 19) Create combined artifact with both packages
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@v4
         with:

@@ -32,6 +32,7 @@ impl Agent {
 
         let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
             "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "llm" => Some(RouterToolSelectionStrategy::Llm),
             _ => None,
         };
 
@@ -39,6 +40,10 @@ impl Agent {
         let mut tools = match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
                 self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
+                    .await
+            }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
                     .await
             }
             _ => self.list_tools(None).await,
@@ -50,7 +55,7 @@ impl Agent {
         }
 
         // Prepare system prompt
-        let extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.read().await;
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
@@ -237,7 +242,12 @@ impl Agent {
         usage: &crate::providers::base::ProviderUsage,
         messages_length: usize,
     ) -> Result<()> {
-        let session_file_path = session::storage::get_path(session_config.id.clone());
+        let session_file_path = match session::storage::get_path(session_config.id.clone()) {
+            Ok(path) => path,
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to get session file path: {}", e));
+            }
+        };
         let mut metadata = session::storage::read_metadata(&session_file_path)?;
 
         metadata.schedule_id = session_config.schedule_id.clone();

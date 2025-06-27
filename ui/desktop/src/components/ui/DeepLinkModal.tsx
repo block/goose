@@ -138,6 +138,7 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
                   const currentConfig = {
                     id: 'deeplink-recipe',
                     name: 'DeepLink Recipe',
+                    title: 'DeepLink Recipe',
                     description: 'Recipe from deep link',
                     ...recipeConfig,
                     instructions,

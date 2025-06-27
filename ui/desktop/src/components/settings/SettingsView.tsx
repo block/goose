@@ -8,12 +8,14 @@ import { ToolSelectionStrategySection } from './tool_selection_strategy/ToolSele
 import SessionSharingSection from './sessions/SessionSharingSection';
 import { ResponseStylesSection } from './response_styles/ResponseStylesSection';
 import AppSettingsSection from './app/AppSettingsSection';
+import SchedulerSection from './scheduler/SchedulerSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
+  section?: string;
 };
 
 export default function SettingsView({
@@ -46,6 +48,8 @@ export default function SettingsView({
                 deepLinkConfig={viewOptions.deepLinkConfig}
                 showEnvVars={viewOptions.showEnvVars}
               />
+              {/* Scheduler Section */}
+              <SchedulerSection />
               {/* Goose Modes */}
               <ModeSection setView={setView} />
               {/*Session sharing*/}
@@ -55,7 +59,7 @@ export default function SettingsView({
               {/* Tool Selection Strategy */}
               <ToolSelectionStrategySection setView={setView} />
               {/* App Settings */}
-              <AppSettingsSection />
+              <AppSettingsSection scrollToSection={viewOptions.section} />
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::vector_search_tool_prompt;
+use crate::agents::router_tools::{llm_search_tool_prompt, vector_search_tool_prompt};
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template};
 
@@ -92,6 +92,12 @@ impl PromptManager {
                     Value::String(vector_search_tool_prompt()),
                 );
             }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                context.insert(
+                    "tool_selection_strategy",
+                    Value::String(llm_search_tool_prompt()),
+                );
+            }
             None => {}
         }
 
@@ -154,7 +160,6 @@ impl PromptManager {
         }
     }
 
-    /// Get the recipe prompt
     pub async fn get_recipe_prompt(&self) -> String {
         let context: HashMap<&str, Value> = HashMap::new();
         prompt_template::render_global_file("recipe.md", &context).expect("Prompt should render")

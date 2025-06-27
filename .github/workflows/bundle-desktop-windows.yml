@@ -7,20 +7,33 @@ on:
 #    branches: [ "main" ]
   workflow_call:
     inputs:
+      version:
+        description: 'Version to build'
+        required: false
+        type: string
       signing:
         description: 'Whether to sign the Windows executable'
         required: false
         type: boolean
         default: false
+      ref:
+        description: 'Git ref to checkout'
+        required: false
+        type: string
+        default: 'refs/heads/main'
     secrets:
-      WINDOWS_CERTIFICATE:
+      WINDOWS_CODESIGN_CERTIFICATE:
         required: false
-      WINDOWS_CERTIFICATE_PASSWORD:
+      WINDOW_SIGNING_ROLE:
         required: false
-    ref:
-      type: string
-      required: false
-      default: 'refs/heads/main'
+      WINDOW_SIGNING_ROLE_TAG:
+        required: false
+
+# Permissions required for OIDC authentication with AWS
+permissions:
+  id-token: write   # Required to fetch the OIDC token
+  contents: read    # Required by actions/checkout
+  actions: read     # May be needed for some workflows
 
 jobs:
   build-desktop-windows:
@@ -35,11 +48,19 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
+      # 2) Configure AWS credentials for code signing
+      - name: Configure AWS credentials
+        if: inputs.signing && inputs.signing == true
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # ratchet:aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.WINDOW_SIGNING_ROLE || secrets.WINDOW_SIGNING_ROLE_TAG }}
+          aws-region: us-west-2
+
       # 2) Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
         with:
-          node-version: 18
+          node-version: 22
 
       # 3) Cache dependencies
       - name: Cache node_modules
@@ -48,46 +69,147 @@ jobs:
           path: |
             node_modules
             ui/desktop/node_modules
-          key: ${{ runner.os }}-build-desktop-windows-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-build-desktop-windows-node22-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-build-desktop-windows-
+            ${{ runner.os }}-build-desktop-windows-node22-
 
-      # 4) Build Rust for Windows using Docker (cross-compilation)
-      - name: Build Windows executable using Docker
+      # Cache Cargo registry and git dependencies
+      - name: Cache Cargo registry
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      # Cache compiled dependencies (target/release/deps)
+      - name: Cache Cargo build
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-cargo-build-
+
+      # 4) Build Rust for Windows using Docker (cross-compilation with enhanced caching)
+      - name: Build Windows executable using Docker cross-compilation with enhanced caching
         run: |
-          echo "Building Windows executable using Docker cross-compilation..."
-          docker volume create goose-windows-cache || true
+          echo "🚀 Building Windows executable with enhanced GitHub Actions caching..."
+          
+          # Create cache directories
+          mkdir -p ~/.cargo/registry ~/.cargo/git
+          
+          # Use enhanced caching with GitHub Actions cache mounts
           docker run --rm \
             -v "$(pwd)":/usr/src/myapp \
-            -v goose-windows-cache:/usr/local/cargo/registry \
+            -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
+            -v "$HOME/.cargo/git":/usr/local/cargo/git \
             -w /usr/src/myapp \
             rust:latest \
-            sh -c "rustup target add x86_64-pc-windows-gnu && \
-                apt-get update && \
-                apt-get install -y mingw-w64 protobuf-compiler cmake && \
-                export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc && \
-                export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++ && \
-                export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar && \
-                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc && \
-                export PKG_CONFIG_ALLOW_CROSS=1 && \
-                export PROTOC=/usr/bin/protoc && \
-                export PATH=/usr/bin:\$PATH && \
-                protoc --version && \
-                cargo build --release --target x86_64-pc-windows-gnu && \
-                GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1) && \
-                cp \$GCC_DIR/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp \$GCC_DIR/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
+            bash -c "
+              set -e
+              echo '=== Setting up Rust environment with caching ==='
+              export CARGO_HOME=/usr/local/cargo
+              export PATH=/usr/local/cargo/bin:\$PATH
+              
+              # Check if Windows target is already installed in cache
+              if rustup target list --installed | grep -q x86_64-pc-windows-gnu; then
+                echo '✅ Windows cross-compilation target already installed'
+              else
+                echo '📦 Installing Windows cross-compilation target...'
+                rustup target add x86_64-pc-windows-gnu
+              fi
+              
+              echo '=== Setting up build dependencies ==='
+              apt-get update
+              apt-get install -y mingw-w64 protobuf-compiler cmake time
+              
+              echo '=== Setting up cross-compilation environment ==='
+              export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc
+              export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++
+              export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar
+              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+              export PKG_CONFIG_ALLOW_CROSS=1
+              export PROTOC=/usr/bin/protoc
+              
+              echo '=== Optimized Cargo configuration ==='
+              mkdir -p .cargo
+              echo '[build]' > .cargo/config.toml
+              echo 'jobs = 4' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[target.x86_64-pc-windows-gnu]' >> .cargo/config.toml
+              echo 'linker = \"x86_64-w64-mingw32-gcc\"' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[net]' >> .cargo/config.toml
+              echo 'git-fetch-with-cli = true' >> .cargo/config.toml
+              echo 'retry = 3' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[profile.release]' >> .cargo/config.toml
+              echo 'codegen-units = 1' >> .cargo/config.toml
+              echo 'lto = false' >> .cargo/config.toml
+              echo 'panic = \"abort\"' >> .cargo/config.toml
+              echo 'debug = false' >> .cargo/config.toml
+              echo 'opt-level = 2' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[registries.crates-io]' >> .cargo/config.toml
+              echo 'protocol = \"sparse\"' >> .cargo/config.toml
+              
+              echo '=== Building with cached dependencies ==='
+              # Check if we have cached build artifacts
+              if [ -d target/x86_64-pc-windows-gnu/release/deps ] && [ \"\$(ls -A target/x86_64-pc-windows-gnu/release/deps)\" ]; then
+                echo '✅ Found cached build artifacts, performing incremental build...'
+                CARGO_INCREMENTAL=1
+              else
+                echo '🔨 No cached artifacts found, performing full build...'
+                CARGO_INCREMENTAL=0
+              fi
+              
+              echo '🔨 Building Windows executable...'
+              CARGO_INCREMENTAL=\$CARGO_INCREMENTAL \
+              CARGO_NET_RETRY=3 \
+              CARGO_HTTP_TIMEOUT=60 \
+              RUST_BACKTRACE=1 \
+              cargo build --release --target x86_64-pc-windows-gnu --jobs 4
+              
+              echo '=== Copying Windows runtime DLLs ==='
+              GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1)
+              cp \"\$GCC_DIR/libstdc++-6.dll\" target/x86_64-pc-windows-gnu/release/
+              cp \"\$GCC_DIR/libgcc_s_seh-1.dll\" target/x86_64-pc-windows-gnu/release/
+              cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll target/x86_64-pc-windows-gnu/release/
+              
+              echo '✅ Build completed successfully!'
+              ls -la target/x86_64-pc-windows-gnu/release/
+            "
+          
+          # Verify build succeeded
+          if [ ! -f "./target/x86_64-pc-windows-gnu/release/goosed.exe" ]; then
+            echo "❌ Windows binary not found."
+            ls -la ./target/x86_64-pc-windows-gnu/release/ || echo "Release directory doesn't exist"
+            exit 1
+          fi
+          
+          echo "✅ Windows binary found!"
+          ls -la ./target/x86_64-pc-windows-gnu/release/goosed.exe
+          ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
 
-      # 4.5) Build temporal-service for Windows
+      # 4.5) Build temporal-service for Windows using build.sh script
       - name: Build temporal-service for Windows
         run: |
-          echo "Building temporal-service for Windows..."
+          echo "Building temporal-service for Windows using build.sh script..."
           docker run --rm \
             -v "$(pwd)":/usr/src/myapp \
             -w /usr/src/myapp/temporal-service \
             golang:latest \
-            sh -c "GOOS=windows GOARCH=amd64 go build -o temporal-service.exe main.go"
+            sh -c "
+              # Make build.sh executable
+              chmod +x build.sh
+              # Set Windows build environment and run build script
+              GOOS=windows GOARCH=amd64 ./build.sh
+            "
           echo "temporal-service.exe built successfully"
 
       # 4.6) Download temporal CLI for Windows
@@ -96,7 +218,7 @@ jobs:
           echo "Downloading temporal CLI for Windows..."
           TEMPORAL_VERSION="1.3.0"
           curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
-          unzip temporal-cli-windows.zip
+          unzip -o temporal-cli-windows.zip
           chmod +x temporal.exe
           echo "temporal CLI downloaded successfully"
 
@@ -152,31 +274,139 @@ jobs:
       - name: Build desktop UI with npm
         run: |
           cd ui/desktop
+          
+          # Fix for rollup native module issue (npm optional dependencies bug)
+          echo "🔧 Fixing npm optional dependencies issue..."
+          rm -rf node_modules package-lock.json
           npm install
+          
+          # Verify rollup native module is installed
+          if [ ! -d "node_modules/@rollup/rollup-linux-x64-gnu" ]; then
+            echo "⚠️ Rollup native module missing, installing manually..."
+            npm install @rollup/rollup-linux-x64-gnu --save-optional
+          fi
+          
           npm run bundle:windows
 
-      # 7) Copy exe/dll to final out/Goose-win32-x64/resources/bin
-      - name: Copy exe/dll to out folder
+      # 7) Copy exe/dll to final out folder and prepare flat distribution
+      - name: Copy exe/dll to final out folder and prepare flat distribution
         run: |
           cd ui/desktop
           mkdir -p ./out/Goose-win32-x64/resources/bin
           rsync -av src/bin/ out/Goose-win32-x64/resources/bin/
+          
+          # Create flat distribution structure
+          mkdir -p ./dist-windows
+          cp -r ./out/Goose-win32-x64/* ./dist-windows/
+          
+          # Verify the final structure
+          echo "📋 Final flat distribution structure:"
+          ls -la ./dist-windows/
+          echo "📋 Binary files in resources/bin:"
+          ls -la ./dist-windows/resources/bin/
 
-      # 8) Code signing (if enabled)
-      - name: Sign Windows executable
+      # 8) Sign Windows executables with jsign + AWS KMS
+      - name: Sign Windows executables with jsign + AWS KMS
         if: inputs.signing && inputs.signing == true
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          # Note: This would need to be adapted for Linux-based signing
-          # or moved to a Windows runner for the signing step only
-          echo "Code signing would be implemented here"
-          echo "Currently skipped as we're running on Ubuntu"
+          set -exuo pipefail
+          echo "🔐 Starting Windows code signing with jsign + AWS KMS..."
+          
+          # Create certificate file from secret
+          echo "📝 Creating certificate file from GitHub secret..."
+          echo "${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}" > block-codesign-cert.pem
+          
+          # Install Java (required for jsign)
+          echo "☕ Installing Java runtime..."
+          sudo apt-get update
+          sudo apt-get install -y openjdk-11-jre-headless osslsigncode
+          
+          # Download jsign
+          echo "📥 Downloading jsign..."
+          wget -q https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O jsign.jar
+          echo "05ca18d4ab7b8c2183289b5378d32860f0ea0f3bdab1f1b8cae5894fb225fa8a  jsign.jar" | sha256sum -c
+          
+          # Sign the main Electron executable (Goose.exe)
+          echo "🔐 Signing main Electron executable: Goose.exe"
+          cd ui/desktop/dist-windows/
+          
+          java -jar ${GITHUB_WORKSPACE}/jsign.jar \
+            --storetype AWS \
+            --keystore us-west-2 \
+            --storepass "${AWS_ACCESS_KEY_ID}|${AWS_SECRET_ACCESS_KEY}|${AWS_SESSION_TOKEN}" \
+            --alias windows-codesign \
+            --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
+            --tsaurl "http://timestamp.digicert.com" \
+            --name "Goose" \
+            --url "https://github.com/block/goose" \
+            "Goose.exe"
 
-      # 9) Upload the final Windows build
+          osslsigncode verify Goose.exe
+          echo "✅ Main executable Goose.exe signed successfully"
+          
+          # Sign the backend executable (goosed.exe)
+          echo "🔐 Signing backend executable: goosed.exe"
+          cd resources/bin/
+          
+          java -jar ${GITHUB_WORKSPACE}/jsign.jar \
+            --storetype AWS \
+            --keystore us-west-2 \
+            --storepass "${AWS_ACCESS_KEY_ID}|${AWS_SECRET_ACCESS_KEY}|${AWS_SESSION_TOKEN}" \
+            --alias windows-codesign \
+            --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
+            --tsaurl "http://timestamp.digicert.com" \
+            --name "Goose Backend" \
+            --url "https://github.com/block/goose" \
+            "goosed.exe"
+
+          osslsigncode verify goosed.exe
+          echo "✅ Backend executable goosed.exe signed successfully"
+
+          # Show final file status
+          echo "📋 Final signed files:"
+          cd ../../
+          ls -la Goose.exe
+          sha256sum Goose.exe
+          ls -la resources/bin/goosed.exe
+          sha256sum resources/bin/goosed.exe
+          
+          # Clean up certificate file
+          rm -f ${GITHUB_WORKSPACE}/block-codesign-cert.pem
+
+      # 9) Verify signed executables are in final distribution
+      - name: Verify signed executables are in final distribution
+        if: inputs.signing && inputs.signing == true
+        run: |
+          echo "📋 Verifying both signed executables in final distribution:"
+          echo "Main executable:"
+          ls -la ui/desktop/dist-windows/Goose.exe
+          osslsigncode verify ui/desktop/dist-windows/Goose.exe
+          echo "✅ Main executable signature verification passed"
+          
+          echo "Backend executable:"
+          ls -la ui/desktop/dist-windows/resources/bin/goosed.exe
+          osslsigncode verify ui/desktop/dist-windows/resources/bin/goosed.exe
+          echo "✅ Backend executable signature verification passed"
+
+      # 10) Create Windows zip package
+      - name: Create Windows zip package
+        run: |
+          cd ui/desktop
+          echo "📦 Creating Windows zip package..."
+          
+          # Create a zip file from the dist-windows directory
+          zip -r "Goose-win32-x64.zip" dist-windows/
+          
+          echo "✅ Windows zip package created:"
+          ls -la Goose-win32-x64.zip
+          
+          # Also create the zip in the expected output structure for consistency
+          mkdir -p out/Goose-win32-x64/
+          cp Goose-win32-x64.zip out/Goose-win32-x64/
+
+      # 11) Upload the final Windows build
       - name: Upload Windows build artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
-          name: desktop-windows-dist
-          path: ui/desktop/out/Goose-win32-x64/
+          name: Goose-win32-x64
+          path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip

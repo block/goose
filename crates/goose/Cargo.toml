@@ -17,6 +17,7 @@ mcp-core = { path = "../mcp-core" }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
+dirs = "5.0"
 reqwest = { version = "0.12.9", features = [
         "rustls-tls-native-roots",
         "json",
@@ -67,6 +68,9 @@ tokio-cron-scheduler = "0.14.0"
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
 aws-sdk-bedrockruntime = "1.74.0"
+
+# For SageMaker TGI provider
+aws-sdk-sagemakerruntime = "1.62.0"
 
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"

@@ -14,8 +14,10 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
+    sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
     venice::VeniceProvider,
+    xai::XaiProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -48,8 +50,10 @@ pub fn providers() -> Vec<ProviderMetadata> {
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
         OpenRouterProvider::metadata(),
+        SageMakerTgiProvider::metadata(),
         VeniceProvider::metadata(),
         SnowflakeProvider::metadata(),
+        XaiProvider::metadata(),
     ]
 }
 
@@ -122,9 +126,11 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
         "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
+        "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
         "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
@@ -256,7 +262,7 @@ mod tests {
         }
 
         // Set only the required lead model
-        env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
+        env::set_var("GOOSE_LEAD_MODEL", "grok-3");
 
         // This should use defaults for all other values
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));

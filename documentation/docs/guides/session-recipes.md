@@ -61,17 +61,17 @@ You can turn your current Goose session into a reusable recipe that includes the
    instructions: $instructions    # Define the model's behavior
 
    # Optional fields
-   prompt: $prompt               # Initial message to start with
-   extensions:                   # Tools the recipe needs
+   prompt: $prompt                # Initial message to start with
+   extensions:                    # Tools the recipe needs
    - $extensions
-   activities:                   # Example prompts to display in the Desktop app
+   activities:                    # Example prompts to display in the Desktop app
    - $activities
+   settings:                      # Additional settings
+     goose_provider: $provider    # Provider to use for this recipe
+     goose_model: $model          # Specific model to use for this recipe
+     temperature: $temperature    # Model temperature setting for this recipe (0.0 to 1.0)
    ```
    </details>
-
-   ### Edit Recipe File
-
-   Once the recipe file is created, you can open it and modify the value of any field.
 
    ### Optional Parameters
 
@@ -98,6 +98,10 @@ You can turn your current Goose session into a reusable recipe that includes the
    - "Review {{ language }} code for complexity"
    - "Check test coverage against {{ test_coverage }}% requirement"
    - "Verify {{ style_guide }} compliance"
+   settings:                     
+     goose_provider: "anthropic"   
+     goose_model: "claude-3-sonnet"          
+     temperature: 0.7 
    parameters:
    - key: project_name
      input_type: string
@@ -150,6 +154,28 @@ Validation ensures that:
    </TabItem> 
 </Tabs>
 
+## Edit Recipe
+<Tabs>
+  <TabItem value="ui" label="Goose Desktop" default>
+
+   1. While in the session created from a recipe, click the menu icon **⋮** in the top right corner  
+   2. Select **View recipe**  
+   3. In the dialog that appears, you can edit the:
+      - Title
+      - Description
+      - Instructions
+      - Initial prompt
+      - Activities
+   4. Copy the new recipe URL. The original recipe and your current session are not affected by your edits.
+   5. Use and share the URL for your new recipe. 
+
+  </TabItem>
+
+  <TabItem value="cli" label="Goose CLI">
+  Once the recipe file is created, you can open it with your preferred text editor and modify the value of any field.
+
+</TabItem> 
+</Tabs>
 
 ## Use Recipe
 
@@ -378,6 +404,7 @@ A recipe captures:
 - Enabled extensions and their configurations  
 - Project folder or file context  
 - Initial setup (but not full conversation history)
+- The model and provider to use when running the recipe (optional)
 
 
 To protect your privacy and system integrity, Goose excludes:

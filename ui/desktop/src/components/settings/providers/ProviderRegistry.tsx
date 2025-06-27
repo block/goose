@@ -98,6 +98,25 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
     },
   },
   {
+    name: 'xAI',
+    details: {
+      id: 'xai',
+      name: 'xAI',
+      description: 'Access Grok models from xAI, including reasoning and multimodal capabilities',
+      parameters: [
+        {
+          name: 'XAI_API_KEY',
+          is_secret: true,
+        },
+        {
+          name: 'XAI_HOST',
+          is_secret: false,
+          default: 'https://api.x.ai/v1',
+        },
+      ],
+    },
+  },
+  {
     name: 'Google',
     details: {
       id: 'google',
@@ -221,7 +240,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
     details: {
       id: 'snowflake',
       name: 'Snowflake',
-      description: 'Access Cortex models hosted on your Snowflake account',
+      description: 'Access the latest models using Snowflake Cortex services.',
       parameters: [
         {
           name: 'SNOWFLAKE_HOST',

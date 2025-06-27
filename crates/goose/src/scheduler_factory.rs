@@ -12,24 +12,36 @@ pub enum SchedulerType {
 }
 
 impl SchedulerType {
-    /// Determine scheduler type from configuration
     pub fn from_config() -> Self {
         let config = Config::global();
+
+        // Debug logging to help troubleshoot environment variable issues
+        tracing::debug!("Checking scheduler configuration...");
+
+        // Check scheduler type preference from GOOSE_SCHEDULER_TYPE
         match config.get_param::<String>("GOOSE_SCHEDULER_TYPE") {
-            Ok(scheduler_type) => match scheduler_type.to_lowercase().as_str() {
-                "temporal" => SchedulerType::Temporal,
-                "legacy" => SchedulerType::Legacy,
-                _ => {
-                    tracing::warn!(
-                        "Unknown scheduler type '{}', defaulting to legacy",
-                        scheduler_type
-                    );
-                    SchedulerType::Legacy
+            Ok(scheduler_type) => {
+                tracing::debug!(
+                    "Found GOOSE_SCHEDULER_TYPE environment variable: '{}'",
+                    scheduler_type
+                );
+                match scheduler_type.to_lowercase().as_str() {
+                    "temporal" => SchedulerType::Temporal,
+                    "legacy" => SchedulerType::Legacy,
+                    _ => {
+                        tracing::warn!(
+                            "Unknown scheduler type '{}', defaulting to legacy scheduler",
+                            scheduler_type
+                        );
+                        SchedulerType::Legacy
+                    }
                 }
-            },
+            }
             Err(_) => {
-                // Default to temporal scheduler
-                SchedulerType::Temporal
+                tracing::debug!("GOOSE_SCHEDULER_TYPE environment variable not found");
+                // When no explicit scheduler type is set, default to legacy scheduler
+                tracing::info!("No scheduler type specified, defaulting to legacy scheduler");
+                SchedulerType::Legacy
             }
         }
     }
@@ -80,7 +92,7 @@ impl SchedulerFactory {
         }
     }
 
-    /// Create a specific scheduler type (for testing or explicit use)
+    /// Create a legacy scheduler (for testing or explicit use)
     pub async fn create_legacy(
         storage_path: PathBuf,
     ) -> Result<Arc<dyn SchedulerTrait>, SchedulerError> {
@@ -94,5 +106,47 @@ impl SchedulerFactory {
         tracing::info!("Creating Temporal scheduler (explicit)");
         let scheduler = TemporalScheduler::new().await?;
         Ok(scheduler as Arc<dyn SchedulerTrait>)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use temp_env::with_vars;
+
+    #[test]
+    fn test_scheduler_type_no_env() {
+        // Test that without GOOSE_SCHEDULER_TYPE env var, we get Legacy scheduler
+        with_vars([("GOOSE_SCHEDULER_TYPE", None::<&str>)], || {
+            let scheduler_type = SchedulerType::from_config();
+            assert!(matches!(scheduler_type, SchedulerType::Legacy));
+        });
+    }
+
+    #[test]
+    fn test_scheduler_type_legacy() {
+        // Test that with GOOSE_SCHEDULER_TYPE=legacy, we get Legacy scheduler
+        with_vars([("GOOSE_SCHEDULER_TYPE", Some("legacy"))], || {
+            let scheduler_type = SchedulerType::from_config();
+            assert!(matches!(scheduler_type, SchedulerType::Legacy));
+        });
+    }
+
+    #[test]
+    fn test_scheduler_type_temporal() {
+        // Test that with GOOSE_SCHEDULER_TYPE=temporal, we get Temporal scheduler
+        with_vars([("GOOSE_SCHEDULER_TYPE", Some("temporal"))], || {
+            let scheduler_type = SchedulerType::from_config();
+            assert!(matches!(scheduler_type, SchedulerType::Temporal));
+        });
+    }
+
+    #[test]
+    fn test_scheduler_type_unknown() {
+        // Test that with unknown scheduler type, we default to Legacy
+        with_vars([("GOOSE_SCHEDULER_TYPE", Some("unknown"))], || {
+            let scheduler_type = SchedulerType::from_config();
+            assert!(matches!(scheduler_type, SchedulerType::Legacy));
+        });
     }
 }

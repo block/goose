@@ -9,7 +9,9 @@ import { Buffer } from 'buffer';
 import { Recipe } from '../../recipe';
 import ClockIcon from '../../assets/clock-icon.svg';
 
-type FrequencyValue = 'once' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
+
+type CustomIntervalUnit = 'minute' | 'hour' | 'day';
 
 interface FrequencyOption {
   value: FrequencyValue;
@@ -20,6 +22,7 @@ export interface NewSchedulePayload {
   id: string;
   recipe_source: string;
   cron: string;
+  execution_mode?: string;
 }
 
 interface CreateScheduleModalProps {
@@ -61,14 +64,26 @@ interface CleanRecipe {
     contact?: string;
     metadata?: string;
   };
+  schedule?: {
+    foreground: boolean;
+    fallback_to_background: boolean;
+    window_title?: string;
+    working_directory?: string;
+  };
 }
 
 const frequencies: FrequencyOption[] = [
   { value: 'once', label: 'Once' },
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
+  { value: 'every', label: 'Every...' },
+  { value: 'daily', label: 'Daily (at specific time)' },
+  { value: 'weekly', label: 'Weekly (at specific time/days)' },
+  { value: 'monthly', label: 'Monthly (at specific time/day)' },
+];
+
+const customIntervalUnits: { value: CustomIntervalUnit; label: string }[] = [
+  { value: 'minute', label: 'minute(s)' },
+  { value: 'hour', label: 'hour(s)' },
+  { value: 'day', label: 'day(s)' },
 ];
 
 const daysOfWeekOptions: { value: string; label: string }[] = [
@@ -89,6 +104,7 @@ const checkboxInputClassName =
   'h-4 w-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 mr-2';
 
 type SourceType = 'file' | 'deeplink';
+type ExecutionMode = 'background' | 'foreground';
 
 // Function to parse deep link and extract recipe config
 function parseDeepLink(deepLink: string): Recipe | null {
@@ -111,8 +127,8 @@ function parseDeepLink(deepLink: string): Recipe | null {
   }
 }
 
-// Function to convert recipe to YAML
-function recipeToYaml(recipe: Recipe): string {
+// Function to convert recipe to YAML with schedule configuration
+function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
   // Create a clean recipe object for YAML conversion
   const cleanRecipe: CleanRecipe = {
     title: recipe.title,
@@ -230,6 +246,13 @@ function recipeToYaml(recipe: Recipe): string {
     cleanRecipe.author = recipe.author;
   }
 
+  // Add schedule configuration based on execution mode
+  cleanRecipe.schedule = {
+    foreground: executionMode === 'foreground',
+    fallback_to_background: true, // Always allow fallback
+    window_title: executionMode === 'foreground' ? `${recipe.title} - Scheduled` : undefined,
+  };
+
   return yaml.stringify(cleanRecipe);
 }
 
@@ -242,10 +265,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 }) => {
   const [scheduleId, setScheduleId] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('file');
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('background');
   const [recipeSourcePath, setRecipeSourcePath] = useState<string>('');
   const [deepLinkInput, setDeepLinkInput] = useState<string>('');
   const [parsedRecipe, setParsedRecipe] = useState<Recipe | null>(null);
   const [frequency, setFrequency] = useState<FrequencyValue>('daily');
+  const [customIntervalValue, setCustomIntervalValue] = useState<number>(1);
+  const [customIntervalUnit, setCustomIntervalUnit] = useState<CustomIntervalUnit>('minute');
   const [selectedDate, setSelectedDate] = useState<string>(
     () => new Date().toISOString().split('T')[0]
   );
@@ -302,10 +328,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const resetForm = () => {
     setScheduleId('');
     setSourceType('file');
+    setExecutionMode('background');
     setRecipeSourcePath('');
     setDeepLinkInput('');
     setParsedRecipe(null);
     setFrequency('daily');
+    setCustomIntervalValue(1);
+    setCustomIntervalUnit('minute');
     setSelectedDate(new Date().toISOString().split('T')[0]);
     setSelectedTime('09:00');
     setSelectedMinute('0');
@@ -336,14 +365,15 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       if (isNaN(parseInt(minutePart)) || isNaN(parseInt(hourPart))) {
         return 'Invalid time format.';
       }
-      const secondsPart = '0';
+
+      // Temporal uses 5-field cron: minute hour day month dayofweek (no seconds)
       switch (frequency) {
         case 'once':
           if (selectedDate && selectedTime) {
             try {
               const dateObj = new Date(`${selectedDate}T${selectedTime}`);
               if (isNaN(dateObj.getTime())) return "Invalid date/time for 'once'.";
-              return `${secondsPart} ${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
+              return `${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
                 dateObj.getMonth() + 1
               } *`;
             } catch (e) {
@@ -351,15 +381,23 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             }
           }
           return 'Date and Time are required for "Once" frequency.';
-        case 'hourly': {
-          const sMinute = parseInt(selectedMinute, 10);
-          if (isNaN(sMinute) || sMinute < 0 || sMinute > 59) {
-            return 'Invalid minute (0-59) for hourly frequency.';
+        case 'every': {
+          if (customIntervalValue <= 0) {
+            return 'Custom interval value must be greater than 0.';
           }
-          return `${secondsPart} ${sMinute} * * * *`;
+          switch (customIntervalUnit) {
+            case 'minute':
+              return `*/${customIntervalValue} * * * *`;
+            case 'hour':
+              return `0 */${customIntervalValue} * * *`;
+            case 'day':
+              return `0 0 */${customIntervalValue} * *`;
+            default:
+              return 'Invalid custom interval unit.';
+          }
         }
         case 'daily':
-          return `${secondsPart} ${minutePart} ${hourPart} * * *`;
+          return `${minutePart} ${hourPart} * * *`;
         case 'weekly': {
           if (selectedDaysOfWeek.size === 0) {
             return 'Select at least one day for weekly frequency.';
@@ -367,14 +405,14 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           const days = Array.from(selectedDaysOfWeek)
             .sort((a, b) => parseInt(a) - parseInt(b))
             .join(',');
-          return `${secondsPart} ${minutePart} ${hourPart} * * ${days}`;
+          return `${minutePart} ${hourPart} * * ${days}`;
         }
         case 'monthly': {
           const sDayOfMonth = parseInt(selectedDayOfMonth, 10);
           if (isNaN(sDayOfMonth) || sDayOfMonth < 1 || sDayOfMonth > 31) {
             return 'Invalid day of month (1-31) for monthly frequency.';
           }
-          return `${secondsPart} ${minutePart} ${hourPart} ${sDayOfMonth} * *`;
+          return `${minutePart} ${hourPart} ${sDayOfMonth} * *`;
         }
         default:
           return 'Invalid frequency selected.';
@@ -398,6 +436,8 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   }, [
     frequency,
+    customIntervalValue,
+    customIntervalUnit,
     selectedDate,
     selectedTime,
     selectedMinute,
@@ -446,7 +486,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
       try {
         // Convert recipe to YAML and save to a temporary file
-        const yamlContent = recipeToYaml(parsedRecipe);
+        const yamlContent = recipeToYaml(parsedRecipe, executionMode);
         console.log('Generated YAML content:', yamlContent); // Debug log
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
@@ -486,6 +526,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       id: scheduleId.trim(),
       recipe_source: finalRecipeSource,
       cron: derivedCronExpression,
+      execution_mode: executionMode,
     };
 
     await onSubmit(newSchedulePayload);
@@ -587,6 +628,19 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                       Selected: {recipeSourcePath}
                     </p>
                   )}
+                  {executionMode === 'foreground' && (
+                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Note:</strong> For foreground execution with YAML files, add this to
+                        your recipe:
+                      </p>
+                      <pre className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-blue-100 dark:bg-blue-900/40 p-1 rounded">
+                        {`schedule:
+  foreground: true
+  fallback_to_background: true`}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -618,6 +672,50 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           </div>
 
           <div>
+            <label className={modalLabelClassName}>Execution Mode:</label>
+            <div className="space-y-2">
+              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('background')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
+                    executionMode === 'background'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  Background
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('foreground')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
+                    executionMode === 'foreground'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  Foreground
+                </button>
+              </div>
+
+              <div className="text-xs text-gray-500 dark:text-gray-400 px-2">
+                {executionMode === 'background' ? (
+                  <p>
+                    <strong>Background:</strong> Runs silently in the background without opening a
+                    window. Results are saved to session storage.
+                  </p>
+                ) : (
+                  <p>
+                    <strong>Foreground:</strong> Opens in a desktop window when the Goose app is
+                    running. Falls back to background if the app is not available.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div>
             <label htmlFor="frequency-modal" className={modalLabelClassName}>
               Frequency:
             </label>
@@ -632,6 +730,43 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
               placeholder="Select frequency..."
             />
           </div>
+
+          {frequency === 'every' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="customIntervalValue-modal" className={modalLabelClassName}>
+                  Every:
+                </label>
+                <Input
+                  type="number"
+                  id="customIntervalValue-modal"
+                  min="1"
+                  max="999"
+                  value={customIntervalValue}
+                  onChange={(e) => setCustomIntervalValue(parseInt(e.target.value) || 1)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="customIntervalUnit-modal" className={modalLabelClassName}>
+                  Unit:
+                </label>
+                <Select
+                  instanceId="custom-interval-unit-select-modal"
+                  options={customIntervalUnits}
+                  value={customIntervalUnits.find((u) => u.value === customIntervalUnit)}
+                  onChange={(newValue: unknown) => {
+                    const selectedUnit = newValue as {
+                      value: CustomIntervalUnit;
+                      label: string;
+                    } | null;
+                    if (selectedUnit) setCustomIntervalUnit(selectedUnit.value);
+                  }}
+                  placeholder="Select unit..."
+                />
+              </div>
+            </div>
+          )}
 
           {frequency === 'once' && (
             <>
@@ -660,22 +795,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                 />
               </div>
             </>
-          )}
-          {frequency === 'hourly' && (
-            <div>
-              <label htmlFor="hourlyMinute-modal" className={modalLabelClassName}>
-                Minute of the hour (0-59):
-              </label>
-              <Input
-                type="number"
-                id="hourlyMinute-modal"
-                min="0"
-                max="59"
-                value={selectedMinute}
-                onChange={(e) => setSelectedMinute(e.target.value)}
-                required
-              />
-            </div>
           )}
           {(frequency === 'daily' || frequency === 'weekly' || frequency === 'monthly') && (
             <div>
@@ -736,7 +855,9 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             <p className={`${cronPreviewTextColor} mt-2`}>
               <b>Human Readable:</b> {readableCronExpression}
             </p>
-            <p className={cronPreviewTextColor}>Syntax: S M H D M DoW. (S=0, DoW: 0/7=Sun)</p>
+            <p className={cronPreviewTextColor}>
+              Syntax: M H D M DoW (M=minute, H=hour, D=day, M=month, DoW=day of week: 0/7=Sun)
+            </p>
             {frequency === 'once' && (
               <p className={cronPreviewSpecialNoteColor}>
                 Note: "Once" schedules recur annually. True one-time tasks may need backend deletion

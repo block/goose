@@ -44,6 +44,10 @@ export default {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
+        'spin-fast': {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
         indeterminate: {
           '0%': { left: '-40%', width: '40%' },
           '50%': { left: '20%', width: '60%' },
@@ -54,6 +58,7 @@ export default {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
         'gradient-loader': 'loader 750ms ease-in-out infinite',
         indeterminate: 'indeterminate 1.5s infinite linear',
+        'spin-fast': 'spin-fast 0.5s linear infinite',
       },
       colors: {
         bgApp: 'var(--background-app)',

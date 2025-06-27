@@ -40,9 +40,13 @@ pub async fn agent_generator(
         builtins: requirements.builtin,
         extensions_override: None,
         additional_system_prompt: None,
+        settings: None,
         debug: false,
         max_tool_repetitions: None,
         interactive: false, // Benchmarking is non-interactive
+        scheduled_job_id: None,
+        quiet: false,
+        sub_recipes: None,
     })
     .await;
 

@@ -3,6 +3,7 @@ use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
+use goose::recipe::SubRecipe;
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -34,12 +35,20 @@ pub struct SessionBuilderConfig {
     pub extensions_override: Option<Vec<ExtensionConfig>>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
+    /// Settings to override the global Goose settings
+    pub settings: Option<SessionSettings>,
     /// Enable debug printing
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
     pub max_tool_repetitions: Option<u32>,
+    /// ID of the scheduled job that triggered this session (if any)
+    pub scheduled_job_id: Option<String>,
     /// Whether this session will be used interactively (affects debugging prompts)
     pub interactive: bool,
+    /// Quiet mode - suppress non-response output
+    pub quiet: bool,
+    /// Sub-recipes to add to the session
+    pub sub_recipes: Option<Vec<SubRecipe>>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -111,7 +120,7 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false);
+    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -136,23 +145,54 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct SessionSettings {
+    pub goose_model: Option<String>,
+    pub goose_provider: Option<String>,
+    pub temperature: Option<f32>,
+}
+
 pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Load config and get provider/model
     let config = Config::global();
 
-    let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
+    let provider_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_provider.clone())
+        .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
         .expect("No provider configured. Run 'goose configure' first");
 
-    let model: String = config
-        .get_param("GOOSE_MODEL")
+    let model_name = session_config
+        .settings
+        .as_ref()
+        .and_then(|s| s.goose_model.clone())
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
         .expect("No model configured. Run 'goose configure' first");
-    let model_config = goose::model::ModelConfig::new(model.clone());
+
+    let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+
+    let model_config =
+        goose::model::ModelConfig::new(model_name.clone()).with_temperature(temperature);
 
     // Create the agent
     let agent: Agent = Agent::new();
-    let new_provider = create(&provider_name, model_config).unwrap();
-
+    if let Some(sub_recipes) = session_config.sub_recipes {
+        agent.add_sub_recipes(sub_recipes).await;
+    }
+    let new_provider = match create(&provider_name, model_config) {
+        Ok(provider) => provider,
+        Err(e) => {
+            output::render_error(&format!(
+                "Error {}.\n\
+                Please check your system keychain and run 'goose configure' again.\n\
+                If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
+                For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
+                e
+            ));
+            process::exit(1);
+        }
+    };
     // Keep a reference to the provider for display_session_info
     let provider_for_display = Arc::clone(&new_provider);
 
@@ -165,7 +205,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", model);
+        tracing::info!("🤖 Using model: {}", model_name);
     }
 
     agent
@@ -182,7 +222,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Handle session file resolution and resuming
-    let session_file = if session_config.no_session {
+    let session_file: std::path::PathBuf = if session_config.no_session {
         // Use a temporary path that won't be written to
         #[cfg(unix)]
         {
@@ -194,7 +234,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     } else if session_config.resume {
         if let Some(identifier) = session_config.identifier {
-            let session_file = session::get_path(identifier);
+            let session_file = match session::get_path(identifier) {
+                Ok(path) => path,
+                Err(e) => {
+                    output::render_error(&format!("Invalid session identifier: {}", e));
+                    process::exit(1);
+                }
+            };
             if !session_file.exists() {
                 output::render_error(&format!(
                     "Cannot resume session {} - no such session exists",
@@ -222,7 +268,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         };
 
         // Just get the path - file will be created when needed
-        session::get_path(id)
+        match session::get_path(id) {
+            Ok(path) => path,
+            Err(e) => {
+                output::render_error(&format!("Failed to create session path: {}", e));
+                process::exit(1);
+            }
+        }
     };
 
     if session_config.resume && !session_config.no_session {
@@ -309,7 +361,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Create new session
-    let mut session = Session::new(agent, session_file.clone(), session_config.debug);
+    let mut session = Session::new(
+        agent,
+        session_file.clone(),
+        session_config.debug,
+        session_config.scheduled_job_id.clone(),
+    );
 
     // Add extensions if provided
     for extension_str in session_config.extensions {
@@ -427,13 +484,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session.agent.override_system_prompt(override_prompt).await;
     }
 
-    output::display_session_info(
-        session_config.resume,
-        &provider_name,
-        &model,
-        &session_file,
-        Some(&provider_for_display),
-    );
+    // Display session information unless in quiet mode
+    if !session_config.quiet {
+        output::display_session_info(
+            session_config.resume,
+            &provider_name,
+            &model_name,
+            &session_file,
+            Some(&provider_for_display),
+        );
+    }
     session
 }
 
@@ -452,9 +512,13 @@ mod tests {
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
+            settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
+            scheduled_job_id: None,
             interactive: true,
+            quiet: false,
+            sub_recipes: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -462,7 +526,9 @@ mod tests {
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
+        assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
+        assert!(!config.quiet);
     }
 
     #[test]
@@ -479,7 +545,9 @@ mod tests {
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
+        assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
+        assert!(!config.quiet);
     }
 
     #[tokio::test]

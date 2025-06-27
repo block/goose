@@ -1,7 +1,12 @@
-# This is a **reuseable** workflow that bundles the Desktop App for macOS.
+# This is a **reuseable** workflow that builds the CLI for multiple platforms.
 # It doesn't get triggered on its own. It gets used in multiple workflows:
 #  - release.yml
 #  - canary.yml
+#
+# Platform Build Strategy:
+#  - Linux: Uses Ubuntu runner with cross-compilation
+#  - macOS: Uses macOS runner with cross-compilation  
+#  - Windows: Uses Ubuntu runner with Docker cross-compilation (same as desktop build)
 on:
   workflow_call:
     inputs:
@@ -9,17 +14,6 @@ on:
         required: false
         default: ""
         type: string
-      # Let's allow overriding the OSes and architectures in JSON array form:
-      # e.g. '["ubuntu-latest","macos-latest"]'
-      # If no input is provided, these defaults apply.
-      operating-systems:
-        type: string
-        required: false
-        default: '["ubuntu-latest","macos-latest"]'
-      architectures:
-        type: string
-        required: false
-        default: '["x86_64","aarch64"]'
       ref:
         type: string
         required: false
@@ -30,17 +24,40 @@ name: "Reusable workflow to build CLI"
 jobs:
   build-cli:
     name: Build CLI
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.build-on }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJson(inputs.operating-systems) }}
-        architecture: ${{ fromJson(inputs.architectures) }}
         include:
+          # Linux builds
           - os: ubuntu-latest
+            architecture: x86_64
             target-suffix: unknown-linux-gnu
+            build-on: ubuntu-latest
+            use-cross: true
+          - os: ubuntu-latest
+            architecture: aarch64
+            target-suffix: unknown-linux-gnu
+            build-on: ubuntu-latest
+            use-cross: true
+          # macOS builds
           - os: macos-latest
+            architecture: x86_64
             target-suffix: apple-darwin
+            build-on: macos-latest
+            use-cross: true
+          - os: macos-latest
+            architecture: aarch64
+            target-suffix: apple-darwin
+            build-on: macos-latest
+            use-cross: true
+          # Windows builds (only x86_64 supported)
+          - os: windows
+            architecture: x86_64
+            target-suffix: pc-windows-gnu
+            build-on: ubuntu-latest
+            use-cross: false
+            use-docker: true
 
     steps:
       - name: Checkout code
@@ -56,6 +73,7 @@ jobs:
           rm -f Cargo.toml.bak
 
       - name: Install cross
+        if: matrix.use-cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
       # Install Go for building temporal-service
@@ -64,7 +82,32 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Build CLI
+      # Cache Cargo registry and git dependencies for Windows builds
+      - name: Cache Cargo registry (Windows)
+        if: matrix.use-docker
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      # Cache compiled dependencies (target/release/deps) for Windows builds
+      - name: Cache Cargo build (Windows)
+        if: matrix.use-docker
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-${{ hashFiles('Cargo.lock') }}-
+            ${{ runner.os }}-cargo-build-
+
+      - name: Build CLI (Linux/macOS)
+        if: matrix.use-cross
         env:
           CROSS_NO_WARNINGS: 0
           RUST_LOG: debug
@@ -83,7 +126,111 @@ jobs:
           echo "Building with explicit PROTOC path..."
           cross build --release --target ${TARGET} -p goose-cli -vv
 
-      - name: Build temporal-service for target platform
+      - name: Build CLI (Windows)
+        if: matrix.use-docker
+        run: |
+          echo "🚀 Building Windows CLI executable with enhanced GitHub Actions caching..."
+          
+          # Create cache directories
+          mkdir -p ~/.cargo/registry ~/.cargo/git
+          
+          # Use enhanced caching with GitHub Actions cache mounts
+          docker run --rm \
+            -v "$(pwd)":/usr/src/myapp \
+            -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
+            -v "$HOME/.cargo/git":/usr/local/cargo/git \
+            -w /usr/src/myapp \
+            rust:latest \
+            bash -c "
+              set -e
+              echo '=== Setting up Rust environment with caching ==='
+              export CARGO_HOME=/usr/local/cargo
+              export PATH=/usr/local/cargo/bin:\$PATH
+              
+              # Check if Windows target is already installed in cache
+              if rustup target list --installed | grep -q x86_64-pc-windows-gnu; then
+                echo '✅ Windows cross-compilation target already installed'
+              else
+                echo '📦 Installing Windows cross-compilation target...'
+                rustup target add x86_64-pc-windows-gnu
+              fi
+              
+              echo '=== Setting up build dependencies ==='
+              apt-get update
+              apt-get install -y mingw-w64 protobuf-compiler cmake time
+              
+              echo '=== Setting up cross-compilation environment ==='
+              export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc
+              export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++
+              export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar
+              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+              export PKG_CONFIG_ALLOW_CROSS=1
+              export PROTOC=/usr/bin/protoc
+              
+              echo '=== Optimized Cargo configuration ==='
+              mkdir -p .cargo
+              echo '[build]' > .cargo/config.toml
+              echo 'jobs = 4' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[target.x86_64-pc-windows-gnu]' >> .cargo/config.toml
+              echo 'linker = \"x86_64-w64-mingw32-gcc\"' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[net]' >> .cargo/config.toml
+              echo 'git-fetch-with-cli = true' >> .cargo/config.toml
+              echo 'retry = 3' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[profile.release]' >> .cargo/config.toml
+              echo 'codegen-units = 1' >> .cargo/config.toml
+              echo 'lto = false' >> .cargo/config.toml
+              echo 'panic = \"abort\"' >> .cargo/config.toml
+              echo 'debug = false' >> .cargo/config.toml
+              echo 'opt-level = 2' >> .cargo/config.toml
+              echo '' >> .cargo/config.toml
+              echo '[registries.crates-io]' >> .cargo/config.toml
+              echo 'protocol = \"sparse\"' >> .cargo/config.toml
+              
+              echo '=== Building with cached dependencies ==='
+              # Check if we have cached build artifacts
+              if [ -d target/x86_64-pc-windows-gnu/release/deps ] && [ \"\$(ls -A target/x86_64-pc-windows-gnu/release/deps)\" ]; then
+                echo '✅ Found cached build artifacts, performing incremental build...'
+                CARGO_INCREMENTAL=1
+              else
+                echo '🔨 No cached artifacts found, performing full build...'
+                CARGO_INCREMENTAL=0
+              fi
+              
+              echo '🔨 Building Windows CLI executable...'
+              CARGO_INCREMENTAL=\$CARGO_INCREMENTAL \
+              CARGO_NET_RETRY=3 \
+              CARGO_HTTP_TIMEOUT=60 \
+              RUST_BACKTRACE=1 \
+              cargo build --release --target x86_64-pc-windows-gnu -p goose-cli --jobs 4
+              
+              echo '=== Copying Windows runtime DLLs ==='
+              GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1)
+              cp \"\$GCC_DIR/libstdc++-6.dll\" target/x86_64-pc-windows-gnu/release/
+              cp \"\$GCC_DIR/libgcc_s_seh-1.dll\" target/x86_64-pc-windows-gnu/release/
+              cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll target/x86_64-pc-windows-gnu/release/
+              
+              echo '✅ Build completed successfully!'
+              ls -la target/x86_64-pc-windows-gnu/release/
+            "
+          
+          # Verify build succeeded
+          if [ ! -f "./target/x86_64-pc-windows-gnu/release/goose.exe" ]; then
+            echo "❌ Windows CLI binary not found."
+            ls -la ./target/x86_64-pc-windows-gnu/release/ || echo "Release directory doesn't exist"
+            exit 1
+          fi
+          
+          echo "✅ Windows CLI binary found!"
+          ls -la ./target/x86_64-pc-windows-gnu/release/goose.exe
+          
+          echo "✅ Windows runtime DLLs:"
+          ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
+
+      - name: Build temporal-service for target platform using build.sh script (Linux/macOS)
+        if: matrix.use-cross
         run: |
           source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
@@ -116,12 +263,101 @@ jobs:
               ;;
           esac
           
-          echo "Building temporal-service for ${GOOS}/${GOARCH}..."
+          echo "Building temporal-service for ${GOOS}/${GOARCH} using build.sh script..."
           cd temporal-service
-          go build -o "../target/${TARGET}/release/${BINARY_NAME}" main.go
+          # Run build.sh with cross-compilation environment
+          GOOS="${GOOS}" GOARCH="${GOARCH}" ./build.sh
+          # Move the built binary to the expected location
+          mv "${BINARY_NAME}" "../target/${TARGET}/release/${BINARY_NAME}"
           echo "temporal-service built successfully for ${TARGET}"
 
-      - name: Package CLI with temporal-service
+      - name: Build temporal-service for Windows
+        if: matrix.use-docker
+        run: |
+          echo "Building temporal-service for Windows using build.sh script..."
+          docker run --rm \
+            -v "$(pwd)":/usr/src/myapp \
+            -w /usr/src/myapp/temporal-service \
+            golang:latest \
+            sh -c "
+              # Make build.sh executable
+              chmod +x build.sh
+              # Set Windows build environment and run build script
+              GOOS=windows GOARCH=amd64 ./build.sh
+            "
+          
+          # Move the built binary to the expected location
+          mkdir -p target/x86_64-pc-windows-gnu/release
+          mv temporal-service/temporal-service.exe target/x86_64-pc-windows-gnu/release/temporal-service.exe
+          echo "temporal-service.exe built successfully for Windows"
+
+      - name: Download temporal CLI (Linux/macOS)
+        if: matrix.use-cross
+        run: |
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          TEMPORAL_VERSION="1.3.0"
+          
+          # Set platform-specific download parameters
+          case "${TARGET}" in
+            "x86_64-unknown-linux-gnu")
+              TEMPORAL_OS="linux"
+              TEMPORAL_ARCH="amd64"
+              TEMPORAL_EXT=""
+              ;;
+            "aarch64-unknown-linux-gnu")
+              TEMPORAL_OS="linux"
+              TEMPORAL_ARCH="arm64"
+              TEMPORAL_EXT=""
+              ;;
+            "x86_64-apple-darwin")
+              TEMPORAL_OS="darwin"
+              TEMPORAL_ARCH="amd64"
+              TEMPORAL_EXT=""
+              ;;
+            "aarch64-apple-darwin")
+              TEMPORAL_OS="darwin"
+              TEMPORAL_ARCH="arm64"
+              TEMPORAL_EXT=""
+              ;;
+            *)
+              echo "Unsupported target for temporal CLI: ${TARGET}"
+              exit 1
+              ;;
+          esac
+          
+          echo "Downloading temporal CLI for ${TEMPORAL_OS}/${TEMPORAL_ARCH}..."
+          TEMPORAL_FILE="temporal_cli_${TEMPORAL_VERSION}_${TEMPORAL_OS}_${TEMPORAL_ARCH}.tar.gz"
+          curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/${TEMPORAL_FILE}" -o "${TEMPORAL_FILE}"
+          
+          # Extract temporal CLI
+          tar -xzf "${TEMPORAL_FILE}"
+          chmod +x temporal${TEMPORAL_EXT}
+          
+          # Move to target directory
+          mv temporal${TEMPORAL_EXT} "target/${TARGET}/release/temporal${TEMPORAL_EXT}"
+          
+          # Clean up
+          rm -f "${TEMPORAL_FILE}"
+          echo "temporal CLI downloaded successfully for ${TARGET}"
+
+      - name: Download temporal CLI (Windows)
+        if: matrix.use-docker
+        run: |
+          TEMPORAL_VERSION="1.3.0"
+          echo "Downloading temporal CLI for Windows..."
+          curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
+          unzip -o temporal-cli-windows.zip
+          chmod +x temporal.exe
+          
+          # Move to target directory
+          mv temporal.exe target/x86_64-pc-windows-gnu/release/temporal.exe
+          
+          # Clean up
+          rm -f temporal-cli-windows.zip
+          echo "temporal CLI downloaded successfully for Windows"
+
+      - name: Package CLI with temporal-service (Linux/macOS)
+        if: matrix.use-cross
         run: |
           source ./bin/activate-hermit
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
@@ -132,11 +368,33 @@ jobs:
           # Copy binaries
           cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
           cp "target/${TARGET}/release/temporal-service" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/temporal" "target/${TARGET}/release/goose-package/"
           
-          # Create the tar archive with both binaries
+          # Create the tar archive with all binaries
           cd "target/${TARGET}/release"
           tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+
+      - name: Package CLI with temporal-service (Windows)
+        if: matrix.use-docker
+        run: |
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          
+          # Create a directory for the package contents
+          mkdir -p "target/${TARGET}/release/goose-package"
+          
+          # Copy binaries
+          cp "target/${TARGET}/release/goose.exe" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/temporal-service.exe" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/temporal.exe" "target/${TARGET}/release/goose-package/"
+          
+          # Copy Windows runtime DLLs
+          cp "target/${TARGET}/release/"*.dll "target/${TARGET}/release/goose-package/"
+          
+          # Create the zip archive with all binaries and DLLs
+          cd "target/${TARGET}/release"
+          zip -r "goose-${TARGET}.zip" goose-package/
+          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4

@@ -1,0 +1,58 @@
+{
+  "month": "April 2025",
+  "communityStars": [
+    {
+      "name": "Vinny Fiano",
+      "handle": "ynniv"
+    },
+    {
+      "name": "Carine B",
+      "handle": "TBD",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/1177778226957926540/186b0898f793e7292a5b385de35a19fc?size=1024"
+    },
+    {
+      "name": "Best Codes",
+      "handle": "The-Best-Codes"
+    },
+    {
+      "name": "comoyomalove",
+      "handle": "TBD",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/552168841992732673/2d88c30d3e0fc3fda6a3815b819f4546?size=1024"
+    },
+    {
+      "name": "jokellyfenton",
+      "handle": "jokellyfenton"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "Shea Craig",
+      "handle": "sheagcraig"
+    },
+    {
+      "name": "Jim Bennett",
+      "handle": "jimbobbennett"
+    },
+    {
+      "name": "Oliver",
+      "handle": "opdich"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "The-Best-Codes", "rank": 1, "medal": "🥇" },
+    { "handle": "dbraduan", "rank": 2, "medal": "🥈" },
+    { "handle": "sheagcraig", "rank": 3, "medal": "🥉" },
+    { "handle": "sana-db", "rank": 4 },
+    { "handle": "jimbobbennett", "rank": 5 },
+    { "handle": "opdich", "rank": 6 },
+    { "handle": "rockwotj", "rank": 7 },
+    { "handle": "alexgleason", "rank": 8 },
+    { "handle": "ArtBears", "rank": 9 },
+    { "handle": "GlyneG", "rank": 10 },
+    { "handle": "DOsinga", "rank": 11 },
+    { "handle": "omo", "rank": 12 },
+    { "handle": "allisonjoycarter", "rank": 13 },
+    { "handle": "mpaquettePax8", "rank": 14 },
+    { "handle": "capttrousers", "rank": 15 }
+  ]
+}
