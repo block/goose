@@ -431,7 +431,7 @@ where
                 .ok_or_else(|| anyhow!("unexpected stream format"))?)
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-            let usage = chunk.usage.as_ref().and_then(get_usage).unwrap_or_else(|| Usage::default());
+            let usage = chunk.usage.as_ref().and_then(get_usage).unwrap_or_default();
 
             if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                 let tool_call = &tool_calls[0];
@@ -448,7 +448,7 @@ where
                         let tool_chunk: StreamingChunk = serde_json::from_str(line)
                             .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
                         let more_args = tool_chunk.choices[0].delta.tool_calls.as_ref()
-                            .and_then(|calls| calls.get(0))
+                            .and_then(|calls| calls.first())
                             .map(|call| call.function.arguments.as_str());
                         if let Some(more_args) = more_args {
                             arguments.push_str(more_args);

@@ -299,7 +299,7 @@ impl DatabricksProvider {
     ) -> Result<reqwest::Response, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join(&path).map_err(|e| {
+        let url = base_url.join(path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
@@ -348,7 +348,7 @@ impl DatabricksProvider {
                     // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
                     // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
                     let bytes = response.bytes().await?;
-                    let payload_str = String::from_utf8_lossy(&bytes).to_owned().to_lowercase();
+                    let payload_str = String::from_utf8_lossy(&bytes).to_lowercase();
                     let check_phrases = [
                         "too long",
                         "context length",
