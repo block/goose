@@ -3,6 +3,9 @@ name = "mcp-server"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = "1.0.94"
 thiserror = "1.0"

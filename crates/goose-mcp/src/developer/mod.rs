@@ -1695,7 +1695,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         builder.add_line(None, "*.env").unwrap();
         let ignore_patterns = builder.build().unwrap();
@@ -1747,7 +1747,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         let ignore_patterns = builder.build().unwrap();
 
@@ -1807,7 +1807,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         let ignore_patterns = builder.build().unwrap();
 
