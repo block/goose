@@ -305,7 +305,7 @@ impl TemporalScheduler {
 
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
-        let mut command = Command::new("./temporal-service");
+        let mut command = Command::new(&binary_path);
         command
             .current_dir(working_dir)
             .env("PORT", self.port_config.http_port.to_string())
@@ -374,17 +374,16 @@ impl TemporalScheduler {
         // Try to find the Go service binary by looking for it relative to the current executable
         // or in common locations
 
-        let possible_paths = vec![
-            // Relative to current working directory (original behavior)
-            "./temporal-service/temporal-service",
-        ];
-
-        // Also try to find it relative to the current executable path
+        // First try to find it relative to the current executable path (most common for bundled apps)
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 // Try various relative paths from the executable directory
                 let exe_relative_paths = vec![
-                    // First check in the same directory as the executable (bundled location)
+                    // First check in resources/bin subdirectory (bundled Electron app location)
+                    exe_dir.join("resources/bin/temporal-service"),
+                    exe_dir.join("resources/bin/temporal-service.exe"), // Windows version
+                    exe_dir.join("resources\\bin\\temporal-service.exe"), // Windows with backslashes
+                    // Then check in the same directory as the executable
                     exe_dir.join("temporal-service"),
                     exe_dir.join("temporal-service.exe"), // Windows version
                     // Then check in temporal-service subdirectory
@@ -399,21 +398,45 @@ impl TemporalScheduler {
 
                 for path in exe_relative_paths {
                     if path.exists() {
+                        tracing::debug!("Found temporal-service binary at: {}", path.display());
                         return Ok(path.to_string_lossy().to_string());
                     }
                 }
             }
         }
 
-        // Try the original relative paths
+        // Try relative to current working directory (original behavior)
+        let possible_paths = vec![
+            "./temporal-service/temporal-service",
+            "./temporal-service.exe",               // Windows in current dir
+            "./resources/bin/temporal-service.exe", // Windows bundled in current dir
+        ];
+
         for path in &possible_paths {
             if std::path::Path::new(path).exists() {
+                tracing::debug!("Found temporal-service binary at: {}", path);
                 return Ok(path.to_string());
             }
         }
 
+        // Check environment variable override
+        if let Ok(binary_path) = std::env::var("GOOSE_TEMPORAL_BIN") {
+            if std::path::Path::new(&binary_path).exists() {
+                tracing::info!(
+                    "Using temporal-service binary from GOOSE_TEMPORAL_BIN: {}",
+                    binary_path
+                );
+                return Ok(binary_path);
+            } else {
+                tracing::warn!(
+                    "GOOSE_TEMPORAL_BIN points to non-existent file: {}",
+                    binary_path
+                );
+            }
+        }
+
         Err(SchedulerError::SchedulerInternalError(
-            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available.".to_string()
+            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available, or set GOOSE_TEMPORAL_BIN environment variable.".to_string()
         ))
     }
 
