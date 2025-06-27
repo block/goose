@@ -12,7 +12,7 @@ Extensions are based on the [Model Context Protocol (MCP)](https://github.com/mo
 Goose to a wide ecosystem of capabilities.
 
 :::tip Tutorials
-Check out the [step-by-step tutorials](/docs/category/tutorials) for adding and using several Goose Extensions
+Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
 :::
 
 
@@ -304,7 +304,7 @@ For advanced users, you can also directly edit the config file (`~/.config/goose
 
 ```yaml
 extensions:
-  fetch:
+  github:
     name: GitHub
     cmd: npx
     args: [-y @modelcontextprotocol/server-github]

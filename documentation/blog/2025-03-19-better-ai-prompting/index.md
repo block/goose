@@ -40,7 +40,7 @@ If you want Goose to remember your preferences, you can say,
 
 >_**Goose, remember I’m not a developer. Explain things at a high level unless I ask for technical details**_
 
-If you have the [Memory Extension](/docs/tutorials/memory-mcp) enabled, Goose will save this preference so you won’t have to remind it every time. 
+If you have the [Memory Extension](/docs/mcp/memory-mcp) enabled, Goose will save this preference so you won’t have to remind it every time. 
 :::
 
 ## Chain-of-Thought Prompting

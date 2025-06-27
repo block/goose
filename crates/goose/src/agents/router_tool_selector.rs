@@ -166,12 +166,36 @@ impl RouterToolSelector for VectorToolSelector {
             })
             .collect();
 
-        // Index all tools at once
+        // Get vector_db lock
         let vector_db = self.vector_db.read().await;
-        vector_db
-            .index_tools(tool_records)
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to index tools: {}", e)))?;
+
+        // Filter out tools that already exist in the database
+        let mut new_tool_records = Vec::new();
+        for record in tool_records {
+            // Check if tool exists by searching for it
+            let existing_tools = vector_db
+                .search_tools(record.vector.clone(), 1, Some(&record.extension_name))
+                .await
+                .map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to search for existing tools: {}", e))
+                })?;
+
+            // Only add if no exact match found
+            if !existing_tools
+                .iter()
+                .any(|t| t.tool_name == record.tool_name)
+            {
+                new_tool_records.push(record);
+            }
+        }
+
+        // Only index if there are new tools to add
+        if !new_tool_records.is_empty() {
+            vector_db
+                .index_tools(new_tool_records)
+                .await
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to index tools: {}", e)))?;
+        }
 
         Ok(())
     }
@@ -282,7 +306,7 @@ impl RouterToolSelector for LLMToolSelector {
         }
     }
 
-    async fn index_tools(&self, tools: &[Tool], _extension_name: &str) -> Result<(), ToolError> {
+    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ToolError> {
         let mut tool_strings = self.tool_strings.write().await;
 
         for tool in tools {
@@ -294,8 +318,11 @@ impl RouterToolSelector for LLMToolSelector {
                     .unwrap_or_else(|_| "{}".to_string())
             );
 
-            if let Some(extension_name) = tool.name.split("__").next() {
-                let entry = tool_strings.entry(extension_name.to_string()).or_default();
+            // Use the provided extension_name instead of parsing from tool name
+            let entry = tool_strings.entry(extension_name.to_string()).or_default();
+
+            // Check if this tool already exists in the entry
+            if !entry.contains(&format!("Tool: {}", tool.name)) {
                 if !entry.is_empty() {
                     entry.push_str("\n\n");
                 }
@@ -305,7 +332,6 @@ impl RouterToolSelector for LLMToolSelector {
 
         Ok(())
     }
-
     async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError> {
         let mut tool_strings = self.tool_strings.write().await;
         if let Some(extension_name) = tool_name.split("__").next() {

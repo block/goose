@@ -1,4 +1,4 @@
-/* global Blob, ClipboardItem */
+/* global ClipboardItem */
 
 import React, { useState } from 'react';
 import { Copy } from './icons';

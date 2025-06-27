@@ -12,13 +12,13 @@
             <h1 id="session-title">Goose Chat</h1>
             <div class="status" id="connection-status">Connecting...</div>
         </header>
-        
+
         <div class="chat-container">
             <div class="messages" id="messages">
                 <div class="welcome-message">
                     <h2>Welcome to Goose!</h2>
                     <p>I'm your AI assistant. How can I help you today?</p>
-                    
+
                     <div class="suggestion-pills">
                         <div class="suggestion-pill" onclick="sendSuggestion('What can you do?')">What can you do?</div>
                         <div class="suggestion-pill" onclick="sendSuggestion('Demo writing and reading files')">Demo writing and reading files</div>
@@ -28,10 +28,10 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="input-container">
-                <textarea 
-                    id="message-input" 
+                <textarea
+                    id="message-input"
                     placeholder="Type your message here..."
                     rows="3"
                     autofocus
@@ -40,7 +40,7 @@
             </div>
         </div>
     </div>
-    
+
     <script src="/static/script.js"></script>
 </body>
 </html>

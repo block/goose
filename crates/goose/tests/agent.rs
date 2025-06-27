@@ -12,7 +12,7 @@ use goose::providers::{
     anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
     databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
     groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider,
+    openrouter::OpenRouterProvider, xai::XaiProvider,
 };
 
 #[derive(Debug, PartialEq)]
@@ -27,6 +27,7 @@ enum ProviderType {
     Groq,
     Ollama,
     OpenRouter,
+    Xai,
 }
 
 impl ProviderType {
@@ -46,6 +47,7 @@ impl ProviderType {
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
             ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
+            ProviderType::Xai => &["XAI_API_KEY"],
         }
     }
 
@@ -79,6 +81,7 @@ impl ProviderType {
             ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config)?),
             ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config)?),
             ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config)?),
+            ProviderType::Xai => Arc::new(XaiProvider::from_env(model_config)?),
         })
     }
 }
@@ -136,6 +139,10 @@ async fn run_truncate_test(
             Ok(AgentEvent::McpNotification(n)) => {
                 println!("MCP Notification: {n:?}");
             }
+            Ok(AgentEvent::ModelChange { .. }) => {
+                // Model change events are informational, just continue
+            }
+
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -325,5 +332,202 @@ mod tests {
             context_window: 200_000,
         })
         .await
+    }
+
+    #[tokio::test]
+    async fn test_agent_with_xai() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Xai,
+            model: "grok-3",
+            context_window: 9_000,
+        })
+        .await
+    }
+}
+
+#[cfg(test)]
+mod schedule_tool_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use chrono::{DateTime, Utc};
+    use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
+    use goose::scheduler::{ScheduledJob, SchedulerError};
+    use goose::scheduler_trait::SchedulerTrait;
+    use goose::session::storage::SessionMetadata;
+    use std::sync::Arc;
+
+    // Mock scheduler for testing
+    struct MockScheduler {
+        jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
+    }
+
+    impl MockScheduler {
+        fn new() -> Self {
+            Self {
+                jobs: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl SchedulerTrait for MockScheduler {
+        async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
+            let mut jobs = self.jobs.lock().await;
+            jobs.push(job);
+            Ok(())
+        }
+
+        async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
+            let jobs = self.jobs.lock().await;
+            Ok(jobs.clone())
+        }
+
+        async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+            let mut jobs = self.jobs.lock().await;
+            if let Some(pos) = jobs.iter().position(|job| job.id == id) {
+                jobs.remove(pos);
+                Ok(())
+            } else {
+                Err(SchedulerError::JobNotFound(id.to_string()))
+            }
+        }
+
+        async fn pause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn unpause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn run_now(&self, _id: &str) -> Result<String, SchedulerError> {
+            Ok("test_session_123".to_string())
+        }
+
+        async fn sessions(
+            &self,
+            _sched_id: &str,
+            _limit: usize,
+        ) -> Result<Vec<(String, SessionMetadata)>, SchedulerError> {
+            Ok(vec![])
+        }
+
+        async fn update_schedule(
+            &self,
+            _sched_id: &str,
+            _new_cron: String,
+        ) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn get_running_job_info(
+            &self,
+            _sched_id: &str,
+        ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+            Ok(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_list() {
+        let agent = Agent::new();
+        let mock_scheduler = Arc::new(MockScheduler::new());
+        agent.set_scheduler(mock_scheduler.clone()).await;
+
+        // Test that the schedule management tool is available in the tools list
+        let tools = agent.list_tools(None).await;
+        let schedule_tool = tools
+            .iter()
+            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+        assert!(schedule_tool.is_some());
+
+        let tool = schedule_tool.unwrap();
+        assert!(tool
+            .description
+            .contains("Manage scheduled recipe execution"));
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_no_scheduler() {
+        let agent = Agent::new();
+        // Don't set scheduler - test that the tool still appears in the list
+        // but would fail if actually called (which we can't test directly through public API)
+
+        let tools = agent.list_tools(None).await;
+        let schedule_tool = tools
+            .iter()
+            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+        assert!(schedule_tool.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_in_platform_tools() {
+        let agent = Agent::new();
+        let tools = agent.list_tools(Some("platform".to_string())).await;
+
+        // Check that the schedule management tool is included in platform tools
+        let schedule_tool = tools
+            .iter()
+            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+        assert!(schedule_tool.is_some());
+
+        let tool = schedule_tool.unwrap();
+        assert!(tool
+            .description
+            .contains("Manage scheduled recipe execution"));
+
+        // Verify the tool has the expected actions in its schema
+        if let Some(properties) = tool.input_schema.get("properties") {
+            if let Some(action_prop) = properties.get("action") {
+                if let Some(enum_values) = action_prop.get("enum") {
+                    let actions: Vec<String> = enum_values
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_str().unwrap().to_string())
+                        .collect();
+
+                    // Check that our session_content action is included
+                    assert!(actions.contains(&"session_content".to_string()));
+                    assert!(actions.contains(&"list".to_string()));
+                    assert!(actions.contains(&"create".to_string()));
+                    assert!(actions.contains(&"sessions".to_string()));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schedule_management_tool_schema_validation() {
+        let agent = Agent::new();
+        let tools = agent.list_tools(None).await;
+        let schedule_tool = tools
+            .iter()
+            .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+        assert!(schedule_tool.is_some());
+
+        let tool = schedule_tool.unwrap();
+
+        // Verify the tool schema has the session_id parameter for session_content action
+        if let Some(properties) = tool.input_schema.get("properties") {
+            assert!(properties.get("session_id").is_some());
+
+            if let Some(session_id_prop) = properties.get("session_id") {
+                assert_eq!(
+                    session_id_prop.get("type").unwrap().as_str().unwrap(),
+                    "string"
+                );
+                assert!(session_id_prop
+                    .get("description")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .contains("Session identifier for session_content action"));
+            }
+        }
     }
 }

@@ -44,6 +44,9 @@ pub async fn agent_generator(
         debug: false,
         max_tool_repetitions: None,
         interactive: false, // Benchmarking is non-interactive
+        scheduled_job_id: None,
+        quiet: false,
+        sub_recipes: None,
     })
     .await;
 

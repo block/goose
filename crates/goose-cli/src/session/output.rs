@@ -117,6 +117,7 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
+#[allow(dead_code)]
 pub fn set_thinking_message(s: &String) {
     THINKING.with(|t| {
         if let Some(spinner) = t.borrow_mut().spinner.as_mut() {

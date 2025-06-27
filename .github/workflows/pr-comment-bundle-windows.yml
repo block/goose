@@ -1,4 +1,4 @@
-# This workflow is triggered by a comment on an issue or PR with the text ".bundle-windows"
+# This workflow is triggered by a comment on PR with the text ".bundle-windows"
 # It bundles the Windows Desktop App, then creates a PR comment with a link to download the app.
 
 on:
@@ -11,10 +11,13 @@ on:
         required: true
         type: string
 
-# permissions needed for reacting to IssueOps commands on PRs
+# permissions needed for reacting to IssueOps commands on PRs and AWS OIDC authentication
 permissions:
   pull-requests: write
   checks: read
+  id-token: write   # Required for AWS OIDC authentication in called workflow
+  contents: read    # Required by actions/checkout in called workflow
+  actions: read     # May be needed for some workflows
 
 name: Bundle Windows Desktop App
 
@@ -24,15 +27,18 @@ concurrency:
 
 jobs:
   trigger-on-command:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '.bundle-windows'))
     name: Trigger on ".bundle-windows" PR comment
     runs-on: ubuntu-latest
     outputs:
-      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
+      continue: 'true'
       # Cannot use github.event.pull_request.number since the trigger is 'issue_comment'
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
       head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
-      - if: ${{ github.event_name == 'issue_comment' }}
+      - name: Run command action
         uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
         id: command
         with:
@@ -61,11 +67,9 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: false  # false for now as we don't have a cert yet
+      signing: false
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
-    secrets:
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
 
   pr-comment-windows:
     name: PR Comment with Windows App

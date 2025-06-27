@@ -19,6 +19,7 @@ use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, I
 use crate::config::{Config, ConfigError};
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::base::ConfigKey;
 use mcp_core::tool::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
@@ -389,7 +390,7 @@ impl Provider for GithubCopilotProvider {
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
-            vec![],
+            vec![ConfigKey::new("GITHUB_COPILOT_TOKEN", true, true, None)],
         )
     }
 

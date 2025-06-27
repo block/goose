@@ -1,4 +1,4 @@
-# This workflow is triggered by a comment on an issue or PR with the text ".bundle"
+# This workflow is triggered by a comment on PR with the text ".bundle"
 # It bundles the ARM64 Desktop App, then creates a PR comment with a link to download the app.
 
 on:
@@ -24,10 +24,13 @@ concurrency:
 
 jobs:
   trigger-on-command:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '.bundle'))
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     outputs:
-      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
+      continue: 'true'
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
       pr_sha: ${{ steps.get_pr_info.outputs.sha }}
     steps:
@@ -48,7 +51,7 @@ jobs:
           echo "Actor: ${ACTOR}"
           echo "Repository: ${REPOSITORY}"
 
-      - if: ${{ github.event_name == 'issue_comment' }}
+      - name: Run command action
         uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
         id: command
         with:

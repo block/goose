@@ -7,6 +7,10 @@ export interface SessionMetadata {
   message_count: number;
   total_tokens: number | null;
   working_dir: string; // Required in type, but may be missing in old sessions
+  // Add the accumulated token fields from the API
+  accumulated_input_tokens?: number | null;
+  accumulated_output_tokens?: number | null;
+  accumulated_total_tokens?: number | null;
 }
 
 // Helper function to ensure working directory is set
@@ -16,6 +20,9 @@ export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMet
     message_count: metadata.message_count || 0,
     total_tokens: metadata.total_tokens || null,
     working_dir: metadata.working_dir || process.env.HOME || '',
+    accumulated_input_tokens: metadata.accumulated_input_tokens || null,
+    accumulated_output_tokens: metadata.accumulated_output_tokens || null,
+    accumulated_total_tokens: metadata.accumulated_total_tokens || null,
   };
 }
 

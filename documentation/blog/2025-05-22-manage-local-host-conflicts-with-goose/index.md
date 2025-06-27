@@ -40,7 +40,7 @@ Because I don't do this often, I often end up searching for the commands, which 
 
 To avoid that interruption, I started offloading the task to [Goose](/), an open source AI agent.
 
-Goose uses its built-in [Developer](/docs/tutorials/developer-mcp) MCP server to handle coding-related tasks on my machine. Here's what the interaction looks like:
+Goose uses its built-in [Developer](/docs/mcp/developer-mcp) MCP server to handle coding-related tasks on my machine. Here's what the interaction looks like:
 
 **Prompt to Goose:** 
 

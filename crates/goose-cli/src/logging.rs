@@ -180,9 +180,9 @@ fn setup_logging_internal(
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use rand;
     use std::env;
     use tempfile::TempDir;
-    use test_case::test_case;
 
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -209,16 +209,24 @@ mod tests {
     }
 
     #[tokio::test]
-    #[test_case(Some("test_session"), true ; "with session name and error capture")]
-    #[test_case(Some("test_session"), false ; "with session name without error capture")]
-    #[test_case(None, false ; "without session name")]
-    async fn test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
+    async fn test_log_file_name_session_with_error_capture() {
+        do_test_log_file_name(Some("test_session_with_error"), true).await;
+    }
+
+    #[tokio::test]
+    async fn test_log_file_name_session_without_error_capture() {
+        do_test_log_file_name(Some("test_session_without_error"), false).await;
+    }
+
+    #[tokio::test]
+    async fn test_log_file_name_no_session() {
+        do_test_log_file_name(None, false).await;
+    }
+
+    async fn do_test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
         // Create a unique test directory for each test
         let test_name = session_name.unwrap_or("no_session");
-        let random_suffix = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .subsec_nanos();
+        let random_suffix = rand::random::<u32>() % 100000000;
         let test_dir = PathBuf::from(format!(
             "/tmp/goose_test_home_{}_{}",
             test_name, random_suffix

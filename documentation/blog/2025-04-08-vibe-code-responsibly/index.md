@@ -108,7 +108,7 @@ Here are a few examples:
 
 ### 7. Integrate Goose into Your CI/CD
 
-Before issues hit production, add [Goose to your CI/CD pipeline](https://block.github.io/goose/docs/tutorials/cicd) to:
+Before issues hit production, add [Goose to your CI/CD pipeline](/docs/tutorials/cicd) to:
 - Automate code reviews  
 - Validate documentation  
 - Run security checks  
@@ -119,7 +119,7 @@ Some MCP servers can introduce security risks, especially if compromised.
 
 Use the Goose [allowlist](https://github.com/block/goose/blob/main/crates/goose-server/ALLOWLIST.md) feature to prevent Goose from calling unsafe or untrusted tools.
 
-Here's how the team at Block is thinking about [securing the MCP](https://block.github.io/goose/blog/2025/03/31/securing-mcp).
+Here's how the team at Block is thinking about [securing the MCP](/blog/2025/03/31/securing-mcp).
 
 ### 9. Pick a High-Performing LLM
 

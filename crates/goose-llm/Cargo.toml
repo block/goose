@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["lib", "cdylib"]
 name = "goose_llm"

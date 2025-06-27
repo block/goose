@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
@@ -58,6 +61,7 @@ oauth2 = { version = "5.0.0", features = ["reqwest"] }
 utoipa = { version = "4.1", optional = true }
 hyper = "1"
 serde_with = "3"
+which = "6.0"
 
 
 [dev-dependencies]

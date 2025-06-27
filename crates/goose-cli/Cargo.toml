@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "goose"
 path = "src/main.rs"
@@ -28,6 +31,7 @@ tokio = { version = "1.43", features = ["full"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"
+tempfile = "3"
 etcetera = "0.8.0"
 reqwest = { version = "0.12.9", features = [
         "rustls-tls-native-roots",
@@ -52,7 +56,7 @@ shlex = "1.3.0"
 async-trait = "0.1.86"
 base64 = "0.22.1"
 regex = "1.11.1"
-minijinja = "2.8.0"
+minijinja = { version = "2.10.2", features = ["loader"] }
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
 # Web server dependencies

@@ -10,7 +10,7 @@ authors:
 
 # What's in my .goosehints file (and why it probably shouldn't be)
 
-As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the [Memory Extension](/docs/tutorials/memory-mcp) MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to the Memory Extension, and how you can make that choice.
+As Goose users, we have two main ways to provide persistent context to our AI assistant: the `.goosehints` file and the [Memory Extension](/docs/mcp/memory-mcp) MCP server. Today, I'll share what's in my `.goosehints` file, why some of it should probably move to the Memory Extension, and how you can make that choice.
 
 <!-- truncate -->
 
@@ -22,7 +22,7 @@ That stored knowledge – your preferences, quirks, and routine – makes the wh
 
 This is exactly the challenge we face with AI assistants. By default, they start each conversation (aka, "context window") fresh – no memory of your coding standards, documentation preferences, or how you like your pull requests structured. The same way you'd get tired of reciting your detailed coffee order every morning, it's inefficient to repeatedly explain to your AI assistant that you prefer Python's Black formatter, want detailed commit messages, and or how you want to construct a briefing going to everyone in the company.
 
-This is where persistent context comes in. Through tools like `.goosehints` and the [Memory Extension](/docs/tutorials/memory-mcp) MCP server, we can give our AI assistants the equivalent of a barista's "regular customer" knowledge. But just as you wouldn't want your barista memorizing your entire life story just to make your coffee, we need to be thoughtful about what context we make persistent. The key is finding the right balance between having enough context to work efficiently and not overwhelming our systems with unnecessary information.
+This is where persistent context comes in. Through tools like `.goosehints` and the [Memory Extension](/docs/mcp/memory-mcp) MCP server, we can give our AI assistants the equivalent of a barista's "regular customer" knowledge. But just as you wouldn't want your barista memorizing your entire life story just to make your coffee, we need to be thoughtful about what context we make persistent. The key is finding the right balance between having enough context to work efficiently and not overwhelming our systems with unnecessary information.
 
 Let's explore how to strike that balance.
 
@@ -34,7 +34,7 @@ You can read more about `.goosehints` in the [Goose documentation](/docs/guides/
 
 ### What is the Memory Extension?
 
-The [Memory Extension](/docs/tutorials/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `~/.goose/memory` directory (local) or `~/.config/goose/memory` (global).
+The [Memory Extension](/docs/mcp/memory-mcp) is a dynamic storage system using the Model Context Protocol that allows you to store and retrieve context on-demand using tags or keywords. It lives in your `~/.goose/memory` directory (local) or `~/.config/goose/memory` (global).
 
 Unlike `.goosehints`, which is static and loaded entirely with every request, Memory Extension can be updated and accessed as needed, allowing for more flexible and user-specific configurations.
 

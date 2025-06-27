@@ -64,6 +64,7 @@ export type ContextManageResponse = {
 
 export type CreateScheduleRequest = {
     cron: string;
+    execution_mode?: string | null;
     id: string;
     recipe_source: string;
 };
@@ -229,9 +230,21 @@ export type ModelInfo = {
      */
     context_limit: number;
     /**
+     * Currency for the costs (default: "$")
+     */
+    currency?: string | null;
+    /**
+     * Cost per token for input (optional)
+     */
+    input_token_cost?: number | null;
+    /**
      * The name of the model
      */
     name: string;
+    /**
+     * Cost per token for output (optional)
+     */
+    output_token_cost?: number | null;
 };
 
 export type PermissionConfirmationRequest = {
@@ -316,6 +329,7 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
+    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
@@ -796,6 +810,29 @@ export type ReadConfigResponses = {
     200: unknown;
 };
 
+export type RecoverConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/recover';
+};
+
+export type RecoverConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RecoverConfigResponses = {
+    /**
+     * Config recovery attempted
+     */
+    200: string;
+};
+
+export type RecoverConfigResponse = RecoverConfigResponses[keyof RecoverConfigResponses];
+
 export type RemoveConfigData = {
     body: ConfigKeyQuery;
     path?: never;
@@ -845,6 +882,29 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ValidateConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/validate';
+};
+
+export type ValidateConfigErrors = {
+    /**
+     * Config file is corrupted
+     */
+    422: unknown;
+};
+
+export type ValidateConfigResponses = {
+    /**
+     * Config validation result
+     */
+    200: string;
+};
+
+export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
 
 export type ConfirmPermissionData = {
     body: PermissionConfirmationRequest;
@@ -910,6 +970,14 @@ export type CreateScheduleData = {
 };
 
 export type CreateScheduleErrors = {
+    /**
+     * Invalid cron expression or recipe file
+     */
+    400: unknown;
+    /**
+     * Job ID already exists
+     */
+    409: unknown;
     /**
      * Internal server error
      */

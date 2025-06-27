@@ -2,11 +2,14 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send, Close } from './icons';
+import { Attach, Send, Close, Microphone } from './icons';
 import { debounce } from 'lodash';
 import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
+import { useWhisper } from '../hooks/useWhisper';
+import { WaveformVisualizer } from './WaveformVisualizer';
+import { toastError } from '../toasts';
 
 interface PastedImage {
   id: string;
@@ -29,9 +32,18 @@ interface ChatInputProps {
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
+  sessionCosts?: {
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  };
 }
 
 export default function ChatInput({
@@ -42,14 +54,50 @@ export default function ChatInput({
   initialValue = '',
   setView,
   numTokens,
+  inputTokens,
+  outputTokens,
   droppedFiles = [],
   messages = [],
   setMessages,
+  sessionCosts,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+
+  // Whisper hook for voice dictation
+  const {
+    isRecording,
+    isTranscribing,
+    canUseDictation,
+    audioContext,
+    analyser,
+    startRecording,
+    stopRecording,
+    recordingDuration,
+    estimatedSize,
+  } = useWhisper({
+    onTranscription: (text) => {
+      // Append transcribed text to the current input
+      const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
+      setDisplayValue(newValue);
+      setValue(newValue);
+      textAreaRef.current?.focus();
+    },
+    onError: (error) => {
+      toastError({
+        title: 'Dictation Error',
+        msg: error.message,
+      });
+    },
+    onSizeWarning: (sizeMB) => {
+      toastError({
+        title: 'Recording Size Warning',
+        msg: `Recording is ${sizeMB.toFixed(1)}MB. Maximum size is 25MB.`,
+      });
+    },
+  });
 
   // Update internal value when initialValue changes
   useEffect(() => {
@@ -439,28 +487,40 @@ export default function ChatInput({
       } bg-bgApp z-10`}
     >
       <form onSubmit={onFormSubmit}>
-        <textarea
-          data-testid="chat-input"
-          autoFocus
-          id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
-          value={displayValue}
-          onChange={handleChange}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          ref={textAreaRef}
-          rows={1}
-          style={{
-            minHeight: `${minHeight}px`,
-            maxHeight: `${maxHeight}px`,
-            overflowY: 'auto',
-          }}
-          className="w-full pl-4 pr-[68px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-        />
+        <div className="relative">
+          <textarea
+            data-testid="chat-input"
+            autoFocus
+            id="dynamic-textarea"
+            placeholder={isRecording ? '' : 'What can goose help with?   ⌘↑/⌘↓'}
+            value={displayValue}
+            onChange={handleChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            ref={textAreaRef}
+            rows={1}
+            style={{
+              minHeight: `${minHeight}px`,
+              maxHeight: `${maxHeight}px`,
+              overflowY: 'auto',
+              opacity: isRecording ? 0 : 1,
+            }}
+            className="w-full pl-4 pr-[108px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+          />
+          {isRecording && (
+            <div className="absolute inset-0 flex items-center pl-4 pr-[108px] pt-3 pb-1.5">
+              <WaveformVisualizer
+                audioContext={audioContext}
+                analyser={analyser}
+                isRecording={isRecording}
+              />
+            </div>
+          )}
+        </div>
 
         {pastedImages.length > 0 && (
           <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
@@ -525,20 +585,85 @@ export default function ChatInput({
             <Stop size={24} />
           </Button>
         ) : (
-          <Button
-            type="submit"
-            size="icon"
-            variant="ghost"
-            disabled={!hasSubmittableContent || isAnyImageLoading} // Disable if no content or if images are still loading/saving
-            className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-              !hasSubmittableContent || isAnyImageLoading
-                ? 'text-textSubtle cursor-not-allowed'
-                : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
-            }`}
-            title={isAnyImageLoading ? 'Waiting for images to save...' : 'Send'}
-          >
-            <Send />
-          </Button>
+          <>
+            {/* Microphone button - only show if dictation is enabled and configured */}
+            {canUseDictation && (
+              <>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (isRecording) {
+                      stopRecording();
+                    } else {
+                      startRecording();
+                    }
+                  }}
+                  disabled={isTranscribing}
+                  className={`absolute right-12 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
+                    isRecording
+                      ? 'bg-red-500 text-white hover:bg-red-600'
+                      : isTranscribing
+                        ? 'text-textSubtle cursor-not-allowed animate-pulse'
+                        : 'text-textSubtle hover:text-textStandard'
+                  }`}
+                  title={
+                    isRecording
+                      ? `Stop recording (${Math.floor(recordingDuration)}s, ~${estimatedSize.toFixed(1)}MB)`
+                      : isTranscribing
+                        ? 'Transcribing...'
+                        : 'Start dictation'
+                  }
+                >
+                  <Microphone />
+                </Button>
+                {/* Recording/transcribing status indicator - positioned above the input */}
+                {(isRecording || isTranscribing) && (
+                  <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+                    {isTranscribing ? (
+                      <span className="text-blue-500 flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                        Transcribing...
+                      </span>
+                    ) : (
+                      <span
+                        className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                      >
+                        <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                        {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            <Button
+              type="submit"
+              size="icon"
+              variant="ghost"
+              disabled={
+                !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
+              }
+              className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
+                !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
+                  ? 'text-textSubtle cursor-not-allowed'
+                  : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
+              }`}
+              title={
+                isAnyImageLoading
+                  ? 'Waiting for images to save...'
+                  : isRecording
+                    ? 'Recording...'
+                    : isTranscribing
+                      ? 'Transcribing...'
+                      : 'Send'
+              }
+            >
+              <Send />
+            </Button>
+          </>
         )}
       </form>
 
@@ -557,9 +682,12 @@ export default function ChatInput({
           <BottomMenu
             setView={setView}
             numTokens={numTokens}
+            inputTokens={inputTokens}
+            outputTokens={outputTokens}
             messages={messages}
             isLoading={isLoading}
             setMessages={setMessages}
+            sessionCosts={sessionCosts}
           />
         </div>
       </div>

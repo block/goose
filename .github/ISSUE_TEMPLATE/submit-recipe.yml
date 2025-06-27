@@ -1,0 +1,58 @@
+name: 🧑‍🍳 Submit a Recipe to the Goose Cookbook
+description: Share a reusable Goose session (aka a recipe) to help the community!
+title: "[Recipe] <your recipe title here>"
+labels: ["recipe submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing to the Goose Cookbook! 🍳  
+        Recipes are reusable sessions created in Goose Desktop or CLI and shared with the community to help others vibe-code faster.
+
+        📌 **How to Submit**
+        - Create your recipe using Goose ("Make Agent from this session")
+        - Fill out the JSON below using the format provided
+        - Paste it into the field and submit the issue — we'll review and add it to the Cookbook!
+
+        🪄 **What Happens After?**
+        - If accepted, we'll publish your recipe to the [Goose Recipes Cookbook](https://block.github.io/goose/recipes)
+        - You'll receive LLM credits as a thank-you!
+        - Your GitHub handle will be displayed and linked on the recipe card
+
+  - type: textarea
+    id: recipe-json
+    attributes:
+      label: Paste Your Recipe JSON Below
+      description: Use the structure below and be sure to include your GitHub handle.
+      placeholder: |
+        {
+          "id": "joke-of-the-day",
+          "title": "Joke of the day",
+          "description": "Will tell you a joke of the day based on the current day",
+          "instructions": "Your job is to tell a joke of the day",
+          "prompt": "Based on what day it is today, generate a joke. Mention the day on the first line then an empty line and then the joke. Don't just say the date, but figure out if there's any cultural significance, like national shelves day",
+          "action": "Generate Joke",
+          "category": "Entertainment",
+          "extensions": ["Developer"],
+          "activities": ["Tell a joke", "Daily humor"],
+          "recipeUrl": "goose://recipe?config=...",
+          "author": "your-github-handle"
+        }
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        🛠 **Recipe Field Tips**
+        - `"id"` should be lowercase, hyphenated, and unique (e.g. `my-awesome-recipe`)
+        - `"title"` is the display name of your recipe
+        - `"description"` should clearly explain what the recipe does
+        - `"instructions"` are the specific instructions for the Goose agent
+        - `"prompt"` is the initial prompt that starts the recipe when launched
+        - `"action"` describes the core purpose of the recipe (e.g., `Generate Docs`)
+        - `"category"` is the type of user this recipe is for (e.g., `Developer`, `Entertainment`)
+        - `"extensions"` are the Goose tools this recipe uses
+        - `"activities"` are the main steps or capabilities of your recipe
+        - `"recipeUrl"` is from Goose Desktop/CLI
+        - `"author"` is your GitHub handle — we'll link to your profile in the Cookbook

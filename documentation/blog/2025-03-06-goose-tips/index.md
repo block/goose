@@ -18,7 +18,7 @@ One of the most common mistakes users make is trying to accomplish too much in a
 
 Every message adds to the context window, which is the amount of conversation history Goose can retain at any given time. This history is made up of tokens, the individual pieces of text (words or even parts of words) that Goose processes to generate responses. More tokens don’t just increase processing time, they also contribute to LLM usage costs. And once the context window fills up, older messages get pushed out, which can lead to loss of important details or unexpected behavior.
 
-Think of it like keeping too many browser tabs open. Eventually, it impacts performance. Instead, start fresh sessions for distinct tasks. Don't worry about losing context; that's exactly what the [Memory extension](/docs/tutorials/memory-mcp) is for. Keeping sessions focused and concise ensures more accurate, relevant responses while also keeping your LLM costs under control.
+Think of it like keeping too many browser tabs open. Eventually, it impacts performance. Instead, start fresh sessions for distinct tasks. Don't worry about losing context; that's exactly what the [Memory extension](/docs/mcp/memory-mcp) is for. Keeping sessions focused and concise ensures more accurate, relevant responses while also keeping your LLM costs under control.
 
 
 ## 2. Minimize Active Extensions
@@ -27,7 +27,7 @@ When it comes to Goose extensions, less is often more. It's tempting to enable [
 
 Consider this: if you're cooking in a kitchen, having every possible utensil and appliance out on the counter doesn't make you a better chef. It just creates clutter and confusion. The same principle applies here. 
 
-Go ahead and install any extensions that interest you, but [keep them disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions) until you need them. Start with the built-in [Developer extension](/docs/tutorials/developer-mcp) enabled, which is surprisingly powerful on its own, and only enable others when you need their specific capabilities. This leads to faster responses, lower token usage, and often more focused solutions.
+Go ahead and install any extensions that interest you, but [keep them disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions) until you need them. Start with the built-in [Developer extension](/docs/mcp/developer-mcp) enabled, which is surprisingly powerful on its own, and only enable others when you need their specific capabilities. This leads to faster responses, lower token usage, and often more focused solutions.
 
 :::tip Bonus Tip
 Before starting a complex task, ask Goose about its current capabilities. A simple prompt like "Do you have tools available to work with [specific technology/service]?" can save time and prevent false starts. Goose can tell you whether it has the necessary tools for your task, and if not, suggest which extensions you might need to enable. This quick check ensures you have the right tools ready before diving in too deep.

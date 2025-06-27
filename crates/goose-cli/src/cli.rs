@@ -17,7 +17,9 @@ use crate::commands::schedule::{
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
+use crate::recipes::recipe::{
+    explain_recipe_with_parameters, load_recipe_as_template, load_recipe_content_as_template,
+};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -43,7 +45,8 @@ struct Identifier {
         long,
         value_name = "NAME",
         help = "Name for the chat session (e.g., 'project-x')",
-        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
+        alias = "id"
     )]
     name: Option<String>,
 
@@ -375,6 +378,16 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Additional system prompt to customize agent behavior
+        #[arg(
+            long = "system",
+            value_name = "TEXT",
+            help = "Additional system prompt to customize agent behavior",
+            long_help = "Provide additional system instructions to customize the agent's behavior",
+            conflicts_with = "recipe"
+        )]
+        system: Option<String>,
+
         /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
@@ -420,6 +433,13 @@ enum Command {
             help = "Show the recipe title, description, and parameters"
         )]
         explain: bool,
+
+        /// Print the rendered recipe instead of running it
+        #[arg(
+            long = "render-recipe",
+            help = "Print the rendered recipe instead of running it."
+        )]
+        render_recipe: bool,
 
         /// Maximum number of consecutive identical tool calls allowed
         #[arg(
@@ -481,6 +501,24 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        /// Quiet mode - suppress non-response output
+        #[arg(
+            short = 'q',
+            long = "quiet",
+            help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
+        )]
+        quiet: bool,
+
+        /// Scheduled job ID (used internally for scheduled executions)
+        #[arg(
+            long = "scheduled-job-id",
+            value_name = "ID",
+            help = "ID of the scheduled job that triggered this execution (internal use)",
+            long_help = "Internal parameter used when this run command is executed by a scheduled job. This associates the session with the schedule for tracking purposes.",
+            hide = true
+        )]
+        scheduled_job_id: Option<String>,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -634,7 +672,10 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
-                        interactive: true, // Session command is always interactive
+                        scheduled_job_id: None,
+                        interactive: true,
+                        quiet: false,
+                        sub_recipes: None,
                     })
                     .await;
                     setup_logging(
@@ -662,10 +703,12 @@ pub async fn cli() -> Result<()> {
             handle_projects_interactive()?;
             return Ok(());
         }
+
         Some(Command::Run {
             instructions,
             input_text,
             recipe,
+            system,
             interactive,
             identifier,
             resume,
@@ -677,10 +720,18 @@ pub async fn cli() -> Result<()> {
             builtins,
             params,
             explain,
+            render_recipe,
+            scheduled_job_id,
+            quiet,
         }) => {
-            let (input_config, session_settings) = match (instructions, input_text, recipe, explain)
-            {
-                (Some(file), _, _, _) if file == "-" => {
+            let (input_config, session_settings, sub_recipes) = match (
+                instructions,
+                input_text,
+                recipe,
+                explain,
+                render_recipe,
+            ) {
+                (Some(file), _, _, _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
@@ -690,12 +741,13 @@ pub async fn cli() -> Result<()> {
                         InputConfig {
                             contents: Some(input),
                             extensions_override: None,
-                            additional_system_prompt: None,
+                            additional_system_prompt: system,
                         },
+                        None,
                         None,
                     )
                 }
-                (Some(file), _, _, _) => {
+                (Some(file), _, _, _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
@@ -710,19 +762,30 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: None,
                         },
                         None,
+                        None,
                     )
                 }
-                (_, Some(text), _, _) => (
+                (_, Some(text), _, _, _) => (
                     InputConfig {
                         contents: Some(text),
                         extensions_override: None,
-                        additional_system_prompt: None,
+                        additional_system_prompt: system,
                     },
                     None,
+                    None,
                 ),
-                (_, _, Some(recipe_name), explain) => {
+                (_, _, Some(recipe_name), explain, render_recipe) => {
                     if explain {
                         explain_recipe_with_parameters(&recipe_name, params)?;
+                        return Ok(());
+                    }
+                    if render_recipe {
+                        let recipe = load_recipe_content_as_template(&recipe_name, params)
+                            .unwrap_or_else(|err| {
+                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                                std::process::exit(1);
+                            });
+                        println!("{}", recipe);
                         return Ok(());
                     }
                     let recipe =
@@ -741,9 +804,10 @@ pub async fn cli() -> Result<()> {
                             goose_model: s.goose_model,
                             temperature: s.temperature,
                         }),
+                        recipe.sub_recipes,
                     )
                 }
-                (None, None, None, _) => {
+                (None, None, None, _, _) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }
@@ -761,7 +825,10 @@ pub async fn cli() -> Result<()> {
                 settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
+                quiet,
+                sub_recipes,
             })
             .await;
 
@@ -877,7 +944,10 @@ pub async fn cli() -> Result<()> {
                     settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
+                    quiet: false,
+                    sub_recipes: None,
                 })
                 .await;
                 setup_logging(

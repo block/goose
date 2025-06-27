@@ -59,6 +59,13 @@ copy-binary BUILD_MODE="release":
         echo "Binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
+    @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
+        echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
+        cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
+    else \
+        echo "Goose CLI binary not found in target/{{BUILD_MODE}}"; \
+        exit 1; \
+    fi
     @if [ -f ./temporal-service/temporal-service ]; then \
         echo "Copying temporal-service binary..."; \
         cp -p ./temporal-service/temporal-service ./ui/desktop/src/bin/; \
@@ -81,6 +88,13 @@ copy-binary-intel:
         cp -p ./target/x86_64-apple-darwin/release/goosed ./ui/desktop/src/bin/; \
     else \
         echo "Intel release binary not found."; \
+        exit 1; \
+    fi
+    @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
+        echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
+        cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
+    else \
+        echo "Intel goose CLI binary not found."; \
         exit 1; \
     fi
     @if [ -f ./temporal-service/temporal-service ]; then \
@@ -108,6 +122,12 @@ copy-binary-windows:
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
     }"
+    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe) { \
+        Write-Host 'Copying Windows goose-scheduler-executor binary...'; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose-scheduler-executor.exe' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows goose-scheduler-executor binary not found.' -ForegroundColor Yellow; \
+    }"
     @if [ -f ./temporal-service/temporal-service.exe ]; then \
         echo "Copying Windows temporal-service binary..."; \
         cp -p ./temporal-service/temporal-service.exe ./ui/desktop/src/bin/; \
@@ -134,6 +154,12 @@ run-ui-alpha temporal="true":
     @echo "Running UI with {{ if temporal == "true" { "Temporal" } else { "Legacy" } }} scheduler..."
     cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE={{ if temporal == "true" { "temporal" } else { "legacy" } }} npm run start-alpha-gui
 
+# Run UI with alpha changes using legacy scheduler (no Temporal dependency)
+run-ui-alpha-legacy:
+    @just release-binary
+    @echo "Running UI with Legacy scheduler (no Temporal required)..."
+    cd ui/desktop && npm install && ALPHA=true GOOSE_SCHEDULER_TYPE=legacy npm run start-alpha-gui
+
 # Run UI with latest (Windows version)
 run-ui-windows:
     @just release-windows
@@ -152,9 +178,18 @@ run-server:
     cargo run -p goose-server
 
 # make GUI with latest binary
+lint-ui:
+    cd ui/desktop && npm run lint:check
+
+# make GUI with latest binary
 make-ui:
     @just release-binary
     cd ui/desktop && npm run bundle:default
+
+# make GUI with latest binary and alpha features enabled
+make-ui-alpha:
+    @just release-binary
+    cd ui/desktop && npm run bundle:alpha
 
 # make GUI with latest Windows binary
 make-ui-windows:
@@ -168,25 +203,8 @@ make-ui-windows:
         echo "Copying Windows binary and DLLs..." && \
         cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
-        if [ -d "./ui/desktop/src/platform/windows/bin" ]; then \
-            echo "Copying Windows platform files..." && \
-            for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do \
-                if [ -f "$file" ] && [ "$(basename "$file")" != "goosed.exe" ]; then \
-                    cp -f "$file" ./ui/desktop/src/bin/; \
-                fi; \
-            done && \
-            if [ -d "./ui/desktop/src/platform/windows/bin/goose-npm" ]; then \
-                echo "Setting up npm environment..." && \
-                rsync -a --delete ./ui/desktop/src/platform/windows/bin/goose-npm/ ./ui/desktop/src/bin/goose-npm/; \
-            fi && \
-            echo "Windows-specific files copied successfully"; \
-        fi && \
         echo "Starting Windows package build..." && \
-        (cd ui/desktop && echo "In desktop directory, running npm bundle:windows..." && npm run bundle:windows) && \
-        echo "Creating resources directory..." && \
-        (cd ui/desktop && mkdir -p out/Goose-win32-x64/resources/bin) && \
-        echo "Copying final binaries..." && \
-        (cd ui/desktop && rsync -av src/bin/ out/Goose-win32-x64/resources/bin/) && \
+        (cd ui/desktop && npm run bundle:windows) && \
         echo "Windows package build complete!"; \
     else \
         echo "Windows binary not found."; \
@@ -198,10 +216,50 @@ make-ui-intel:
     @just release-intel
     cd ui/desktop && npm run bundle:intel
 
-# Setup langfuse server
-langfuse-server:
-    #!/usr/bin/env bash
-    ./scripts/setup_langfuse.sh
+# Start Temporal services (server and temporal-service)
+start-temporal:
+    @echo "Starting Temporal server..."
+    @if ! pgrep -f "temporal server start-dev" > /dev/null; then \
+        echo "Starting Temporal server in background..."; \
+        nohup temporal server start-dev --db-filename temporal.db --port 7233 --ui-port 8233 --log-level warn > temporal-server.log 2>&1 & \
+        echo "Waiting for Temporal server to start..."; \
+        sleep 5; \
+    else \
+        echo "Temporal server is already running"; \
+    fi
+    @echo "Starting temporal-service..."
+    @if ! pgrep -f "temporal-service" > /dev/null; then \
+        echo "Starting temporal-service in background..."; \
+        cd temporal-service && nohup ./temporal-service > temporal-service.log 2>&1 & \
+        echo "Waiting for temporal-service to start..."; \
+        sleep 3; \
+    else \
+        echo "temporal-service is already running"; \
+    fi
+    @echo "Temporal services started. Check logs: temporal-server.log, temporal-service/temporal-service.log"
+
+# Stop Temporal services
+stop-temporal:
+    @echo "Stopping Temporal services..."
+    @pkill -f "temporal server start-dev" || echo "Temporal server was not running"
+    @pkill -f "temporal-service" || echo "temporal-service was not running"
+    @echo "Temporal services stopped"
+
+# Check status of Temporal services
+status-temporal:
+    @echo "Checking Temporal services status..."
+    @if pgrep -f "temporal server start-dev" > /dev/null; then \
+        echo "✓ Temporal server is running"; \
+    else \
+        echo "✗ Temporal server is not running"; \
+    fi
+    @if pgrep -f "temporal-service" > /dev/null; then \
+        echo "✓ temporal-service is running"; \
+    else \
+        echo "✗ temporal-service is not running"; \
+    fi
+    @echo "Testing temporal-service health..."
+    @curl -s http://localhost:8080/health > /dev/null && echo "✓ temporal-service is responding" || echo "✗ temporal-service is not responding"
 
 # Run UI with debug build
 run-dev:

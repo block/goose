@@ -30,6 +30,9 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
     // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
     map.insert("llama3.2", 128_000);
     map.insert("llama3.3", 128_000);
+
+    // x.ai Grok models, https://docs.x.ai/docs/overview
+    map.insert("grok", 131_072);
     map
 });
 

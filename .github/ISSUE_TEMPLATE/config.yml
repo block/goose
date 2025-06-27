@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Goose Discord discussion
+    url: https://discord.gg/block-opensource
+    about: Please ask and answer questions here.
+  - name: Report a security vulnerability
+    url: https://github.com/block/goose/security/policy
+    about: Please report security vulnerabilities here.

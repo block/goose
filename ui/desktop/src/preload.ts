@@ -1,17 +1,26 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { Recipe } from './recipe';
 
-interface RecipeConfig {
-  id: string;
-  name: string;
-  description: string;
-  instructions?: string;
-  activities?: string[];
-  [key: string]: unknown;
-}
+// RecipeConfig is used for window creation and should match Recipe interface
+type RecipeConfig = Recipe;
 
 interface NotificationData {
   title: string;
   body: string;
+}
+
+interface MessageBoxOptions {
+  type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+  buttons?: string[];
+  defaultId?: number;
+  title?: string;
+  message: string;
+  detail?: string;
+}
+
+interface MessageBoxResponse {
+  response: number;
+  checkboxChecked?: boolean;
 }
 
 interface FileResponse {
@@ -51,6 +60,7 @@ type ElectronAPI = {
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
+  showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
@@ -61,12 +71,19 @@ type ElectronAPI = {
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
+  ensureDirectory: (dirPath: string) => Promise<boolean>;
+  listFiles: (dirPath: string, extension?: string) => Promise<string[]>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
   setMenuBarIcon: (show: boolean) => Promise<boolean>;
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
+  getSettings: () => Promise<unknown | null>;
+  setSchedulingEngine: (engine: string) => Promise<boolean>;
+  setQuitConfirmation: (show: boolean) => Promise<boolean>;
+  getQuitConfirmationState: () => Promise<boolean>;
+  openNotificationsSettings: () => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -121,6 +138,7 @@ const electronAPI: ElectronAPI = {
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
+  showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
@@ -132,12 +150,20 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
+  ensureDirectory: (dirPath: string) => ipcRenderer.invoke('ensure-directory', dirPath),
+  listFiles: (dirPath: string, extension?: string) =>
+    ipcRenderer.invoke('list-files', dirPath, extension),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAllowedExtensions: () => ipcRenderer.invoke('get-allowed-extensions'),
   setMenuBarIcon: (show: boolean) => ipcRenderer.invoke('set-menu-bar-icon', show),
   getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
+  setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
+  getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
+  openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

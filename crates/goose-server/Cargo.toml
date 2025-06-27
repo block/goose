@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
@@ -37,7 +40,7 @@ serde_yaml = "0.9.34"
 axum-extra = "0.10.0"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 dirs = "6.0.0"
-reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking"], default-features = false }
+reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 
 [[bin]]
 name = "goosed"

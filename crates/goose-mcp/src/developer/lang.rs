@@ -4,6 +4,8 @@ use std::path::Path;
 pub fn get_language_identifier(path: &Path) -> &'static str {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("rs") => "rust",
+        Some("hs") => "haskell",
+        Some("rkt") | Some("scm") => "scheme",
         Some("py") => "python",
         Some("js") => "javascript",
         Some("ts") => "typescript",
