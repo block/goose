@@ -501,7 +501,7 @@ impl TemporalScheduler {
         let request = JobRequest {
             action: "create".to_string(),
             job_id: Some(job.id.clone()),
-            cron: Some(normalized_cron),
+            cron: Some(normalized_cron.clone()),
             recipe_path: Some(job.source.clone()),
             execution_mode: job.execution_mode.clone(),
         };
