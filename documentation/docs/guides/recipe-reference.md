@@ -1,7 +1,7 @@
 ---
 sidebar_position: 18
 title: Recipe Reference Guide
-sidebar_label: Recipes
+sidebar_label: Recipe Reference Guide
 ---
 
 Recipes are YAML or JSON files that define how an AI agent should behave and what parameters it needs. They provide a structured way to create reusable AI interactions that can be shared and versioned.
