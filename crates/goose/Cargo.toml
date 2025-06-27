@@ -82,6 +82,7 @@ blake3 = "1.5"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
 tokio-stream = "0.1.17"
+dashmap = "6.1"
 
 # Vector database for tool selection
 lancedb = "0.13"
