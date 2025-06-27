@@ -4,7 +4,7 @@ title: Recipe Reference Guide
 sidebar_label: Recipe Reference Guide
 ---
 
-Recipes are YAML or JSON files that define how an AI agent should behave and what parameters it needs. They provide a structured way to create reusable AI interactions that can be shared and versioned.
+Recipes are reusable Goose configurations that package up a specific setup so it can be easily shared and launched by others.
 
 ## Recipe File Format
 
