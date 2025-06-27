@@ -68,7 +68,7 @@ A ranked list of the top 10 items we need to address, including a short descript
 
 **MCPs used** 
 
-- [GitHub](/goose/docs/mcp/github-mcp)
+- [GitHub](/docs/mcp/github-mcp)
 - Slack
 - [Discord](https://github.com/hanweg/mcp-discord)
 
