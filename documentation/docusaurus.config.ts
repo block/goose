@@ -108,11 +108,11 @@ const config: Config = {
           },
           {
             from: '/docs/guides/share-goose-sessions',
-            to: '/docs/guides/recipes/shareable-recipes'
+            to: '/docs/guides/recipes/session-recipes'
           },
           {
             from: '/docs/guides/session-recipes',
-            to: '/docs/guides/recipes/shareable-recipes'
+            to: '/docs/guides/recipes/session-recipes'
           },
           {
             from: '/docs/guides/recipe-reference',
