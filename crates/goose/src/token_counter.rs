@@ -1,14 +1,14 @@
+use ahash::AHasher;
+use dashmap::DashMap;
 use include_dir::{include_dir, Dir};
 use mcp_core::Tool;
 use std::error::Error;
+use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::Arc;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::OnceCell;
-use dashmap::DashMap;
-use std::fs;
-use ahash::AHasher;
 
 use crate::message::Message;
 
@@ -38,9 +38,9 @@ impl AsyncTokenCounter {
     /// Creates a new async token counter with caching
     pub async fn new(tokenizer_name: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         // Initialize global cache if not already done
-        let cache = TOKENIZER_CACHE.get_or_init(|| async {
-            Arc::new(DashMap::new())
-        }).await;
+        let cache = TOKENIZER_CACHE
+            .get_or_init(|| async { Arc::new(DashMap::new()) })
+            .await;
 
         // Check cache first - DashMap allows concurrent reads
         if let Some(tokenizer) = cache.get(tokenizer_name) {
@@ -93,12 +93,17 @@ impl AsyncTokenCounter {
     }
 
     /// Async download that doesn't block the runtime
-    async fn download_and_load_async(tokenizer_name: &str) -> Result<Tokenizer, Box<dyn Error + Send + Sync>> {
+    async fn download_and_load_async(
+        tokenizer_name: &str,
+    ) -> Result<Tokenizer, Box<dyn Error + Send + Sync>> {
         let local_dir = std::env::temp_dir().join(tokenizer_name);
         let local_json_path = local_dir.join("tokenizer.json");
 
         // Check if file exists
-        if !tokio::fs::try_exists(&local_json_path).await.unwrap_or(false) {
+        if !tokio::fs::try_exists(&local_json_path)
+            .await
+            .unwrap_or(false)
+        {
             eprintln!("Downloading tokenizer: {}", tokenizer_name);
             let repo_id = tokenizer_name.replace("--", "/");
             Self::download_tokenizer_async(&repo_id, &local_dir).await?;
@@ -114,8 +119,8 @@ impl AsyncTokenCounter {
 
     /// Proper async download without blocking
     async fn download_tokenizer_async(
-        repo_id: &str, 
-        download_dir: &std::path::Path
+        repo_id: &str,
+        download_dir: &std::path::Path,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         tokio::fs::create_dir_all(download_dir).await?;
 
@@ -128,7 +133,7 @@ impl AsyncTokenCounter {
         // Use async HTTP client - no runtime blocking!
         let client = reqwest::Client::new();
         let response = client.get(&file_url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(format!("HTTP {}: Failed to download tokenizer", response.status()).into());
         }
@@ -154,7 +159,7 @@ impl AsyncTokenCounter {
         // Compute and cache result with size management
         let encoding = self.tokenizer.encode(text, false).unwrap_or_default();
         let count = encoding.len();
-        
+
         // Manage cache size to prevent unbounded growth
         if self.token_cache.len() >= MAX_TOKEN_CACHE_SIZE {
             // Simple eviction: remove a random entry
@@ -163,7 +168,7 @@ impl AsyncTokenCounter {
                 self.token_cache.remove(&old_hash);
             }
         }
-        
+
         self.token_cache.insert(hash, count);
         count
     }
@@ -184,7 +189,7 @@ impl AsyncTokenCounter {
                 func_token_count += func_init;
                 let name = &tool.name;
                 let description = &tool.description.trim_end_matches('.');
-                
+
                 // Optimize: count components separately to avoid string allocation
                 // Note: the separator (:) is likely tokenized with adjacent tokens, so we use original approach for accuracy
                 let line = format!("{}:{}", name, description);
@@ -201,11 +206,11 @@ impl AsyncTokenCounter {
                                 .as_str()
                                 .unwrap_or("")
                                 .trim_end_matches('.');
-                            
+
                             // Note: separators are tokenized with adjacent tokens, keep original for accuracy
                             let line = format!("{}:{}:{}", p_name, p_type, p_desc);
                             func_token_count += self.count_tokens(&line);
-                            
+
                             if let Some(enum_values) = value["enum"].as_array() {
                                 func_token_count =
                                     func_token_count.saturating_add_signed(enum_init);
@@ -247,7 +252,7 @@ impl AsyncTokenCounter {
                     num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
-                    // Note: separators are tokenized with adjacent tokens, keep original for accuracy  
+                    // Note: separators are tokenized with adjacent tokens, keep original for accuracy
                     let text = format!(
                         "{}:{}:{}",
                         tool_request.id, tool_call.name, tool_call.arguments
@@ -373,12 +378,12 @@ impl TokenCounter {
         // Use blocking reqwest client to avoid nested runtime
         let client = reqwest::blocking::Client::new();
         let response = client.get(&file_url).send()?;
-        
+
         if !response.status().is_success() {
             let error_msg = format!("Failed to download tokenizer: status {}", response.status());
             return Err(Box::<dyn Error>::from(error_msg));
         }
-        
+
         let bytes = response.bytes()?;
         std::fs::write(&file_path, bytes)?;
 
@@ -666,16 +671,16 @@ mod tests {
         let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
 
         let text = "This is a test for caching functionality";
-        
+
         // First call should compute and cache
         let count1 = counter.count_tokens(text);
         assert_eq!(counter.cache_size(), 1);
-        
+
         // Second call should use cache
         let count2 = counter.count_tokens(text);
         assert_eq!(count1, count2);
         assert_eq!(counter.cache_size(), 1);
-        
+
         // Different text should increase cache
         let count3 = counter.count_tokens("Different text");
         assert_eq!(counter.cache_size(), 2);
@@ -732,7 +737,10 @@ mod tests {
         }];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
-        println!("Async total tokens without tools: {}", token_count_without_tools);
+        println!(
+            "Async total tokens without tools: {}",
+            token_count_without_tools
+        );
 
         let token_count_with_tools = counter.count_chat_tokens(system_prompt, &messages, &tools);
         println!("Async total tokens with tools: {}", token_count_with_tools);
@@ -747,33 +755,120 @@ mod tests {
         // Create two counters with the same tokenizer name
         let counter1 = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
         let counter2 = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
-        
+
         // Both should work and give same results (tokenizer is cached globally)
         let text = "Test tokenizer caching";
         let count1 = counter1.count_tokens(text);
         let count2 = counter2.count_tokens(text);
-        
+
         assert_eq!(count1, count2);
     }
 
     #[tokio::test]
     async fn test_async_cache_management() {
         let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
-        
+
         // Add some items to cache
         counter.count_tokens("First text");
         counter.count_tokens("Second text");
         counter.count_tokens("Third text");
-        
+
         assert_eq!(counter.cache_size(), 3);
-        
+
         // Clear cache
         counter.clear_cache();
         assert_eq!(counter.cache_size(), 0);
-        
+
         // Re-count should work fine
         let count = counter.count_tokens("First text");
         assert!(count > 0);
         assert_eq!(counter.cache_size(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_token_counter_creation() {
+        // Test concurrent creation of token counters to verify no race conditions
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                tokio::spawn(async { create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap() })
+            })
+            .collect();
+
+        let counters: Vec<_> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|r| r.unwrap())
+            .collect();
+
+        // All should work and give same results
+        let text = "Test concurrent creation";
+        let expected_count = counters[0].count_tokens(text);
+
+        for counter in &counters {
+            assert_eq!(counter.count_tokens(text), expected_count);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cache_eviction_behavior() {
+        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
+
+        // Fill cache beyond normal size to test eviction
+        let mut cached_texts = Vec::new();
+        for i in 0..50 {
+            let text = format!("Test string number {}", i);
+            counter.count_tokens(&text);
+            cached_texts.push(text);
+        }
+
+        // Cache should be bounded
+        assert!(counter.cache_size() <= MAX_TOKEN_CACHE_SIZE);
+
+        // Earlier entries may have been evicted, but recent ones should still be cached
+        let recent_text = &cached_texts[cached_texts.len() - 1];
+        let start_size = counter.cache_size();
+
+        // This should be a cache hit (no size increase)
+        counter.count_tokens(recent_text);
+        assert_eq!(counter.cache_size(), start_size);
+    }
+
+    #[tokio::test]
+    async fn test_async_error_handling() {
+        // Test with invalid tokenizer name
+        let result = create_async_token_counter("invalid/nonexistent-tokenizer").await;
+        assert!(result.is_err(), "Should fail with invalid tokenizer name");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_cache_operations() {
+        let counter =
+            std::sync::Arc::new(create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap());
+
+        // Test concurrent token counting operations
+        let handles: Vec<_> = (0..20)
+            .map(|i| {
+                let counter_clone = counter.clone();
+                tokio::spawn(async move {
+                    let text = format!("Concurrent test {}", i % 5); // Some repetition for cache hits
+                    counter_clone.count_tokens(&text)
+                })
+            })
+            .collect();
+
+        let results: Vec<_> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|r| r.unwrap())
+            .collect();
+
+        // All results should be valid (> 0)
+        for result in results {
+            assert!(result > 0);
+        }
+
+        // Cache should have some entries but be bounded
+        assert!(counter.cache_size() > 0);
+        assert!(counter.cache_size() <= MAX_TOKEN_CACHE_SIZE);
     }
 }

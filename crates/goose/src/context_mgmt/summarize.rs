@@ -1,7 +1,7 @@
 use super::common::{get_messages_token_counts, get_messages_token_counts_async};
 use crate::message::{Message, MessageContent};
 use crate::providers::base::Provider;
-use crate::token_counter::{TokenCounter, AsyncTokenCounter};
+use crate::token_counter::{AsyncTokenCounter, TokenCounter};
 use anyhow::Result;
 use mcp_core::Role;
 use std::sync::Arc;

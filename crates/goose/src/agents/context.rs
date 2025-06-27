@@ -16,8 +16,10 @@ impl Agent {
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
-        let token_counter = create_async_token_counter(&provider.get_model_config().tokenizer_name()).await
-            .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+        let token_counter =
+            create_async_token_counter(provider.get_model_config().tokenizer_name())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider);
         let token_counts = get_messages_token_counts_async(&token_counter, messages);
 
@@ -52,12 +54,15 @@ impl Agent {
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
-        let token_counter = create_async_token_counter(&provider.get_model_config().tokenizer_name()).await
-            .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+        let token_counter =
+            create_async_token_counter(provider.get_model_config().tokenizer_name())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider.clone());
 
         let (mut new_messages, mut new_token_counts) =
-            summarize_messages_async(provider, messages, &token_counter, target_context_limit).await?;
+            summarize_messages_async(provider, messages, &token_counter, target_context_limit)
+                .await?;
 
         // If the summarized messages only contains one message, it means no tool request and response message in the summarized messages,
         // Add an assistant message to the summarized messages to ensure the assistant's response is included in the context.

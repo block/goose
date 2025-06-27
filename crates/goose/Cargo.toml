@@ -31,7 +31,8 @@ reqwest = { version = "0.12.9", features = [
         "zstd",
         "charset",
         "http2",
-        "stream"
+        "stream",
+        "blocking"
     ], default-features = false }
 tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -108,6 +109,10 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+
+[[example]]
+name = "async_token_counter_demo"
+path = "examples/async_token_counter_demo.rs"
 
 [[bench]]
 name = "tokenization_benchmark"

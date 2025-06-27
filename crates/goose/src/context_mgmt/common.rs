@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use mcp_core::Tool;
 
-use crate::{message::Message, providers::base::Provider, token_counter::{TokenCounter, AsyncTokenCounter}};
+use crate::{
+    message::Message,
+    providers::base::Provider,
+    token_counter::{AsyncTokenCounter, TokenCounter},
+};
 
 const ESTIMATE_FACTOR: f32 = 0.7;
 const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
@@ -29,7 +33,10 @@ pub fn get_messages_token_counts(token_counter: &TokenCounter, messages: &[Messa
 }
 
 /// Async version of get_messages_token_counts for better performance
-pub fn get_messages_token_counts_async(token_counter: &AsyncTokenCounter, messages: &[Message]) -> Vec<usize> {
+pub fn get_messages_token_counts_async(
+    token_counter: &AsyncTokenCounter,
+    messages: &[Message],
+) -> Vec<usize> {
     // Calculate current token count of each message, use count_chat_tokens to ensure we
     // capture the full content of the message, include ToolRequests and ToolResponses
     messages
