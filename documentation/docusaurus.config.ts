@@ -69,6 +69,7 @@ const config: Config = {
     ],
   ],
   plugins: [
+    require.resolve("./plugins/custom-webpack.cjs"),
     [
       "@docusaurus/plugin-client-redirects",
       {
@@ -416,5 +417,6 @@ const config: Config = {
     },
   } satisfies Preset.ThemeConfig,
 };
+
 
 export default config;

@@ -27,9 +27,15 @@ export default function RecipePage() {
   }));
 
   const uniqueExtensions = Array.from(
-    new Set(recipes.flatMap((r) =>
-      r.extensions.map((ext) => ext.toLowerCase().replace(/\s+/g, "-"))
-    ))
+    new Set(
+      recipes.flatMap((r) =>
+        r.extensions?.length
+          ? r.extensions.map((ext) =>
+              (typeof ext === "string" ? ext : ext.name).toLowerCase().replace(/\s+/g, "-")
+            )
+          : []
+      )
+    )
   ).map((ext) => {
     const cleanValue = ext.replace(/-mcp$/, "");
     let label = cleanValue.replace(/-/g, " ");
@@ -63,8 +69,7 @@ export default function RecipePage() {
         const results = await searchRecipes(searchQuery);
         setRecipes(results);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Unknown error";
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
         setError(`Failed to load recipes: ${errorMessage}`);
         console.error("Error loading recipes:", err);
       } finally {
@@ -85,9 +90,10 @@ export default function RecipePage() {
           return values.includes(r.category?.toLowerCase());
         }
         if (group === "Extensions Used") {
-          return r.extensions?.some((ext) =>
-            values.includes(ext.toLowerCase().replace(/\s+/g, "-"))
-          );
+          return r.extensions?.some((ext) => {
+            const extName = typeof ext === "string" ? ext : ext.name;
+            return values.includes(extName.toLowerCase().replace(/\s+/g, "-"));
+          }) ?? false;
         }
         return true;
       });
