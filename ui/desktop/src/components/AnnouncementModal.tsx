@@ -121,30 +121,6 @@ export default function AnnouncementModal() {
     setShowAnnouncementModal(false);
   };
 
-  // For development/testing: Add a way to reset announcements
-  // This can be called from browser console: window.resetAnnouncements()
-  useEffect(() => {
-    interface WindowWithReset {
-      resetAnnouncements?: () => void;
-      resetSpecificAnnouncement?: (id: string) => void;
-    }
-    const windowWithReset = window as WindowWithReset & typeof window;
-
-    // Reset all announcements
-    windowWithReset.resetAnnouncements = () => {
-      localStorage.removeItem('seenAnnouncementIds');
-      window.location.reload();
-    };
-
-    // Reset a specific announcement by ID
-    windowWithReset.resetSpecificAnnouncement = (id: string) => {
-      const seenIds = JSON.parse(localStorage.getItem('seenAnnouncementIds') || '[]') as string[];
-      const filteredIds = seenIds.filter((seenId) => seenId !== id);
-      localStorage.setItem('seenAnnouncementIds', JSON.stringify(filteredIds));
-      window.location.reload();
-    };
-  }, []);
-
   // Don't render anything if there are no announcements to show
   if (!combinedAnnouncementContent || unseenAnnouncements.length === 0) {
     return null;
@@ -153,6 +129,11 @@ export default function AnnouncementModal() {
   return (
     <BaseModal
       isOpen={showAnnouncementModal}
+      title={
+        unseenAnnouncements.length === 1
+          ? unseenAnnouncements[0].title
+          : `${unseenAnnouncements.length}`
+      }
       actions={
         <div className="flex justify-end pb-4">
           <Button
