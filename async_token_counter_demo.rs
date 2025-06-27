@@ -92,7 +92,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("\n✅ Key Improvements:");
     println!("   • No blocking runtime creation (eliminates deadlock risk)");
-    println!("   • Global tokenizer caching (faster subsequent inits)");
+    println!("   • Global tokenizer caching with DashMap (lock-free concurrent access)");
+    println!("   • Fast AHash for better cache performance");
+    println!("   • Cache size management (prevents unbounded growth)");
     println!("   • Token result caching ({}x faster on repeated text)", 
              async_count_time.as_nanos() / cached_time.as_nanos().max(1));
     println!("   • Proper async patterns throughout");

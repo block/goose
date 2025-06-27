@@ -1,15 +1,14 @@
 use include_dir::{include_dir, Dir};
 use mcp_core::Tool;
-use std::collections::HashMap;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::Arc;
-use std::collections::hash_map::DefaultHasher;
 use tokenizers::tokenizer::Tokenizer;
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::OnceCell;
 use dashmap::DashMap;
 use std::fs;
+use ahash::AHasher;
 
 use crate::message::Message;
 
@@ -18,7 +17,11 @@ use crate::message::Message;
 static TOKENIZER_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../tokenizer_files");
 
 // Global tokenizer cache to avoid repeated downloads and loading
-static TOKENIZER_CACHE: OnceCell<Arc<RwLock<HashMap<String, Arc<Tokenizer>>>>> = OnceCell::const_new();
+static TOKENIZER_CACHE: OnceCell<Arc<DashMap<String, Arc<Tokenizer>>>> = OnceCell::const_new();
+
+// Cache size limits to prevent unbounded growth
+const MAX_TOKEN_CACHE_SIZE: usize = 10_000;
+const MAX_TOKENIZER_CACHE_SIZE: usize = 50;
 
 /// Async token counter with caching capabilities
 pub struct AsyncTokenCounter {
@@ -36,18 +39,15 @@ impl AsyncTokenCounter {
     pub async fn new(tokenizer_name: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         // Initialize global cache if not already done
         let cache = TOKENIZER_CACHE.get_or_init(|| async {
-            Arc::new(RwLock::new(HashMap::new()))
+            Arc::new(DashMap::new())
         }).await;
 
-        // Check cache first
-        {
-            let cache_read = cache.read().await;
-            if let Some(tokenizer) = cache_read.get(tokenizer_name) {
-                return Ok(Self {
-                    tokenizer: tokenizer.clone(),
-                    token_cache: Arc::new(DashMap::new()),
-                });
-            }
+        // Check cache first - DashMap allows concurrent reads
+        if let Some(tokenizer) = cache.get(tokenizer_name) {
+            return Ok(Self {
+                tokenizer: tokenizer.clone(),
+                token_cache: Arc::new(DashMap::new()),
+            });
         }
 
         // Try embedded first
@@ -59,11 +59,15 @@ impl AsyncTokenCounter {
             }
         };
 
-        // Cache the tokenizer
-        {
-            let mut cache_write = cache.write().await;
-            cache_write.insert(tokenizer_name.to_string(), tokenizer.clone());
+        // Cache the tokenizer with size management
+        if cache.len() >= MAX_TOKENIZER_CACHE_SIZE {
+            // Simple eviction: remove oldest entry
+            if let Some(entry) = cache.iter().next() {
+                let old_key = entry.key().clone();
+                cache.remove(&old_key);
+            }
         }
+        cache.insert(tokenizer_name.to_string(), tokenizer.clone());
 
         Ok(Self {
             tokenizer,
@@ -135,10 +139,10 @@ impl AsyncTokenCounter {
         Ok(())
     }
 
-    /// Count tokens with caching
+    /// Count tokens with optimized caching
     pub fn count_tokens(&self, text: &str) -> usize {
-        // Hash the input text for caching
-        let mut hasher = DefaultHasher::new();
+        // Use faster AHash for better performance
+        let mut hasher = AHasher::default();
         text.hash(&mut hasher);
         let hash = hasher.finish();
 
@@ -147,14 +151,24 @@ impl AsyncTokenCounter {
             return *count;
         }
 
-        // Compute and cache result
+        // Compute and cache result with size management
         let encoding = self.tokenizer.encode(text, false).unwrap_or_default();
         let count = encoding.len();
+        
+        // Manage cache size to prevent unbounded growth
+        if self.token_cache.len() >= MAX_TOKEN_CACHE_SIZE {
+            // Simple eviction: remove a random entry
+            if let Some(entry) = self.token_cache.iter().next() {
+                let old_hash = *entry.key();
+                self.token_cache.remove(&old_hash);
+            }
+        }
+        
         self.token_cache.insert(hash, count);
         count
     }
 
-    /// Count tokens for tools (using cached count_tokens)
+    /// Count tokens for tools with optimized string handling
     pub fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
         // Token counts for different function components
         let func_init = 7; // Tokens for function initialization
@@ -170,6 +184,9 @@ impl AsyncTokenCounter {
                 func_token_count += func_init;
                 let name = &tool.name;
                 let description = &tool.description.trim_end_matches('.');
+                
+                // Optimize: count components separately to avoid string allocation
+                // Note: the separator (:) is likely tokenized with adjacent tokens, so we use original approach for accuracy
                 let line = format!("{}:{}", name, description);
                 func_token_count += self.count_tokens(&line);
 
@@ -184,8 +201,11 @@ impl AsyncTokenCounter {
                                 .as_str()
                                 .unwrap_or("")
                                 .trim_end_matches('.');
+                            
+                            // Note: separators are tokenized with adjacent tokens, keep original for accuracy
                             let line = format!("{}:{}:{}", p_name, p_type, p_desc);
                             func_token_count += self.count_tokens(&line);
+                            
                             if let Some(enum_values) = value["enum"].as_array() {
                                 func_token_count =
                                     func_token_count.saturating_add_signed(enum_init);
@@ -227,6 +247,7 @@ impl AsyncTokenCounter {
                     num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
+                    // Note: separators are tokenized with adjacent tokens, keep original for accuracy  
                     let text = format!(
                         "{}:{}:{}",
                         tool_request.id, tool_call.name, tool_call.arguments

@@ -3413,6 +3413,7 @@ dependencies = [
 name = "goose"
 version = "1.0.29"
 dependencies = [
+ "ahash",
  "anyhow",
  "arrow",
  "async-stream",
