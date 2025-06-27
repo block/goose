@@ -474,43 +474,63 @@ export default function App() {
     };
   }, []);
 
-  // Listen for open-diff-viewer event at App level
+  // Listen for toggle-diff-viewer event at App level
   useEffect(() => {
-    const handleOpenDiffViewer = () => {
+    const handleToggleDiffViewer = () => {
       const diffContent = window.pendingDiffContent;
-      if (diffContent) {
-        window.electron.logInfo('Opening diff viewer as side panel');
+      if (isDiffSidePanelOpen && diffContent === diffSidePanelContent) {
+        // Same diff content - close the panel
+        setIsDiffSidePanelOpen(false);
+      } else if (diffContent) {
+        // Different diff content or panel is closed - show the new diff
+        window.electron.logInfo('Showing diff viewer with new content');
         setDiffSidePanelContent(diffContent);
         setIsDiffSidePanelOpen(true);
-        // Clear the pending diff content
-        window.pendingDiffContent = undefined;
       }
+      // Clear the pending diff content
+      window.pendingDiffContent = undefined;
     };
 
-    window.addEventListener('open-diff-viewer', handleOpenDiffViewer);
+    window.addEventListener('toggle-diff-viewer', handleToggleDiffViewer);
 
     return () => {
-      window.removeEventListener('open-diff-viewer', handleOpenDiffViewer);
+      window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
     };
-  }, []);
+  }, [isDiffSidePanelOpen, diffSidePanelContent]);
 
-  // Handle window resizing when diff panel opens/closes
+  // Handle window resizing when diff panel opens/closes with smooth transitions
   useEffect(() => {
     const resizeWindow = async () => {
       try {
+        // Use window.innerWidth to check current viewport size
+        const currentWidth = window.innerWidth;
+        const minWidthToAvoidResize = 500; // Don't resize if window is wider than 500px
+        
         if (isDiffSidePanelOpen) {
-          // Expand window to accommodate diff panel
-          await window.electron.resizeWindow(50); // Add 50% more width
+          // Only expand window if viewport is 500px or smaller
+          if (currentWidth <= minWidthToAvoidResize) {
+            await window.electron.resizeWindow(50); // Add 50% more width
+          }
+          // If window is > 500px, just show the panel without resizing
         } else {
-          // Restore original window size
-          await window.electron.resizeWindow(0); // Reset to original size
+          // Only restore size if we're in a smaller viewport that we might have expanded
+          // This is a heuristic - only restore if current width is small enough that we might have expanded it
+          if (currentWidth <= minWidthToAvoidResize * 1.5) {
+            await window.electron.resizeWindow(0); // Reset to original size
+          }
+          // If window is large, don't restore size
         }
       } catch (error) {
         console.error('Error resizing window:', error);
+        // Fallback to no resizing behavior to be safe
+        console.log('Skipping window resize due to error');
       }
     };
 
-    resizeWindow();
+    // Add a small delay to allow for smoother transitions
+    const timeoutId = window.setTimeout(resizeWindow, 150);
+    
+    return () => window.clearTimeout(timeoutId);
   }, [isDiffSidePanelOpen]);
 
   const handleConfirm = async () => {
