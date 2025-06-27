@@ -35,7 +35,7 @@ This kind of synthesis normally requires me to manually scan a bunch of repos an
 
 **MCPs used** 
 
-- [GitHub](/goose/docs/mcp/github-mcp)
+- [GitHub](/docs/mcp/github-mcp)
 
 
 ## 2️⃣ Extracting Action Items from a Long Slack Thread
