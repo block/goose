@@ -21,12 +21,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 async fn download_tokenizer(repo_id: &str) -> Result<(), Box<dyn Error>> {
     let dir_name = repo_id.replace('/', "--");
-    let download_dir = format!("{}/{}", BASE_DIR, dir_name);
-    let file_url = format!(
-        "https://huggingface.co/{}/resolve/main/tokenizer.json",
-        repo_id
-    );
-    let file_path = format!("{}/tokenizer.json", download_dir);
+    let download_dir = format!("{BASE_DIR}/{dir_name}");
+    let file_url = format!("https://huggingface.co/{repo_id}/resolve/main/tokenizer.json");
+    let file_path = format!("{download_dir}/tokenizer.json");
 
     // Create directory if it doesn't exist
     fs::create_dir_all(&download_dir)?;
