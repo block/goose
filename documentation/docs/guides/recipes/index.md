@@ -32,7 +32,7 @@ import styles from '@site/src/components/Card/styles.module.css';
     <Card 
       title="Shareable Recipes"
       description="Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click."
-      link="/docs/guides/recipes/shareable-recipes"
+      link="/docs/guides/recipes/session-recipes"
     />
     <Card 
       title="Recipe Reference Guide"
