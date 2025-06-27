@@ -105,21 +105,21 @@ export default function DiffSidePanel({
   if (!isOpen) return null;
 
   const toggleBaseStyles =
-    'flex items-center gap-1 [&_svg]:size-4 h-8 px-4 text-xs  hover:text-textStandard';
-  const toggleActiveStyles = `${toggleBaseStyles}  bg-bgSubtle text-textStandard`;
+    'flex items-center gap-1 [&_svg]:size-4 h-8 px-4 text-xs hover:text-textStandard transition-all duration-200 ease-in-out';
+  const toggleActiveStyles = `${toggleBaseStyles} bg-bgSubtle text-textStandard`;
   const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textSubtle`;
 
   return (
-    <div className="flex-1 p-6 bg-bgSubtle">
-      <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle">
+    <div className="flex-1 p-6 bg-bgSubtle animate-in slide-in-from-right duration-300 ease-out">
+      <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle shadow-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-borderSubtle ">
-          <h2 className="text-textSubtle font-medi text-sm inline-flex items-center gap-2">
+        <div className="flex items-center justify-between p-3 border-b border-borderSubtle">
+          <h2 className="text-textSubtle font-medium text-sm inline-flex items-center gap-2">
             <FileDiff size={16} />
             Diff Viewer
           </h2>
 
-          <div className="flex border hover:cursor-pointer border-borderSubtle hover:border-borderStandard rounded-lg overflow-hidden transition-colors">
+          <div className="flex border hover:cursor-pointer border-borderSubtle hover:border-borderStandard rounded-lg overflow-hidden transition-all duration-200 ease-in-out">
             <button
               className={viewMode === 'unified' ? toggleActiveStyles : toggleInactiveStyles}
               onClick={() => setViewMode('unified')}
@@ -137,7 +137,7 @@ export default function DiffSidePanel({
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard flex items-center justify-center  text-textSubtle"
+            className="w-7 h-7 p-1 rounded-full border border-borderSubtle transition-all duration-200 ease-in-out cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard hover:bg-bgSubtle flex items-center justify-center text-textSubtle transform hover:scale-105"
             title="Close diff viewer"
           >
             <PanelRightOpen size={16} />
@@ -148,20 +148,20 @@ export default function DiffSidePanel({
           {parsedDiff.map((file, fileIndex) => (
             <div key={fileIndex} className="m-4  ">
               {/* File header */}
-              <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)]">
+              <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)] transition-all duration-200 ease-in-out">
                 <div className="font-mono text-sm truncate">{file.fileName}</div>
                 {enableActions && (
                   <div className="flex gap-4 flex-shrink-0 text-xs">
                     <button
                       onClick={() => handleRejectFile(fileIndex)}
-                      className="flex items-center text-red-500"
+                      className="flex items-center text-red-500 hover:text-red-600 transition-colors duration-200 ease-in-out transform hover:scale-105"
                     >
                       <X strokeWidth="3" size={16} />
                       Reject All
                     </button>
                     <button
                       onClick={() => handleApplyFile(fileIndex)}
-                      className="text-green-500 flex items-center"
+                      className="text-green-500 hover:text-green-600 flex items-center transition-colors duration-200 ease-in-out transform hover:scale-105"
                     >
                       <Check size={16} strokeWidth={2} />
                       Apply All
@@ -242,7 +242,7 @@ function DiffHunkView({
             <button
               onClick={onApply}
               disabled={isApplied}
-              className={`px-2 py-1 text-xs rounded ${
+              className={`px-2 py-1 text-xs rounded transition-all duration-200 ease-in-out transform hover:scale-105 ${
                 isApplied
                   ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
                   : 'bg-green-500 hover:bg-green-600 text-white'
@@ -253,7 +253,7 @@ function DiffHunkView({
             <button
               onClick={onReject}
               disabled={isRejected}
-              className={`px-2 py-1 text-xs rounded ${
+              className={`px-2 py-1 text-xs rounded transition-all duration-200 ease-in-out transform hover:scale-105 ${
                 isRejected
                   ? 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200'
                   : 'bg-red-500 hover:bg-red-600 text-white'
