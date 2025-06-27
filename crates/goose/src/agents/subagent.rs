@@ -382,7 +382,7 @@ impl SubAgent {
 
             while let Some(next) = stream.next().await {
                 match next {
-                    Ok((response, _usage)) => {
+                    Ok((Some(response), _usage)) => {
                         // Process any tool calls in the response
                         let tool_requests: Vec<ToolRequest> = response
                             .content
@@ -488,6 +488,7 @@ impl SubAgent {
 
                         // Continue the loop to get the next response from the provider
                     }
+                    Ok((None, _)) => (),
                     Err(ProviderError::ContextLengthExceeded(_)) => {
                         self.set_status(SubAgentStatus::Completed(
                             "Context length exceeded".to_string(),

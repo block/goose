@@ -146,19 +146,21 @@ impl Agent {
         Ok(Box::pin(try_stream! {
             while let Some(Ok((mut message, usage))) = stream.next().await {
                 // Store the model information in the global store
-                crate::providers::base::set_current_model(&usage.model);
+                if let Some(usage) = usage.as_ref() {
+                    crate::providers::base::set_current_model(&usage.model);
+                }
 
                 // Post-process / structure the response only if tool interpretation is enabled
-                if config.toolshim {
+                if message.is_some() && config.toolshim {
                     let interpreter = OllamaInterpreter::new().map_err(|e| {
                         ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
                     })?;
 
-                    message = augment_message_with_tool_calls(&interpreter, message, &toolshim_tools)
+                    message = Some(augment_message_with_tool_calls(&interpreter, message.unwrap(), &toolshim_tools)
                         .await
                         .map_err(|e| {
                             ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
-                        })?;
+                        })?);
                 }
 
                 yield (message, usage);

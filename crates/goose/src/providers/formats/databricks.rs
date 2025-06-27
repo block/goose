@@ -1,8 +1,8 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::Usage;
+use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    convert_image, detect_image_path, get_model, is_valid_function_name, load_image_file,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
@@ -401,6 +401,7 @@ struct StreamingChunk {
     created: Option<i64>,
     id: Option<String>,
     usage: Option<Value>,
+    model: String,
 }
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
@@ -409,7 +410,7 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl Stream<Item = anyhow::Result<(Usage, Message)>> + 'static
+) -> impl Stream<Item = anyhow::Result<(Option<ProviderUsage>, Option<Message>)>> + 'static
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -430,10 +431,20 @@ where
             let chunk: StreamingChunk = serde_json::from_str(line
                 .ok_or_else(|| anyhow!("unexpected stream format"))?)
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let model = chunk.model.clone();
 
-            let usage = chunk.usage.as_ref().and_then(get_usage).unwrap_or_default();
+            let usage = chunk.usage.as_ref().and_then(get_usage).and_then(|u| {
+                Some(ProviderUsage {
+                    usage: u,
+                    model: model,
+                })
+            });
 
-            if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
+            if chunk.choices.is_empty() {
+                // do nothing
+                tracing::warn!("Response chunk with no completions: {:?}", chunk);
+                yield (usage, None)
+            } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                 let tool_call = &tool_calls[0];
                 let id = tool_call.id.clone().ok_or(anyhow!("No tool call ID"))?;
                 let function_name = tool_call.function.name.clone().ok_or(anyhow!("No function name"))?;
@@ -474,22 +485,22 @@ where
 
                 yield (
                     usage,
-                    Message {
+                    Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![content],
-                    },
+                    }),
                 )
             } else if let Some(text) = &chunk.choices[0].delta.content {
                 yield (
                     usage,
-                    Message {
+                    Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
-                    },
+                    }),
                 )
             }
         }

@@ -330,11 +330,12 @@ pub trait Provider: Send + Sync {
     }
 }
 
-pub type MessageStream =
-    Pin<Box<dyn Stream<Item = Result<(Message, ProviderUsage), ProviderError>> + Send>>;
+pub type MessageStream = Pin<
+    Box<dyn Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> + Send>,
+>;
 
 pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {
-    let stream = futures::stream::once(async move { Ok((message, usage)) });
+    let stream = futures::stream::once(async move { Ok((Some(message), Some(usage))) });
     Box::pin(stream)
 }
 

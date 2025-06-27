@@ -506,8 +506,8 @@ impl Provider for DatabricksProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (usage, message) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage);
-                yield (message, ProviderUsage::new(String::from("todo"), usage));
+                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().and_then(|f|Some(f.usage)).unwrap_or_default());
+                yield (message, usage);
             }
         }))
     }
