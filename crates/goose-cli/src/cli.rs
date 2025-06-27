@@ -552,13 +552,15 @@ enum Command {
         reconfigure: bool,
     },
 
+    /// Evaluate system configuration across a range of practical tasks
+    #[command(about = "Evaluate system configuration across a range of practical tasks")]
     Bench {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
 
     /// Start a web server with a chat interface
-    #[command(about = "Start a web server with a chat interface", hide = true)]
+    #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
         /// Port to run the web server on
         #[arg(
