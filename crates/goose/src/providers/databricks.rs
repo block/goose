@@ -22,10 +22,10 @@ use crate::model::ModelConfig;
 use crate::providers::formats::databricks::response_to_streaming_message;
 use mcp_core::tool::Tool;
 use serde_json::json;
+use tokio::time::sleep;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use url::Url;
-use tokio::time::sleep;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
@@ -146,125 +146,6 @@ impl Default for DatabricksProvider {
         let model = ModelConfig::new(DatabricksProvider::metadata().default_model);
         DatabricksProvider::from_env(model).expect("Failed to initialize Databricks provider")
     }
-}
-
-fn handle_status(status: StatusCode, payload: Option<Value>) -> Result<Value, ProviderError> {
-               match status {
-                StatusCode::OK => {
-                    return payload.ok_or_else(|| {
-                        ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-                    });
-                }
-                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                    return Err(ProviderError::Authentication(format!(
-                        "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                        Status: {}. Response: {:?}",
-                        status, payload
-                    )));
-                }
-                StatusCode::BAD_REQUEST => {
-                    // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
-                    // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                    let payload_str = serde_json::to_string(&payload)
-                        .unwrap_or_default()
-                        .to_lowercase();
-                    let check_phrases = [
-                        "too long",
-                        "context length",
-                        "context_length_exceeded",
-                        "reduce the length",
-                        "token count",
-                        "exceeds",
-                        "exceed context limit",
-                        "input length",
-                        "max_tokens",
-                        "decrease input length",
-                        "context limit",
-                    ];
-                    if check_phrases.iter().any(|c| payload_str.contains(c)) {
-                        return Err(ProviderError::ContextLengthExceeded(payload_str));
-                    }
-
-                    let mut error_msg = "Unknown error".to_string();
-                    if let Some(payload) = &payload {
-                        // try to convert message to string, if that fails use external_model_message
-                        error_msg = payload
-                            .get("message")
-                            .and_then(|m| m.as_str())
-                            .or_else(|| {
-                                payload
-                                    .get("external_model_message")
-                                    .and_then(|ext| ext.get("message"))
-                                    .and_then(|m| m.as_str())
-                            })
-                            .unwrap_or("Unknown error")
-                            .to_string();
-                    }
-
-                    tracing::debug!(
-                        "{}",
-                        format!(
-                            "Provider request failed with status: {}. Payload: {:?}",
-                            status, payload
-                        )
-                    );
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Request failed with status: {}. Message: {}",
-                        status, error_msg
-                    )));
-                }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    attempts += 1;
-                    let error_msg = format!(
-                        "Rate limit exceeded (attempt {}/{}): {:?}",
-                        attempts, self.retry_config.max_retries, payload
-                    );
-                    tracing::warn!("{}. Retrying after backoff...", error_msg);
-
-                    // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_msg));
-
-                    // Calculate and apply the backoff delay
-                    let delay = self.retry_config.delay_for_attempt(attempts);
-                    tracing::info!("Backing off for {:?} before retry", delay);
-                    sleep(delay).await;
-
-                    // Continue to the next retry attempt
-                    continue;
-                }
-                StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                    attempts += 1;
-                    let error_msg = format!(
-                        "Server error (attempt {}/{}): {:?}",
-                        attempts, self.retry_config.max_retries, payload
-                    );
-                    tracing::warn!("{}. Retrying after backoff...", error_msg);
-
-                    // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::ServerError(error_msg));
-
-                    // Calculate and apply the backoff delay
-                    let delay = self.retry_config.delay_for_attempt(attempts);
-                    tracing::info!("Backing off for {:?} before retry", delay);
-                    sleep(delay).await;
-
-                    // Continue to the next retry attempt
-                    continue;
-                }
-                _ => {
-                    tracing::debug!(
-                        "{}",
-                        format!(
-                            "Provider request failed with status: {}. Payload: {:?}",
-                            status, payload
-                        )
-                    );
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Request failed with status: {}",
-                        status
-                    )));
-                }
-            }
 }
 
 impl DatabricksProvider {
@@ -393,9 +274,6 @@ impl DatabricksProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
         // Check if this is an embedding request by looking at the payload structure
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let path = if is_embedding {
@@ -406,57 +284,132 @@ impl DatabricksProvider {
             format!("serving-endpoints/{}/invocations", self.model.model_name)
         };
 
+        match self.post_with_retry(path.as_str(), &payload).await {
+            Ok(res) => res.json().await.map_err(|_| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn post_with_retry(
+        &self,
+        path: &str,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join(&path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        // Initialize retry counter
         let mut attempts = 0;
-        let mut last_error = None;
-
         loop {
-            // Check if we've exceeded max retries
-            if attempts > 0 && attempts > self.retry_config.max_retries {
-                let error_msg = format!(
-                    "Exceeded maximum retry attempts ({}) for rate limiting (429)",
-                    self.retry_config.max_retries
-                );
-                tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
-            }
-
             let auth_header = self.ensure_auth_header().await?;
             let response = self
                 .client
                 .post(url.clone())
                 .header("Authorization", auth_header)
-                .json(&payload)
+                .json(payload)
                 .send()
                 .await?;
 
             let status = response.status();
-            let payload: Option<Value> = response.json().await.ok();
 
-        handle_status(status, payload)
-    }
+            break match status {
+                StatusCode::OK => Ok(response),
+                StatusCode::TOO_MANY_REQUESTS
+                | StatusCode::INTERNAL_SERVER_ERROR
+                | StatusCode::SERVICE_UNAVAILABLE => {
+                    if attempts < self.retry_config.max_retries {
+                        attempts += 1;
+                        tracing::warn!(
+                            "{}: retrying ({}/{})",
+                            status,
+                            attempts,
+                            self.retry_config.max_retries
+                        );
 
-    async fn post_stream(&self, payload: Value) -> Result<reqwest::Response, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
-        let url = base_url.join(&path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+                        let delay = self.retry_config.delay_for_attempt(attempts);
+                        tracing::info!("Backing off for {:?} before retry", delay);
+                        sleep(delay).await;
 
-        let auth_header = self.ensure_auth_header().await?;
-        self.client
-            .post(url)
-            .header("Authorization", auth_header)
-            .json(&payload)
-            .send()
-            .await?
-            .error_for_status()
-            .map_err(|e| ProviderError::RequestFailed(format!("Request failed with status: {}", e)))
+                        continue;
+                    }
+
+                    Err(match status {
+                        StatusCode::TOO_MANY_REQUESTS => {
+                            ProviderError::RateLimitExceeded("Rate limit exceeded".to_string())
+                        }
+                        _ => ProviderError::ServerError("Server error".to_string()),
+                    })
+                }
+                StatusCode::BAD_REQUEST => {
+                    // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
+                    // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
+                    let bytes = response.bytes().await?;
+                    let payload_str = String::from_utf8_lossy(&bytes).to_owned().to_lowercase();
+                    let check_phrases = [
+                        "too long",
+                        "context length",
+                        "context_length_exceeded",
+                        "reduce the length",
+                        "token count",
+                        "exceeds",
+                        "exceed context limit",
+                        "input length",
+                        "max_tokens",
+                        "decrease input length",
+                        "context limit",
+                    ];
+                    if check_phrases.iter().any(|c| payload_str.contains(c)) {
+                        return Err(ProviderError::ContextLengthExceeded(payload_str));
+                    }
+
+                    let mut error_msg = "Unknown error".to_string();
+                    if let Ok(response_json) = serde_json::from_slice::<Value>(&bytes) {
+                        // try to convert message to string, if that fails use external_model_message
+                        error_msg = response_json
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .or_else(|| {
+                                response_json
+                                    .get("external_model_message")
+                                    .and_then(|ext| ext.get("message"))
+                                    .and_then(|m| m.as_str())
+                            })
+                            .unwrap_or("Unknown error")
+                            .to_string();
+                    }
+
+                    tracing::debug!(
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status, payload_str
+                        )
+                    );
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}. Message: {}",
+                        status, error_msg
+                    )));
+                }
+                _ => {
+                    tracing::debug!(
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status,
+                            response.text().await.ok().unwrap_or_default()
+                        )
+                    );
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}",
+                        status
+                    )));
+                }
+            };
+        }
     }
 }
 
@@ -533,14 +486,12 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let response = self.post_stream(payload.clone()).await?;
-
-        if let Err(e) = handle_status(
-            response.status(),
-            Some(Value::Null), // We don't expect a full response here, so just handle the status
-        ) {
-            return Err(e);
-        }
+        let response = self
+            .post_with_retry(
+                format!("serving-endpoints/{}/invocations", self.model.model_name).as_str(),
+                &payload,
+            )
+            .await?;
 
         // Map reqwest error to io::Error
         let stream = response.bytes_stream().map_err(io::Error::other);
