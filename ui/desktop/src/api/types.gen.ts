@@ -810,6 +810,29 @@ export type ReadConfigResponses = {
     200: unknown;
 };
 
+export type RecoverConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/recover';
+};
+
+export type RecoverConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RecoverConfigResponses = {
+    /**
+     * Config recovery attempted
+     */
+    200: string;
+};
+
+export type RecoverConfigResponse = RecoverConfigResponses[keyof RecoverConfigResponses];
+
 export type RemoveConfigData = {
     body: ConfigKeyQuery;
     path?: never;
@@ -859,6 +882,29 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ValidateConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/validate';
+};
+
+export type ValidateConfigErrors = {
+    /**
+     * Config file is corrupted
+     */
+    422: unknown;
+};
+
+export type ValidateConfigResponses = {
+    /**
+     * Config validation result
+     */
+    200: string;
+};
+
+export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
 
 export type ConfirmPermissionData = {
     body: PermissionConfirmationRequest;

@@ -90,9 +90,12 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         <LinuxDesktopInstallButtons/>
 
         <div style={{ marginTop: '1rem' }}>
-          1. Extract the downloaded tar.bz2 file.
-          2. Run the executable file to launch the Goose Desktop application.
-
+          **For Debian/Ubuntu-based distributions:**
+          1. Download the DEB file
+          2. Navigate to the directory where it is saved in a terminal
+          3. Run `sudo dpkg -i (filename).deb`
+          4. Launch Goose from the app menu
+          
           :::tip Updating Goose
           It's best to keep Goose updated by periodically running the installation steps again.
           :::

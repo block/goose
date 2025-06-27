@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
 
     // Test broken transport
     match test_transport(broken_stdio_transport().await?).await {
-        Ok(_) => assert!(false, "Expected an error but got success"),
+        Ok(_) => panic!("Expected an error but got success"),
         Err(e) => {
             assert!(e
                 .to_string()

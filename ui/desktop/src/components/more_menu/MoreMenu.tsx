@@ -358,7 +358,7 @@ export default function MoreMenu({
                 subtitle="Browse your saved recipes"
                 icon={<FileText className="w-4 h-4" />}
               >
-                Go to Recipe Library
+                Recipe Library
               </MenuButton>
               <MenuButton
                 onClick={() => {

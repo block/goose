@@ -4,7 +4,7 @@ import { Button } from '../../ui/button';
 import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import Modal from '../../Modal';
 import UpdateSection from './UpdateSection';
-import { UPDATES_ENABLED } from '../../../updates';
+import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl, getSecretKey } from '../../../config';
 
 interface AppSettingsSectionProps {
@@ -274,24 +274,26 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </div>
 
           {/* Cost Tracking */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-textStandard">Cost Tracking</h3>
-              <p className="text-xs text-textSubtle max-w-md mt-[2px]">
-                Show model pricing and usage costs
-              </p>
+          {COST_TRACKING_ENABLED && (
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-textStandard">Cost Tracking</h3>
+                <p className="text-xs text-textSubtle max-w-md mt-[2px]">
+                  Show model pricing and usage costs
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={showPricing}
+                  onCheckedChange={handleShowPricingToggle}
+                  variant="mono"
+                />
+              </div>
             </div>
-            <div className="flex items-center">
-              <Switch
-                checked={showPricing}
-                onCheckedChange={handleShowPricingToggle}
-                variant="mono"
-              />
-            </div>
-          </div>
+          )}
 
           {/* Pricing Status - only show if cost tracking is enabled */}
-          {showPricing && (
+          {COST_TRACKING_ENABLED && showPricing && (
             <>
               <div className="flex items-center justify-between text-xs mb-2 px-4">
                 <span className="text-textSubtle">Pricing Source:</span>
