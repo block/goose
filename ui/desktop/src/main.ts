@@ -549,6 +549,10 @@ const createChat = async (
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Enable features needed for Web Speech API
+      webSecurity: true,
+      nodeIntegration: false,
+      contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
@@ -1444,6 +1448,18 @@ app.whenReady().then(async () => {
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
+  // Handle microphone permission requests
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    console.log('Permission requested:', permission);
+    // Allow microphone and media access
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      // Default behavior for other permissions
+      callback(true);
+    }
+  });
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1465,8 +1481,8 @@ app.whenReady().then(async () => {
           "frame-src 'none';" +
           // Font sources
           "font-src 'self';" +
-          // Media sources
-          "media-src 'none';" +
+          // Media sources - allow microphone
+          "media-src 'self' mediastream:;" +
           // Form actions
           "form-action 'none';" +
           // Base URI restriction
