@@ -17,7 +17,7 @@ impl Agent {
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
         let token_counter =
-            create_async_token_counter(provider.get_model_config().tokenizer_name())
+            create_async_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider);
@@ -55,7 +55,7 @@ impl Agent {
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
         let token_counter =
-            create_async_token_counter(provider.get_model_config().tokenizer_name())
+            create_async_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider.clone());
