@@ -10,7 +10,7 @@ import styles from '@site/src/components/Card/styles.module.css';
 
 <h1 className={styles.pageTitle}>Recipes</h1>
 <p className={styles.pageDescription}>
-  Recipes are agentic reusable workflows that package up specific Goose configurations, making it easy to share and launch complex automation tasks. Explore everything you need to create, customize, and use recipes to supercharge your development workflow.
+  Recipes are reusable workflows that package extensions, prompts, and settings together. Share proven workflows with your team and reproduce successful results consistently.
 </p>
 
 <div className="video-container margin-bottom--lg">
