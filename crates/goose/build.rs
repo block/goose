@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create base directory
     fs::create_dir_all(BASE_DIR)?;
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={}", BASE_DIR);
+    println!("cargo:rerun-if-changed={BASE_DIR}");
 
     for tokenizer_name in TOKENIZERS {
         download_tokenizer(tokenizer_name).await?;
@@ -33,18 +33,17 @@ async fn download_tokenizer(repo_id: &str) -> Result<(), Box<dyn Error>> {
 
     // Check if file already exists
     if Path::new(&file_path).exists() {
-        println!("Tokenizer for {} already exists, skipping...", repo_id);
+        println!("Tokenizer for {repo_id} already exists, skipping...");
         return Ok(());
     }
 
-    println!("Downloading tokenizer for {}...", repo_id);
+    println!("Downloading tokenizer for {repo_id}...");
 
     // Download the file
     let response = reqwest::get(&file_url).await?;
     if !response.status().is_success() {
         return Err(format!(
-            "Failed to download tokenizer for {}, status: {}",
-            repo_id,
+            "Failed to download tokenizer for {repo_id}, status: {}",
             response.status()
         )
         .into());
@@ -53,6 +52,6 @@ async fn download_tokenizer(repo_id: &str) -> Result<(), Box<dyn Error>> {
     let content = response.bytes().await?;
     fs::write(&file_path, content)?;
 
-    println!("Downloaded {} to {}", repo_id, file_path);
+    println!("Downloaded {repo_id} to {file_path}");
     Ok(())
 }
