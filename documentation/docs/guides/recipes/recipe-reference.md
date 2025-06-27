@@ -1,7 +1,6 @@
 ---
-sidebar_position: 18
+sidebar_position: 2
 title: Recipe Reference Guide
-sidebar_label: Recipe Reference Guide
 description: Complete technical reference for creating and customizing recipes in Goose via the CLI.
 ---
 

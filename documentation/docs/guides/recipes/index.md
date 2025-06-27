@@ -1,8 +1,7 @@
 ---
 title: Recipes
-description: Common recipes and solutions for using Goose
-sidebar_position: 1
 hide_title: true
+description: Reusable and shareable AI workflows
 ---
 
 import Card from '@site/src/components/Card';
@@ -31,14 +30,14 @@ import styles from '@site/src/components/Card/styles.module.css';
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
   <div className={styles.cardGrid}>
     <Card 
-      title="Managing Recipes in Sessions"
+      title="Shareable Recipes"
       description="Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click."
-      link="/docs/guides/session-recipes"
+      link="/docs/guides/recipes/shareable-recipes"
     />
     <Card 
       title="Recipe Reference Guide"
       description="Complete technical reference for creating and customizing recipes in Goose via the CLI."
-      link="/docs/guides/recipe-reference"
+      link="/docs/guides/recipes/recipe-reference"
     />
   </div>
 </div>
@@ -49,12 +48,12 @@ import styles from '@site/src/components/Card/styles.module.css';
     <Card 
       title="Recipe Generator"
       description="Interactive tool that creates a shareable Goose recipe URL that others can use to launch a session with your predefined settings."
-      link="/goose/recipe-generator"
+      link="/recipe-generator"
     />
     <Card 
       title="Recipe Cookbook"
       description="Browse our collection of ready-to-use recipes. Find and adapt recipes for common development scenarios."
-      link="/goose/recipes"
+      link="/recipes"
     />
   </div>
 </div>
