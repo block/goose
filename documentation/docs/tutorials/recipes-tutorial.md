@@ -267,6 +267,3 @@ This itinerary offers a perfect blend of history, culture, and cuisine across th
 </details>
 
 :::
-
-## See Also
-- [Recipes](/docs/guides/recipes)
