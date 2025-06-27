@@ -2,7 +2,7 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, get_model, is_valid_function_name, load_image_file,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
