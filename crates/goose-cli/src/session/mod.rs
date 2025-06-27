@@ -894,7 +894,6 @@ impl Session {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
                                 output::render_message(&message, self.debug);
-                                if interactive {output::show_thinking()};
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {

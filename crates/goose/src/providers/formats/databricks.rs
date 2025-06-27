@@ -441,8 +441,6 @@ where
             });
 
             if chunk.choices.is_empty() {
-                // do nothing
-                tracing::warn!("Response chunk with no completions: {:?}", chunk);
                 yield (usage, None)
             } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                 let tool_call = &tool_calls[0];
