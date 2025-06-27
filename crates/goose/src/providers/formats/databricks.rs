@@ -433,11 +433,11 @@ where
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
             let model = chunk.model.clone();
 
-            let usage = chunk.usage.as_ref().and_then(get_usage).and_then(|u| {
-                Some(ProviderUsage {
+            let usage = chunk.usage.as_ref().and_then(get_usage).map(|u| {
+                ProviderUsage {
                     usage: u,
-                    model: model,
-                })
+                    model,
+                }
             });
 
             if chunk.choices.is_empty() {
