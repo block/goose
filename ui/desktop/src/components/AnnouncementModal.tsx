@@ -146,7 +146,7 @@ export default function AnnouncementModal() {
         </div>
       }
     >
-      <div className="max-h-96 overflow-y-auto -mx-16">
+      <div className="max-h-96 overflow-y-auto -mx-12">
         <div className="px-4 py-10">
           <MarkdownContent content={combinedAnnouncementContent} />
         </div>
