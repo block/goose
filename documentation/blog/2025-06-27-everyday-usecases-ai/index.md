@@ -86,7 +86,7 @@ Goose spotted the issue immediately and rewrote my media query logic as well as 
 
 **MCPs used** 
 
-- [Developer](/goose/docs/mcp/developer-mcp)
+- [Developer](/docs/mcp/developer-mcp)
 
 ## 5️⃣ Fixing Broken Links After a Big Doc Restructure
 
@@ -101,7 +101,7 @@ No dead ends. No 404s. Just tidy documentation.
 
 **MCP used** 
 
-- [Developer](/goose/docs/mcp/developer-mcp)
+- [Developer](/docs/mcp/developer-mcp)
 
 ---
 
