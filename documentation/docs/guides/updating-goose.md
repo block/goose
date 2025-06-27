@@ -67,10 +67,13 @@ The Goose CLI and desktop apps are under active and continuous development. To g
         :::
         <div style={{ marginTop: '1rem' }}>
           1. <LinuxDesktopInstallButtons/>
-          2. Extract the downloaded tar.bz2 file.
-          3. Run the executable file to launch the Goose Desktop application.
-          4. Overwrite the existing Goose application with the new version.
-          5. Run the executable file to launch the Goose Desktop application.
+          
+          **For Debian/Ubuntu-based distributions:**
+          2. Download the DEB file
+          3. Navigate to the directory where it is saved in a terminal
+          4. Run `sudo dpkg -i (filename).deb`
+          5. Launch Goose from the app menu
+
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
