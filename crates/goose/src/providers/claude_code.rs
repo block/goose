@@ -219,11 +219,11 @@ impl ClaudeCodeProvider {
             annotations: None,
         })];
 
-        let response_message = Message {
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
 
         Ok((response_message, usage))
     }
@@ -353,14 +353,14 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let message = Message {
-            role: mcp_core::Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::Text(mcp_core::content::TextContent {
+        let message = Message::new(
+            mcp_core::Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::Text(mcp_core::content::TextContent {
                 text: description.clone(),
                 annotations: None,
             })],
-        };
+        );
 
         let usage = Usage::default();
 
