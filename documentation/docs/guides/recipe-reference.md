@@ -2,6 +2,7 @@
 sidebar_position: 18
 title: Recipe Reference Guide
 sidebar_label: Recipe Reference Guide
+description: Complete technical reference for creating and customizing recipes in Goose via the CLI.
 ---
 
 Recipes are reusable Goose configurations that package up a specific setup so it can be easily shared and launched by others.
