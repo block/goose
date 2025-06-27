@@ -13,7 +13,7 @@ import styles from '@site/src/components/Card/styles.module.css';
   Recipes are reusable workflows that package extensions, prompts, and settings together. Share proven workflows with your team and reproduce successful results consistently.
 </p>
 
-<div className="video-container margin-bottom--lg">
+<!-- <div className="video-container margin-bottom--lg">
   <iframe 
     width="100%"
     height="400"
@@ -23,13 +23,13 @@ import styles from '@site/src/components/Card/styles.module.css';
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
     allowFullScreen
   ></iframe>
-</div>
+</div> -->
 
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
   <div className={styles.cardGrid}>
     <Card 
-      title="Session Recipes"
+      title="Managing Recipes in Sessions"
       description="Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click."
       link="/docs/guides/session-recipes"
     />
