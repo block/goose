@@ -8,6 +8,7 @@ import CodeBlock from "@theme/CodeBlock";
 import { Button } from "@site/src/components/ui/button";
 import { getRecipeById } from "@site/src/utils/recipes";
 import type { Recipe } from "@site/src/components/recipe-card";
+import toast from "react-hot-toast";
 
 const colorMap: { [key: string]: string } = {
   "GitHub MCP": "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -20,12 +21,16 @@ export default function RecipeDetailPage(): JSX.Element {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showParamsPrompt, setShowParamsPrompt] = useState(false);
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadRecipe = async () => {
       try {
         setLoading(true);
         setError(null);
+        setParamValues({});
+        setShowParamsPrompt(false);
 
         const params = new URLSearchParams(location.search);
         const id = params.get("id");
@@ -50,6 +55,36 @@ export default function RecipeDetailPage(): JSX.Element {
 
     loadRecipe();
   }, [location]);
+
+  const allParams = recipe?.parameters || [];
+  const requiredParams = allParams.filter((p) => p.requirement === "required");
+
+  const handleCopyCLI = () => {
+    if (allParams.length > 0) {
+      setParamValues({});
+      setShowParamsPrompt(true);
+      return;
+    }
+
+    const command = `goose run --recipe ${recipe?.localPath}`;
+    navigator.clipboard.writeText(command);
+    toast.success("CLI command copied!");
+  };
+
+  const handleSubmitParams = () => {
+    const filledParams = Object.entries(paramValues)
+      .filter(([, val]) => val !== "")
+      .map(([key, val]) => `${key}=${val}`)
+      .join(" ");
+
+    const command = `goose run --recipe ${recipe?.localPath}${
+      filledParams ? ` --params ${filledParams}` : ""
+    }`;
+
+    navigator.clipboard.writeText(command);
+    toast.success("CLI command copied with params!");
+    setShowParamsPrompt(false);
+  };
 
   if (loading) {
     return (
@@ -77,6 +112,8 @@ export default function RecipeDetailPage(): JSX.Element {
     );
   }
 
+  const authorUsername = typeof recipe.author === "string" ? recipe.author : recipe.author?.contact;
+
   return (
     <Layout>
       <div className="min-h-screen py-12">
@@ -88,19 +125,19 @@ export default function RecipeDetailPage(): JSX.Element {
                 Back
               </Button>
             </Link>
-            {recipe.author && (
+            {authorUsername && (
               <a
-                href={`https://github.com/${recipe.author}`}
+                href={`https://github.com/${authorUsername}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-textSubtle hover:underline"
               >
                 <img
-                  src={`https://github.com/${recipe.author}.png`}
-                  alt={recipe.author}
+                  src={`https://github.com/${authorUsername}.png`}
+                  alt={authorUsername}
                   className="w-6 h-6 rounded-full"
                 />
-                @{recipe.author}
+                @{authorUsername}
               </a>
             )}
           </div>
@@ -133,28 +170,21 @@ export default function RecipeDetailPage(): JSX.Element {
               <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
                 <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Extensions</h2>
                 <div className="flex flex-wrap gap-2">
-                  {recipe.extensions.map((ext, index) => (
-                    <span
-                      key={index}
-                      className={`border rounded-full px-3 py-1 text-sm ${
-                        colorMap[ext] || 
-                        "bg-gray-100 text-gray-800 border-gray-200 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
-                      }`}
-                    >
-                      {ext}
-                    </span>
-                  ))}
+                  {recipe.extensions.map((ext, index) => {
+                    const name = typeof ext === "string" ? ext : ext.name;
+                    return (
+                      <span
+                        key={index}
+                        className={`border rounded-full px-3 py-1 text-sm ${
+                          colorMap[name] ||
+                          "bg-gray-100 text-gray-800 border-gray-200 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
+                        }`}
+                      >
+                        {name}
+                      </span>
+                    );
+                  })}
                 </div>
-              </div>
-            )}
-
-            {/* Instructions */}
-            {recipe.instructions && (
-              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
-                <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Instructions</h2>
-                <p className="text-textSubtle dark:text-zinc-400 whitespace-pre-line">
-                  {recipe.instructions}
-                </p>
               </div>
             )}
 
@@ -169,21 +199,77 @@ export default function RecipeDetailPage(): JSX.Element {
               </div>
             )}
 
-            {/* Launch Button */}
-            {recipe.recipeUrl && (
-              <div className="pt-8 border-t border-borderSubtle dark:border-zinc-700 mt-6">
-                <Link
-                  to={recipe.recipeUrl}
-                  target="_blank"
-                  className="inline-block text-white bg-black dark:bg-white dark:text-black px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors"
-                >
-                  Launch Recipe →
-                </Link>
+            {/* Instructions */}
+            {recipe.instructions && (
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <h2 className="text-2xl font-medium mb-4 text-textProminent dark:text-white">Instructions</h2>
+                <CodeBlock language="markdown">{recipe.instructions}</CodeBlock>
               </div>
             )}
+
+            {/* Launch */}
+            <div className="pt-8 border-t border-borderSubtle dark:border-zinc-700 mt-6 flex gap-4">
+              <Link
+                to={recipe.recipeUrl}
+                target="_blank"
+                className="inline-block text-white bg-black dark:bg-white dark:text-black px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors"
+              >
+                Launch in Goose Desktop →
+              </Link>
+              <div className="relative group inline-block">
+                <button
+                  onClick={handleCopyCLI}
+                  className="text-sm font-medium px-6 py-2 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-white hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                >
+                  Copy Goose CLI Command
+                </button>
+
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-zinc-800 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-50">
+                  Copies the CLI command to run this recipe
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
+
+      {showParamsPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-zinc-800 p-6 rounded-lg w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-white">Fill in parameters</h3>
+            {allParams.map((param) => (
+              <div key={param.key} className="mb-3">
+                <label className="block text-sm text-zinc-700 dark:text-zinc-200 mb-1">
+                  {param.key} {param.requirement === "optional" && <span className="text-zinc-400">(optional)</span>}
+                </label>
+                <input
+                  type="text"
+                  value={paramValues[param.key] || ""}
+                  onChange={(e) =>
+                    setParamValues((prev) => ({ ...prev, [param.key]: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+            ))}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowParamsPrompt(false)}
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:underline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitParams}
+                className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700"
+              >
+                Copy Command
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

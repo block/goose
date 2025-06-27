@@ -31,16 +31,19 @@
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
+    "swiper": "^11.2.6",
     "tailwind-merge": "^3.0.2",
-    "tailwindcss": "^3.4.1",
-     "swiper": "^11.2.6"
+    "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.7.0",
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
-    "typescript": "~5.6.2"
+    "js-yaml": "^4.1.0",
+    "typescript": "~5.6.2",
+    "yaml-loader": "^0.8.1"
   },
   "browserslist": {
     "production": [
