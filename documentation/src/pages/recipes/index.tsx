@@ -19,13 +19,6 @@ export default function RecipePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const recipesPerPage = 20;
 
-  const uniqueCategories = Array.from(
-    new Set(recipes.map((r) => r.category?.toLowerCase()).filter(Boolean))
-  ).map((category) => ({
-    label: category.replace(/\b\w/g, (l) => l.toUpperCase()),
-    value: category
-  }));
-
   const uniqueExtensions = Array.from(
     new Set(
       recipes.flatMap((r) =>
@@ -51,10 +44,6 @@ export default function RecipePage() {
   });
 
   const sidebarFilterGroups: SidebarFilterGroup[] = [
-    {
-      title: "Category",
-      options: uniqueCategories
-    },
     {
       title: "Extensions Used",
       options: uniqueExtensions
@@ -86,9 +75,6 @@ export default function RecipePage() {
   Object.entries(selectedFilters).forEach(([group, values]) => {
     if (values.length > 0) {
       filteredRecipes = filteredRecipes.filter((r) => {
-        if (group === "Category") {
-          return values.includes(r.category?.toLowerCase());
-        }
         if (group === "Extensions Used") {
           return r.extensions?.some((ext) => {
             const extName = typeof ext === "string" ? ext : ext.name;

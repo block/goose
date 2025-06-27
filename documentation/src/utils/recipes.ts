@@ -54,7 +54,6 @@ function normalizeRecipe(recipe: any): Recipe {
     action: recipe.action || undefined,
     persona: recipe.persona || undefined,
     tags: recipe.tags || [],
-    category: recipe.category || undefined,
     recipeUrl: "",
     localPath: `documentation/src/pages/recipes/data/recipes/${recipe.id}.yaml`,
   };

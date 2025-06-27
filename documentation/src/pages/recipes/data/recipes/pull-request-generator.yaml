@@ -25,7 +25,6 @@ activities:
   - Generate PR
   - Analyze staged git changes
   - Create PR description
-category: Developer
 action: Generate PR
 prompt: |
   Analyze the staged changes and any unpushed commits in the git repository {{git_repo_path}} to generate a comprehensive pull request description. Work autonomously without requesting additional information.

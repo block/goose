@@ -14,7 +14,6 @@ activities:
   - Update affected tests
   - Remove flag configurations
   - Document flag removal
-category: Developer
 parameters:
   - key: feature_flag_key
     input_type: string

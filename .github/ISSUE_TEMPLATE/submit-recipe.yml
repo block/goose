@@ -83,8 +83,6 @@ body:
           - Update affected tests
           - Remove flag configurations
           - Document flag removal
-
-        category: Developer
     validations:
       required: true
 
@@ -110,4 +108,3 @@ body:
         - `parameters` should include required or optional inputs — optional ones must have `default`
         - `extensions` must follow the full format with `type`, `cmd`, `args`, `timeout`, etc.
         - `activities` describe the main actions the recipe performs
-        - `category` describes the target audience (e.g. `Developer`, `Project Manager`)
