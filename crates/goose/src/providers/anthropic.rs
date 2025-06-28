@@ -15,13 +15,15 @@ use mcp_core::tool::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    "claude-sonnet-4-latest",
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-latest",
+    "claude-opus-4-20250514",
+    "claude-3-7-sonnet-latest",
+    "claude-3-7-sonnet-20250219",
     "claude-3-5-sonnet-latest",
     "claude-3-5-haiku-latest",
     "claude-3-opus-latest",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-7-sonnet-latest",
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514",
 ];
 
 pub const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
@@ -128,6 +130,12 @@ impl Provider for AnthropicProvider {
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
             vec![
+                ModelInfo::with_cost("claude-sonnet-4-latest", 200000, 0.000015, 0.000075),
+                ModelInfo::with_cost("claude-sonnet-4-20250514", 200000, 0.000015, 0.000075),
+                ModelInfo::with_cost("claude-opus-4-latest", 200000, 0.000025, 0.000125),
+                ModelInfo::with_cost("claude-opus-4-20250514", 200000, 0.000025, 0.000125),
+                ModelInfo::with_cost("claude-3-7-sonnet-latest", 200000, 0.000008, 0.000024),
+                ModelInfo::with_cost("claude-3-7-sonnet-20250219", 200000, 0.000008, 0.000024),
                 ModelInfo::with_cost("claude-3-5-sonnet-20241022", 200000, 0.000003, 0.000015),
                 ModelInfo::with_cost("claude-3-5-haiku-20241022", 200000, 0.000001, 0.000005),
                 ModelInfo::with_cost("claude-3-opus-20240229", 200000, 0.000015, 0.000075),
