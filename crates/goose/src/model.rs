@@ -4,10 +4,6 @@ use std::collections::HashMap;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
-// Tokenizer names, used to infer from model name
-pub const GPT_4O_TOKENIZER: &str = "Xenova--gpt-4o";
-pub const CLAUDE_TOKENIZER: &str = "Xenova--claude-tokenizer";
-
 // Define the model limits as a static HashMap for reuse
 static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| {
     let mut map = HashMap::new();
@@ -41,10 +37,6 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
 pub struct ModelConfig {
     /// The name of the model to use
     pub model_name: String,
-    // Optional tokenizer name (corresponds to the sanitized HuggingFace tokenizer name)
-    // "Xenova/gpt-4o" -> "Xenova/gpt-4o"
-    // If not provided, best attempt will be made to infer from model name or default
-    pub tokenizer_name: String,
     /// Optional explicit context limit that overrides any defaults
     pub context_limit: Option<usize>,
     /// Optional temperature setting (0.0 - 1.0)
@@ -73,7 +65,6 @@ impl ModelConfig {
     /// 3. Global default (128_000) (in get_context_limit)
     pub fn new(model_name: String) -> Self {
         let context_limit = Self::get_model_specific_limit(&model_name);
-        let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
         let toolshim = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
@@ -87,21 +78,11 @@ impl ModelConfig {
 
         Self {
             model_name,
-            tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature,
             max_tokens: None,
             toolshim,
             toolshim_model,
-        }
-    }
-
-    fn infer_tokenizer_name(model_name: &str) -> &'static str {
-        if model_name.contains("claude") {
-            CLAUDE_TOKENIZER
-        } else {
-            // Default tokenizer
-            GPT_4O_TOKENIZER
         }
     }
 
@@ -159,11 +140,6 @@ impl ModelConfig {
     pub fn with_toolshim_model(mut self, model: Option<String>) -> Self {
         self.toolshim_model = model;
         self
-    }
-
-    /// Get the tokenizer name
-    pub fn tokenizer_name(&self) -> &str {
-        &self.tokenizer_name
     }
 
     /// Get the context_limit for the current model
