@@ -219,3 +219,6 @@ Common errors to watch for:
 - Invalid extension configurations
 
 When these occur, Goose will provide helpful error messages indicating what needs to be fixed.
+
+## Learn More
+Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.

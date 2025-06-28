@@ -268,5 +268,5 @@ This itinerary offers a perfect blend of history, culture, and cuisine across th
 
 :::
 
-## See Also
-- [Goose Recipes](/docs/guides/recipes) - Your source for finding docs, tools, and blog posts about Goose recipes.
+## Learn More
+Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
