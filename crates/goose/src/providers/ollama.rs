@@ -150,4 +150,16 @@ impl Provider for OllamaProvider {
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
+
+    // fn supports_streaming(&self) -> bool {
+    //     true
+    // }
+
+    // async fn stream(
+    //     &self,
+    //     system: &str,
+    //     messages: &[Message],
+    //     tools: &[Tool],
+    // ) -> Result<MessageStream, ProviderError> {
+    // }
 }

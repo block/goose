@@ -169,14 +169,14 @@ impl GeminiCliProvider {
             ));
         }
 
-        let message = Message {
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::Text(TextContent {
                 text: response_text,
                 annotations: None,
             })],
-        };
+        );
 
         let usage = Usage::default(); // No usage info available for gemini CLI
 
@@ -214,14 +214,14 @@ impl GeminiCliProvider {
             println!("================================");
         }
 
-        let message = Message {
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::Text(TextContent {
                 text: description.clone(),
                 annotations: None,
             })],
-        };
+        );
 
         let usage = Usage::default();
 
