@@ -27,32 +27,39 @@ use crate::session::storage::SessionMetadata;
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
-/// Converts a 5-field cron expression to a 6-field expression by prepending "0" for seconds
-/// If the expression already has 6 fields, returns it unchanged
-/// If the expression is invalid, returns the original expression
-pub fn normalize_cron_expression(cron_expr: &str) -> String {
-    let fields: Vec<&str> = cron_expr.split_whitespace().collect();
+/// Normalize a cron string so that:
+/// 1. It is always in **quartz 7-field format** expected by Temporal
+///    (seconds minutes hours dom month dow year).
+/// 2. Five-field → prepend seconds `0` and append year `*`.
+///    Six-field  → append year `*`.
+/// 3. Everything else returned unchanged (with a warning).
+pub fn normalize_cron_expression(src: &str) -> String {
+    let mut parts: Vec<&str> = src.split_whitespace().collect();
 
-    match fields.len() {
+    match parts.len() {
         5 => {
-            // 5-field cron: minute hour day month weekday
-            // Convert to 6-field: second minute hour day month weekday
-            format!("0 {}", cron_expr)
+            // min hour dom mon dow  → 0 min hour dom mon dow *
+            parts.insert(0, "0");
+            parts.push("*");
         }
         6 => {
-            // Already 6-field, return as-is
-            cron_expr.to_string()
+            // sec min hour dom mon dow  → sec min hour dom mon dow *
+            parts.push("*");
+        }
+        7 => {
+            // already quartz – do nothing
         }
         _ => {
-            // Invalid number of fields, return original (will likely fail parsing later)
             tracing::warn!(
-                "Invalid cron expression '{}': expected 5 or 6 fields, got {}",
-                cron_expr,
-                fields.len()
+                "Unrecognised cron expression '{}': expected 5, 6 or 7 fields (got {}). Leaving unchanged.",
+                src,
+                parts.len()
             );
-            cron_expr.to_string()
+            return src.to_string();
         }
     }
+
+    parts.join(" ")
 }
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {

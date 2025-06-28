@@ -501,7 +501,7 @@ impl TemporalScheduler {
         let request = JobRequest {
             action: "create".to_string(),
             job_id: Some(job.id.clone()),
-            cron: Some(normalized_cron),
+            cron: Some(normalized_cron.clone()),
             recipe_path: Some(job.source.clone()),
             execution_mode: job.execution_mode.clone(),
         };
@@ -1336,15 +1336,15 @@ mod tests {
         use crate::scheduler::normalize_cron_expression;
 
         // Test cases that should be normalized
-        assert_eq!(normalize_cron_expression("0 12 * * *"), "0 0 12 * * *");
-        assert_eq!(normalize_cron_expression("*/5 * * * *"), "0 */5 * * * *");
-        assert_eq!(normalize_cron_expression("0 0 * * 1"), "0 0 0 * * 1");
+        assert_eq!(normalize_cron_expression("0 12 * * *"), "0 0 12 * * * *");
+        assert_eq!(normalize_cron_expression("*/5 * * * *"), "0 */5 * * * * *");
+        assert_eq!(normalize_cron_expression("0 0 * * 1"), "0 0 0 * * 1 *");
 
         // Test cases that should remain unchanged
-        assert_eq!(normalize_cron_expression("0 0 12 * * *"), "0 0 12 * * *");
+        assert_eq!(normalize_cron_expression("0 0 12 * * *"), "0 0 12 * * * *");
         assert_eq!(
             normalize_cron_expression("*/30 */5 * * * *"),
-            "*/30 */5 * * * *"
+            "*/30 */5 * * * * *"
         );
 
         println!("✅ Cron normalization works correctly in TemporalScheduler");
