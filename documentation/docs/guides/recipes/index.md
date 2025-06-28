@@ -39,6 +39,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Complete technical reference for creating and customizing recipes in Goose via the CLI."
       link="/docs/guides/recipes/recipe-reference"
     />
+    <Card 
+      title="Goose Recipes Tutorial"
+      description="Learn how to create and use Goose recipes with prompts, parameters, MCP servers, and more."
+      link="/docs/tutorials/recipes-tutorial"
+    />
   </div>
 </div>
 
