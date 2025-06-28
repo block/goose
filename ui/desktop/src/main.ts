@@ -1407,6 +1407,106 @@ const createNewWindow = async (app: App, dir?: string | null) => {
   return await createChat(app, undefined, openDir);
 };
 
+const createShareDeveloperWindow = async () => {
+  try {
+    // Start a new goosed process for sharing
+    const recentDirs = loadRecentDirs();
+    const workingDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+    // Apply current environment settings before creating the shared process
+    updateEnvironmentVariables(envToggles);
+
+    // Start new Goosed process specifically for sharing
+    const [port, working_dir, goosedProcess] = await startGoosed(app, workingDir);
+
+    // Create the sharing window
+    const shareWindow = new BrowserWindow({
+      titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+      trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
+      vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+      frame: process.platform === 'darwin' ? false : true,
+      width: 600,
+      height: 400,
+      minWidth: 500,
+      minHeight: 300,
+      resizable: true,
+      transparent: false,
+      useContentSize: true,
+      icon: path.join(__dirname, '../images/icon'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        additionalArguments: [
+          JSON.stringify({
+            ...appConfig,
+            GOOSE_PORT: port,
+            GOOSE_WORKING_DIR: working_dir,
+            GOOSE_BASE_URL_SHARE: sharingUrl,
+            GOOSE_VERSION: gooseVersion,
+            isShareWindow: true,
+          }),
+        ],
+        partition: 'persist:goose-share',
+      },
+    });
+
+    // Load the sharing view
+    const queryParams = '?view=shareDeveloper';
+
+    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+      shareWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
+    } else {
+      const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+      shareWindow.loadFile(indexPath, {
+        search: queryParams.slice(1),
+      });
+    }
+
+    // Handle window closure
+    shareWindow.on('closed', () => {
+      if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
+        goosedProcess.kill();
+      }
+    });
+
+    // Initialize the agent with developer extension after window loads
+    shareWindow.webContents.once('did-finish-load', async () => {
+      try {
+        // Wait a moment for the server to be fully ready
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Add the developer extension
+        const developerExtension = {
+          name: 'developer',
+          type: 'builtin' as const,
+          bundled: true,
+        };
+
+        const response = await fetch(`http://127.0.0.1:${port}/extensions/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': appConfig.secretKey,
+          },
+          body: JSON.stringify(developerExtension),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to add developer extension:', response.statusText);
+        } else {
+          console.log('Developer extension added successfully to shared instance');
+        }
+      } catch (error) {
+        console.error('Error adding developer extension:', error);
+      }
+    });
+
+    return shareWindow;
+  } catch (error) {
+    console.error('Error creating share developer window:', error);
+    throw error;
+  }
+};
+
 const focusWindow = () => {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
@@ -1673,6 +1773,19 @@ app.whenReady().then(async () => {
     }
 
     fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+
+    // Add Share MCPs menu item
+    fileMenu.submenu.insert(
+      4,
+      new MenuItem({
+        label: 'Share MCPs',
+        click() {
+          createShareDeveloperWindow();
+        },
+      })
+    );
+
+    fileMenu.submenu.insert(5, new MenuItem({ type: 'separator' }));
 
     // The Close Window item is here.
 
