@@ -1,0 +1,20 @@
+name: Sync Labels
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+
+jobs:
+  sync_labels_on_updated:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Label PR (updated)
+        uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          sync-labels: true
