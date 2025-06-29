@@ -3,6 +3,7 @@ import { Button } from '../../../ui/button';
 import Modal from '../../../Modal';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
+import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
@@ -34,13 +35,18 @@ export default function ExtensionModal({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
   const [hasPendingEnvVars, setHasPendingEnvVars] = useState(false);
+  const [hasPendingHeaders, setHasPendingHeaders] = useState(false);
 
   // Function to check if form has been modified
   const hasFormChanges = (): boolean => {
     // Check if command/endpoint has changed
     const commandChanged =
       (formData.type === 'stdio' && formData.cmd !== initialData.cmd) ||
-      (formData.type === 'sse' && formData.endpoint !== initialData.endpoint);
+      (formData.type === 'sse' && formData.endpoint !== initialData.endpoint) ||
+      (formData.type === 'streamable_http' && formData.endpoint !== initialData.endpoint);
+
+    // Check if headers have changed
+    const headersChanged = formData.headers.some((header) => header.isEdited === true);
 
     // Check if any environment variables have been modified
     const envVarsChanged = formData.envVars.some((envVar) => envVar.isEdited === true);
@@ -60,10 +66,11 @@ export default function ExtensionModal({
     );
 
     // Check if there are pending environment variables being typed
-    const hasPendingInput = hasPendingEnvVars;
+    const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
 
     return (
       commandChanged ||
+      headersChanged ||
       envVarsChanged ||
       envVarsAdded ||
       envVarsRemoved ||
@@ -123,6 +130,37 @@ export default function ExtensionModal({
     });
   };
 
+  const handleAddHeader = (key: string, value: string) => {
+    setFormData({
+      ...formData,
+      headers: [...formData.headers, { key, value, isEdited: true }],
+    });
+  };
+
+  const handleRemoveHeader = (index: number) => {
+    const newHeaders = [...formData.headers];
+    newHeaders.splice(index, 1);
+    setFormData({
+      ...formData,
+      headers: newHeaders,
+    });
+  };
+
+  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    const newHeaders = [...formData.headers];
+    newHeaders[index][field] = value;
+
+    // Mark as edited if it's a value change
+    if (field === 'value') {
+      newHeaders[index].isEdited = true;
+    }
+
+    setFormData({
+      ...formData,
+      headers: newHeaders,
+    });
+  };
+
   // Function to store a secret value
   const storeSecret = async (key: string, value: string) => {
     try {
@@ -159,12 +197,21 @@ export default function ExtensionModal({
   const isConfigValid = () => {
     return (
       (formData.type === 'stdio' && !!formData.cmd && formData.cmd.trim() !== '') ||
-      (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '')
+      (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '') ||
+      (formData.type === 'streamable_http' &&
+        !!formData.endpoint &&
+        formData.endpoint.trim() !== '')
     );
   };
 
   const isEnvVarsValid = () => {
     return formData.envVars.every(
+      ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
+    );
+  };
+
+  const isHeadersValid = () => {
+    return formData.headers.every(
       ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
     );
   };
@@ -185,7 +232,9 @@ export default function ExtensionModal({
 
   // Form validation
   const isFormValid = () => {
-    return isNameValid() && isConfigValid() && isEnvVarsValid() && isTimeoutValid();
+    return (
+      isNameValid() && isConfigValid() && isEnvVarsValid() && isHeadersValid() && isTimeoutValid()
+    );
   };
 
   // Handle submit with validation and secret storage
@@ -344,6 +393,25 @@ export default function ExtensionModal({
                 onPendingInputChange={setHasPendingEnvVars}
               />
             </div>
+
+            {/* Request Headers - Only for streamable_http */}
+            {formData.type === 'streamable_http' && (
+              <>
+                {/* Divider */}
+                <hr className="border-t border-borderSubtle mb-4" />
+
+                <div className="mb-6">
+                  <HeadersSection
+                    headers={formData.headers}
+                    onAdd={handleAddHeader}
+                    onRemove={handleRemoveHeader}
+                    onChange={handleHeaderChange}
+                    submitAttempted={submitAttempted}
+                    onPendingInputChange={setHasPendingHeaders}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </Modal>
