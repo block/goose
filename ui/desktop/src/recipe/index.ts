@@ -2,12 +2,19 @@ import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
+export interface Parameter {
+  name: string;
+  promptMessage: string;
+  defaultValue?: string;
+}
+
 export interface Recipe {
   title: string;
   description: string;
   instructions: string;
   prompt?: string;
   activities?: string[];
+  parameters?: Parameter[];
   author?: {
     contact?: string;
     metadata?: string;

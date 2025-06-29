@@ -26,6 +26,7 @@ import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import ParameterInputModal from './ParameterInputModal';
 import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
@@ -67,6 +68,15 @@ const isUserMessage = (message: Message): boolean => {
     return false;
   }
   return true;
+};
+
+const substituteParameters = (prompt: string, params: Record<string, string>): string => {
+  let substitutedPrompt = prompt;
+  for (const key in params) {
+    const regex = new RegExp(`{{\\s?${key}\\s?}}`, 'g');
+    substitutedPrompt = substitutedPrompt.replace(regex, params[key]);
+  }
+  return substitutedPrompt;
 };
 
 export default function ChatView({
@@ -114,6 +124,8 @@ function ChatContent({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [isParameterModalOpen, setIsParameterModalOpen] = useState(false);
+  const [recipeParameters, setRecipeParameters] = useState<Record<string, string> | null>(null);
   const [sessionCosts, setSessionCosts] = useState<{
     [key: string]: {
       inputTokens: number;
@@ -151,6 +163,17 @@ function ChatContent({
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+
+  // TODO: if recipeConfig and recipeConfig.parameters are defined, we should show a modal to input parameters
+  // before allowing the user to interact with the chat. This is not implemented yet.
+  useEffect(() => {
+    if (recipeConfig?.parameters && recipeConfig.parameters.length > 0) {
+      // If we have parameters and they haven't been set yet, open the modal.
+      if (!recipeParameters) {
+        setIsParameterModalOpen(true);
+      }
+    }
+  }, [recipeConfig, recipeParameters]);
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -282,6 +305,7 @@ function ChatContent({
           name: response.recipe.title || 'Untitled Recipe', // Does not exist on recipe type
           title: response.recipe.title || 'Untitled Recipe',
           description: response.recipe.description || '',
+          parameters: response.recipe.parameters || [],
           instructions: response.recipe.instructions || '',
           activities: response.recipe.activities || [],
           prompt: response.recipe.prompt || '',
@@ -326,27 +350,48 @@ function ChatContent({
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
-    return recipeConfig?.prompt || '';
-  }, [recipeConfig?.prompt]);
+    if (!recipeConfig?.prompt) return '';
+
+    const hasRequiredParams = recipeConfig.parameters && recipeConfig.parameters.length > 0;
+
+    // If params are required and have been collected, substitute them into the prompt.
+    if (hasRequiredParams && recipeParameters) {
+      return substituteParameters(recipeConfig.prompt, recipeParameters);
+    }
+
+    // If there are no parameters, return the original prompt.
+    if (!hasRequiredParams) {
+      return recipeConfig.prompt;
+    }
+
+    // Otherwise, we are waiting for parameters, so the input should be empty.
+    return '';
+  }, [recipeConfig, recipeParameters]);
 
   // Auto-send the prompt for scheduled executions
-  useEffect(() => {
+    useEffect(() => {
+    const hasRequiredParams = recipeConfig?.parameters && recipeConfig.parameters.length > 0;
+
     if (
       recipeConfig?.isScheduledExecution &&
       recipeConfig?.prompt &&
+      (!hasRequiredParams || recipeParameters) &&
       messages.length === 0 &&
       !isLoading &&
       readyForAutoUserPrompt
     ) {
-      console.log('Auto-sending prompt for scheduled execution:', recipeConfig.prompt);
+      // Substitute parameters if they exist
+      const finalPrompt = recipeParameters
+        ? substituteParameters(recipeConfig.prompt, recipeParameters)
+        : recipeConfig.prompt;
 
-      // Create and send the user message
-      const userMessage = createUserMessage(recipeConfig.prompt);
+      console.log('Auto-sending substituted prompt for scheduled execution:', finalPrompt);
+
+      const userMessage = createUserMessage(finalPrompt);
       setLastInteractionTime(Date.now());
       window.electron.startPowerSaveBlocker();
       append(userMessage);
 
-      // Scroll to bottom after sending
       setTimeout(() => {
         if (scrollRef.current?.scrollToBottom) {
           scrollRef.current.scrollToBottom();
@@ -356,12 +401,18 @@ function ChatContent({
   }, [
     recipeConfig?.isScheduledExecution,
     recipeConfig?.prompt,
+    recipeParameters,
     messages.length,
     isLoading,
     readyForAutoUserPrompt,
     append,
     setLastInteractionTime,
   ]);
+
+  const handleParameterSubmit = (inputValues: Record<string, string>) => {
+    setRecipeParameters(inputValues);
+    setIsParameterModalOpen(false);
+  };
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -818,6 +869,16 @@ function ChatContent({
           }}
           summaryContent={summaryContent}
         />
+        {isParameterModalOpen && recipeConfig?.parameters && (
+          <ParameterInputModal
+            parameters={recipeConfig.parameters}
+            onSubmit={handleParameterSubmit}
+            onClose={() => {
+              // We might want to prevent closing if fields are required.
+              setIsParameterModalOpen(false);
+            }}
+          />
+        )}
       </div>
     </CurrentModelContext.Provider>
   );
