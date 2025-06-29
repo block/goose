@@ -23,6 +23,7 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
+import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -263,6 +264,8 @@ export default function App() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
+  const [isDiffSidePanelOpen, setIsDiffSidePanelOpen] = useState(false);
+  const [diffSidePanelContent, setDiffSidePanelContent] = useState<string>('');
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
@@ -471,6 +474,65 @@ export default function App() {
     };
   }, []);
 
+  // Listen for toggle-diff-viewer event at App level
+  useEffect(() => {
+    const handleToggleDiffViewer = () => {
+      const diffContent = window.pendingDiffContent;
+      if (isDiffSidePanelOpen && diffContent === diffSidePanelContent) {
+        // Same diff content - close the panel
+        setIsDiffSidePanelOpen(false);
+      } else if (diffContent) {
+        // Different diff content or panel is closed - show the new diff
+        window.electron.logInfo('Showing diff viewer with new content');
+        setDiffSidePanelContent(diffContent);
+        setIsDiffSidePanelOpen(true);
+      }
+      // Clear the pending diff content
+      window.pendingDiffContent = undefined;
+    };
+
+    window.addEventListener('toggle-diff-viewer', handleToggleDiffViewer);
+
+    return () => {
+      window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
+    };
+  }, [isDiffSidePanelOpen, diffSidePanelContent]);
+
+  // Handle window resizing when diff panel opens/closes with smooth transitions
+  useEffect(() => {
+    const resizeWindow = async () => {
+      try {
+        // Use window.innerWidth to check current viewport size
+        const currentWidth = window.innerWidth;
+        const minWidthToAvoidResize = 500; // Don't resize if window is wider than 500px
+        
+        if (isDiffSidePanelOpen) {
+          // Only expand window if viewport is 500px or smaller
+          if (currentWidth <= minWidthToAvoidResize) {
+            await window.electron.resizeWindow(50); // Add 50% more width
+          }
+          // If window is > 500px, just show the panel without resizing
+        } else {
+          // Only restore size if we're in a smaller viewport that we might have expanded
+          // This is a heuristic - only restore if current width is small enough that we might have expanded it
+          if (currentWidth <= minWidthToAvoidResize * 1.5) {
+            await window.electron.resizeWindow(0); // Reset to original size
+          }
+          // If window is large, don't restore size
+        }
+      } catch (error) {
+        console.error('Error resizing window:', error);
+        // Fallback to no resizing behavior to be safe
+        console.log('Skipping window resize due to error');
+      }
+    };
+
+    // Add a small delay to allow for smoother transitions
+    const timeoutId = window.setTimeout(resizeWindow, 150);
+    
+    return () => window.clearTimeout(timeoutId);
+  }, [isDiffSidePanelOpen]);
+
   const handleConfirm = async () => {
     if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
@@ -535,9 +597,9 @@ export default function App() {
           onCancel={handleCancel}
         />
       )}
-      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex">
         <div className="titlebar-drag-region" />
-        <div>
+        <div className="flex-1">
           {view === 'loading' && <SuspenseLoader />}
           {view === 'welcome' && (
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
@@ -604,6 +666,14 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* Diff Side Panel */}
+        <DiffSidePanel
+          diffContent={diffSidePanelContent}
+          isOpen={isDiffSidePanelOpen}
+          onClose={() => setIsDiffSidePanelOpen(false)}
+          enableActions={false}
+        />
       </div>
       {isGoosehintsModalOpen && (
         <GoosehintsModal
