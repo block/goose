@@ -33,8 +33,6 @@ import {
 } from './context_management/ChatContextManager';
 import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
-import { useModelAndProvider } from './ModelAndProviderContext';
-import { getCostForModel } from '../utils/costDatabase';
 import {
   Message,
   createUserMessage,
@@ -108,25 +106,10 @@ function ChatContent({
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
-  const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
-  const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
-  const [localInputTokens, setLocalInputTokens] = useState<number>(0);
-  const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
-  const [sessionCosts, setSessionCosts] = useState<{
-    [key: string]: {
-      inputTokens: number;
-      outputTokens: number;
-      totalCost: number;
-    };
-  }>({});
-  const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const { currentModel, currentProvider } = useModelAndProvider();
-  const prevModelRef = useRef<string | undefined>();
-  const prevProviderRef = useRef<string | undefined>();
 
   const {
     summaryContent,
@@ -144,8 +127,6 @@ function ChatContent({
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
-    // Set ready for auto user prompt after component initialization
-    setReadyForAutoUserPrompt(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount;
 
@@ -176,15 +157,10 @@ function ChatContent({
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
-    sessionMetadata,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
-    body: {
-      session_id: chat.id,
-      session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
-      ...(recipeConfig?.scheduledJobId && { scheduled_job_id: recipeConfig.scheduledJobId }),
-    },
+    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
@@ -328,40 +304,6 @@ function ChatContent({
   const initialPrompt = useMemo(() => {
     return recipeConfig?.prompt || '';
   }, [recipeConfig?.prompt]);
-
-  // Auto-send the prompt for scheduled executions
-  useEffect(() => {
-    if (
-      recipeConfig?.isScheduledExecution &&
-      recipeConfig?.prompt &&
-      messages.length === 0 &&
-      !isLoading &&
-      readyForAutoUserPrompt
-    ) {
-      console.log('Auto-sending prompt for scheduled execution:', recipeConfig.prompt);
-
-      // Create and send the user message
-      const userMessage = createUserMessage(recipeConfig.prompt);
-      setLastInteractionTime(Date.now());
-      window.electron.startPowerSaveBlocker();
-      append(userMessage);
-
-      // Scroll to bottom after sending
-      setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 100);
-    }
-  }, [
-    recipeConfig?.isScheduledExecution,
-    recipeConfig?.prompt,
-    messages.length,
-    isLoading,
-    readyForAutoUserPrompt,
-    append,
-    setLastInteractionTime,
-  ]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -535,40 +477,12 @@ function ChatContent({
       .reverse();
   }, [filteredMessages]);
 
-  // Simple token estimation function (roughly 4 characters per token)
-  const estimateTokens = (text: string): number => {
-    return Math.ceil(text.length / 4);
-  };
-
-  // Calculate token counts from messages
-  useEffect(() => {
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    messages.forEach((message) => {
-      const textContent = getTextContent(message);
-      if (textContent) {
-        const tokens = estimateTokens(textContent);
-        if (message.role === 'user') {
-          inputTokens += tokens;
-        } else if (message.role === 'assistant') {
-          outputTokens += tokens;
-        }
-      }
-    });
-
-    setLocalInputTokens(inputTokens);
-    setLocalOutputTokens(outputTokens);
-  }, [messages]);
-
   // Fetch session metadata to get token count
   useEffect(() => {
     const fetchSessionTokens = async () => {
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
         setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
-        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
-        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -577,74 +491,6 @@ function ChatContent({
       fetchSessionTokens();
     }
   }, [chat.id, messages]);
-
-  // Update token counts when sessionMetadata changes from the message stream
-  useEffect(() => {
-    console.log('Session metadata received:', sessionMetadata);
-    if (sessionMetadata) {
-      setSessionTokenCount(sessionMetadata.totalTokens || 0);
-      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
-      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
-    }
-  }, [sessionMetadata]);
-
-  // Handle model changes and accumulate costs
-  useEffect(() => {
-    if (
-      prevModelRef.current !== undefined &&
-      prevProviderRef.current !== undefined &&
-      (prevModelRef.current !== currentModel || prevProviderRef.current !== currentProvider)
-    ) {
-      // Model/provider has changed, save the costs for the previous model
-      const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
-
-      // Get pricing info for the previous model
-      const prevCostInfo = getCostForModel(prevProviderRef.current, prevModelRef.current);
-
-      if (prevCostInfo) {
-        const prevInputCost =
-          (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
-        const prevOutputCost =
-          (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
-        const prevTotalCost = prevInputCost + prevOutputCost;
-
-        // Save the accumulated costs for this model
-        setSessionCosts((prev) => ({
-          ...prev,
-          [prevKey]: {
-            inputTokens: sessionInputTokens || localInputTokens,
-            outputTokens: sessionOutputTokens || localOutputTokens,
-            totalCost: prevTotalCost,
-          },
-        }));
-      }
-
-      // Reset token counters for the new model
-      setSessionTokenCount(0);
-      setSessionInputTokens(0);
-      setSessionOutputTokens(0);
-      setLocalInputTokens(0);
-      setLocalOutputTokens(0);
-
-      console.log(
-        'Model changed from',
-        `${prevProviderRef.current}/${prevModelRef.current}`,
-        'to',
-        `${currentProvider}/${currentModel}`,
-        '- saved costs and reset token counters'
-      );
-    }
-
-    prevModelRef.current = currentModel || undefined;
-    prevProviderRef.current = currentProvider || undefined;
-  }, [
-    currentModel,
-    currentProvider,
-    sessionInputTokens,
-    sessionOutputTokens,
-    localInputTokens,
-    localOutputTokens,
-  ]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -797,12 +643,9 @@ function ChatContent({
               setView={setView}
               hasMessages={hasMessages}
               numTokens={sessionTokenCount}
-              inputTokens={sessionInputTokens || localInputTokens}
-              outputTokens={sessionOutputTokens || localOutputTokens}
               droppedFiles={droppedFiles}
               messages={messages}
               setMessages={setMessages}
-              sessionCosts={sessionCosts}
             />
           </div>
         </Card>

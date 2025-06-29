@@ -292,13 +292,15 @@ export default function MoreMenu({
                 Session history
               </MenuButton>
 
-              <MenuButton
-                onClick={() => setView('schedules')}
-                subtitle="Manage scheduled runs"
-                icon={<Time className="w-4 h-4" />}
-              >
-                Scheduler
-              </MenuButton>
+              {process.env.ALPHA && (
+                <MenuButton
+                  onClick={() => setView('schedules')}
+                  subtitle="Manage scheduled runs"
+                  icon={<Time className="w-4 h-4" />}
+                >
+                  Scheduler
+                </MenuButton>
+              )}
 
               <MenuButton
                 onClick={() => setIsGoosehintsModalOpen(true)}

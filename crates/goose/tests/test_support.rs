@@ -361,7 +361,6 @@ impl ScheduleToolTestBuilder {
             paused: false,
             current_session_id: None,
             process_start_time: None,
-            execution_mode: Some("background".to_string()),
         };
         {
             let mut jobs = self.scheduler.jobs.lock().await;

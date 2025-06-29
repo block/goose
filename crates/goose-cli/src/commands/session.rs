@@ -175,12 +175,7 @@ pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Re
 /// without creating an Agent or prompting about working directories.
 pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf>) -> Result<()> {
     // Get the session file path
-    let session_file_path = match goose::session::get_path(identifier.clone()) {
-        Ok(path) => path,
-        Err(e) => {
-            return Err(anyhow::anyhow!("Invalid session identifier: {}", e));
-        }
-    };
+    let session_file_path = goose::session::get_path(identifier.clone());
 
     if !session_file_path.exists() {
         return Err(anyhow::anyhow!(

@@ -64,7 +64,6 @@ export type ContextManageResponse = {
 
 export type CreateScheduleRequest = {
     cron: string;
-    execution_mode?: string | null;
     id: string;
     recipe_source: string;
 };
@@ -329,7 +328,6 @@ export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
     currently_running?: boolean;
-    execution_mode?: string | null;
     id: string;
     last_run?: string | null;
     paused?: boolean;
