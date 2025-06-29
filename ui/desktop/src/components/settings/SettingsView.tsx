@@ -12,6 +12,7 @@ import SchedulerSection from './scheduler/SchedulerSection';
 import DictationSection from './dictation/DictationSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { useEffect, useRef } from 'react';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -28,6 +29,42 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  const extensionsSectionRef = useRef<HTMLDivElement>(null);
+
+  // Handle scrolling to extensions section
+  useEffect(() => {
+    if (viewOptions.section === 'extensions' && extensionsSectionRef.current) {
+      // Use requestAnimationFrame for better timing and DOM readiness
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (extensionsSectionRef.current) {
+            const element = extensionsSectionRef.current;
+            const scrollContainer = element.closest('[data-radix-scroll-area-viewport]');
+
+            if (scrollContainer) {
+              // Scroll within the ScrollArea component
+              const elementTop = element.offsetTop;
+
+              // Calculate the target scroll position with a small offset for the header
+              const targetScroll = elementTop - 20; // 20px offset from top
+
+              scrollContainer.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth',
+              });
+            } else {
+              // Fallback to scrollIntoView if ScrollArea not found
+              element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+            }
+          }
+        }, 50);
+      });
+    }
+  }, [viewOptions.section]);
+
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <MoreMenuLayout showMenu={false} />
@@ -45,10 +82,12 @@ export default function SettingsView({
               {/* Models Section */}
               <ModelsSection setView={setView} />
               {/* Extensions Section */}
-              <ExtensionsSection
-                deepLinkConfig={viewOptions.deepLinkConfig}
-                showEnvVars={viewOptions.showEnvVars}
-              />
+              <div ref={extensionsSectionRef}>
+                <ExtensionsSection
+                  deepLinkConfig={viewOptions.deepLinkConfig}
+                  showEnvVars={viewOptions.showEnvVars}
+                />
+              </div>
               {/* Scheduler Section */}
               <SchedulerSection />
               {/* Goose Modes */}
