@@ -404,7 +404,7 @@ test.describe('Goose App', () => {
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-chat-history.png` });
     
           // Test command history (up arrow)
-          await chatInput.press('Control+ArrowUp');
+          await chatInput.press('Control+Shift+ArrowUp');
           const inputValue = await chatInput.inputValue();
           expect(inputValue).toBe('What is 2+2?');
         });

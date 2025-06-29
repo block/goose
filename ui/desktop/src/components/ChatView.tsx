@@ -10,7 +10,7 @@ import React, {
 import { getApiUrl } from '../config';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
-import ChatInput from './ChatInput';
+import ChatInput, { ChatInputRef } from './ChatInput';
 import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -124,6 +124,7 @@ function ChatContent({
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const chatInputRef = useRef<ChatInputRef>(null);
   const { currentModel, currentProvider } = useModelAndProvider();
   const prevModelRef = useRef<string | undefined>();
   const prevProviderRef = useRef<string | undefined>();
@@ -246,6 +247,64 @@ function ChatContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     summarizedThread.length > 0,
   ]);
+
+  useEffect(() => {
+    const handlePreviousPrompt = () => {
+      chatInputRef.current?.navigateHistory('previous');
+    };
+
+    const handleNextPrompt = () => {
+      chatInputRef.current?.navigateHistory('next');
+    };
+
+    const handleSendPrompt = () => {
+      chatInputRef.current?.submitPrompt();
+    };
+
+    const getNavigationState = () => ({
+      canNavigatePrevious: chatInputRef.current?.canNavigateHistory('previous') || false,
+      canNavigateNext: chatInputRef.current?.canNavigateHistory('next') || false,
+      canSend: chatInputRef.current?.canSend?.() || false,
+    });
+
+    const handleNavigationStateChanged = () => {
+      window.electron.updateMenuState(getNavigationState());
+    };
+
+    (
+      window as typeof window & {
+        getNavigationState?: () => {
+          canNavigatePrevious: boolean;
+          canNavigateNext: boolean;
+          canSend: boolean;
+        };
+      }
+    ).getNavigationState = getNavigationState;
+
+    // Initial menu state update
+    window.electron.updateMenuState(getNavigationState());
+
+    window.addEventListener('previous-prompt', handlePreviousPrompt);
+    window.addEventListener('next-prompt', handleNextPrompt);
+    window.addEventListener('send-prompt', handleSendPrompt);
+    window.addEventListener('navigation-state-changed', handleNavigationStateChanged);
+
+    return () => {
+      window.removeEventListener('previous-prompt', handlePreviousPrompt);
+      window.removeEventListener('next-prompt', handleNextPrompt);
+      window.removeEventListener('send-prompt', handleSendPrompt);
+      window.removeEventListener('navigation-state-changed', handleNavigationStateChanged);
+      delete (
+        window as typeof window & {
+          getNavigationState?: () => {
+            canNavigatePrevious: boolean;
+            canNavigateNext: boolean;
+            canSend: boolean;
+          };
+        }
+      ).getNavigationState;
+    };
+  }, [messages]);
 
   // Listen for make-agent-from-chat event
   useEffect(() => {
@@ -789,6 +848,7 @@ function ChatContent({
           <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
             {isLoading && <LoadingGoose />}
             <ChatInput
+              ref={chatInputRef}
               handleSubmit={handleSubmit}
               isLoading={isLoading}
               onStop={onStopGoose}
