@@ -1,20 +1,12 @@
 import React from 'react';
 
-// The Parameter interface remains the same
-export interface Parameter {
-  name: string;
-  promptMessage: string;
-  defaultValue?: string;
+interface Parameter {
+  key: string;
+  description: string;
+  input_type: string;
+  default?: string;
   requirement: 'required' | 'optional' | 'interactive';
 }
-// TODO: add consistent interface
-// interface Parameter {
-//   key: string;
-//   description: string;
-//   input_type: string
-//   default?: string
-//   requirement: 'required' | 'optional' | 'interactive';
-// }
 
 interface ParameterInputProps {
   parameter: Parameter;
@@ -23,26 +15,22 @@ interface ParameterInputProps {
 
 const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) => {
   // All values are derived directly from props, maintaining the controlled component pattern
-  const { name, promptMessage, requirement, defaultValue } = parameter;
+  const { key, description, requirement } = parameter;
+  const defaultValue = parameter.default || '';
 
   return (
     <div className="parameter-input my-4 p-4 border rounded-lg bg-bgSubtle shadow-sm">
-      {/* NEW: Static title to show which parameter is being configured.
-        This replaces the first input box.
-      */}
       <h3 className="text-lg font-bold text-textProminent mb-4">
-        Parameter: <code className="bg-bgApp px-2 py-1 rounded-md">{name}</code>
+        Parameter:{' '}
+        <code className="bg-bgApp px-2 py-1 rounded-md">{JSON.stringify(parameter)}</code>
       </h3>
 
-      {/* Input for the user-facing prompt message */}
       <div className="mb-4">
-        <label className="block text-md text-textStandard mb-2 font-semibold">
-          Prompt Message
-        </label>
+        <label className="block text-md text-textStandard mb-2 font-semibold">description</label>
         <input
           type="text"
-          value={promptMessage}
-          onChange={(e) => onChange(name, { promptMessage: e.target.value })}
+          value={description || ''}
+          onChange={(e) => onChange(key, { description: e.target.value })}
           className="w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
           placeholder={`E.g., "Enter the name for the new component"`}
           disabled={requirement === 'interactive'}
@@ -53,17 +41,17 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
       {/* Controls for requirement and default value */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-md text-textStandard mb-2 font-semibold">
-            Requirement
-          </label>
+          <label className="block text-md text-textStandard mb-2 font-semibold">Requirement</label>
           <select
             className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
             value={requirement}
-            onChange={(e) => onChange(name, { requirement: e.target.value as Parameter['requirement'] })}
+            onChange={(e) =>
+              onChange(key, { requirement: e.target.value as Parameter['requirement'] })
+            }
           >
             <option value="required">Required</option>
             <option value="optional">Optional</option>
-            <option value="interactive">Interactive</option>
+            {/* <option value="interactive">Interactive</option> */}
           </select>
         </div>
 
@@ -75,8 +63,8 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
             </label>
             <input
               type="text"
-              value={defaultValue || ''}
-              onChange={(e) => onChange(name, { defaultValue: e.target.value })}
+              value={defaultValue}
+              onChange={(e) => onChange(key, { default: e.target.value })}
               className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
               placeholder="Enter default value"
             />

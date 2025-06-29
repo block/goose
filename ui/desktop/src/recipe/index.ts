@@ -3,18 +3,11 @@ import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
 // TODO: implement consistent interface for parameters
-// interface Parameter {
-//   key: string;
-//   description: string;
-//   input_type: string
-//   default?: string
-//   requirement: 'required' | 'optional' | 'interactive';
-// }
-
 export interface Parameter {
-  name: string;
-  promptMessage: string;
-  defaultValue?: string;
+  key: string;
+  description: string;
+  input_type: string;
+  default?: string;
   requirement: 'required' | 'optional' | 'interactive';
 }
 

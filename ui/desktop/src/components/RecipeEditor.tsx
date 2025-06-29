@@ -1,7 +1,7 @@
 import yaml from 'js-yaml';
 import { useState, useEffect } from 'react';
-import { Recipe, Parameter } from '../recipe';
-
+import { Recipe } from '../recipe';
+import { Parameter } from '../recipe/index';
 
 import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
@@ -11,7 +11,6 @@ import { Check } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
-import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
 import ParameterInput from './parameter/ParameterInput';
@@ -28,15 +27,15 @@ function generateDeepLink(recipe: Recipe): string {
 
 // Function to serialize parameters to YAML format
 function serializeParametersToYAML(parameters: Parameter[]): string {
-  const yamlParams = parameters.map(param => {
-    const paramYaml: any = {
+  const yamlParams = parameters.map((param) => {
+    const paramYaml: Parameter = {
       key: param.key,
       input_type: 'string', // Assuming input type is string; change if applicable
       requirement: param.requirement,
-      description: param.promptMessage,
+      description: param.description,
     };
-    if (param.requirement === 'optional' && param.defaultValue) {
-      paramYaml.default = param.defaultValue;
+    if (param.requirement === 'optional' && param.default) {
+      paramYaml.default = param.default;
     }
     return paramYaml;
   });
@@ -51,16 +50,16 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [prompt, setPrompt] = useState(config?.prompt || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
-  const [parameters, setParameters] = useState<Parameter[]>(parseParametersFromInstructions(instructions));
-
-  const [parametersValues, setParametersValues] = useState<{ [name: string]: string }>({});
+  const [parameters, setParameters] = useState<Parameter[]>(
+    parseParametersFromInstructions(instructions)
+  );
 
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
+  const [_isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
+  const [_recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
     label: string;
     value: string;
     setValue: (value: string) => void;
@@ -87,38 +86,6 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [activeSection, _] = useState<'none' | 'activities' | 'instructions' | 'extensions'>(
     'none'
   );
-  const [showParameterModal, setShowParameterModal] = useState(false);
-  const [currentParameter, setCurrentParameter] = useState<Parameter | null>(null);
-  const [parameterInputs, setParameterInputs] = useState<{ [key: string]: string }>({});
-
-  useEffect(() => {
-    // When the recipe is loaded, check if there are parameters that require input
-    const needsInput = parameters.some(param => param.requirement === 'required' || param.requirement === 'interactive');
-    // If any such parameters exist, show the input modal for them
-    if (needsInput) {
-      setCurrentParameter(parameters.find(param => param.requirement === 'required' || param.requirement === 'interactive') || null);
-      setShowParameterModal(true);
-    }
-  }, [parameters]);
-
-  const handleParameterInputSave = () => {
-    if (currentParameter) {
-      setParameterInputs(prev => ({ ...prev, [currentParameter.name]: parametersValues[currentParameter.name] || '' }));
-      // Close the modal or move to the next parameter if needed
-      const nextParameter = parameters.find(param => param.key !== currentParameter.name && (param.requirement === 'required' || param.requirement === 'interactive'));
-      if (nextParameter) {
-        setCurrentParameter(nextParameter);
-      } else {
-        setShowParameterModal(false);  // Close modal if no more parameters
-      }
-    }
-  };
-
-  const handleParameterModalClose = () => {
-    setShowParameterModal(false);
-  };
-
-
 
   // Load extensions when component mounts and when switching to extensions section
   useEffect(() => {
@@ -165,34 +132,34 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
   const getCurrentConfig = (): Recipe => {
     // NEW: Transform the internal parameters state into the desired output format.
-    const formattedParameters = parameters.map(param => {
-    const formattedParam: any = {
-      key: param.key,
-      input_type: 'string', // As specified
-      requirement: param.requirement,
-      description: param.promptMessage,
-    };
+    const formattedParameters = parameters.map((param) => {
+      const formattedParam: Parameter = {
+        key: param.key,
+        input_type: 'string', // As specified
+        requirement: param.requirement,
+        description: param.description,
+      };
 
-    // Add the 'default' key ONLY if the parameter is optional and has a default value.
-    if (param.requirement === 'optional' && param.defaultValue) {
-      // Note: `default` is a reserved keyword in JS, but assigning it as a property key like this is valid.
-      formattedParam.default = param.defaultValue;
-    }
-    
-    return formattedParam;
-  });
+      // Add the 'default' key ONLY if the parameter is optional and has a default value.
+      if (param.requirement === 'optional' && param.default) {
+        // Note: `default` is a reserved keyword in JS, but assigning it as a property key like this is valid.
+        formattedParam.default = param.default;
+      }
 
-  const config = {
-    ...recipeConfig,
-    title,
-    description,
-    instructions,
-    activities,
-    prompt,
-    // Use the newly formatted parameters array in the final config object.
-    parameters: formattedParameters,
-    extensions: recipeExtensions
-      .map((name) => {
+      return formattedParam;
+    });
+
+    const config = {
+      ...recipeConfig,
+      title,
+      description,
+      instructions,
+      activities,
+      prompt,
+      // Use the newly formatted parameters array in the final config object.
+      parameters: formattedParameters,
+      extensions: recipeExtensions
+        .map((name) => {
           const extension = extensionOptions.find((e) => e.name === name);
           console.log('Looking for extension:', name, 'Found:', extension);
           if (!extension) return null;
@@ -214,7 +181,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
     const yamlString = serializeParametersToYAML(parameters);
     console.log('Serialized Parameters to YAML:', yamlString);
-    
+
     return config;
   };
 
@@ -244,11 +211,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   };
 
   const handleParameterChange = (name: string, value: Partial<Parameter>) => {
-    setParameters((prev) => prev.map(param => 
-      param.key === name 
-        ? { ...param, ...value }
-        : param
-    ));
+    setParameters((prev) =>
+      prev.map((param) => (param.key === name ? { ...param, ...value } : param))
+    );
   };
 
   const deeplink = generateDeepLink(getCurrentConfig());
@@ -298,9 +263,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
     return matches.map((match) => {
       return {
-        name: match[1].trim(),
-        promptMessage: `Enter value for ${match[1].trim()}`,
+        key: match[1].trim(),
+        description: `Enter value for ${match[1].trim()}`,
         requirement: 'required',
+        input_type: 'string', // Default to string; can be changed based on requirements
       };
     });
   }
@@ -383,11 +349,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>
             )}
           </div>
-          {parameters.map((parameter) => (
+          {parameters.map((parameter: Parameter) => (
             <ParameterInput
-              key={parameter.name}
+              key={parameter.key}
               parameter={parameter}
-              value={parametersValues[parameter.name] || ''}
               onChange={(name, value) => handleParameterChange(name, value)}
             />
           ))}
@@ -461,13 +426,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
         </div>
       </div>
-      <RecipeInfoModal
+      {/* <RecipeInfoModal
         infoLabel={recipeInfoModelProps?.label}
         originalValue={recipeInfoModelProps?.value}
         isOpen={isRecipeInfoModalOpen}
         onClose={() => setRecipeInfoModalOpen(false)}
         onSaveValue={recipeInfoModelProps?.setValue}
-      />
+      /> */}
       <ScheduleFromRecipeModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
