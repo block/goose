@@ -40,7 +40,6 @@ struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
     session_working_dir: String,
-    scheduled_job_id: Option<String>,
 }
 
 pub struct SseResponse {
@@ -182,8 +181,7 @@ async fn handler(
                 Some(SessionConfig {
                     id: session::Identifier::Name(session_id.clone()),
                     working_dir: PathBuf::from(session_working_dir),
-                    schedule_id: request.scheduled_job_id.clone(),
-                    execution_mode: None,
+                    schedule_id: None,
                 }),
             )
             .await
@@ -210,20 +208,7 @@ async fn handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-            Ok(path) => path,
-            Err(e) => {
-                tracing::error!("Failed to get session path: {}", e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to get session path: {}", e),
-                    },
-                    &tx,
-                )
-                .await;
-                return;
-            }
-        };
+        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
@@ -319,7 +304,6 @@ struct AskRequest {
     prompt: String,
     session_id: Option<String>,
     session_working_dir: String,
-    scheduled_job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -356,8 +340,7 @@ async fn ask_handler(
             Some(SessionConfig {
                 id: session::Identifier::Name(session_id.clone()),
                 working_dir: PathBuf::from(session_working_dir),
-                schedule_id: request.scheduled_job_id.clone(),
-                execution_mode: None,
+                schedule_id: None,
             }),
         )
         .await
@@ -405,13 +388,7 @@ async fn ask_handler(
         all_messages.push(response_message);
     }
 
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(e) => {
-            tracing::error!("Failed to get session path: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     let session_path_clone = session_path.clone();
     let messages = all_messages.clone();
@@ -605,7 +582,6 @@ mod tests {
                         prompt: "test prompt".to_string(),
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
-                        scheduled_job_id: None,
                     })
                     .unwrap(),
                 ))

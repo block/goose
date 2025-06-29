@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
@@ -21,7 +21,6 @@ import { EditScheduleModal } from './EditScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
-import { formatToLocalDateWithTimezone } from '../../utils/date';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -42,95 +41,6 @@ interface ScheduleDetailViewProps {
   scheduleId: string | null;
   onNavigateBack: () => void;
 }
-
-// Memoized ScheduleInfoCard component to prevent unnecessary re-renders of static content
-const ScheduleInfoCard = React.memo<{
-  scheduleDetails: ScheduledJob;
-}>(({ scheduleDetails }) => {
-  const readableCron = useMemo(() => {
-    try {
-      return cronstrue.toString(scheduleDetails.cron);
-    } catch (e) {
-      console.warn(`Could not parse cron string "${scheduleDetails.cron}":`, e);
-      return scheduleDetails.cron;
-    }
-  }, [scheduleDetails.cron]);
-
-  const formattedLastRun = useMemo(() => {
-    return formatToLocalDateWithTimezone(scheduleDetails.last_run);
-  }, [scheduleDetails.last_run]);
-
-  const formattedProcessStartTime = useMemo(() => {
-    return scheduleDetails.process_start_time
-      ? formatToLocalDateWithTimezone(scheduleDetails.process_start_time)
-      : null;
-  }, [scheduleDetails.process_start_time]);
-
-  return (
-    <Card className="p-4 bg-white dark:bg-gray-800 shadow mb-6">
-      <div className="space-y-2">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {scheduleDetails.id}
-          </h3>
-          <div className="mt-2 md:mt-0 flex items-center gap-2">
-            {scheduleDetails.currently_running && (
-              <div className="text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
-                <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
-                Currently Running
-              </div>
-            )}
-            {scheduleDetails.paused && (
-              <div className="text-sm text-orange-500 dark:text-orange-400 font-semibold flex items-center">
-                <Pause className="w-3 h-3 mr-1" />
-                Paused
-              </div>
-            )}
-          </div>
-        </div>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          <span className="font-semibold">Schedule:</span> {readableCron}
-        </p>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          <span className="font-semibold">Cron Expression:</span> {scheduleDetails.cron}
-        </p>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          <span className="font-semibold">Recipe Source:</span> {scheduleDetails.source}
-        </p>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          <span className="font-semibold">Last Run:</span> {formattedLastRun}
-        </p>
-        {scheduleDetails.execution_mode && (
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-semibold">Execution Mode:</span>{' '}
-            <span
-              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                scheduleDetails.execution_mode === 'foreground'
-                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-              }`}
-            >
-              {scheduleDetails.execution_mode === 'foreground' ? '🖥️ Foreground' : '⚡ Background'}
-            </span>
-          </p>
-        )}
-        {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-semibold">Current Session:</span>{' '}
-            {scheduleDetails.current_session_id}
-          </p>
-        )}
-        {scheduleDetails.currently_running && formattedProcessStartTime && (
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-semibold">Process Started:</span> {formattedProcessStartTime}
-          </p>
-        )}
-      </div>
-    </Card>
-  );
-});
-
-ScheduleInfoCard.displayName = 'ScheduleInfoCard';
 
 const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onNavigateBack }) => {
   const [sessions, setSessions] = useState<ScheduleSessionMeta[]>([]);
@@ -161,14 +71,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
-      const fetchedSessions = await getScheduleSessions(sId, 20);
-      setSessions((prevSessions) => {
-        // Only update if sessions actually changed to prevent unnecessary re-renders
-        if (JSON.stringify(prevSessions) !== JSON.stringify(fetchedSessions)) {
-          return fetchedSessions as ScheduleSessionMeta[];
-        }
-        return prevSessions;
-      });
+      const fetchedSessions = await getScheduleSessions(sId, 20); // MODIFIED
+      // Assuming ScheduleSession from ../../schedule can be cast or mapped to ScheduleSessionMeta
+      // You may need to transform/map fields if they differ significantly
+      setSessions(fetchedSessions as ScheduleSessionMeta[]);
     } catch (err) {
       console.error('Failed to fetch schedule sessions:', err);
       setSessionsError(err instanceof Error ? err.message : 'Failed to fetch schedule sessions');
@@ -178,26 +84,21 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   }, []);
 
   const fetchScheduleDetails = useCallback(
-    async (sId: string, isRefresh = false) => {
+    async (sId: string) => {
       if (!sId) return;
-      if (!isRefresh) setIsLoadingSchedule(true);
+      setIsLoadingSchedule(true);
       setScheduleError(null);
       try {
         const allSchedules = await listSchedules();
         const schedule = allSchedules.find((s) => s.id === sId);
         if (schedule) {
-          setScheduleDetails((prevDetails) => {
-            // Only update if schedule details actually changed
-            if (!prevDetails || JSON.stringify(prevDetails) !== JSON.stringify(schedule)) {
-              // Only reset runNowLoading if we explicitly killed the job
-              if (!schedule.currently_running && runNowLoading && jobWasKilled) {
-                setRunNowLoading(false);
-                setJobWasKilled(false);
-              }
-              return schedule;
-            }
-            return prevDetails;
-          });
+          // Only reset runNowLoading if we explicitly killed the job
+          // This prevents interfering with natural job completion
+          if (!schedule.currently_running && runNowLoading && jobWasKilled) {
+            setRunNowLoading(false);
+            setJobWasKilled(false); // Reset the flag
+          }
+          setScheduleDetails(schedule);
         } else {
           setScheduleError('Schedule not found');
         }
@@ -205,11 +106,20 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
         console.error('Failed to fetch schedule details:', err);
         setScheduleError(err instanceof Error ? err.message : 'Failed to fetch schedule details');
       } finally {
-        if (!isRefresh) setIsLoadingSchedule(false);
+        setIsLoadingSchedule(false);
       }
     },
     [runNowLoading, jobWasKilled]
   );
+
+  const getReadableCron = (cronString: string) => {
+    try {
+      return cronstrue.toString(cronString);
+    } catch (e) {
+      console.warn(`Could not parse cron string "${cronString}":`, e);
+      return cronString;
+    }
+  };
 
   useEffect(() => {
     if (scheduleId && !selectedSessionDetails) {
@@ -379,42 +289,25 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     }
   };
 
-  // Optimized periodic refresh for schedule details to keep the running status up to date
+  // Add a periodic refresh for schedule details to keep the running status up to date
   useEffect(() => {
     if (!scheduleId) return;
 
     // Initial fetch
     fetchScheduleDetails(scheduleId);
 
-    // Set up periodic refresh every 8 seconds (longer to reduce flashing)
+    // Set up periodic refresh every 5 seconds
     const intervalId = setInterval(() => {
-      if (
-        scheduleId &&
-        !selectedSessionDetails &&
-        !runNowLoading &&
-        !pauseUnpauseLoading &&
-        !killJobLoading &&
-        !inspectJobLoading &&
-        !isEditSubmitting
-      ) {
-        fetchScheduleDetails(scheduleId, true); // Pass true to indicate this is a refresh
+      if (scheduleId) {
+        fetchScheduleDetails(scheduleId);
       }
-    }, 8000);
+    }, 5000);
 
     // Clean up on unmount or when scheduleId changes
     return () => {
       clearInterval(intervalId);
     };
-  }, [
-    scheduleId,
-    fetchScheduleDetails,
-    selectedSessionDetails,
-    runNowLoading,
-    pauseUnpauseLoading,
-    killJobLoading,
-    inspectJobLoading,
-    isEditSubmitting,
-  ]);
+  }, [scheduleId, fetchScheduleDetails]);
 
   // Monitor schedule state changes and reset loading states appropriately
   useEffect(() => {
@@ -529,7 +422,57 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
               </p>
             )}
             {!isLoadingSchedule && !scheduleError && scheduleDetails && (
-              <ScheduleInfoCard scheduleDetails={scheduleDetails} />
+              <Card className="p-4 bg-white dark:bg-gray-800 shadow mb-6">
+                <div className="space-y-2">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                      {scheduleDetails.id}
+                    </h3>
+                    <div className="mt-2 md:mt-0 flex items-center gap-2">
+                      {scheduleDetails.currently_running && (
+                        <div className="text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
+                          <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                          Currently Running
+                        </div>
+                      )}
+                      {scheduleDetails.paused && (
+                        <div className="text-sm text-orange-500 dark:text-orange-400 font-semibold flex items-center">
+                          <Pause className="w-3 h-3 mr-1" />
+                          Paused
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Schedule:</span>{' '}
+                    {getReadableCron(scheduleDetails.cron)}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Cron Expression:</span> {scheduleDetails.cron}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Recipe Source:</span> {scheduleDetails.source}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold">Last Run:</span>{' '}
+                    {scheduleDetails.last_run
+                      ? new Date(scheduleDetails.last_run).toLocaleString()
+                      : 'Never'}
+                  </p>
+                  {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Current Session:</span>{' '}
+                      {scheduleDetails.current_session_id}
+                    </p>
+                  )}
+                  {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-semibold">Process Started:</span>{' '}
+                      {new Date(scheduleDetails.process_start_time).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </Card>
             )}
           </section>
 

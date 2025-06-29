@@ -1137,10 +1137,6 @@
           "cron": {
             "type": "string"
           },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
-          },
           "id": {
             "type": "string"
           },
@@ -1973,10 +1969,6 @@
           },
           "currently_running": {
             "type": "boolean"
-          },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
           },
           "id": {
             "type": "string"

@@ -84,10 +84,7 @@ async fn get_session_history(
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     // Read metadata
     let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;

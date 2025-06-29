@@ -94,20 +94,6 @@ impl Agent {
                 ToolError::ExecutionError("Missing 'cron_expression' parameter".to_string())
             })?;
 
-        // Get the execution_mode parameter, defaulting to "background" if not provided
-        let execution_mode = arguments
-            .get("execution_mode")
-            .and_then(|v| v.as_str())
-            .unwrap_or("background");
-
-        // Validate execution_mode is either "foreground" or "background"
-        if execution_mode != "foreground" && execution_mode != "background" {
-            return Err(ToolError::ExecutionError(format!(
-                "Invalid execution_mode: {}. Must be 'foreground' or 'background'",
-                execution_mode
-            )));
-        }
-
         // Validate recipe file exists and is readable
         if !std::path::Path::new(recipe_path).exists() {
             return Err(ToolError::ExecutionError(format!(
@@ -149,13 +135,12 @@ impl Agent {
             paused: false,
             current_session_id: None,
             process_start_time: None,
-            execution_mode: Some(execution_mode.to_string()),
         };
 
         match scheduler.add_scheduled_job(job).await {
             Ok(()) => Ok(vec![Content::text(format!(
-                "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}' in {} mode",
-                job_id, recipe_path, cron_expression, execution_mode
+                "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}'",
+                job_id, recipe_path, cron_expression
             ))]),
             Err(e) => Err(ToolError::ExecutionError(format!(
                 "Failed to create job: {}",
@@ -372,17 +357,9 @@ impl Agent {
             })?;
 
         // Get the session file path
-        let session_path = match crate::session::storage::get_path(
+        let session_path = crate::session::storage::get_path(
             crate::session::storage::Identifier::Name(session_id.to_string()),
-        ) {
-            Ok(path) => path,
-            Err(e) => {
-                return Err(ToolError::ExecutionError(format!(
-                    "Invalid session ID '{}': {}",
-                    session_id, e
-                )));
-            }
-        };
+        );
 
         // Check if session file exists
         if !session_path.exists() {
