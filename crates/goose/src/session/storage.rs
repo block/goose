@@ -125,7 +125,7 @@ impl SessionMetadata {
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new(get_home_dir())
+        Self::new(std::env::current_dir().unwrap_or_else(|_| get_home_dir()))
     }
 }
 
