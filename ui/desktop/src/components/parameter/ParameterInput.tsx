@@ -14,8 +14,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
   return (
     <div className="parameter-input my-4 p-4 border rounded-lg bg-bgSubtle shadow-sm">
       <h3 className="text-lg font-bold text-textProminent mb-4">
-        Parameter:{' '}
-        <code className="bg-bgApp px-2 py-1 rounded-md">{JSON.stringify(parameter)}</code>
+        Parameter: <code className="bg-bgApp px-2 py-1 rounded-md">{parameter.key}</code>
       </h3>
 
       <div className="mb-4">
