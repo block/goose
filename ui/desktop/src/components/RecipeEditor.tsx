@@ -11,6 +11,7 @@ import { Check } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
+import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
 import ParameterInput from './parameter/ParameterInput';
@@ -57,9 +58,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [_isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
+  const [isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [_recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
+  const [recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
     label: string;
     value: string;
     setValue: (value: string) => void;
@@ -427,6 +428,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         </div>
       </div>
 
+      <RecipeInfoModal
+        infoLabel={recipeInfoModelProps?.label}
+        originalValue={recipeInfoModelProps?.value}
+        isOpen={isRecipeInfoModalOpen}
+        onClose={() => setRecipeInfoModalOpen(false)}
+        onSaveValue={recipeInfoModelProps?.setValue}
+      />
       <ScheduleFromRecipeModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}

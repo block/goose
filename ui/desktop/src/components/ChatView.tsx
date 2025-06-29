@@ -36,6 +36,7 @@ import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { getCostForModel } from '../utils/costDatabase';
+import { updateSystemPromptWithParameters } from '../utils/providerUtils';
 import {
   Message,
   createUserMessage,
@@ -422,9 +423,16 @@ function ChatContent({
     setLastInteractionTime,
   ]);
 
-  const handleParameterSubmit = (inputValues: Record<string, string>) => {
+  const handleParameterSubmit = async (inputValues: Record<string, string>) => {
     setRecipeParameters(inputValues);
     setIsParameterModalOpen(false);
+
+    // Update the system prompt with parameter-substituted instructions
+    try {
+      await updateSystemPromptWithParameters(inputValues);
+    } catch (error) {
+      console.error('Failed to update system prompt with parameters:', error);
+    }
   };
 
   // Handle submit
