@@ -82,6 +82,7 @@ blake3 = "1.5"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
 tokio-stream = "0.1.17"
+tempfile = "3.15.0"
 
 # Vector database for tool selection
 lancedb = "0.13"
@@ -92,7 +93,6 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
 criterion = "0.5"
-tempfile = "3.15.0"
 serial_test = "3.2.0"
 mockall = "0.13.1"
 wiremock = "0.6.0"
