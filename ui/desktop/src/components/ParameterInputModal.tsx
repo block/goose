@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 
 // Assuming Parameter type is defined somewhere accessible, like in your recipe types
 interface Parameter {
-  name: string;
-  promptMessage: string;
-  defaultValue?: string;
+  key: string;
+  description: string;
+  input_type: string
+  default?: string
   requirement: 'required' | 'optional' | 'interactive';
 }
 
@@ -16,7 +17,7 @@ const ParameterInputModal = ({ parameters, onSubmit, onClose }) => {
         const initialValues = {};
         parameters.forEach(param => {
             if (param.defaultValue) {
-                initialValues[param.name] = param.defaultValue;
+                initialValues[param.key] = param.defaultValue;
             }
         });
         setInputValues(initialValues);
@@ -30,7 +31,7 @@ const ParameterInputModal = ({ parameters, onSubmit, onClose }) => {
         event.preventDefault();
         // Check if all *required* parameters are filled
         const requiredParams = parameters.filter(p => p.requirement === 'required');
-        const missingFields = requiredParams.filter(p => !inputValues[p.name]?.trim());
+        const missingFields = requiredParams.filter(p => !inputValues[p.key]?.trim());
 
         if (missingFields.length > 0) {
             alert(`Please fill in all required fields: ${missingFields.map(p => p.name).join(', ')}`);
@@ -46,17 +47,17 @@ const ParameterInputModal = ({ parameters, onSubmit, onClose }) => {
                 <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {parameters.map(param => (
-                        <div key={param.name}>
+                        <div key={param.key}>
                             <label className="block text-md font-medium text-textStandard mb-2">
-                                {param.promptMessage || param.name}
+                                {param.description || param.key}
                                 {param.requirement === 'required' && <span className="text-red-500 ml-1">*</span>}
                             </label>
                             <input
                                 type="text"
-                                value={inputValues[param.name] || ''}
-                                onChange={(e) => handleChange(param.name, e.target.value)}
+                                value={inputValues[param.key] || ''}
+                                onChange={(e) => handleChange(param.key, e.target.value)}
                                 className="w-full p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
-                                placeholder={param.defaultValue || `Enter value for ${param.name}...`}
+                                placeholder={param.defaultValue || `Enter value for ${param.key}...`}
                             />
                         </div>
                     ))}

@@ -1,64 +1,88 @@
-import React, { useState } from 'react';
+import React from 'react';
 
+// The Parameter interface remains the same
 export interface Parameter {
   name: string;
   promptMessage: string;
   defaultValue?: string;
   requirement: 'required' | 'optional' | 'interactive';
 }
+// TODO: add consistent interface
+// interface Parameter {
+//   key: string;
+//   description: string;
+//   input_type: string
+//   default?: string
+//   requirement: 'required' | 'optional' | 'interactive';
+// }
 
 interface ParameterInputProps {
   parameter: Parameter;
-  value: string;
-  onChange: (name: string, value: Partial<Parameter>) => void;
+  onChange: (name: string, updatedParameter: Partial<Parameter>) => void;
 }
 
-const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, value, onChange }) => {
-  const [requirement, setRequirement] = useState(parameter.requirement || 'required');
-  const [defaultValue, setDefaultValue] = useState(parameter.defaultValue || '');
-
-  const handleRequirementChange = (newRequirement: 'required' | 'optional' | 'interactive') => {
-    setRequirement(newRequirement);
-    onChange(parameter.name, { requirement: newRequirement, defaultValue });
-  };
+const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) => {
+  // All values are derived directly from props, maintaining the controlled component pattern
+  const { name, promptMessage, requirement, defaultValue } = parameter;
 
   return (
-    <div className="parameter-input my-4">
-      <label className="block text-md text-textProminent mb-2 font-bold">
-        {parameter.promptMessage || `Enter value for ${parameter.name}`}
-      </label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(parameter.name, { defaultValue: e.target.value })}
-        className="w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
-        placeholder={parameter.defaultValue || ''}
-        disabled={requirement === 'interactive'}
-      />
-      <div className="mt-2">
-        <label className="mr-2">Requirement:</label>
-        <select
-          className="p-2 border rounded"
-          value={requirement}
-          onChange={(e) => handleRequirementChange(e.target.value as Parameter['requirement'])}
-        >
-          <option value="required">Required</option>
-          <option value="optional">Optional</option>
-          <option value="interactive">Interactive</option>
-        </select>
+    <div className="parameter-input my-4 p-4 border rounded-lg bg-bgSubtle shadow-sm">
+      {/* NEW: Static title to show which parameter is being configured.
+        This replaces the first input box.
+      */}
+      <h3 className="text-lg font-bold text-textProminent mb-4">
+        Parameter: <code className="bg-bgApp px-2 py-1 rounded-md">{name}</code>
+      </h3>
+
+      {/* Input for the user-facing prompt message */}
+      <div className="mb-4">
+        <label className="block text-md text-textStandard mb-2 font-semibold">
+          Prompt Message
+        </label>
+        <input
+          type="text"
+          value={promptMessage}
+          onChange={(e) => onChange(name, { promptMessage: e.target.value })}
+          className="w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+          placeholder={`E.g., "Enter the name for the new component"`}
+          disabled={requirement === 'interactive'}
+        />
+        <p className="text-sm text-textSubtle mt-1">This is the message the end-user will see.</p>
       </div>
-      {requirement === 'optional' && (
-        <div className="mt-2">
-          <label className="block mb-1">Default Value:</label>
-          <input
-            type="text"
-            value={defaultValue}
-            onChange={(e) => setDefaultValue(e.target.value)}
-            className="w-full p-2 border rounded"
-            placeholder="Enter default value"
-          />
+
+      {/* Controls for requirement and default value */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-md text-textStandard mb-2 font-semibold">
+            Requirement
+          </label>
+          <select
+            className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
+            value={requirement}
+            onChange={(e) => onChange(name, { requirement: e.target.value as Parameter['requirement'] })}
+          >
+            <option value="required">Required</option>
+            <option value="optional">Optional</option>
+            <option value="interactive">Interactive</option>
+          </select>
         </div>
-      )}
+
+        {/* The default value input is only shown for optional parameters */}
+        {requirement === 'optional' && (
+          <div>
+            <label className="block text-md text-textStandard mb-2 font-semibold">
+              Default Value
+            </label>
+            <input
+              type="text"
+              value={defaultValue || ''}
+              onChange={(e) => onChange(name, { defaultValue: e.target.value })}
+              className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
+              placeholder="Enter default value"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
