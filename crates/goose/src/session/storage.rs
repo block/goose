@@ -1161,11 +1161,26 @@ pub fn save_messages_with_metadata(
         })?;
     }
 
-    // Get an exclusive lock on the file
-    file.try_lock_exclusive().map_err(|e| {
-        tracing::error!("Failed to lock file: {}", e);
-        anyhow::anyhow!("Failed to lock session file")
-    })?;
+    // Get an exclusive lock on the file with retry logic
+    let max_retries = 5;
+    let mut retry_count = 0;
+    loop {
+        match file.try_lock_exclusive() {
+            Ok(_) => break,
+            Err(e) => {
+                retry_count += 1;
+                if retry_count > max_retries {
+                    tracing::error!("Failed to lock file after {} retries: {}", max_retries, e);
+                    return Err(anyhow::anyhow!("Failed to lock session file"));
+                }
+                
+                // Exponential backoff: 10ms, 20ms, 40ms, 80ms, 160ms
+                let wait_time = std::time::Duration::from_millis(10 * (1 << (retry_count - 1)));
+                tracing::debug!("File lock attempt {} failed, retrying in {:?}", retry_count, wait_time);
+                std::thread::sleep(wait_time);
+            }
+        }
+    }
 
     // Write to temporary file
     {
