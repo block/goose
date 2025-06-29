@@ -112,6 +112,41 @@ impl Content {
         })
     }
 
+    /// Create embedded HTML resource with text content
+    pub fn embedded_html_text<S: Into<String>, T: Into<String>>(uri: S, html_content: T) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::html_text(uri, html_content),
+            annotations: None,
+        })
+    }
+
+    /// Create embedded HTML resource with blob content
+    pub fn embedded_html_blob<S: Into<String>, T: Into<String>>(uri: S, html_blob: T) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::html_blob(uri, html_blob),
+            annotations: None,
+        })
+    }
+
+    /// Create embedded URI list resource with text content
+    pub fn embedded_uri_list_text<S: Into<String>, T: Into<String>>(
+        uri: S,
+        uri_content: T,
+    ) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::uri_list_text(uri, uri_content),
+            annotations: None,
+        })
+    }
+
+    /// Create embedded URI list resource with blob content
+    pub fn embedded_uri_list_blob<S: Into<String>, T: Into<String>>(uri: S, uri_blob: T) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::uri_list_blob(uri, uri_blob),
+            annotations: None,
+        })
+    }
+
     /// Get the text content if this is a TextContent variant
     pub fn as_text(&self) -> Option<&str> {
         match self {
@@ -309,5 +344,95 @@ mod tests {
         let content = Content::text("hello").with_audience(vec![Role::User]);
         assert_eq!(content.audience(), Some(&vec![Role::User]));
         assert_eq!(content.priority(), None);
+    }
+
+    #[test]
+    fn test_embedded_html_text() {
+        let content =
+            Content::embedded_html_text("ui://my-component/instance-1", "<p>Hello World</p>");
+
+        match content {
+            Content::Resource(resource) => match &resource.resource {
+                ResourceContents::TextResourceContents {
+                    uri,
+                    mime_type,
+                    text,
+                } => {
+                    assert_eq!(uri, "ui://my-component/instance-1");
+                    assert_eq!(mime_type, &Some("text/html".to_string()));
+                    assert_eq!(text, "<p>Hello World</p>");
+                }
+                _ => panic!("Expected TextResourceContents"),
+            },
+            _ => panic!("Expected Resource content"),
+        }
+    }
+
+    #[test]
+    fn test_embedded_html_blob() {
+        let blob_data = "PGRpdj48aDI+Q29tcGxleCBDb250ZW50PC9oMj48L2Rpdj4=";
+        let content = Content::embedded_html_blob("ui://my-component/instance-2", blob_data);
+
+        match content {
+            Content::Resource(resource) => match &resource.resource {
+                ResourceContents::BlobResourceContents {
+                    uri,
+                    mime_type,
+                    blob,
+                } => {
+                    assert_eq!(uri, "ui://my-component/instance-2");
+                    assert_eq!(mime_type, &Some("text/html".to_string()));
+                    assert_eq!(blob, blob_data);
+                }
+                _ => panic!("Expected BlobResourceContents"),
+            },
+            _ => panic!("Expected Resource content"),
+        }
+    }
+
+    #[test]
+    fn test_embedded_uri_list_text() {
+        let content = Content::embedded_uri_list_text(
+            "ui://analytics-dashboard/main",
+            "https://my.analytics.com/dashboard/123",
+        );
+
+        match content {
+            Content::Resource(resource) => match &resource.resource {
+                ResourceContents::TextResourceContents {
+                    uri,
+                    mime_type,
+                    text,
+                } => {
+                    assert_eq!(uri, "ui://analytics-dashboard/main");
+                    assert_eq!(mime_type, &Some("text/uri-list".to_string()));
+                    assert_eq!(text, "https://my.analytics.com/dashboard/123");
+                }
+                _ => panic!("Expected TextResourceContents"),
+            },
+            _ => panic!("Expected Resource content"),
+        }
+    }
+
+    #[test]
+    fn test_embedded_uri_list_blob() {
+        let blob_data = "aHR0cHM6Ly9jaGFydHMuZXhhbXBsZS5jb20vYXBpP3R5cGU9cGllJmRhdGE9MSwyLDM=";
+        let content = Content::embedded_uri_list_blob("ui://live-chart/session-xyz", blob_data);
+
+        match content {
+            Content::Resource(resource) => match &resource.resource {
+                ResourceContents::BlobResourceContents {
+                    uri,
+                    mime_type,
+                    blob,
+                } => {
+                    assert_eq!(uri, "ui://live-chart/session-xyz");
+                    assert_eq!(mime_type, &Some("text/uri-list".to_string()));
+                    assert_eq!(blob, blob_data);
+                }
+                _ => panic!("Expected BlobResourceContents"),
+            },
+            _ => panic!("Expected Resource content"),
+        }
     }
 }

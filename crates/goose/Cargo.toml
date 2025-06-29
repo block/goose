@@ -107,6 +107,10 @@ path = "examples/agent.rs"
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
+[[example]]
+name = "mcp_ui_resources"
+path = "examples/mcp_ui_resources.rs"
+
 [[bench]]
 name = "tokenization_benchmark"
 harness = false
