@@ -3413,6 +3413,7 @@ dependencies = [
 name = "goose"
 version = "1.0.30"
 dependencies = [
+ "ahash",
  "anyhow",
  "arrow",
  "async-stream",
@@ -3427,6 +3428,7 @@ dependencies = [
  "chrono",
  "criterion",
  "ctor",
+ "dashmap 6.1.0",
  "dirs 5.0.1",
  "dotenv",
  "etcetera",

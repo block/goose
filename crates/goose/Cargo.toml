@@ -31,7 +31,8 @@ reqwest = { version = "0.12.9", features = [
         "zstd",
         "charset",
         "http2",
-        "stream"
+        "stream",
+        "blocking"
     ], default-features = false }
 tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -82,6 +83,8 @@ blake3 = "1.5"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
 tokio-stream = "0.1.17"
+dashmap = "6.1"
+ahash = "0.8"
 
 # Vector database for tool selection
 lancedb = "0.13"
@@ -106,6 +109,10 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+
+[[example]]
+name = "async_token_counter_demo"
+path = "examples/async_token_counter_demo.rs"
 
 [[bench]]
 name = "tokenization_benchmark"
