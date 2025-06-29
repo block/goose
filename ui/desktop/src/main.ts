@@ -1750,7 +1750,6 @@ app.whenReady().then(async () => {
 
       // Log the recipeConfig for debugging
       console.log('Creating chat window with recipeConfig:', recipeConfig);
-      // TODO: Consider adding parameter validation here before creating chat window
       // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
       createChat(app, query, dir, version, resumeSessionId, recipeConfig, viewType);
     }

@@ -2,7 +2,6 @@ import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
-// TODO: implement consistent interface for parameters
 export interface Parameter {
   key: string;
   description: string;
