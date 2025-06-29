@@ -35,14 +35,12 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   };
 
   const handleSubmit = (): void => {
-    // event.preventDefault();
     // Check if all *required* parameters are filled
     const requiredParams: Parameter[] = parameters.filter((p) => p.requirement === 'required');
     const missingFields: MissingField[] = requiredParams.filter((p) => !inputValues[p.key]?.trim());
 
     if (missingFields.length > 0) {
       // TODO: Show a user-friendly message instead of an alert
-      // alert(`Please fill in all required fields: ${missingFields.map(p => p.name).join(', ')}`);
       return;
     }
     onSubmit(inputValues);

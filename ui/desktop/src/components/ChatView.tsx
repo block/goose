@@ -72,10 +72,22 @@ const isUserMessage = (message: Message): boolean => {
 
 const substituteParameters = (prompt: string, params: Record<string, string>): string => {
   let substitutedPrompt = prompt;
+
+  console.log('Substituting parameters:', { prompt, params });
+
   for (const key in params) {
-    const regex = new RegExp(`{{\\s?${key}\\s?}}`, 'g');
+    // Escape special characters in the key (parameter) and match optional whitespace
+    const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
+    const beforeSubstitution = substitutedPrompt;
     substitutedPrompt = substitutedPrompt.replace(regex, params[key]);
+
+    // Log each substitution for debugging
+    if (beforeSubstitution !== substitutedPrompt) {
+      console.log(`Replaced {{${key}}} with "${params[key]}"`);
+    }
   }
+
+  console.log('Final substituted prompt:', substitutedPrompt);
   return substitutedPrompt;
 };
 
@@ -164,8 +176,8 @@ function ChatContent({
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
-  // TODO: if recipeConfig and recipeConfig.parameters are defined, we should show a modal to input parameters
-  // before allowing the user to interact with the chat. This is not implemented yet.
+  // Show parameter modal if recipe has parameters and they haven't been set yet
+  // TODO: Allow user to close the recipe if they don't want to set parameters
   useEffect(() => {
     if (recipeConfig?.parameters && recipeConfig.parameters.length > 0) {
       // If we have parameters and they haven't been set yet, open the modal.
@@ -369,7 +381,7 @@ function ChatContent({
   }, [recipeConfig, recipeParameters]);
 
   // Auto-send the prompt for scheduled executions
-    useEffect(() => {
+  useEffect(() => {
     const hasRequiredParams = recipeConfig?.parameters && recipeConfig.parameters.length > 0;
 
     if (
@@ -401,6 +413,7 @@ function ChatContent({
   }, [
     recipeConfig?.isScheduledExecution,
     recipeConfig?.prompt,
+    recipeConfig?.parameters,
     recipeParameters,
     messages.length,
     isLoading,

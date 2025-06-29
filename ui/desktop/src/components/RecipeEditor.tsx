@@ -426,13 +426,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
         </div>
       </div>
-      {/* <RecipeInfoModal
-        infoLabel={recipeInfoModelProps?.label}
-        originalValue={recipeInfoModelProps?.value}
-        isOpen={isRecipeInfoModalOpen}
-        onClose={() => setRecipeInfoModalOpen(false)}
-        onSaveValue={recipeInfoModelProps?.setValue}
-      /> */}
+
       <ScheduleFromRecipeModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}

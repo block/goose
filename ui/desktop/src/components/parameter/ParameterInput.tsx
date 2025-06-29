@@ -1,12 +1,5 @@
 import React from 'react';
-
-interface Parameter {
-  key: string;
-  description: string;
-  input_type: string;
-  default?: string;
-  requirement: 'required' | 'optional' | 'interactive';
-}
+import { Parameter } from '../../recipe';
 
 interface ParameterInputProps {
   parameter: Parameter;
