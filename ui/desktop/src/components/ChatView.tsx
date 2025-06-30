@@ -178,7 +178,6 @@ function ChatContent({
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   // Show parameter modal if recipe has parameters and they haven't been set yet
-  // TODO: Allow user to close the recipe if they don't want to set parameters
   useEffect(() => {
     if (recipeConfig?.parameters && recipeConfig.parameters.length > 0) {
       // If we have parameters and they haven't been set yet, open the modal.
@@ -894,10 +893,7 @@ function ChatContent({
           <ParameterInputModal
             parameters={recipeConfig.parameters}
             onSubmit={handleParameterSubmit}
-            onClose={() => {
-              // We might want to prevent closing if fields are required.
-              setIsParameterModalOpen(false);
-            }}
+            onClose={() => setIsParameterModalOpen(false)}
           />
         )}
       </div>

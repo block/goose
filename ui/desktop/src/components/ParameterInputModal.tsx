@@ -86,7 +86,6 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   };
 
   return (
-    // Modified styling to allow background graphics to show through
     <div className="fixed inset-0 backdrop-blur-sm z-50 flex justify-center items-center animate-[fadein_200ms_ease-in]">
       {showCancelOptions ? (
         // Cancel options modal

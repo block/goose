@@ -25,7 +25,6 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
           onChange={(e) => onChange(key, { description: e.target.value })}
           className="w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
           placeholder={`E.g., "Enter the name for the new component"`}
-          disabled={requirement === 'interactive'}
         />
         <p className="text-sm text-textSubtle mt-1">This is the message the end-user will see.</p>
       </div>
@@ -43,7 +42,6 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
           >
             <option value="required">Required</option>
             <option value="optional">Optional</option>
-            {/* <option value="interactive">Interactive</option> */}
           </select>
         </div>
 

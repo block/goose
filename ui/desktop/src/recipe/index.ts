@@ -7,7 +7,7 @@ export interface Parameter {
   description: string;
   input_type: string;
   default?: string;
-  requirement: 'required' | 'optional' | 'interactive';
+  requirement: 'required' | 'optional' | 'user_prompt';
 }
 
 export interface Recipe {

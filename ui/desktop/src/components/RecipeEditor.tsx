@@ -31,7 +31,7 @@ function serializeParametersToYAML(parameters: Parameter[]): string {
   const yamlParams = parameters.map((param) => {
     const paramYaml: Parameter = {
       key: param.key,
-      input_type: 'string', // Assuming input type is string; change if applicable
+      input_type: 'string',
       requirement: param.requirement,
       description: param.description,
     };
@@ -132,11 +132,11 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   }, [instructions]);
 
   const getCurrentConfig = (): Recipe => {
-    // NEW: Transform the internal parameters state into the desired output format.
+    // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
       const formattedParam: Parameter = {
         key: param.key,
-        input_type: 'string', // As specified
+        input_type: 'string',
         requirement: param.requirement,
         description: param.description,
       };
