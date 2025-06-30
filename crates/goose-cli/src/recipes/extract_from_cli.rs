@@ -1,35 +1,38 @@
 use std::path::Path;
 
-use goose::recipe::SubRecipe;
 use anyhow::Result;
+use goose::recipe::SubRecipe;
 
 use crate::{cli::InputConfig, recipes::recipe::load_recipe_as_template, session::SessionSettings};
 
 pub fn extract_recipe_info_from_cli(
-    recipe_name: String, 
+    recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
 ) -> Result<(InputConfig, Option<SessionSettings>, Option<Vec<SubRecipe>>)> {
-    let recipe =
-        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
-            eprintln!("{}: {}", console::style("Error").red().bold(), err);
-            std::process::exit(1);
-        });
+    let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
+        eprintln!("{}: {}", console::style("Error").red().bold(), err);
+        std::process::exit(1);
+    });
     let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
     if !additional_sub_recipes.is_empty() {
         additional_sub_recipes.iter().for_each(|sub_recipe_path| {
             let path = Path::new(sub_recipe_path);
-            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string();
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
             let additional_sub_recipe: SubRecipe = SubRecipe {
                 path: sub_recipe_path.to_string(),
-                name: name,
+                name,
                 values: None,
             };
             all_sub_recipes.push(additional_sub_recipe);
         });
     }
-    Ok(
-        (InputConfig {
+    Ok((
+        InputConfig {
             contents: recipe.prompt,
             extensions_override: recipe.extensions,
             additional_system_prompt: recipe.instructions,
@@ -39,8 +42,8 @@ pub fn extract_recipe_info_from_cli(
             goose_model: s.goose_model,
             temperature: s.temperature,
         }),
-        Some(all_sub_recipes))
-    )
+        Some(all_sub_recipes),
+    ))
 }
 
 #[cfg(test)]
@@ -52,16 +55,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_recipe_info_from_cli_basic()  {
+    fn test_extract_recipe_info_from_cli_basic() {
         let (_temp_dir, recipe_path) = create_recipe();
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, settings, sub_recipes) = extract_recipe_info_from_cli(
-            recipe_name, params, Vec::new()).unwrap();
-        
+        let (input_config, settings, sub_recipes) =
+            extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
-        assert_eq!(input_config.additional_system_prompt, Some("test_instructions my_value".to_string()));
+        assert_eq!(
+            input_config.additional_system_prompt,
+            Some("test_instructions my_value".to_string())
+        );
         assert!(input_config.extensions_override.is_none());
 
         assert!(settings.is_some());
@@ -88,11 +94,14 @@ mod tests {
             "another/sub_recipe2.yaml".to_string(),
         ];
 
-        let (input_config, settings, sub_recipes) = extract_recipe_info_from_cli(
-            recipe_name, params, additional_sub_recipes).unwrap();
-        
+        let (input_config, settings, sub_recipes) =
+            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
-        assert_eq!(input_config.additional_system_prompt, Some("test_instructions my_value".to_string()));
+        assert_eq!(
+            input_config.additional_system_prompt,
+            Some("test_instructions my_value".to_string())
+        );
         assert!(input_config.extensions_override.is_none());
 
         assert!(settings.is_some());

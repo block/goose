@@ -18,9 +18,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{
-    explain_recipe_with_parameters, load_recipe_content_as_template,
-};
+use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
