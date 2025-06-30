@@ -83,6 +83,8 @@ pub enum ClaudeVersion {
     Haiku35,
     /// Claude Sonnet 4
     Sonnet4,
+    /// Claude Opus 4
+    Opus4,
     /// Generic Claude model for custom or new versions
     Generic(String),
 }
@@ -102,6 +104,10 @@ pub enum GeminiVersion {
     Flash25Preview,
     /// Gemini 2.5 Pro Preview version
     Pro25Preview,
+    /// Gemini 2.5 Flash version
+    Flash25,
+    /// Gemini 2.5 Pro version
+    Pro25,
     /// Generic Gemini model for custom or new versions
     Generic(String),
 }
@@ -115,6 +121,7 @@ impl fmt::Display for GcpVertexAIModel {
                 ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
                 ClaudeVersion::Haiku35 => "claude-3-5-haiku@20241022",
                 ClaudeVersion::Sonnet4 => "claude-sonnet-4@20250514",
+                ClaudeVersion::Opus4 => "claude-opus-4@20250514",
                 ClaudeVersion::Generic(name) => name,
             },
             Self::Gemini(version) => match version {
@@ -124,6 +131,8 @@ impl fmt::Display for GcpVertexAIModel {
                 GeminiVersion::Pro25Exp => "gemini-2.5-pro-exp-03-25",
                 GeminiVersion::Flash25Preview => "gemini-2.5-flash-preview-05-20",
                 GeminiVersion::Pro25Preview => "gemini-2.5-pro-preview-05-06",
+                GeminiVersion::Flash25 => "gemini-2.5-flash",
+                GeminiVersion::Pro25 => "gemini-2.5-pro",
                 GeminiVersion::Generic(name) => name,
             },
         };
@@ -156,12 +165,15 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "claude-3-7-sonnet@20250219" => Ok(Self::Claude(ClaudeVersion::Sonnet37)),
             "claude-3-5-haiku@20241022" => Ok(Self::Claude(ClaudeVersion::Haiku35)),
             "claude-sonnet-4@20250514" => Ok(Self::Claude(ClaudeVersion::Sonnet4)),
+            "claude-opus-4@20250514" => Ok(Self::Claude(ClaudeVersion::Opus4)),
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
             "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
             "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
             "gemini-2.5-pro-exp-03-25" => Ok(Self::Gemini(GeminiVersion::Pro25Exp)),
             "gemini-2.5-flash-preview-05-20" => Ok(Self::Gemini(GeminiVersion::Flash25Preview)),
             "gemini-2.5-pro-preview-05-06" => Ok(Self::Gemini(GeminiVersion::Pro25Preview)),
+            "gemini-2.5-flash" => Ok(Self::Gemini(GeminiVersion::Flash25)),
+            "gemini-2.5-pro" => Ok(Self::Gemini(GeminiVersion::Pro25)),
             // Generic models based on prefix matching
             _ if s.starts_with("claude-") => {
                 Ok(Self::Claude(ClaudeVersion::Generic(s.to_string())))
@@ -427,7 +439,7 @@ mod tests {
         }
 
         // Test generic Gemini models
-        let gemini_models = ["gemini-3-pro", "gemini-2.5-flash", "gemini-experimental"];
+        let gemini_models = ["gemini-3-pro", "gemini-2.0-flash", "gemini-experimental"];
 
         for model_id in gemini_models {
             let model = GcpVertexAIModel::try_from(model_id)?;
