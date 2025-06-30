@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use goose::recipe::SubRecipe;
@@ -17,14 +17,14 @@ pub fn extract_recipe_info_from_cli(
     let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
     if !additional_sub_recipes.is_empty() {
         additional_sub_recipes.iter().for_each(|sub_recipe_path| {
-            let path = Path::new(sub_recipe_path);
+            let path = convert_path(sub_recipe_path);
             let name = path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
                 .to_string();
             let additional_sub_recipe: SubRecipe = SubRecipe {
-                path: sub_recipe_path.to_string(),
+                path: path.to_string_lossy().to_string(),
                 name,
                 values: None,
             };
@@ -44,6 +44,15 @@ pub fn extract_recipe_info_from_cli(
         }),
         Some(all_sub_recipes),
     ))
+}
+
+fn convert_path(path: &str) -> PathBuf {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home_dir) = dirs::home_dir() {
+            return home_dir.join(stripped);
+        }
+    }
+    PathBuf::from(path)
 }
 
 #[cfg(test)]
