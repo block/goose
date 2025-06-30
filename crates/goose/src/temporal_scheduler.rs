@@ -314,13 +314,13 @@ impl TemporalScheduler {
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
-            // On Windows, use similar approach to Electron app:
-            // - Don't suppress output for debugging
-            // - Use CREATE_NO_WINDOW to avoid console window
-            // - Set DETACHED_PROCESS for independence
+            // On Windows, prevent console window and run detached:
+            // - Use CREATE_NO_WINDOW (0x08000000) to prevent console window
+            // - Use DETACHED_PROCESS (0x00000008) for independence
+            // - Redirect output to null to prevent console attachment
             command
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
                 .stdin(std::process::Stdio::null())
                 .creation_flags(0x08000000 | 0x00000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
         }
