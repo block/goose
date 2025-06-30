@@ -1306,9 +1306,12 @@ async fn run_scheduled_job_internal(
             message_count: 0,
             ..Default::default()
         };
-        if let Err(e) =
-            crate::session::storage::save_messages_with_metadata(&session_file_path, &metadata, &[], true)
-        {
+        if let Err(e) = crate::session::storage::save_messages_with_metadata(
+            &session_file_path,
+            &metadata,
+            &[],
+            true,
+        ) {
             tracing::error!(
                 "[Job {}] Failed to persist metadata for empty job: {}",
                 job.id,

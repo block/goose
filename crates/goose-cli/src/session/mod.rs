@@ -52,7 +52,7 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
-    save_session: bool, // Whether to save session to file
+    save_session: bool,               // Whether to save session to file
 }
 
 // Cache structure for completion data
