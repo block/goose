@@ -20,7 +20,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 </details>
 
 
-This tutorial will get you started with the Square MCP server to enable interactive and automated work for your Square seller account. The Square MCP server is an open source project that allows you to interact with the Square API using Goose.
+This tutorial will get you started with the [Square MCP server](https://developer.squareup.com/docs/mcp) to enable interactive and automated work for your Square seller account. The Square MCP server is an open source project that allows you to interact with the Square API using Goose.
 
 Square offers two versions of the MCP server:
 
