@@ -38,6 +38,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 
+use crate::cli_println;
+
 pub enum RunMode {
     Normal,
     Plan,
@@ -49,7 +51,8 @@ pub struct Session {
     session_file: PathBuf,
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
-    debug: bool, // New field for debug mode
+    debug: bool,
+    porcelain: bool,
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
 }
@@ -112,6 +115,7 @@ impl Session {
         agent: Agent,
         session_file: PathBuf,
         debug: bool,
+        porcelain: bool,
         scheduled_job_id: Option<String>,
     ) -> Self {
         let messages = match session::read_messages(&session_file) {
@@ -128,6 +132,7 @@ impl Session {
             session_file,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
+            porcelain,
             run_mode: RunMode::Normal,
             scheduled_job_id,
         }
@@ -138,11 +143,12 @@ impl Session {
         messages: &mut Vec<Message>,
         agent: &Agent,
         message_suffix: &str,
+        porcelain: bool,
     ) -> Result<()> {
         // Summarize messages to fit within context length
         let (summarized_messages, _) = agent.summarize_context(messages).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
-        output::render_text(&msg, Some(Color::Yellow), true);
+        output::render_text(&msg, Some(Color::Yellow), true, porcelain);
         *messages = summarized_messages;
 
         Ok(())
@@ -395,7 +401,7 @@ impl Session {
                 }
             };
 
-        output::display_greeting();
+        output::display_greeting(self.porcelain);
         loop {
             // Display context usage before each prompt
             self.display_context_usage().await?;
@@ -441,7 +447,7 @@ impl Session {
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
                             plan_messages.push(Message::user().with_text(&content));
-                            let reasoner = get_reasoner()?;
+                            let reasoner = get_reasoner(self.porcelain)?;
                             self.plan_with_reasoner_model(plan_messages, reasoner)
                                 .await?;
                         }
@@ -452,16 +458,20 @@ impl Session {
                     save_history(&mut editor);
 
                     match self.add_extension(cmd.clone()).await {
-                        Ok(_) => output::render_extension_success(&cmd),
-                        Err(e) => output::render_extension_error(&cmd, &e.to_string()),
+                        Ok(_) => output::render_extension_success(&cmd, self.porcelain),
+                        Err(e) => {
+                            output::render_extension_error(&cmd, &e.to_string(), self.porcelain)
+                        }
                     }
                 }
                 input::InputResult::AddBuiltin(names) => {
                     save_history(&mut editor);
 
                     match self.add_builtin(names.clone()).await {
-                        Ok(_) => output::render_builtin_success(&names),
-                        Err(e) => output::render_builtin_error(&names, &e.to_string()),
+                        Ok(_) => output::render_builtin_success(&names, self.porcelain),
+                        Err(e) => {
+                            output::render_builtin_error(&names, &e.to_string(), self.porcelain)
+                        }
                     }
                 }
                 input::InputResult::ToggleTheme => {
@@ -470,15 +480,15 @@ impl Session {
                     let current = output::get_theme();
                     let new_theme = match current {
                         output::Theme::Light => {
-                            println!("Switching to Dark theme");
+                            cli_println!(self.porcelain, "Switching to Dark theme");
                             output::Theme::Dark
                         }
                         output::Theme::Dark => {
-                            println!("Switching to Ansi theme");
+                            cli_println!(self.porcelain, "Switching to Ansi theme");
                             output::Theme::Ansi
                         }
                         output::Theme::Ansi => {
-                            println!("Switching to Light theme");
+                            cli_println!(self.porcelain, "Switching to Light theme");
                             output::Theme::Light
                         }
                     };
@@ -490,8 +500,8 @@ impl Session {
                     save_history(&mut editor);
 
                     match self.list_prompts(extension).await {
-                        Ok(prompts) => output::render_prompts(&prompts),
-                        Err(e) => output::render_error(&e.to_string()),
+                        Ok(prompts) => output::render_prompts(&prompts, self.porcelain),
+                        Err(e) => output::render_error(&e.to_string(), self.porcelain),
                     }
                 }
                 input::InputResult::GooseMode(mode) => {
@@ -502,22 +512,28 @@ impl Session {
 
                     // Check if mode is valid
                     if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
-                        output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
-                            mode
-                        ));
+                        output::render_error(
+                            &format!(
+                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
+                                mode
+                            ),
+                            self.porcelain,
+                        );
                         continue;
                     }
 
                     config
                         .set_param("GOOSE_MODE", Value::String(mode.to_string()))
                         .unwrap();
-                    output::goose_mode_message(&format!("Goose mode set to '{}'", mode));
+                    output::goose_mode_message(
+                        &format!("Goose mode set to '{}'", mode),
+                        self.porcelain,
+                    );
                     continue;
                 }
                 input::InputResult::Plan(options) => {
                     self.run_mode = RunMode::Plan;
-                    output::render_enter_plan_mode();
+                    output::render_enter_plan_mode(self.porcelain);
 
                     let message_text = options.message_text;
                     if message_text.is_empty() {
@@ -526,13 +542,13 @@ impl Session {
                     let mut plan_messages = self.messages.clone();
                     plan_messages.push(Message::user().with_text(&message_text));
 
-                    let reasoner = get_reasoner()?;
+                    let reasoner = get_reasoner(self.porcelain)?;
                     self.plan_with_reasoner_model(plan_messages, reasoner)
                         .await?;
                 }
                 input::InputResult::EndPlan => {
                     self.run_mode = RunMode::Normal;
-                    output::render_exit_plan_mode();
+                    output::render_exit_plan_mode(self.porcelain);
                     continue;
                 }
                 input::InputResult::Clear => {
@@ -543,6 +559,7 @@ impl Session {
                     output::render_message(
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
+                        self.porcelain,
                     );
                     continue;
                 }
@@ -551,7 +568,11 @@ impl Session {
                     self.handle_prompt_command(opts).await?;
                 }
                 InputResult::Recipe(filepath_opt) => {
-                    println!("{}", console::style("Generating Recipe").green());
+                    cli_println!(
+                        self.porcelain,
+                        "{}",
+                        console::style("Generating Recipe").green()
+                    );
 
                     output::show_thinking();
                     let recipe = self.agent.create_recipe(self.messages.clone()).await;
@@ -562,22 +583,23 @@ impl Session {
                             // Use provided filepath or default
                             let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
                             match self.save_recipe(&recipe, filepath_str) {
-                                Ok(path) => println!(
-                                    "{}",
-                                    console::style(format!("Saved recipe to {}", path.display()))
-                                        .green()
-                                ),
+                                Ok(path) => {
+                                    let msg = format!("Saved recipe to {}", path.display());
+                                    cli_println!(
+                                        self.porcelain,
+                                        "{}",
+                                        console::style(&msg).green()
+                                    );
+                                }
                                 Err(e) => {
-                                    println!("{}", console::style(e).red());
+                                    let msg = format!("Failed to generate recipe: {:?}", e);
+                                    cli_println!(self.porcelain, "{}", console::style(&msg).red());
                                 }
                             }
                         }
                         Err(e) => {
-                            println!(
-                                "{}: {:?}",
-                                console::style("Failed to generate recipe").red(),
-                                e
-                            );
+                            let msg = format!("Failed to generate recipe: {:?}", e);
+                            output::render_text(&msg, Some(Color::Red), false, self.porcelain);
                         }
                     }
 
@@ -600,7 +622,11 @@ impl Session {
                         };
 
                     if should_summarize {
-                        println!("{}", console::style("Summarizing conversation...").yellow());
+                        cli_println!(
+                            self.porcelain,
+                            "{}",
+                            console::style("Summarizing conversation...").yellow()
+                        );
                         output::show_thinking();
 
                         // Get the provider for summarization
@@ -623,11 +649,13 @@ impl Session {
                         .await?;
 
                         output::hide_thinking();
-                        println!(
+                        cli_println!(
+                            self.porcelain,
                             "{}",
                             console::style("Conversation has been summarized.").green()
                         );
-                        println!(
+                        cli_println!(
+                            self.porcelain,
                             "{}",
                             console::style(
                                 "Key information has been preserved while reducing context length."
@@ -635,7 +663,11 @@ impl Session {
                             .green()
                         );
                     } else {
-                        println!("{}", console::style("Summarization cancelled.").yellow());
+                        cli_println!(
+                            self.porcelain,
+                            "{}",
+                            console::style("Summarization cancelled.").yellow()
+                        );
                     }
 
                     continue;
@@ -643,10 +675,11 @@ impl Session {
             }
         }
 
-        println!(
+        let message = format!(
             "\nClosing session. Recorded to {}",
             self.session_file.display()
         );
+        cli_println!(self.porcelain, "{}", message);
         Ok(())
     }
 
@@ -658,7 +691,7 @@ impl Session {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
         let (plan_response, _usage) = reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
-        output::render_message(&plan_response, self.debug);
+        output::render_message(&plan_response, self.debug, self.porcelain);
         output::hide_thinking();
         let planner_response_type =
             classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
@@ -666,7 +699,7 @@ impl Session {
 
         match planner_response_type {
             PlannerResponseType::Plan => {
-                println!();
+                cli_println!(self.porcelain, "");
                 let should_act = match cliclack::confirm(
                     "Do you want to clear message history & act on this plan?",
                 )
@@ -683,7 +716,7 @@ impl Session {
                     }
                 };
                 if should_act {
-                    output::render_act_on_plan();
+                    output::render_act_on_plan(self.porcelain);
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
@@ -729,7 +762,12 @@ impl Session {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, message: String) -> Result<()> {
-        self.process_message(message).await
+        let result = self.process_message(message).await;
+
+        // Output final message if in porcelain mode
+        self.output_final_message();
+
+        result
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
@@ -784,7 +822,7 @@ impl Session {
                                 };
 
                                 if permission == Permission::Cancel {
-                                    output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true, self.porcelain);
 
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
@@ -838,7 +876,7 @@ impl Session {
                                         } else {
                                             format!("Session cleared.\n{}", "-".repeat(50))
                                         };
-                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true, self.porcelain);
                                         break;  // exit the loop to hand back control to the user
                                     }
                                     "truncate" => {
@@ -849,8 +887,8 @@ impl Session {
                                         } else {
                                             format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
                                         };
-                                        output::render_text("", Some(Color::Yellow), true);
-                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        output::render_text("", Some(Color::Yellow), true, self.porcelain);
+                                        output::render_text(&msg, Some(Color::Yellow), true, self.porcelain);
                                         self.messages = truncated_messages;
                                     }
                                     "summarize" => {
@@ -862,7 +900,7 @@ impl Session {
                                         } else {
                                             "Goose automatically summarized messages to continue processing."
                                         };
-                                        Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await?;
+                                        Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix, self.porcelain).await?;
                                     }
                                     _ => {
                                         unreachable!()
@@ -893,7 +931,7 @@ impl Session {
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
-                                output::render_message(&message, self.debug);
+                                output::render_message(&message, self.debug, self.porcelain);
                                 if interactive {output::show_thinking()};
                             }
                         }
@@ -975,7 +1013,7 @@ impl Session {
                                             // Show subagent notifications immediately (no buffering) with compact spacing
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
+                                                cli_println!(self.porcelain, "{}", console::style(&formatted_message).green().dim());
                                             } else {
                                                 progress_bars.log(&formatted_message);
                                             }
@@ -983,7 +1021,7 @@ impl Session {
                                             // Non-subagent notification, display immediately with compact spacing
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
+                                                cli_println!(self.porcelain, "{}", console::style(&formatted_message).green().dim());
                                             } else {
                                                 progress_bars.log(&formatted_message);
                                             }
@@ -1027,6 +1065,7 @@ impl Session {
                                 These errors are often related to connection or authentication\n\
                                 We've removed the conversation up to the most recent user message\n\
                                 - depending on the error you may be able to continue",
+                                self.porcelain,
                             );
                             break;
                         }
@@ -1111,7 +1150,11 @@ impl Session {
             )
             .await?;
 
-            output::render_message(&Message::assistant().with_text(&prompt), self.debug);
+            output::render_message(
+                &Message::assistant().with_text(&prompt),
+                self.debug,
+                self.porcelain,
+            );
         } else {
             // An interruption occurred outside of a tool request-response.
             if let Some(last_msg) = self.messages.last() {
@@ -1134,6 +1177,7 @@ impl Session {
                             output::render_message(
                                 &Message::assistant().with_text(prompt),
                                 self.debug,
+                                self.porcelain,
                             );
                         }
                         Some(_) => {
@@ -1143,6 +1187,7 @@ impl Session {
                             output::render_message(
                                 &Message::assistant().with_text(prompt),
                                 self.debug,
+                                self.porcelain,
                             );
                         }
                         None => panic!("No content in last message"),
@@ -1209,7 +1254,8 @@ impl Session {
         }
 
         // Print session restored message
-        println!(
+        cli_println!(
+            self.porcelain,
             "\n{} {} messages loaded into context.",
             console::style("Session restored:").green().bold(),
             console::style(self.messages.len()).green()
@@ -1217,11 +1263,12 @@ impl Session {
 
         // Render each message
         for message in &self.messages {
-            output::render_message(message, self.debug);
+            output::render_message(message, self.debug, self.porcelain);
         }
 
         // Add a visual separator after restored messages
-        println!(
+        cli_println!(
+            self.porcelain,
             "\n{}\n",
             console::style("──────── New Messages ────────").dim()
         );
@@ -1251,11 +1298,10 @@ impl Session {
         match self.get_metadata() {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
-
-                output::display_context_usage(total_tokens, context_limit);
+                output::display_context_usage(total_tokens, context_limit, self.porcelain);
             }
             Err(_) => {
-                output::display_context_usage(0, context_limit);
+                output::display_context_usage(0, context_limit, self.porcelain);
             }
         }
 
@@ -1266,14 +1312,17 @@ impl Session {
     async fn handle_prompt_command(&mut self, opts: input::PromptCommandOptions) -> Result<()> {
         // name is required
         if opts.name.is_empty() {
-            output::render_error("Prompt name argument is required");
+            output::render_error("Prompt name argument is required", self.porcelain);
             return Ok(());
         }
 
         if opts.info {
             match self.get_prompt_info(&opts.name).await? {
-                Some(info) => output::render_prompt_info(&info),
-                None => output::render_error(&format!("Prompt '{}' not found", opts.name)),
+                Some(info) => output::render_prompt_info(&info, self.porcelain),
+                None => output::render_error(
+                    &format!("Prompt '{}' not found", opts.name),
+                    self.porcelain,
+                ),
             }
         } else {
             // Convert the arguments HashMap to a Value
@@ -1294,10 +1343,13 @@ impl Session {
                         };
 
                         if msg.role != expected_role {
-                            output::render_error(&format!(
-                                "Expected {:?} message at position {}, but found {:?}",
-                                expected_role, i, msg.role
-                            ));
+                            output::render_error(
+                                &format!(
+                                    "Expected {:?} message at position {}, but found {:?}",
+                                    expected_role, i, msg.role
+                                ),
+                                self.porcelain,
+                            );
                             valid = false;
                             // get rid of everything we added to messages
                             self.messages.truncate(start_len);
@@ -1305,7 +1357,7 @@ impl Session {
                         }
 
                         if msg.role == mcp_core::Role::User {
-                            output::render_message(&msg, self.debug);
+                            output::render_message(&msg, self.debug, self.porcelain);
                         }
                         self.messages.push(msg);
                     }
@@ -1316,7 +1368,7 @@ impl Session {
                         output::hide_thinking();
                     }
                 }
-                Err(e) => output::render_error(&e.to_string()),
+                Err(e) => output::render_error(&e.to_string(), self.porcelain),
             }
         }
 
@@ -1365,9 +1417,26 @@ impl Session {
 
         Ok(path)
     }
+
+    pub fn output_final_message(&self) {
+        if self.porcelain {
+            // Find the last assistant message with text content
+            for message in self.messages.iter().rev() {
+                if message.role == mcp_core::role::Role::Assistant {
+                    for content in &message.content {
+                        if let MessageContent::Text(text) = content {
+                            // Output to stdout without any formatting
+                            println!("{}", text.text);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
-fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
+fn get_reasoner(porcelain: bool) -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
@@ -1377,7 +1446,10 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
         provider
     } else {
-        println!("WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider...");
+        cli_println!(
+            porcelain,
+            "WARNING: GOOSE_PLANNER_PROVIDER not found. Using default provider..."
+        );
         config
             .get_param::<String>("GOOSE_PROVIDER")
             .expect("No provider configured. Run 'goose configure' first")
@@ -1387,7 +1459,10 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
         model
     } else {
-        println!("WARNING: GOOSE_PLANNER_MODEL not found. Using default model...");
+        cli_println!(
+            porcelain,
+            "WARNING: GOOSE_PLANNER_MODEL not found. Using default model..."
+        );
         config
             .get_param::<String>("GOOSE_MODEL")
             .expect("No model configured. Run 'goose configure' first")

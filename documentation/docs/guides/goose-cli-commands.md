@@ -293,6 +293,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
+- **`--porcelain`**: Porcelain mode. Redirect all CLI output to stderr and only output final text message to stdout
 
 **Usage:**
 

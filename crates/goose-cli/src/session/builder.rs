@@ -47,6 +47,8 @@ pub struct SessionBuilderConfig {
     pub interactive: bool,
     /// Quiet mode - suppress non-response output
     pub quiet: bool,
+    /// Porcelain mode - redirect all CLI output to stderr and only output final text message to stdout
+    pub porcelain: bool,
     /// Sub-recipes to add to the session
     pub sub_recipes: Option<Vec<SubRecipe>>,
 }
@@ -120,7 +122,8 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None);
+    let mut debug_session =
+        Session::new(debug_agent, temp_session_file.clone(), false, false, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -189,7 +192,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                 For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
                 e
-            ));
+            ), session_config.porcelain);
             process::exit(1);
         }
     };
@@ -212,7 +215,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         .update_provider(new_provider)
         .await
         .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to initialize agent: {}", e));
+            output::render_error(
+                &format!("Failed to initialize agent: {}", e),
+                session_config.porcelain,
+            );
             process::exit(1);
         });
 
@@ -237,15 +243,21 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             let session_file = match session::get_path(identifier) {
                 Ok(path) => path,
                 Err(e) => {
-                    output::render_error(&format!("Invalid session identifier: {}", e));
+                    output::render_error(
+                        &format!("Invalid session identifier: {}", e),
+                        session_config.porcelain,
+                    );
                     process::exit(1);
                 }
             };
             if !session_file.exists() {
-                output::render_error(&format!(
-                    "Cannot resume session {} - no such session exists",
-                    style(session_file.display()).cyan()
-                ));
+                output::render_error(
+                    &format!(
+                        "Cannot resume session {} - no such session exists",
+                        style(session_file.display()).cyan()
+                    ),
+                    session_config.porcelain,
+                );
                 process::exit(1);
             }
 
@@ -255,7 +267,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             match session::get_most_recent_session() {
                 Ok(file) => file,
                 Err(_) => {
-                    output::render_error("Cannot resume - no previous sessions found");
+                    output::render_error(
+                        "Cannot resume - no previous sessions found",
+                        session_config.porcelain,
+                    );
                     process::exit(1);
                 }
             }
@@ -271,7 +286,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         match session::get_path(id) {
             Ok(path) => path,
             Err(e) => {
-                output::render_error(&format!("Failed to create session path: {}", e));
+                output::render_error(
+                    &format!("Failed to create session path: {}", e),
+                    session_config.porcelain,
+                );
                 process::exit(1);
             }
         }
@@ -280,7 +298,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     if session_config.resume && !session_config.no_session {
         // Read the session metadata
         let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to read session metadata: {}", e));
+            output::render_error(
+                &format!("Failed to read session metadata: {}", e),
+                session_config.porcelain,
+            );
             process::exit(1);
         });
 
@@ -294,15 +315,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
             if change_workdir {
                 if !metadata.working_dir.exists() {
-                    output::render_error(&format!(
-                        "Cannot switch to original working directory - {} no longer exists",
-                        style(metadata.working_dir.display()).cyan()
-                    ));
+                    output::render_error(
+                        &format!(
+                            "Cannot switch to original working directory - {} no longer exists",
+                            style(metadata.working_dir.display()).cyan()
+                        ),
+                        session_config.porcelain,
+                    );
                 } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
-                    output::render_error(&format!(
-                        "Failed to switch to original working directory: {}",
-                        e
-                    ));
+                    output::render_error(
+                        &format!("Failed to switch to original working directory: {}", e),
+                        session_config.porcelain,
+                    );
                 }
             }
         }
@@ -365,6 +389,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         agent,
         session_file.clone(),
         session_config.debug,
+        session_config.porcelain,
         session_config.scheduled_job_id.clone(),
     );
 
@@ -492,6 +517,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             &model_name,
             &session_file,
             Some(&provider_for_display),
+            session_config.porcelain,
         );
     }
     session
@@ -518,6 +544,7 @@ mod tests {
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
+            porcelain: false,
             sub_recipes: None,
         };
 
@@ -529,6 +556,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
         assert!(!config.quiet);
+        assert!(!config.porcelain);
     }
 
     #[test]
@@ -548,6 +576,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
+        assert!(!config.porcelain);
     }
 
     #[tokio::test]

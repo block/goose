@@ -13,6 +13,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::cli_println;
+
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -126,41 +128,50 @@ pub fn set_thinking_message(s: &String) {
     });
 }
 
-pub fn render_message(message: &Message, debug: bool) {
+pub fn render_message(message: &Message, debug: bool, porcelain: bool) {
     let theme = get_theme();
 
     for content in &message.content {
         match content {
-            MessageContent::Text(text) => print_markdown(&text.text, theme),
-            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+            MessageContent::Text(text) => print_markdown(&text.text, theme, porcelain),
+            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug, porcelain),
+            MessageContent::ToolResponse(resp) => {
+                render_tool_response(resp, theme, debug, porcelain)
+            }
             MessageContent::Image(image) => {
-                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+                cli_println!(
+                    porcelain,
+                    "Image: [data: {}, type: {}]",
+                    image.data,
+                    image.mime_type
+                );
             }
             MessageContent::Thinking(thinking) => {
                 if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
+                    cli_println!(porcelain, "\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme, porcelain);
                 }
             }
             MessageContent::RedactedThinking(_) => {
-                // For redacted thinking, print thinking was redacted
-                println!("\n{}", style("Thinking:").dim().italic());
-                print_markdown("Thinking was redacted", theme);
+                cli_println!(porcelain, "\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme, porcelain);
             }
             _ => {
-                println!("WARNING: Message content type could not be rendered");
+                cli_println!(
+                    porcelain,
+                    "WARNING: Message content type could not be rendered"
+                );
             }
         }
     }
-    println!();
+    cli_println!(porcelain, "");
 }
 
-pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
-    render_text_no_newlines(format!("\n{}\n\n", text).as_str(), color, dim);
+pub fn render_text(text: &str, color: Option<Color>, dim: bool, porcelain: bool) {
+    render_text_no_newlines(&format!("\n{}\n\n", text), color, dim, porcelain);
 }
 
-pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
+pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool, porcelain: bool) {
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -170,11 +181,13 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     } else {
         styled_text = styled_text.green();
     }
-    print!("{}", styled_text);
+
+    cli_println!(porcelain, "{}", styled_text);
 }
 
-pub fn render_enter_plan_mode() {
-    println!(
+pub fn render_enter_plan_mode(porcelain: bool) {
+    cli_println!(
+        porcelain,
         "\n{} {}\n",
         style("Entering plan mode.").green().bold(),
         style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
@@ -183,8 +196,9 @@ pub fn render_enter_plan_mode() {
     );
 }
 
-pub fn render_act_on_plan() {
-    println!(
+pub fn render_act_on_plan(porcelain: bool) {
+    cli_println!(
+        porcelain,
         "\n{}\n",
         style("Exiting plan mode and acting on the above plan")
             .green()
@@ -192,26 +206,30 @@ pub fn render_act_on_plan() {
     );
 }
 
-pub fn render_exit_plan_mode() {
-    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+pub fn render_exit_plan_mode(porcelain: bool) {
+    cli_println!(
+        porcelain,
+        "\n{}\n",
+        style("Exiting plan mode.").green().bold()
+    );
 }
 
-pub fn goose_mode_message(text: &str) {
-    println!("\n{}", style(text).yellow(),);
+pub fn goose_mode_message(text: &str, porcelain: bool) {
+    cli_println!(porcelain, "\n{}", style(text).yellow());
 }
 
-fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
+fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool, porcelain: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.as_str() {
-            "developer__text_editor" => render_text_editor_request(call, debug),
-            "developer__shell" => render_shell_request(call, debug),
-            _ => render_default_request(call, debug),
+            "developer__text_editor" => render_text_editor_request(call, debug, porcelain),
+            "developer__shell" => render_shell_request(call, debug, porcelain),
+            _ => render_default_request(call, debug, porcelain),
         },
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => print_markdown(&e.to_string(), theme, porcelain),
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
+fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool, porcelain: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -237,46 +255,52 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 }
 
                 if debug {
-                    println!("{:#?}", content);
+                    cli_println!(porcelain, "{:#?}", content);
                 } else if let mcp_core::content::Content::Text(text) = content {
-                    print_markdown(&text.text, theme);
+                    print_markdown(&text.text, theme, porcelain);
                 }
             }
         }
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => print_markdown(&e.to_string(), theme, porcelain),
     }
 }
 
-pub fn render_error(message: &str) {
-    println!("\n  {} {}\n", style("error:").red().bold(), message);
+pub fn render_error(message: &str, porcelain: bool) {
+    cli_println!(
+        porcelain,
+        "\n  {} {}\n",
+        style("error:").red().bold(),
+        message
+    );
 }
 
-pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
-    println!();
+pub fn render_prompts(prompts: &HashMap<String, Vec<String>>, porcelain: bool) {
+    cli_println!(porcelain, "");
     for (extension, prompts) in prompts {
-        println!(" {}", style(extension).green());
+        cli_println!(porcelain, " {}", style(extension).green());
         for prompt in prompts {
-            println!("  - {}", style(prompt).cyan());
+            cli_println!(porcelain, "  - {}", style(prompt).cyan());
         }
     }
-    println!();
+    cli_println!(porcelain, "");
 }
 
-pub fn render_prompt_info(info: &PromptInfo) {
-    println!();
+pub fn render_prompt_info(info: &PromptInfo, porcelain: bool) {
+    cli_println!(porcelain, "");
 
     if let Some(ext) = &info.extension {
-        println!(" {}: {}", style("Extension").green(), ext);
+        cli_println!(porcelain, " {}: {}", style("Extension").green(), ext);
     }
 
-    println!(" Prompt: {}", style(&info.name).cyan().bold());
+    cli_println!(porcelain, " Prompt: {}", style(&info.name).cyan().bold());
 
     if let Some(desc) = &info.description {
-        println!("\n {}", desc);
+        cli_println!(porcelain, "\n {}", desc);
     }
 
     if let Some(args) = &info.arguments {
-        println!("\n Arguments:");
+        cli_println!(porcelain, "\n Arguments:");
+
         for arg in args {
             let required = arg.required.unwrap_or(false);
             let req_str = if required {
@@ -285,7 +309,8 @@ pub fn render_prompt_info(info: &PromptInfo) {
                 style("(optional)").dim()
             };
 
-            println!(
+            cli_println!(
+                porcelain,
                 "  {} {} {}",
                 style(&arg.name).yellow(),
                 req_str,
@@ -293,61 +318,67 @@ pub fn render_prompt_info(info: &PromptInfo) {
             );
         }
     }
-    println!();
+
+    cli_println!(porcelain, "");
 }
 
-pub fn render_extension_success(name: &str) {
-    println!();
-    println!(
+pub fn render_extension_success(name: &str, porcelain: bool) {
+    cli_println!(porcelain, "");
+    cli_println!(
+        porcelain,
         "  {} extension `{}`",
         style("added").green(),
         style(name).cyan(),
     );
-    println!();
+    cli_println!(porcelain, "");
 }
 
-pub fn render_extension_error(name: &str, error: &str) {
-    println!();
-    println!(
+pub fn render_extension_error(name: &str, error: &str, porcelain: bool) {
+    cli_println!(porcelain, "");
+    cli_println!(
+        porcelain,
         "  {} to add extension {}",
         style("failed").red(),
         style(name).red()
     );
-    println!();
-    println!("{}", style(error).dim());
-    println!();
+    cli_println!(porcelain, "");
+    cli_println!(porcelain, "{}", style(error).dim());
+    cli_println!(porcelain, "");
 }
 
-pub fn render_builtin_success(names: &str) {
-    println!();
-    println!(
+pub fn render_builtin_success(names: &str, porcelain: bool) {
+    cli_println!(porcelain, "");
+    cli_println!(
+        porcelain,
         "  {} builtin{}: {}",
         style("added").green(),
         if names.contains(',') { "s" } else { "" },
         style(names).cyan()
     );
-    println!();
+    cli_println!(porcelain, "");
 }
 
-pub fn render_builtin_error(names: &str, error: &str) {
-    println!();
-    println!(
+pub fn render_builtin_error(names: &str, error: &str, porcelain: bool) {
+    cli_println!(porcelain, "");
+    cli_println!(
+        porcelain,
         "  {} to add builtin{}: {}",
         style("failed").red(),
         if names.contains(',') { "s" } else { "" },
         style(names).red()
     );
-    println!();
-    println!("{}", style(error).dim());
-    println!();
+    cli_println!(porcelain, "");
+    cli_println!(porcelain, "{}", style(error).dim());
+    cli_println!(porcelain, "");
 }
 
-fn render_text_editor_request(call: &ToolCall, debug: bool) {
-    print_tool_header(call);
+fn render_text_editor_request(call: &ToolCall, debug: bool, porcelain: bool) {
+    print_tool_header(call, porcelain);
 
     // Print path first with special formatting
     if let Some(Value::String(path)) = call.arguments.get("path") {
-        println!(
+        cli_println!(
+            porcelain,
             "{}: {}",
             style("path").dim(),
             style(shorten_path(path, debug)).green()
@@ -362,31 +393,36 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
                 other_args.insert(k.clone(), v.clone());
             }
         }
-        print_params(&Value::Object(other_args), 0, debug);
+        print_params(&Value::Object(other_args), 0, debug, porcelain);
     }
-    println!();
+    cli_println!(porcelain, "");
 }
 
-fn render_shell_request(call: &ToolCall, debug: bool) {
-    print_tool_header(call);
+fn render_shell_request(call: &ToolCall, debug: bool, porcelain: bool) {
+    print_tool_header(call, porcelain);
 
     match call.arguments.get("command") {
         Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
+            cli_println!(
+                porcelain,
+                "{}: {}",
+                style("command").dim(),
+                style(s).green()
+            );
         }
-        _ => print_params(&call.arguments, 0, debug),
+        _ => print_params(&call.arguments, 0, debug, porcelain),
     }
 }
 
-fn render_default_request(call: &ToolCall, debug: bool) {
-    print_tool_header(call);
-    print_params(&call.arguments, 0, debug);
-    println!();
+fn render_default_request(call: &ToolCall, debug: bool, porcelain: bool) {
+    print_tool_header(call, porcelain);
+    print_params(&call.arguments, 0, debug, porcelain);
+    cli_println!(porcelain, "");
 }
 
 // Helper functions
 
-fn print_tool_header(call: &ToolCall) {
+fn print_tool_header(call: &ToolCall, porcelain: bool) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
@@ -400,8 +436,8 @@ fn print_tool_header(call: &ToolCall) {
         .magenta()
         .dim(),
     );
-    println!();
-    println!("{}", tool_header);
+    cli_println!(porcelain, "");
+    cli_println!(porcelain, "{}", tool_header);
 }
 
 // Respect NO_COLOR, as https://crates.io/crates/console already does
@@ -410,15 +446,29 @@ pub fn env_no_color() -> bool {
     std::env::var_os("NO_COLOR").is_none()
 }
 
-fn print_markdown(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+fn print_markdown(content: &str, theme: Theme, porcelain: bool) {
+    if porcelain {
+        let mut stderr_buffer = String::new();
+        bat::PrettyPrinter::new()
+            .input(bat::Input::from_bytes(content.as_bytes()))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print_with_writer(Some(&mut stderr_buffer))
+            .unwrap();
+        eprint!("{}", stderr_buffer);
+    } else {
+        // Normal mode uses bat for markdown formatting
+        bat::PrettyPrinter::new()
+            .input(bat::Input::from_bytes(content.as_bytes()))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    }
 }
 
 const INDENT: &str = "    ";
@@ -430,7 +480,7 @@ fn get_tool_params_max_length() -> usize {
         .unwrap_or(40)
 }
 
-fn print_params(value: &Value, depth: usize, debug: bool) {
+fn print_params(value: &Value, depth: usize, debug: bool, porcelain: bool) {
     let indent = INDENT.repeat(depth);
 
     match value {
@@ -438,60 +488,91 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
             for (key, val) in map {
                 match val {
                     Value::Object(_) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        print_params(val, depth + 1, debug);
+                        cli_println!(porcelain, "{}{}:", indent, style(key).dim());
+                        print_params(val, depth + 1, debug, porcelain);
                     }
                     Value::Array(arr) => {
-                        println!("{}{}:", indent, style(key).dim());
+                        cli_println!(porcelain, "{}{}:", indent, style(key).dim());
                         for item in arr.iter() {
-                            println!("{}{}- ", indent, INDENT);
-                            print_params(item, depth + 2, debug);
+                            cli_println!(porcelain, "{}{}- ", indent, INDENT);
+                            print_params(item, depth + 2, debug, porcelain);
                         }
                     }
                     Value::String(s) => {
                         if !debug && s.len() > get_tool_params_max_length() {
-                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
+                            cli_println!(
+                                porcelain,
+                                "{}{}: {}",
+                                indent,
+                                style(key).dim(),
+                                style("...").dim()
+                            );
                         } else {
-                            println!("{}{}: {}", indent, style(key).dim(), style(s).green());
+                            cli_println!(
+                                porcelain,
+                                "{}{}: {}",
+                                indent,
+                                style(key).dim(),
+                                style(s).green()
+                            );
                         }
                     }
                     Value::Number(n) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(n).blue());
+                        cli_println!(
+                            porcelain,
+                            "{}{}: {}",
+                            indent,
+                            style(key).dim(),
+                            style(n).blue()
+                        );
                     }
                     Value::Bool(b) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(b).blue());
+                        cli_println!(
+                            porcelain,
+                            "{}{}: {}",
+                            indent,
+                            style(key).dim(),
+                            style(b).blue()
+                        );
                     }
                     Value::Null => {
-                        println!("{}{}: {}", indent, style(key).dim(), style("null").dim());
+                        cli_println!(
+                            porcelain,
+                            "{}{}: {}",
+                            indent,
+                            style(key).dim(),
+                            style("null").dim()
+                        );
                     }
                 }
             }
         }
         Value::Array(arr) => {
             for (i, item) in arr.iter().enumerate() {
-                println!("{}{}.", indent, i + 1);
-                print_params(item, depth + 1, debug);
+                cli_println!(porcelain, "{}{}.", indent, i + 1);
+                print_params(item, depth + 1, debug, porcelain);
             }
         }
         Value::String(s) => {
             if !debug && s.len() > get_tool_params_max_length() {
-                println!(
+                cli_println!(
+                    porcelain,
                     "{}{}",
                     indent,
                     style(format!("[REDACTED: {} chars]", s.len())).yellow()
                 );
             } else {
-                println!("{}{}", indent, style(s).green());
+                cli_println!(porcelain, "{}{}", indent, style(s).green());
             }
         }
         Value::Number(n) => {
-            println!("{}{}", indent, style(n).yellow());
+            cli_println!(porcelain, "{}{}", indent, style(n).yellow());
         }
         Value::Bool(b) => {
-            println!("{}{}", indent, style(b).yellow());
+            cli_println!(porcelain, "{}{}", indent, style(b).yellow());
         }
         Value::Null => {
-            println!("{}{}", indent, style("null").dim());
+            cli_println!(porcelain, "{}{}", indent, style("null").dim());
         }
     }
 }
@@ -552,6 +633,7 @@ pub fn display_session_info(
     model: &str,
     session_file: &Path,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
+    porcelain: bool,
 ) {
     let start_session_msg = if resume {
         "resuming session |"
@@ -561,11 +643,11 @@ pub fn display_session_info(
         "starting session |"
     };
 
-    // Check if we have lead/worker mode
-    if let Some(provider_inst) = provider_instance {
-        if let Some(lead_worker) = provider_inst.as_lead_worker() {
+    // Build the main session info string
+    let session_info = match provider_instance.and_then(|p| p.as_lead_worker()) {
+        Some(lead_worker) => {
             let (lead_model, worker_model) = lead_worker.get_model_info();
-            println!(
+            format!(
                 "{} {} {} {} {} {} {}",
                 style(start_session_msg).dim(),
                 style("provider:").dim(),
@@ -574,56 +656,53 @@ pub fn display_session_info(
                 style(&lead_model).cyan().dim(),
                 style("worker model:").dim(),
                 style(&worker_model).cyan().dim(),
-            );
-        } else {
-            println!(
+            )
+        }
+        None => {
+            format!(
                 "{} {} {} {} {}",
                 style(start_session_msg).dim(),
                 style("provider:").dim(),
                 style(provider).cyan().dim(),
                 style("model:").dim(),
                 style(model).cyan().dim(),
-            );
+            )
         }
-    } else {
-        // Fallback to original behavior if no provider instance
-        println!(
-            "{} {} {} {} {}",
-            style(start_session_msg).dim(),
-            style("provider:").dim(),
-            style(provider).cyan().dim(),
-            style("model:").dim(),
-            style(model).cyan().dim(),
-        );
-    }
+    };
+    cli_println!(porcelain, "{}", session_info);
 
     if session_file.to_str() != Some("/dev/null") && session_file.to_str() != Some("NUL") {
-        println!(
+        let logging_info = format!(
             "    {} {}",
             style("logging to").dim(),
             style(session_file.display()).dim().cyan(),
         );
+        cli_println!(porcelain, "{}", logging_info);
     }
 
-    println!(
+    let working_dir_info = format!(
         "    {} {}",
         style("working directory:").dim(),
         style(std::env::current_dir().unwrap().display())
             .cyan()
             .dim()
     );
+    cli_println!(porcelain, "{}", working_dir_info);
 }
 
-pub fn display_greeting() {
-    println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+pub fn display_greeting(porcelain: bool) {
+    cli_println!(
+        porcelain,
+        "\nGoose is running! Enter your instructions, or try asking what goose can do.\n"
+    );
 }
 
 /// Display context window usage with both current and session totals
-pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
+pub fn display_context_usage(total_tokens: usize, context_limit: usize, porcelain: bool) {
     use console::style;
 
     if context_limit == 0 {
-        println!("Context: Error - context limit is zero");
+        cli_println!(porcelain, "Context: Error - context limit is zero");
         return;
     }
 
@@ -651,9 +730,13 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     };
 
     // Print the status line
-    println!(
+    cli_println!(
+        porcelain,
         "Context: {} {}% ({}/{} tokens)",
-        colored_dots, percentage, total_tokens, context_limit
+        colored_dots,
+        percentage,
+        total_tokens,
+        context_limit
     );
 }
 
