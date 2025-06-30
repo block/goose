@@ -270,14 +270,23 @@ impl Scheduler {
 
         tracing::info!("Attempting to parse cron expression: '{}'", stored_job.cron);
         let normalized_cron = normalize_cron_expression(&stored_job.cron);
-        if normalized_cron != stored_job.cron {
+        // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
+        let tokio_cron = {
+            let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
+            if parts.len() == 7 {
+                parts[..6].join(" ")
+            } else {
+                normalized_cron.clone()
+            }
+        };
+        if tokio_cron != stored_job.cron {
             tracing::info!(
-                "Normalized cron expression from '{}' to '{}'",
+                "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
                 stored_job.cron,
-                normalized_cron
+                tokio_cron
             );
         }
-        let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
+        let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
             let task_job_id = job_for_task.id.clone();
             let current_jobs_arc = jobs_arc_for_task.clone();
             let local_storage_path = storage_path_for_task.clone();
@@ -439,14 +448,23 @@ impl Scheduler {
                 job_to_load.cron
             );
             let normalized_cron = normalize_cron_expression(&job_to_load.cron);
-            if normalized_cron != job_to_load.cron {
+            // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
+            let tokio_cron = {
+                let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
+                if parts.len() == 7 {
+                    parts[..6].join(" ")
+                } else {
+                    normalized_cron.clone()
+                }
+            };
+            if tokio_cron != job_to_load.cron {
                 tracing::info!(
-                    "Normalized cron expression from '{}' to '{}'",
+                    "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
                     job_to_load.cron,
-                    normalized_cron
+                    tokio_cron
                 );
             }
-            let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
+            let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
                 let task_job_id = job_for_task.id.clone();
                 let current_jobs_arc = jobs_arc_for_task.clone();
                 let local_storage_path = storage_path_for_task.clone();
@@ -810,14 +828,23 @@ impl Scheduler {
                     new_cron
                 );
                 let normalized_cron = normalize_cron_expression(&new_cron);
-                if normalized_cron != new_cron {
+                // Convert from 7-field (Temporal format) to 6-field (tokio-cron-scheduler format)
+                let tokio_cron = {
+                    let parts: Vec<&str> = normalized_cron.split_whitespace().collect();
+                    if parts.len() == 7 {
+                        parts[..6].join(" ")
+                    } else {
+                        normalized_cron.clone()
+                    }
+                };
+                if tokio_cron != new_cron {
                     tracing::info!(
-                        "Normalized cron expression from '{}' to '{}'",
+                        "Converted cron expression from '{}' to '{}' for tokio-cron-scheduler",
                         new_cron,
-                        normalized_cron
+                        tokio_cron
                     );
                 }
-                let cron_task = Job::new_async(&normalized_cron, move |_uuid, _l| {
+                let cron_task = Job::new_async(&tokio_cron, move |_uuid, _l| {
                     let task_job_id = job_for_task.id.clone();
                     let current_jobs_arc = jobs_arc_for_task.clone();
                     let local_storage_path = storage_path_for_task.clone();
