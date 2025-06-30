@@ -126,10 +126,21 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeExtensions, extensionsLoaded]);
 
-  // Use effect to set parameters whenever instructions change
+  // Use effect to set parameters whenever instructions or prompt changes
   useEffect(() => {
-    setParameters(parseParametersFromInstructions(instructions));
-  }, [instructions]);
+    const instructionsParams = parseParametersFromInstructions(instructions);
+    const promptParams = parseParametersFromInstructions(prompt);
+
+    // Combine parameters, ensuring no duplicates by key
+    const allParams = [...instructionsParams];
+    promptParams.forEach((promptParam) => {
+      if (!allParams.some((param) => param.key === promptParam.key)) {
+        allParams.push(promptParam);
+      }
+    });
+
+    setParameters(allParams);
+  }, [instructions, prompt]);
 
   const getCurrentConfig = (): Recipe => {
     // Transform the internal parameters state into the desired output format.
