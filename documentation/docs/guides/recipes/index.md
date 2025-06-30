@@ -12,8 +12,6 @@ import styles from '@site/src/components/Card/styles.module.css';
   Recipes are reusable workflows that package extensions, prompts, and settings together. Share proven workflows with your team and reproduce successful results consistently.
 </p>
 
-
-will replace with Recipe video once live -->
  <div className="video-container margin-bottom--lg">
   <iframe 
     width="100%"
