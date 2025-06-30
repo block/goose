@@ -288,6 +288,9 @@ jobs:
               # Move the built binary to the expected location (inside container)
               mkdir -p ../target/x86_64-pc-windows-gnu/release
               mv temporal-service.exe ../target/x86_64-pc-windows-gnu/release/temporal-service.exe
+              
+              # Fix permissions for host access
+              chmod -R 755 ../target/x86_64-pc-windows-gnu
             "
           echo "temporal-service.exe built successfully for Windows"
 
