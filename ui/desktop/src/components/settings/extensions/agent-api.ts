@@ -1,7 +1,6 @@
 import { ExtensionConfig } from '../../../api/types.gen';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
-import { replaceWithShims } from './utils';
 
 interface ApiResponse {
   error?: boolean;
@@ -143,10 +142,6 @@ export async function addToAgent(
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
-    if (extension.type === 'stdio') {
-      extension.cmd = await replaceWithShims(extension.cmd);
-    }
-
     extension.name = sanitizeName(extension.name);
 
     return await extensionApiCall('/extensions/add', extension, options);
