@@ -284,11 +284,11 @@ jobs:
               chmod +x build.sh
               # Set Windows build environment and run build script
               GOOS=windows GOARCH=amd64 ./build.sh
+              
+              # Move the built binary to the expected location (inside container)
+              mkdir -p ../target/x86_64-pc-windows-gnu/release
+              mv temporal-service.exe ../target/x86_64-pc-windows-gnu/release/temporal-service.exe
             "
-          
-          # Move the built binary to the expected location
-          mkdir -p target/x86_64-pc-windows-gnu/release
-          mv temporal-service/temporal-service.exe target/x86_64-pc-windows-gnu/release/temporal-service.exe
           echo "temporal-service.exe built successfully for Windows"
 
       - name: Download temporal CLI (Linux/macOS)
