@@ -35,7 +35,7 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `instructions` | String | Template instructions that can include parameter substitutions |
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
-| `extensions` | Array | List of extension configurations |s
+| `extensions` | Array | List of extension configurations |
 
 ## Parameters
 
