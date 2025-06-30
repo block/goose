@@ -1,0 +1,171 @@
+version: 1.0.0
+title: Blokker Snapshot Migrator 
+author:
+  contact: jadam
+description: Migrate to Snapshot Testing for FormBlockers
+instructions: Follow the prompts to migrate a service to snapshot testing
+activities:
+  - Create a migration branch
+  - Add plasma-testing dependency to Gradle config
+  - Identify usages of FormBlocker.Builder()
+  - Locate and update associated test classes
+  - Commit test and snapshot changes
+  - Create and submit a pull request
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 600
+  bundled: true
+prompt: |
+  # Pre-Instructions
+
+  ## Working Directory
+  - No files outside the directory {{working_directory}} should be modified.
+  - No commands should be run outside of the directory {{working_directory}}.
+
+  ## Gradle
+  - To run gradle, use `bin/gradle <project> <task>` from the project root. There is NO `gradlew` script.
+  - If you are working in cash-server, the repository consists of many projects. You should usually specify a specific project with `-p` any time you are calling gradle from the root directory. The gradle to use is located at `cash-server/bin/gradle` even if you're in a subproject.
+
+  # Instructions
+  Perform the following steps to migrate to snapshot testing:
+
+  1. Create a new branch and check it out for the migration using the following command:
+
+  ```bash
+  git checkout -b $USER/$(date +%m%d%Y)-formblocker-snapshot-migration
+  ````
+
+  2. Ensure that the `plasma-testing` library is added to the `gradle/libs.versions.toml` file. If it is not, add it:
+
+  ```toml
+  [libraries]
+  plasmaTesting = { module = "com.squareup.plasma:plasma-testing", version = "2025.04.01-1743540086-eeb2f79" }
+  ```
+
+  3. Find all files that FormBlocker.Builder() is used in.
+
+  4. Locate the associated test classes. These are the files to update.
+
+  5. Update the `build.gradle.kts` files of the modules that contain the test classes to include the following dependencies:
+
+  If `cash-server` is not in the current path:
+  ```kotlin
+  dependencies {
+    testImplementation(libs.plasmaTesting)
+  }
+  ```
+
+  If `cash-server` is in the current path:
+  ```kotlin
+  dependencies {
+    testImplementation(project(":plasma:plasma-testing"))
+  }
+  ```
+
+  6. Update any test methods from these classes that test the outputs of a FormBlocker.Builder() to use the BlockerTester.snapshot() method.
+
+  Make sure that any modified test files have the import `import com.squareup.cash.blockertesting.BlockerTester`.
+
+  Examples:
+  ```kotlin
+  import com.squareup.cash.blockertesting.BlockerTester
+
+  class SomeBlockerTest {
+    @Inject private lateinit var requirementHandler: SomeRequirementHandler
+
+    @Test
+    fun testManual() {
+      // Test some blocker you built by hand.
+      // This isn't useful in practice, but it's simple and illustrative
+      val blocker = FormBlocker.Builder().elements(listOf(text("Sample"))).build()
+      BlockerTester.snapshot("SNAPSHOT_NAME", blocker)
+    }
+
+    @Test
+    fun testHandler() {
+      // Test a blocker you get back from calling a Plasma FlowHandler or RequirementHandler
+      val response = requirementHandler.plan(request)
+      val bytes = response.plan.next_step.ui_form.blocker
+      val blocker = BlockerDescriptor.ADAPTER.decode(bytes)
+      BlockerTester.snapshot("REQUIREMENT_SNAPSHOT_NAME", blocker)
+    }
+
+    @Test
+    fun testHandlerBetter() {
+      // Test a blocker you get back from calling a Plasma FlowHandler or RequirementHandler,
+      // using Plasma's test helpers to simplify things
+      val blocker = requirementHandler.testPlan(request).blockerDescriptor
+      BlockerTester.snapshot("REQUIREMENT_SNAPSHOT_NAME", blocker)
+    }
+
+    @Test
+    fun testHandlerIgnoreId() {
+      // Test a blocker you get back from calling a Plasma FlowHandler or RequirementHandler,
+      // using Plasma's test helpers to simplify things and ignoring all "id" fields.
+      val blocker = requirementHandler.testPlan(request).blockerDescriptor
+      BlockerTester.snapshot("REQUIREMENT_SNAPSHOT_NAME", blocker, ignoredFields = listOf("**.id"))
+    }
+
+    @Test
+    fun testMatcher() {
+      // Test some blocker you built by hand using the matcher.
+      val blocker = FormBlocker.Builder().elements(listOf(text("Sample"))).build()
+      // This calls BlockerTester.snapshot()
+      blocker shouldMatchSnapshot "SNAPSHOT_NAME"
+    }
+  }
+  ```
+
+  Snapshot names must be unique so give a name that is descriptive of the test and blocker being tested.
+  Snapshot names must be valid file names, and thus cannot contain forward slashes.
+
+  Example Failure Output:
+  ```
+  Failure: REQUIREMENT_SNAPSHOT_NAME blocker snapshot does not match the existing REQUIREMENT_SNAPSHOT_NAME.json
+  run `gradle {module}:updateSnapshots` to generate and overwrite the stale snapshots.
+  elements[0].text_element.text
+    Expected: MY_EXPECTED_TEXT
+    got: SOME_OTHER_UNEXPECTED_TEXT
+  ```
+
+  7. You may need to run a `spotlessKotlin` or `spotlessApply` gradle task if it's a plugin in the repository. This will reformat the file to match the style guide.
+
+  This will need to be run for any submodules that have been updated. For example if you have changed files in a module called `flows`, you need to run:
+  ```bash
+  bin/gradle :flows:spotlessApply
+  ```
+  OR
+  ```bash
+  bin/gradle :flows:spotlessKotlin
+  ```
+
+  If `cash-server` is in the path, you can run the following command from the root of the `cash-server` repository:
+  ```bash
+  bin/gradle :<service-name>:<submodule-name>:spotlessApply
+  ```
+
+  If the submodule you are updating doesn't have a `spotless` gradle task, then ignore this step.
+
+  8. Run the tests for each changed file after updating it so that the snapshot files are created.
+
+  9. If the test fails for any reason, review the error, make any fixes, and re-run the test method until it passes.
+
+  10. If the test passes, commit the changes with a commit message summarizing the change. Include the generated snapshot `.json` files in the commit. They will be located within a resources folder in the same sub-module as the test files changed.
+
+  11. You should only be committing updates to test files, build.gradle.kts files, libs.versions.toml and the generated snapshot files.
+
+  # Post-Instructions
+  - Push your changes to the remote repository
+  - Create a pull request with the following command:
+
+  ```bash
+  gh pr create --assignee "@me" --body "This PR migrates tests that inspect the output of `FormBlocker.Builder()` to use [snapshot testing](https://cash-dev-guide.sqprod.co/product_velocity/plasma/test/tools/?h=snapshot#snapshot-testing) instead. This is a more robust way to test the output of a blocker, and it will make it easier to refactor blockers in the future." --title "Migrate to snapshot testing for FormBlocker.Builder() usages"
+  ```
+
+parameters:
+- key: working_directory
+  input_type: string
+  requirement: user_prompt
+  description: The working directory of the service to migrate

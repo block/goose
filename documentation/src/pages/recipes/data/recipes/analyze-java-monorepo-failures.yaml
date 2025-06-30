@@ -1,0 +1,147 @@
+version: 1.0.0
+title: Analyze java monorepo build failure
+description: Analyze java monorepo build failure
+instructions: follow the prompts to analyze java monorepo build failure
+activities:
+  - Fetch failed build parts
+  - Download and parse logs
+  - Identify root causes
+  - Analyze test failures
+  - Summarize common issues and next steps
+  - Generate HTML report
+prompt: |
+  Guidelines:
+  - Use curl instead of browser-based extensions like fetch.
+  - Use jq for JSON parsing and transformations.
+  - Prefer creating reusable shell functions for repeated steps.
+  - **Do NOT** make up any information, only use the information provided in the logs.
+
+  Step 1:  Fetch Failed Build Parts
+      - run the command 
+        ```
+        curl https://kochiku.sqprod.co/squareup/java/builds/{{build_id}}?format=json \
+        | jq '[.build.build_parts[] | select(.status == "failed") \
+        | {id, build_id, kind, attempt_count, status}]' > failed_builds.json
+        ```
+
+  Step 2:
+  For each failed build part, create a loop to handle each part:
+  2.1 Fetch the last attempt
+    - find the last attempt via curl https://kochiku.sqprod.co/squareup/java/builds/{build_id}/parts/{id}?format=json | jq '.build_part.build_attempts[-1]'
+  2.2 fetch the stdout.log.gz and junit-report.html (if present)
+    - get artifact_id of the log files including stdout.log.gz and junit-report.html (if present) in the last attempt
+      Example of json
+        {
+        "build_part": {
+          "id": 841284189,
+          "build_id": 9937415,
+          "kind": "deployable-loan-gateway",
+          "paths": [
+            "loan-gateway:test"
+          ],
+          "status": "failed",
+          "elapsed_time": 812,
+          "build_attempts": [
+            {
+              "id": 612181475,
+              "build_part_id": 841284189,
+              "files": [
+                {
+                  "build_artifact": {
+                    "id": 2125669387,
+                    "build_attempt_id": 612181475,
+                    "created_at": "2025-05-02T15:01:19.000-07:00",
+                    "updated_at": "2025-05-02T15:01:19.000-07:00",
+                    "log_file": {
+                      "url": "/build_artifacts/2125669387",
+                      "name": "squareup/java/build_9937415/part_841284189/attempt_612181475/stdout.log.gz"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    - construct the artifact_url https://kochiku.sqprod.co/build_artifacts/{artifact_id}
+    - add the part_url, stdout.log artifact_url and junit_report url in the failed_builds.json in the matching build_part block. If the file does not exist, set the field to null
+  2.3 Analyze the stdout.log.gz file
+    - download stdout.log.gz file using curl command with follow redirect option
+    - find the error in this file error keywords of "error,failed,fails,fail,fatal"(case insensitive), and also include the 2 lines before and 10 lines after the found error, saved the result into a file with filtered_error_{artifact_id}.txt
+    - add the filtered_error_{artifact_id}.txt file name to the corresponding build part in failed_builds.json
+  2.4 Root Cause Analysis for Filtered Error
+    - review filtered_error_{artifact_id}.txt
+    - Determine the root cause of the error
+    - Provide
+        1. Root cause
+          - Provide a comprehensive explanation of why the failure occurred.
+          - Explain the specific failure context (e.g., what phase failed — dependency resolution, test execution, compilation, etc.).  
+          - Mention any recent changes (code, dependencies, infra) if visible or likely from logs.
+        2. Detailed Justifications:
+          - Quote the relevant error messages or stack traces verbatim from the logs.
+          - Describe what each error message means, what tool/component is involved (e.g., Maven, Gradle, JUnit, Kotlin compiler, etc.), and how it relates to the build.
+          - Provide background context — e.g., "This type of error is common when ..." or "Historically, this happens when ..."
+          - Discuss any patterns observed across multiple failed parts with similar symptoms.
+        3. Suggestions for Fixing the Problem:
+          - Propose practical and actionable fixes.
+          - Suggest specific files or lines that may need changes (e.g., build.gradle, test class). 
+          - If applicable, recommend mitigations (e.g., retry the build, invalidate caches, contact a service owner).
+          - For flaky tests or environmental issues, suggest diagnostics (e.g., re-run in isolation, check recent infra changes).
+      - Add this analysis (root cause, justification, and suggestions) to the relevant build part in failed_builds.json.
+  2.5 Check for Test Failures
+    - If the stdout.log.gz file contains "tests_result=3", it indicates some tests failed in this build
+    - download junit-report.html use curl command (if available) with follow redirect option
+    - Parse the HTML to extract:
+      - Names of failed test classes and methods.
+      - Associated error messages or stack traces.
+    - save this information to filtered_test_error_{artifact_id}.html
+  2.6 Root Cause Analysis for Test Failures
+    - review filtered_test_error_{artifact_id}.html
+    - Determine the root cause of the test failures
+    - Provide
+        1. Root cause
+          - Explain why the test failed, including what condition, assertion, or runtime behavior caused it.
+          - Identify whether the issue is likely caused by a code regression, incorrect test setup, flaky behavior, environment issues, or external dependencies (e.g., services, databases).
+          - Mention if multiple test failures appear to share a root cause (e.g., shared fixture or mock failure).
+        2. Detailed Justifications:
+          - Quote the exact test name (class and method), along with failure messages or stack traces.
+          - Explain what the test was trying to validate, and what part of the system it targets (e.g., business logic, edge case, error handling). 
+          - Provide background: has this test failed before? Is it marked flaky or is the logic fragile?
+          - If applicable, explain why this issue might only occur in CI (e.g., timing, parallelism, test order).
+        3. Suggestions for Fixing the Problem
+          - Suggested for fixing the problem
+    - add the root cause analysis, detailed justifications and potential fix suggestions to the matching build part in the `failed_builds.json`
+
+  Step 3: Verify Completeness
+    - Verify each build part in failed_builds.json have been analyzed.
+    - If any of the build part has not been verified, repeat Step 2 for these build part
+
+  Step 4:
+    - Review all build part analyses.
+    - Identify recurring root causes and classify them as common issues.
+    - Suggest immediate next steps that apply across multiple build parts (e.g., restarting a flaky test, checking dependency versions).
+    - Add a common_issues field and an immediate_next_steps field to the failed_builds.json file.
+  Step 5: 
+    - Using the completed failed_builds.json, create a readable HTML report named: java_monorepo_build_analysis_{build_id}.html
+    - The HTML report should include:
+      - A list of issues (common issues are grouped together)
+        For each issue, list:
+          - The associated build parts and part urls
+          - Links to stdout.log.gz and junit-report.html.
+          - Root cause
+          - Justifications
+          - Fix suggestions
+      - Immediate next steps for fixing the issues.
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+parameters:
+- key: build_id
+  input_type: number
+  requirement: user_prompt
+  description: the failed build id to analyze
+author:
+  contact: lifeizhou-ap

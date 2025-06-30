@@ -1,0 +1,81 @@
+version: 0.1.0
+title: Fix PR CI failures
+description: Iteratively fix errors detected by Kochiku CI on the current PR
+instructions: follow the prompts to fix CI failures on your PR
+activities:
+  - Fetch CI build status
+  - Analyze Kochiku build errors
+  - Split issues into individual tasks
+  - Fix and verify each issue iteratively
+  - Mark resolved issues
+prompt: |
+  Guidelines:
+  - Use the commands provided to identify and fix CI failures in your PR
+  - Apply smallest-possible fixes and run scoped tests after each change
+  - Stop if the build is not in a failed state
+  - Process one issue at a time, fixing and testing before moving to the next
+  - Do not ask the user any questions, do your best to fix autonomously.
+
+  Step 1: Find the CI build URL for your current commit
+  
+  Run this command to get the Kochiku build URL for your current commit:
+  ```
+  gh pr view $(gh pr list --search $(git rev-parse HEAD) --json number -q ".[0].number") --json statusCheckRollup -q ".statusCheckRollup[] | select(.context == \"Kochiku\") | .targetUrl"
+  ```
+  
+  Step 2: Check if the build has failed
+  
+  Extract the build ID from the URL (the number at the end) and check its state:
+  ```
+  sq curl -s -L -H "Content-type: application/json" -H "Accept: application/json" "https://kochiku.sqprod.co/builds/BUILD_ID" | jq -r '.build.state'
+  ```
+  
+  If the output is not "failed", then stop - there's nothing to fix yet.
+  
+  Step 3: Get your repository name
+  
+  ```
+  basename -s .git $(git remote get-url origin)
+  ```
+  
+  Step 4: Fetch the analysis of what failed
+  
+  Replace REPO and BUILD_ID with the values from steps 2 and 3:
+  ```
+  sq curl -s -X POST \
+     -H "Content-Type: application/json" \
+     -d '{"repository":"REPO", "build_id": "BUILD_ID", "ci_type": "KOCHIKU"}' \
+    "https://ci-results.sqprod.co/services/squareup.ciresults.service.CiResultsService/GetBuildMetadataWithAnalysis" | jq -r '.issues' > issues.json
+  ```
+  
+  Step 5: Split the issues into individual files
+  
+  This command will take the issues.json file and create a separate file for each issue:
+  ```
+  jq -c '.[] | @base64' issues.json | while read issue; do
+    decoded=$(echo $issue | base64 --decode)
+    index=$((index+1))
+    echo $decoded > "issue_${index}.todo.json"
+    echo "Created issue_${index}.todo.json"
+  done
+  ```
+  
+  Step 6: Process each issue
+  
+  For each issue file (issue_1.todo.json, issue_2.todo.json, etc.):
+
+  Examine the issue file to understand the issue. Attempt to fix the issue
+  and verify the fix by running the appropriate commands (you'll have to infer these).
+
+  Once you have fixed & verified the issue, rename the file from `issue_N.todo.json` to `issue_N.resolved.json`
+  and move on to the next issue.
+  
+  Keep iterating until there are no more `issue_N.todo.json` files.
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 600
+  bundled: true
+author:
+  contact: tmellor-block
