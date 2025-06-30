@@ -14,11 +14,11 @@ use std::collections::{HashMap, HashSet};
 pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
-pub fn load_recipe_content_as_template(
+pub async fn load_recipe_content_as_template(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<String> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name).await?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
@@ -49,8 +49,11 @@ fn validate_recipe_parameters(
     Ok(recipe_parameters)
 }
 
-pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
-    let rendered_content = load_recipe_content_as_template(recipe_name, params.clone())?;
+pub async fn load_recipe_as_template(
+    recipe_name: &str,
+    params: Vec<(String, String)>,
+) -> Result<Recipe> {
+    let rendered_content = load_recipe_content_as_template(recipe_name, params.clone()).await?;
     let recipe = Recipe::from_content(&rendered_content)?;
 
     // Display information about the loaded recipe
@@ -69,8 +72,8 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
     Ok(recipe)
 }
 
-pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+pub async fn load_recipe(recipe_name: &str) -> Result<Recipe> {
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name).await?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
@@ -83,11 +86,11 @@ pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
     Ok(recipe)
 }
 
-pub fn explain_recipe_with_parameters(
+pub async fn explain_recipe_with_parameters(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<()> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name).await?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;

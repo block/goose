@@ -45,18 +45,20 @@ fn add_template_in_env(
 ) -> Result<Environment> {
     let mut env = minijinja::Environment::new();
     env.set_undefined_behavior(undefined_behavior);
-    env.set_loader(move |name| {
-        let path = Path::new(recipe_dir.as_str()).join(name);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => Ok(Some(content)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                "could not read template",
-            )
-            .with_source(e)),
-        }
-    });
+    if !recipe_dir.is_empty() {
+        env.set_loader(move |name| {
+            let path = Path::new(recipe_dir.as_str()).join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => Ok(Some(content)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "could not read template",
+                )
+                .with_source(e)),
+            }
+        });
+    }
 
     env.add_template(CURRENT_TEMPLATE_NAME, content)?;
     Ok(env)
