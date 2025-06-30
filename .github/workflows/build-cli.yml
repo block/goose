@@ -352,6 +352,9 @@ jobs:
           unzip -o temporal-cli-windows.zip
           chmod +x temporal.exe
           
+          # Fix permissions on target directory (created by Docker as root)
+          sudo chown -R $(whoami):$(whoami) target/x86_64-pc-windows-gnu/ || true
+          
           # Move to target directory
           mv temporal.exe target/x86_64-pc-windows-gnu/release/temporal.exe
           
