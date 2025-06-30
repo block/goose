@@ -237,31 +237,47 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 pub fn get_usage(data: &Value) -> Result<Usage> {
     // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // Sum up all input token types:
-        // - input_tokens (fresh/uncached)
-        // - cache_creation_input_tokens (being written to cache)
-        // - cache_read_input_tokens (read from cache)
-        let total_input_tokens = usage
+        // For cost tracking, we should only use the actual billable tokens
+        // According to Anthropic's pricing, cached tokens are much cheaper but still charged
+        // However, we should not double-count tokens that are both created and read from cache
+
+        // Get the raw input tokens (not from cache)
+        let raw_input_tokens = usage
             .get("input_tokens")
             .and_then(|v| v.as_u64())
-            .unwrap_or(0)
-            + usage
-                .get("cache_creation_input_tokens")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0)
-            + usage
-                .get("cache_read_input_tokens")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            .unwrap_or(0);
 
-        let input_tokens = Some(total_input_tokens as i32);
+        // Get cache-related tokens for logging
+        let cache_creation_tokens = usage
+            .get("cache_creation_input_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let cache_read_tokens = usage
+            .get("cache_read_input_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        // Log the token breakdown for debugging
+        if cache_creation_tokens > 0 || cache_read_tokens > 0 {
+            tracing::debug!(
+                "Token usage - raw: {}, cache_creation: {}, cache_read: {}",
+                raw_input_tokens,
+                cache_creation_tokens,
+                cache_read_tokens
+            );
+        }
+
+        // For billing purposes, use only the raw input tokens
+        // Anthropic charges separately for cached tokens at a reduced rate
+        // The API already accounts for this in the raw_input_tokens field
+        let input_tokens = Some(raw_input_tokens as i32);
 
         let output_tokens = usage
             .get("output_tokens")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
 
-        let total_tokens = output_tokens.map(|o| total_input_tokens as i32 + o);
+        let total_tokens = output_tokens.map(|o| raw_input_tokens as i32 + o);
 
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
@@ -387,9 +403,9 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 + 0
+        assert_eq!(usage.input_tokens, Some(12)); // Only raw input tokens
         assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.total_tokens, Some(27)); // 12 + 15
 
         Ok(())
     }
@@ -430,9 +446,9 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 + 0
+        assert_eq!(usage.input_tokens, Some(15)); // Only raw input tokens
         assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.total_tokens, Some(35)); // 15 + 20
 
         Ok(())
     }
