@@ -2,12 +2,21 @@ import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 
+export interface Parameter {
+  key: string;
+  description: string;
+  input_type: string;
+  default?: string;
+  requirement: 'required' | 'optional' | 'user_prompt';
+}
+
 export interface Recipe {
   title: string;
   description: string;
   instructions: string;
   prompt?: string;
   activities?: string[];
+  parameters?: Parameter[];
   author?: {
     contact?: string;
     metadata?: string;
