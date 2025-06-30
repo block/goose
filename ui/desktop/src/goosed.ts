@@ -27,7 +27,7 @@ export const findAvailablePort = (): Promise<number> => {
 // Check if goosed server is ready by polling the status endpoint
 const checkServerStatus = async (
   port: number,
-  maxAttempts: number = 80,
+  maxAttempts: number = 800,
   interval: number = 100
 ): Promise<boolean> => {
   const statusUrl = `http://127.0.0.1:${port}/status`;

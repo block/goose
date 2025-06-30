@@ -358,7 +358,7 @@ impl TemporalScheduler {
         {
             // On Windows, wait longer for initialization and use unref-like behavior
             sleep(Duration::from_millis(1000)).await; // Wait 1 second for Windows initialization
-            
+
             // Use a different approach - spawn a monitoring thread that waits longer
             std::thread::spawn(move || {
                 // Give the process significant time to initialize on Windows
