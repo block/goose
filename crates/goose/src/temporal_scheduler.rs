@@ -308,10 +308,30 @@ impl TemporalScheduler {
         let mut command = Command::new(&binary_path);
         command
             .current_dir(working_dir)
-            .env("PORT", self.port_config.http_port.to_string())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .stdin(std::process::Stdio::null());
+            .env("PORT", self.port_config.http_port.to_string());
+
+        // Platform-specific process configuration based on Electron app approach
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // On Windows, use similar approach to Electron app:
+            // - Don't suppress output for debugging
+            // - Use CREATE_NO_WINDOW to avoid console window
+            // - Set DETACHED_PROCESS for independence
+            command
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .stdin(std::process::Stdio::null())
+                .creation_flags(0x08000000 | 0x00000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
+        }
+
+        #[cfg(not(windows))]
+        {
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null());
+        }
 
         // On Unix systems, create a new process group
         #[cfg(unix)]
@@ -333,12 +353,27 @@ impl TemporalScheduler {
             pid, self.port_config.http_port
         );
 
-        // Give the process a moment to start up
-        sleep(Duration::from_millis(100)).await;
+        // Platform-specific process handling
+        #[cfg(windows)]
+        {
+            // On Windows, wait longer for initialization and use unref-like behavior
+            sleep(Duration::from_millis(1000)).await; // Wait 1 second for Windows initialization
+            
+            // Use a different approach - spawn a monitoring thread that waits longer
+            std::thread::spawn(move || {
+                // Give the process significant time to initialize on Windows
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                // After 5 seconds, let it run completely independently
+                let _ = child.wait();
+            });
+        }
 
-        // Verify the process is still running
         #[cfg(unix)]
         {
+            // Give the process a moment to start up
+            sleep(Duration::from_millis(100)).await;
+
+            // Verify the process is still running
             use std::process::Command as StdCommand;
             let ps_check = StdCommand::new("ps")
                 .arg("-p")
@@ -359,13 +394,13 @@ impl TemporalScheduler {
                     warn!("Could not verify Temporal service process status: {}", e);
                 }
             }
-        }
 
-        // Detach the child process by not waiting for it
-        // This allows it to continue running independently
-        std::thread::spawn(move || {
-            let _ = child.wait();
-        });
+            // Detach the child process by not waiting for it
+            // This allows it to continue running independently
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
 
         Ok(())
     }
