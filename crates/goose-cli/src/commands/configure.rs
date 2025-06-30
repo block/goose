@@ -210,68 +210,36 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     }
 }
 
-/// Helper function to configure a single configuration key
-async fn configure_key(
+/// Helper function to handle OAuth configuration for a provider
+async fn handle_oauth_configuration(
     provider_name: &str,
-    provider_display_name: &str,
-    key: &goose::providers::base::ConfigKey,
-    config: &Config,
+    key_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 
-    if key.oauth_flow {
-        // For OAuth keys, use the provider's OAuth configuration method
-        let _ = cliclack::log::info(format!("Configuring {} using OAuth device code flow...", key.name));
-        
-        // Create a temporary provider instance to handle OAuth
-        let temp_model = ModelConfig::new("temp".to_string());
-        match create(provider_name, temp_model) {
-            Ok(provider) => {
-                match provider.configure_oauth().await {
-                    Ok(_) => {
-                        let _ = cliclack::log::success("OAuth authentication completed successfully!");
-                    }
-                    Err(e) => {
-                        let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                        return Err(format!("OAuth authentication failed for {}: {}", key.name, e).into());
-                    }
+    let _ = cliclack::log::info(format!("Configuring {} using OAuth device code flow...", key_name));
+    
+    // Create a temporary provider instance to handle OAuth
+    let temp_model = ModelConfig::new("temp".to_string());
+    match create(provider_name, temp_model) {
+        Ok(provider) => {
+            match provider.configure_oauth().await {
+                Ok(_) => {
+                    let _ = cliclack::log::success("OAuth authentication completed successfully!");
+                    Ok(())
+                }
+                Err(e) => {
+                    let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
+                    Err(format!("OAuth authentication failed for {}: {}", key_name, e).into())
                 }
             }
-            Err(e) => {
-                let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
-                return Err(format!("Failed to create provider for OAuth: {}", e).into());
-            }
         }
-    } else {
-        // Non-OAuth key, use manual entry
-        let value: String = if key.secret {
-            cliclack::password(format!(
-                "Provider {} requires {}, please enter a value",
-                provider_display_name, key.name
-            ))
-                .mask('▪')
-                .interact()?
-        } else {
-            let mut input = cliclack::input(format!(
-                "Provider {} requires {}, please enter a value",
-                provider_display_name, key.name
-            ));
-            if key.default.is_some() {
-                input = input.default_input(&key.default.clone().unwrap());
-            }
-            input.interact()?
-        };
-
-        if key.secret {
-            config.set_secret(&key.name, Value::String(value))?;
-        } else {
-            config.set_param(&key.name, Value::String(value))?;
+        Err(e) => {
+            let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
+            Err(format!("Failed to create provider for OAuth: {}", e).into())
         }
-        let _ = cliclack::log::info(format!("Saved {} to config file", key.name));
     }
-    
-    Ok(())
 }
 
 /// Dialog for configuring the AI provider and model
@@ -341,11 +309,61 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     Ok(_) => {
                         let _ = cliclack::log::info(format!("{} is already configured", key.name));
                         if cliclack::confirm("Would you like to update this value?").interact()? {
-                            configure_key(provider_name, &provider_meta.display_name, key, config).await?;
+                            // Check if this key uses OAuth flow
+                            if key.oauth_flow {
+                                handle_oauth_configuration(provider_name, &key.name).await?;
+                            } else {
+                                // Non-OAuth key, use manual entry
+                                let value: String = if key.secret {
+                                    cliclack::password(format!("Enter new value for {}", key.name))
+                                        .mask('▪')
+                                        .interact()?
+                                } else {
+                                    let mut input = cliclack::input(format!("Enter new value for {}", key.name));
+                                    if key.default.is_some() {
+                                        input = input.default_input(&key.default.clone().unwrap());
+                                    }
+                                    input.interact()?
+                                };
+
+                                if key.secret {
+                                    config.set_secret(&key.name, Value::String(value))?;
+                                } else {
+                                    config.set_param(&key.name, Value::String(value))?;
+                                }
+                            }
                         }
                     }
                     Err(_) => {
-                        configure_key(provider_name, &provider_meta.display_name, key, config).await?;
+                        // Check if this key uses OAuth flow
+                        if key.oauth_flow {
+                            handle_oauth_configuration(provider_name, &key.name).await?;
+                        } else {
+                            // Non-OAuth key, use manual entry
+                            let value: String = if key.secret {
+                                cliclack::password(format!(
+                                    "Provider {} requires {}, please enter a value",
+                                    provider_meta.display_name, key.name
+                                ))
+                                    .mask('▪')
+                                    .interact()?
+                            } else {
+                                let mut input = cliclack::input(format!(
+                                    "Provider {} requires {}, please enter a value",
+                                    provider_meta.display_name, key.name
+                                ));
+                                if key.default.is_some() {
+                                    input = input.default_input(&key.default.clone().unwrap());
+                                }
+                                input.interact()?
+                            };
+
+                            if key.secret {
+                                config.set_secret(&key.name, Value::String(value))?;
+                            } else {
+                                config.set_param(&key.name, Value::String(value))?;
+                            }
+                        }
                     }
                 }
             }
