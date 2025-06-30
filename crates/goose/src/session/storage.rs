@@ -158,6 +158,14 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
             session_dir.join(format!("{}.jsonl", name))
         }
         Identifier::Path(path) => {
+            // Allow special paths for no-session mode
+            if let Some(path_str) = path.to_str() {
+                if path_str == "/dev/null" || path_str == "NUL" {
+                    // These are special paths used for --no-session mode
+                    return Ok(path);
+                }
+            }
+
             // In test mode, allow temporary directory paths
             #[cfg(test)]
             {
@@ -190,10 +198,14 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
         }
     };
 
-    // Additional security check for file extension
-    if let Some(ext) = path.extension() {
-        if ext != "jsonl" {
-            return Err(anyhow::anyhow!("Invalid file extension"));
+    // Additional security check for file extension (skip for special no-session paths)
+    if let Some(path_str) = path.to_str() {
+        if path_str != "/dev/null" && path_str != "NUL" {
+            if let Some(ext) = path.extension() {
+                if ext != "jsonl" {
+                    return Err(anyhow::anyhow!("Invalid file extension"));
+                }
+            }
         }
     }
 
