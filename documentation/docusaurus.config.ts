@@ -108,7 +108,15 @@ const config: Config = {
           },
           {
             from: '/docs/guides/share-goose-sessions',
-            to: '/docs/guides/session-recipes'
+            to: '/docs/guides/recipes/session-recipes'
+          },
+          {
+            from: '/docs/guides/session-recipes',
+            to: '/docs/guides/recipes/session-recipes'
+          },
+          {
+            from: '/docs/guides/recipe-reference',
+            to: '/docs/guides/recipes/recipe-reference'
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {

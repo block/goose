@@ -1,7 +1,7 @@
 ---
-sidebar_position: 18
+sidebar_position: 2
 title: Recipe Reference Guide
-sidebar_label: Recipe Reference Guide
+description: Complete technical reference for creating and customizing recipes in Goose via the CLI.
 ---
 
 Recipes are reusable Goose configurations that package up a specific setup so it can be easily shared and launched by others.
@@ -219,3 +219,6 @@ Common errors to watch for:
 - Invalid extension configurations
 
 When these occur, Goose will provide helpful error messages indicating what needs to be fixed.
+
+## Learn More
+Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
