@@ -213,6 +213,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
 /// Helper function to configure a single configuration key
 async fn configure_key(
     provider_name: &str,
+    provider_display_name: &str,
     key: &goose::providers::base::ConfigKey,
     config: &Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -245,11 +246,17 @@ async fn configure_key(
     } else {
         // Non-OAuth key, use manual entry
         let value: String = if key.secret {
-            cliclack::password(format!("Enter value for {}", key.name))
+            cliclack::password(format!(
+                "Provider {} requires {}, please enter a value",
+                provider_display_name, key.name
+            ))
                 .mask('▪')
                 .interact()?
         } else {
-            let mut input = cliclack::input(format!("Enter value for {}", key.name));
+            let mut input = cliclack::input(format!(
+                "Provider {} requires {}, please enter a value",
+                provider_display_name, key.name
+            ));
             if key.default.is_some() {
                 input = input.default_input(&key.default.clone().unwrap());
             }
@@ -334,11 +341,11 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     Ok(_) => {
                         let _ = cliclack::log::info(format!("{} is already configured", key.name));
                         if cliclack::confirm("Would you like to update this value?").interact()? {
-                            configure_key(provider_name, key, config).await?;
+                            configure_key(provider_name, &provider_meta.display_name, key, config).await?;
                         }
                     }
                     Err(_) => {
-                        configure_key(provider_name, key, config).await?;
+                        configure_key(provider_name, &provider_meta.display_name, key, config).await?;
                     }
                 }
             }
