@@ -3397,7 +3397,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3462,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3486,7 +3486,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3536,7 +3536,7 @@ dependencies = [
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "cbindgen",
  "futures",
@@ -3550,7 +3550,7 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3630,7 +3630,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "anyhow",
  "async-trait",

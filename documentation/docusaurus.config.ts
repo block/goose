@@ -69,6 +69,7 @@ const config: Config = {
     ],
   ],
   plugins: [
+    require.resolve("./plugins/custom-webpack.cjs"),
     [
       "@docusaurus/plugin-client-redirects",
       {
@@ -107,7 +108,15 @@ const config: Config = {
           },
           {
             from: '/docs/guides/share-goose-sessions',
-            to: '/docs/guides/session-recipes'
+            to: '/docs/guides/recipes/session-recipes'
+          },
+          {
+            from: '/docs/guides/session-recipes',
+            to: '/docs/guides/recipes/session-recipes'
+          },
+          {
+            from: '/docs/guides/recipe-reference',
+            to: '/docs/guides/recipes/recipe-reference'
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
@@ -421,5 +430,6 @@ const config: Config = {
     },
   } satisfies Preset.ThemeConfig,
 };
+
 
 export default config;

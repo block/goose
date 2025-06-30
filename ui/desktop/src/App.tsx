@@ -12,6 +12,7 @@ import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
 import { type Recipe } from './recipe';
+import AnnouncementModal from './components/AnnouncementModal';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -610,6 +611,7 @@ export default function App() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
+      <AnnouncementModal />
     </ModelAndProviderProvider>
   );
 }

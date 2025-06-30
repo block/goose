@@ -1,7 +1,6 @@
 ---
-sidebar_position: 5
-title: Create a Recipe from Your Session
-sidebar_label: Shareable Recipes
+sidebar_position: 1
+title: Shareable Recipes
 description: "Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click"
 ---
 
@@ -415,3 +414,6 @@ To protect your privacy and system integrity, Goose excludes:
 
 
 This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
+
+## Learn More
+Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.

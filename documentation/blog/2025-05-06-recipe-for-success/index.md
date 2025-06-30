@@ -104,7 +104,7 @@ When something breaks, Goose doesn't panic; it pivots. For example, Goose might 
 
 It's been 18 years since the movie came out, and I'd like to imagine that Linguini has surpassed his cooking era and stepped into his mentor era. Instead of training every new cook inefficiently, he's documenting his favorite dishes to make his knowledge shareable and scalable.
 
-Similarly, Goose is a forward-looking AI agent with a solution for scaling knowledge through [recipes](/docs/guides/session-recipes). Recipes are complete orchestrations you can rerun, remix, or share, passing on knowledge to anyone who needs it.
+Similarly, Goose is a forward-looking AI agent with a solution for scaling knowledge through [recipes](/docs/guides/recipes/session-recipes). Recipes are complete orchestrations you can rerun, remix, or share, passing on knowledge to anyone who needs it.
 
 Sharing a prompt doesn't always recreate the experience; AI is non-deterministic, and people may not have the same extensions or context configured. Recipes solve this by packaging your entire Goose workflow: the extensions, the setup, the goal, and example activities.
 
@@ -190,7 +190,7 @@ Skip the chaos. Drop a Recipe link and let every attendee spin up the same envir
 
 Your team is full of problem solvers. One teammate built a slick internal dashboard. Another nailed support ticket triage. Someone else automated changelog generation. Then there's the question: how do we make it easy for the entire team to use? Recipes turn your team's creations into reusable workflows that anyone can pick up. Build a shared library of Goose-powered processes and multiply your team's impact.
 
- Grab [Goose](/docs/getting-started/installation) and start cooking up some [recipes](/docs/guides/session-recipes) of your own. Your future self (and team) will thank you!
+ Grab [Goose](/docs/getting-started/installation) and start cooking up some [recipes](/docs/guides/recipes/session-recipes) of your own. Your future self (and team) will thank you!
 
 <head>
   <meta property="og:title" content="A Recipe for Success: Cooking Up Repeatable Agentic Workflows" />

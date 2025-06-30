@@ -66,23 +66,7 @@ async fn transcribe_handler(
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Get the OpenAI API key from config
-    let config = goose::config::Config::global();
-    let api_key: String = config
-        .get_secret("OPENAI_API_KEY")
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
-    // Get the OpenAI host from config (with default)
-    let openai_host = match config.get("OPENAI_HOST", false) {
-        Ok(value) => value
-            .as_str()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "https://api.openai.com".to_string()),
-        Err(_) => "https://api.openai.com".to_string(),
-    };
-
-    tracing::debug!("Using OpenAI host: {}", openai_host);
-
+    // Validate input first before checking API key configuration
     // Decode the base64 audio data
     let audio_bytes = BASE64
         .decode(&request.audio)
@@ -109,6 +93,23 @@ async fn transcribe_handler(
         "audio/x-wav" => "wav",
         _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
     };
+
+    // Get the OpenAI API key from config (after input validation)
+    let config = goose::config::Config::global();
+    let api_key: String = config
+        .get_secret("OPENAI_API_KEY")
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Get the OpenAI host from config (with default)
+    let openai_host = match config.get("OPENAI_HOST", false) {
+        Ok(value) => value
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "https://api.openai.com".to_string()),
+        Err(_) => "https://api.openai.com".to_string(),
+    };
+
+    tracing::debug!("Using OpenAI host: {}", openai_host);
 
     // Create a multipart form with the audio file
     let part = reqwest::multipart::Part::bytes(audio_bytes)
@@ -176,7 +177,35 @@ async fn transcribe_elevenlabs_handler(
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Get the ElevenLabs API key from config
+    // Validate input first before checking API key configuration
+    // Decode the base64 audio data
+    let audio_bytes = BASE64
+        .decode(&request.audio)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Check file size
+    if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
+        tracing::warn!(
+            "Audio file too large: {} bytes (max: {} bytes)",
+            audio_bytes.len(),
+            MAX_AUDIO_SIZE_BYTES
+        );
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    // Determine file extension and content type based on MIME type
+    let (file_extension, content_type) = match request.mime_type.as_str() {
+        "audio/webm" => ("webm", "audio/webm"),
+        "audio/mp4" => ("mp4", "audio/mp4"),
+        "audio/mpeg" => ("mp3", "audio/mpeg"),
+        "audio/mpga" => ("mp3", "audio/mpeg"),
+        "audio/m4a" => ("m4a", "audio/m4a"),
+        "audio/wav" => ("wav", "audio/wav"),
+        "audio/x-wav" => ("wav", "audio/wav"),
+        _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
+    };
+
+    // Get the ElevenLabs API key from config (after input validation)
     let config = goose::config::Config::global();
 
     // First try to get it as a secret
@@ -214,33 +243,6 @@ async fn transcribe_elevenlabs_handler(
                 }
             }
         }
-    };
-
-    // Decode the base64 audio data
-    let audio_bytes = BASE64
-        .decode(&request.audio)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-    // Check file size
-    if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
-        tracing::warn!(
-            "Audio file too large: {} bytes (max: {} bytes)",
-            audio_bytes.len(),
-            MAX_AUDIO_SIZE_BYTES
-        );
-        return Err(StatusCode::PAYLOAD_TOO_LARGE);
-    }
-
-    // Determine file extension and content type based on MIME type
-    let (file_extension, content_type) = match request.mime_type.as_str() {
-        "audio/webm" => ("webm", "audio/webm"),
-        "audio/mp4" => ("mp4", "audio/mp4"),
-        "audio/mpeg" => ("mp3", "audio/mpeg"),
-        "audio/mpga" => ("mp3", "audio/mpeg"),
-        "audio/m4a" => ("m4a", "audio/m4a"),
-        "audio/wav" => ("wav", "audio/wav"),
-        "audio/x-wav" => ("wav", "audio/wav"),
-        _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
     };
 
     // Create multipart form for ElevenLabs API
