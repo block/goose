@@ -19,8 +19,8 @@ You can turn your current Goose session into a reusable recipe that includes the
    You cannot create a recipe from an existing recipe session, but you can view or [edit the recipe](#edit-recipe).
    :::
 
-   1. While in the session you want to save as a recipe, click the gear icon `⚙️` in the top right corner  
-   2. Select **Make Agent from this session**  
+   1. While in the session you want to save as a recipe, click the menu icon **⋮** in the top right corner  
+   2. Select **Make recipe from this session**
    3. In the dialog that appears:
       - Provide a **title** for the recipe
       - Provide a **description**

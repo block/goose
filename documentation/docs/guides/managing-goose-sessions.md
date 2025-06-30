@@ -18,6 +18,10 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         To start a new session at any time, click the gear icon `⚙️` in the top-right corner of the application and select **New session** from the dropdown menu.
 
+        To start a new session in a different directory, click the current directory displayed at the top of the application, or click the gear icon `⚙️` in the top-right corner of the application and select **Open directory** from the dropdown menu. You can select an existing folder or create a new folder.
+
+        On macOS, you can drag and drop a folder onto the Goose icon in the dock to open a new session in that directory.
+
         You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
         | Action | macOS | Windows/Linux |
