@@ -56,21 +56,12 @@ There may be (but not always) some tools mentioned in the instructions which you
 const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
 
-  console.log('Substituting parameters in instructions:', { text, params });
-
   for (const key in params) {
     // Escape special characters in the key (parameter) and match optional whitespace
     const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
-    const beforeSubstitution = substitutedText;
     substitutedText = substitutedText.replace(regex, params[key]);
-
-    // Log each substitution for debugging
-    if (beforeSubstitution !== substitutedText) {
-      console.log(`Replaced {{${key}}} with "${params[key]}" in instructions`);
-    }
   }
 
-  console.log('Final substituted instructions:', substitutedText);
   return substitutedText;
 };
 

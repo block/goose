@@ -74,21 +74,11 @@ const isUserMessage = (message: Message): boolean => {
 const substituteParameters = (prompt: string, params: Record<string, string>): string => {
   let substitutedPrompt = prompt;
 
-  console.log('Substituting parameters:', { prompt, params });
-
   for (const key in params) {
     // Escape special characters in the key (parameter) and match optional whitespace
     const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
-    const beforeSubstitution = substitutedPrompt;
     substitutedPrompt = substitutedPrompt.replace(regex, params[key]);
-
-    // Log each substitution for debugging
-    if (beforeSubstitution !== substitutedPrompt) {
-      console.log(`Replaced {{${key}}} with "${params[key]}"`);
-    }
   }
-
-  console.log('Final substituted prompt:', substitutedPrompt);
   return substitutedPrompt;
 };
 
