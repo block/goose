@@ -2,14 +2,51 @@ use anyhow::{anyhow, Result};
 use goose::config::Config;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
-
-use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
+use url::Url;
 
 use super::github_recipe::{retrieve_recipe_from_github, GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY};
+use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
 
-pub fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
+fn is_url(s: &str) -> bool {
+    if let Ok(url) = Url::parse(s) {
+        url.scheme() == "http" || url.scheme() == "https"
+    } else {
+        false
+    }
+}
+
+async fn retrieve_recipe_from_url(url: &str) -> Result<(String, PathBuf)> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to fetch recipe from URL {}: {}", url, e))?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!(
+            "Failed to fetch recipe from URL {}: HTTP {}",
+            url,
+            response.status()
+        ));
+    }
+
+    let content = response
+        .text()
+        .await
+        .map_err(|e| anyhow!("Failed to read response from URL {}: {}", url, e))?;
+
+    // keep the parent empty so we don't grant access to the local filesystem
+    Ok((content, "".into()))
+}
+
+pub async fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
+    if is_url(recipe_name) {
+        return retrieve_recipe_from_url(recipe_name).await;
+    }
+
     // If recipe_name ends with yaml or json, treat it as a direct file path
     if RECIPE_FILE_EXTENSIONS
         .iter()
@@ -18,6 +55,7 @@ pub fn retrieve_recipe_file(recipe_name: &str) -> Result<(String, PathBuf)> {
         let path = PathBuf::from(recipe_name);
         return read_recipe_file(path);
     }
+
     retrieve_recipe_from_local_path(recipe_name).or_else(|e| {
         if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
             retrieve_recipe_from_github(recipe_name, &recipe_repo_full_name)
@@ -98,4 +136,35 @@ fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<(String, PathBuf)>
         .to_path_buf();
 
     Ok((content, parent_dir))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_retrieve_recipe_file_local() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe_path = temp_dir.path().join("test.yaml");
+        let recipe_content = "title: Test Recipe\ndescription: A test recipe";
+        fs::write(&recipe_path, recipe_content).unwrap();
+
+        let (content, parent_dir) = retrieve_recipe_file(recipe_path.to_str().unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(content, recipe_content);
+        assert_eq!(parent_dir, temp_dir.path());
+    }
+
+    #[test]
+    fn test_is_url() {
+        assert!(is_url("http://example.com/recipe.yaml"));
+        assert!(is_url("https://example.com/recipe.yaml"));
+        assert!(!is_url("file:///path/to/recipe.yaml"));
+        assert!(!is_url("/path/to/recipe.yaml"));
+        assert!(!is_url("recipe.yaml"));
+    }
 }

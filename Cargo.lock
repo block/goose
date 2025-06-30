@@ -3543,6 +3543,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "url",
  "urlencoding",
  "webbrowser 1.0.4",
  "winapi",

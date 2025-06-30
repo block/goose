@@ -778,11 +778,12 @@ pub async fn cli() -> Result<()> {
                 ),
                 (_, _, Some(recipe_name), explain, render_recipe) => {
                     if explain {
-                        explain_recipe_with_parameters(&recipe_name, params)?;
+                        explain_recipe_with_parameters(&recipe_name, params).await?;
                         return Ok(());
                     }
                     if render_recipe {
                         let recipe = load_recipe_content_as_template(&recipe_name, params)
+                            .await
                             .unwrap_or_else(|err| {
                                 eprintln!("{}: {}", console::style("Error").red().bold(), err);
                                 std::process::exit(1);
@@ -790,8 +791,9 @@ pub async fn cli() -> Result<()> {
                         println!("{}", recipe);
                         return Ok(());
                     }
-                    let recipe =
-                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
+                    let recipe = load_recipe_as_template(&recipe_name, params)
+                        .await
+                        .unwrap_or_else(|err| {
                             eprintln!("{}: {}", console::style("Error").red().bold(), err);
                             std::process::exit(1);
                         });
@@ -916,10 +918,10 @@ pub async fn cli() -> Result<()> {
         Some(Command::Recipe { command }) => {
             match command {
                 RecipeCommand::Validate { recipe_name } => {
-                    handle_validate(&recipe_name)?;
+                    handle_validate(&recipe_name).await?;
                 }
                 RecipeCommand::Deeplink { recipe_name } => {
-                    handle_deeplink(&recipe_name)?;
+                    handle_deeplink(&recipe_name).await?;
                 }
             }
             return Ok(());

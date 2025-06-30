@@ -13,9 +13,9 @@ use crate::recipes::recipe::load_recipe;
 /// # Returns
 ///
 /// Result indicating success or failure
-pub fn handle_validate(recipe_name: &str) -> Result<()> {
+pub async fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
-    match load_recipe(recipe_name) {
+    match load_recipe(recipe_name).await {
         Ok(_) => {
             println!("{} recipe file is valid", style("✓").green().bold());
             Ok(())
@@ -36,9 +36,9 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 /// # Returns
 ///
 /// Result indicating success or failure
-pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
+pub async fn handle_deeplink(recipe_name: &str) -> Result<String> {
     // Load the recipe file first to validate it
-    match load_recipe(recipe_name) {
+    match load_recipe(recipe_name).await {
         Ok(recipe) => {
             let mut full_url = String::new();
             if let Ok(recipe_json) = serde_json::to_string(&recipe) {
@@ -87,42 +87,42 @@ prompt: "Test prompt content {{ name }}"
 instructions: "Test instructions"
 "#;
 
-    #[test]
-    fn test_handle_deeplink_valid_recipe() {
+    #[tokio::test]
+    async fn test_handle_deeplink_valid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path).await;
         assert!(result.is_ok());
         assert!(result.unwrap().contains("goose://recipe?config=eyJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aXRsZSI6IlRlc3QgUmVjaXBlIiwiZGVzY3JpcHRpb24iOiJBIHRlc3QgcmVjaXBlIGZvciBkZWVwbGluayBnZW5lcmF0aW9uIiwiaW5zdHJ1Y3Rpb25zIjoiVGVzdCBpbnN0cnVjdGlvbnMiLCJwcm9tcHQiOiJUZXN0IHByb21wdCBjb250ZW50In0%3D"));
     }
 
-    #[test]
-    fn test_handle_deeplink_invalid_recipe() {
+    #[tokio::test]
+    async fn test_handle_deeplink_invalid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
-        let result = handle_deeplink(&recipe_path);
+        let result = handle_deeplink(&recipe_path).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_handle_validation_valid_recipe() {
+    #[tokio::test]
+    async fn test_handle_validation_valid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let result = handle_validate(&recipe_path);
+        let result = handle_validate(&recipe_path).await;
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_handle_validation_invalid_recipe() {
+    #[tokio::test]
+    async fn test_handle_validation_invalid_recipe() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", INVALID_RECIPE_CONTENT);
-        let result = handle_validate(&recipe_path);
+        let result = handle_validate(&recipe_path).await;
         assert!(result.is_err());
     }
 }
