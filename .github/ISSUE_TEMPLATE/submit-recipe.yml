@@ -10,7 +10,7 @@ body:
         Recipes are reusable sessions created in Goose Desktop or CLI and shared with the community to help others vibe code faster.
 
         📌 **How to Submit**
-        - Create your recipe using Goose ("Make Agent from this session")
+        - Create your recipe using Goose ("Make recipe from this session")
         - Fill out the YAML below using the format provided
         - Paste it into the field and submit the issue — we'll review and add it to the Cookbook!
 
