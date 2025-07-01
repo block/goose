@@ -258,15 +258,6 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-        // Always log complete token breakdown for analysis
-        tracing::info!(
-            "Anthropic API response - input_tokens: {}, cache_creation: {}, cache_read: {}, output: {}, usage_json: {}",
-            input_tokens,
-            cache_creation_tokens,
-            cache_read_tokens,
-            output_tokens,
-            serde_json::to_string(usage).unwrap_or_default()
-        );
 
         // IMPORTANT: Based on the API responses, when caching is used:
         // - input_tokens is ONLY the new/fresh tokens (can be very small, like 7)
