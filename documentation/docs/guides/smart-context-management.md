@@ -135,7 +135,7 @@ Key information has been preserved while reducing context length.
   </TabItem>
 </Tabs>
 
-## Token usage
+## Token Usage
 After sending your first message, Goose Desktop and Goose CLI display token usage.
 
 <Tabs>
