@@ -420,7 +420,7 @@ pub async fn get_pricing(
         }
     }
 
-    tracing::info!(
+    tracing::debug!(
         "Returning pricing for {} models{}",
         pricing_data.len(),
         if configured_only {
