@@ -531,3 +531,49 @@ mod schedule_tool_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod final_output_tool_tests {
+    use super::*;
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
+    use goose::recipe::Response;
+
+    #[tokio::test]
+    async fn test_final_output_tool_call_collection() -> Result<()> {
+        let agent = Agent::new();
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"}
+                },
+                "required": ["message"]
+            })),
+        };
+        agent.add_final_output_tool(response).await;
+
+        let tool_call = mcp_core::tool::ToolCall::new(
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({
+                "final_output": r#"{"message": "Hello, World!"}"#
+            })
+        );
+
+        let (_, result) = agent.dispatch_tool_call(tool_call, "request_id".to_string()).await;
+
+        assert!(result.is_ok(), "Tool call should succeed");
+        let final_result = result.unwrap().result.await;
+        assert!(final_result.is_ok(), "Tool execution should succeed");
+
+        let content = final_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.contains("Final output successfully collected."),
+            "Tool result missing expected content: {}",
+            text
+        );
+
+        Ok(())
+    }
+}
