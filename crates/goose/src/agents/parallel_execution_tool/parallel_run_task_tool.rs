@@ -14,7 +14,18 @@ pub fn create_parallel_run_task_tool() -> Tool {
                 "tasks": {
                     "type": "array",
                     "items": {
-                        "type": "string",
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier for the task"
+                            },
+                            "payload": {
+                                "type": "string",
+                                "description": "the task description to be executed"
+                            }
+                        },
+                        "required": ["id", "payload"]
                     },
                     "description": "The tasks to run in parallel"
                 },
@@ -32,7 +43,8 @@ pub fn create_parallel_run_task_tool() -> Tool {
                         }
                     }
                 }
-            }
+            },
+            "required": ["tasks"]
         }),
         Some(ToolAnnotations {
             title: Some("Run tasks in parallel".to_string()),

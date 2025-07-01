@@ -5,7 +5,6 @@ use serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
-    pub task_type: String,
     pub payload: Value,
 }
 
