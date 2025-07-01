@@ -460,7 +460,6 @@ mod tests {
             RecipeParameterRequirement::Required
         ));
 
-
         assert!(recipe.response.is_some());
         let response = recipe.response.unwrap();
         assert!(response.json_schema.is_some());

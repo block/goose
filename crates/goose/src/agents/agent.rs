@@ -48,12 +48,12 @@ use mcp_core::{
 
 use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 
+use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::router_tools;
 use super::subagent_manager::SubAgentManager;
 use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use super::final_output_tool::FinalOutputTool;
 
 /// The main goose Agent
 pub struct Agent {
@@ -1321,23 +1321,20 @@ mod tests {
         agent.add_final_output_tool(response).await;
 
         let tools = agent.list_tools(None).await;
-        let final_output_tool = tools
-            .iter()
-            .find(|tool| tool.name == "final_output");
+        let final_output_tool = tools.iter().find(|tool| tool.name == "final_output");
 
-        assert!(final_output_tool.is_some(), "Final output tool should be present after adding");
-
-        let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.build_system_prompt(
-            vec![],
-            None,
-            serde_json::Value::Null,
-            None,
-            None,
+        assert!(
+            final_output_tool.is_some(),
+            "Final output tool should be present after adding"
         );
 
+        let prompt_manager = agent.prompt_manager.lock().await;
+        let system_prompt =
+            prompt_manager.build_system_prompt(vec![], None, serde_json::Value::Null, None, None);
+
         let final_output_tool_ref = agent.final_output_tool.lock().await;
-        let final_output_tool_system_prompt = final_output_tool_ref.as_ref().unwrap().system_prompt();
+        let final_output_tool_system_prompt =
+            final_output_tool_ref.as_ref().unwrap().system_prompt();
         assert!(system_prompt.contains(&final_output_tool_system_prompt));
         Ok(())
     }

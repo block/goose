@@ -1,19 +1,20 @@
+use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
+use indoc::formatdoc;
 use mcp_core::{
     tool::{Tool, ToolAnnotations},
-    ToolCall, Content, ToolError,
+    Content, ToolCall, ToolError,
 };
-use crate::agents::tool_execution::ToolCallResult;
 use serde_json::{json, Value};
-use indoc::formatdoc;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "final_output";
-pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str = "You MUST call the `final_output` tool with your final output for the user.";
+pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
+    "You MUST call the `final_output` tool with your final output for the user.";
 
 pub struct FinalOutputTool {
     pub response: Response,
     /// The final output collected for the user. It will be a single line string for easy script extraction from output.
-    pub final_output: Option<String>
+    pub final_output: Option<String>,
 }
 
 impl FinalOutputTool {
@@ -22,15 +23,18 @@ impl FinalOutputTool {
             panic!("Cannot create FinalOutputTool: json_schema is required");
         }
         let schema = response.json_schema.as_ref().unwrap();
-        
+
         if let Some(obj) = schema.as_object() {
             if obj.is_empty() {
                 panic!("Cannot create FinalOutputTool: empty json_schema is not allowed");
             }
         }
-        
+
         jsonschema::meta::validate(schema).unwrap();
-        Self { response, final_output: None }
+        Self {
+            response,
+            final_output: None,
+        }
     }
 
     pub fn tool(&self) -> Tool {
@@ -105,12 +109,13 @@ impl FinalOutputTool {
             }
         };
 
-        let compiled_schema = match jsonschema::validator_for(self.response.json_schema.as_ref().unwrap()) {
-            Ok(schema) => schema,
-            Err(e) => {
-                return Err(format!("Internal error: Failed to compile schema: {}", e));
-            }
-        };
+        let compiled_schema =
+            match jsonschema::validator_for(self.response.json_schema.as_ref().unwrap()) {
+                Ok(schema) => schema,
+                Err(e) => {
+                    return Err(format!("Internal error: Failed to compile schema: {}", e));
+                }
+            };
 
         let validation_errors: Vec<String> = compiled_schema
             .iter_errors(&parsed_value)
@@ -139,16 +144,26 @@ impl FinalOutputTool {
                         let result = self.validate_json_output(final_output).await;
                         match result {
                             Ok(parsed_value) => {
-                                self.final_output = Some(Self::parsed_final_output_string(parsed_value));
-                                ToolCallResult::from(Ok(vec![Content::text("Final output successfully collected.".to_string())]))
+                                self.final_output =
+                                    Some(Self::parsed_final_output_string(parsed_value));
+                                ToolCallResult::from(Ok(vec![Content::text(
+                                    "Final output successfully collected.".to_string(),
+                                )]))
                             }
-                            Err(error) => ToolCallResult::from(Err(ToolError::InvalidParameters(error))),
+                            Err(error) => {
+                                ToolCallResult::from(Err(ToolError::InvalidParameters(error)))
+                            }
                         }
                     }
-                    None => ToolCallResult::from(Err(ToolError::InvalidParameters("Missing required 'final_output' parameter".to_string()))),
+                    None => ToolCallResult::from(Err(ToolError::InvalidParameters(
+                        "Missing required 'final_output' parameter".to_string(),
+                    ))),
                 }
             }
-            _ => ToolCallResult::from(Err(ToolError::NotFound(format!("Unknown tool: {}", tool_call.name)))),
+            _ => ToolCallResult::from(Err(ToolError::NotFound(format!(
+                "Unknown tool: {}",
+                tool_call.name
+            )))),
         }
     }
 
@@ -212,9 +227,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot create FinalOutputTool: json_schema is required")]
     fn test_new_with_missing_schema() {
-        let response = Response {
-            json_schema: None,
-        };
+        let response = Response { json_schema: None };
 
         FinalOutputTool::new(response);
     }
@@ -276,7 +289,10 @@ mod tests {
         let result = tool.execute_tool_call(tool_call).await;
         let tool_result = result.result.await;
         assert!(tool_result.is_ok());
-        assert_eq!(tool.final_output, Some(r#"{"message":"Hello, world!"}"#.to_string()));
+        assert_eq!(
+            tool.final_output,
+            Some(r#"{"message":"Hello, world!"}"#.to_string())
+        );
     }
 
     #[tokio::test]
@@ -373,14 +389,16 @@ mod tests {
         let mut tool = FinalOutputTool::new(response);
         let tool_call = ToolCall {
             name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({}),  // Missing final_output parameter
+            arguments: json!({}), // Missing final_output parameter
         };
 
         let result = tool.execute_tool_call(tool_call).await;
         let tool_result = result.result.await;
         assert!(tool_result.is_err());
         if let Err(error) = tool_result {
-            assert!(error.to_string().contains("Missing required 'final_output' parameter"));
+            assert!(error
+                .to_string()
+                .contains("Missing required 'final_output' parameter"));
         }
     }
 
@@ -424,7 +442,7 @@ mod tests {
         let tool_result = result.result.await;
         assert!(tool_result.is_ok());
         assert!(tool.final_output.is_some());
-        
+
         let final_output = tool.final_output.unwrap();
         assert!(serde_json::from_str::<Value>(&final_output).is_ok());
         assert!(!final_output.contains('\n'));
@@ -441,7 +459,7 @@ mod tests {
         });
 
         let result = FinalOutputTool::parsed_final_output_string(json_value);
-        
+
         assert!(serde_json::from_str::<Value>(&result).is_ok());
         assert!(!result.contains('\n'));
         assert!(result.contains("Hello"));

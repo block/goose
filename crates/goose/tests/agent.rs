@@ -540,11 +540,11 @@ mod final_output_tool_tests {
 
     #[tokio::test]
     async fn test_final_output_assistant_message_in_reply() -> Result<()> {
+        use async_trait::async_trait;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
         use mcp_core::tool::Tool;
-        use async_trait::async_trait;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -575,11 +575,11 @@ mod final_output_tool_tests {
         }
 
         let agent = Agent::new();
-        
+
         let model_config = ModelConfig::new("test-model".to_string());
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
-        
+
         let response = Response {
             json_schema: Some(serde_json::json!({
                 "type": "object",
@@ -590,16 +590,18 @@ mod final_output_tool_tests {
             })),
         };
         agent.add_final_output_tool(response).await;
-        
+
         // Simulate a final output tool call occurring.
         let tool_call = mcp_core::tool::ToolCall::new(
             FINAL_OUTPUT_TOOL_NAME,
             serde_json::json!({
                 "final_output": r#"{"result": "Test output"}"#
-            })
+            }),
         );
-        let (_, result) = agent.dispatch_tool_call(tool_call, "request_id".to_string()).await;
-        
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_id".to_string())
+            .await;
+
         assert!(result.is_ok(), "Tool call should succeed");
         let final_result = result.unwrap().result.await;
         assert!(final_result.is_ok(), "Tool execution should succeed");
@@ -611,28 +613,28 @@ mod final_output_tool_tests {
             "Tool result missing expected content: {}",
             text
         );
-        
+
         // Simulate the reply stream continuing after the final output tool call.
         let reply_stream = agent.reply(&vec![], None).await?;
         tokio::pin!(reply_stream);
-        
+
         let mut responses = Vec::new();
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
                 Ok(AgentEvent::Message(response)) => responses.push(response),
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => return Err(e),
             }
         }
-        
+
         assert!(!responses.is_empty(), "Should have received responses");
         let last_message = responses.last().unwrap();
-        
+
         // Check that the last message is an assistant message with our final output
         assert_eq!(last_message.role, mcp_core::role::Role::Assistant);
         let message_text = last_message.as_concat_text();
         assert_eq!(message_text, r#"{"result":"Test output"}"#);
-        
+
         Ok(())
     }
 }

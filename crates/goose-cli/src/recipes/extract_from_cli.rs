@@ -9,7 +9,12 @@ pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
-) -> Result<(InputConfig, Option<SessionSettings>, Option<Vec<SubRecipe>>, Option<Response>)> {
+) -> Result<(
+    InputConfig,
+    Option<SessionSettings>,
+    Option<Vec<SubRecipe>>,
+    Option<Response>,
+)> {
     let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
@@ -94,12 +99,15 @@ mod tests {
         assert!(sub_recipes[0].values.is_none());
         assert!(response.is_some());
         let response = response.unwrap();
-        assert_eq!(response.json_schema, Some(serde_json::json!({
-            "type": "object",
-            "properties": {
-                "result": {"type": "string"}
-            }
-        })));
+        assert_eq!(
+            response.json_schema,
+            Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            }))
+        );
     }
 
     #[test]
@@ -142,12 +150,15 @@ mod tests {
         assert!(sub_recipes[2].values.is_none());
         assert!(response.is_some());
         let response = response.unwrap();
-        assert_eq!(response.json_schema, Some(serde_json::json!({
-            "type": "object",
-            "properties": {
-                "result": {"type": "string"}
-            }
-        })));
+        assert_eq!(
+            response.json_schema,
+            Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            }))
+        );
     }
 
     fn create_recipe() -> (TempDir, PathBuf) {
