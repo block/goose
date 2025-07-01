@@ -58,7 +58,7 @@ You can proactively summarize your conversation before reaching context limits:
 
 The CLI offers three context management options: summarize, truncate, or clear your session.
 
-### Default Context Strategy
+#### Default Context Strategy
 
 You can configure Goose to automatically handle context limits without prompting by setting the `GOOSE_CONTEXT_STRATEGY` environment variable:
 
@@ -138,7 +138,7 @@ Key information has been preserved while reducing context length.
 ## Token Usage
 After sending your first message, Goose Desktop and Goose CLI display token usage.
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     The Desktop displays a colored circle next to the model name at the bottom of the session window. The color provides a visual indicator of your token usage for the session. 
       - **Green**: Normal usage - Plenty of context space available
@@ -167,9 +167,9 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
 ## Cost Tracking
 Display real-time costs of your session at the bottom of the Goose Desktop window.
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-To enable live cost tracking:
+To manage live cost tracking:
   1. Click `⚙️` in the upper right corner 
   2. Click `Advanced Settings`
   3. Scroll to `App Settings` and toggle `Cost Tracking` on or off.
