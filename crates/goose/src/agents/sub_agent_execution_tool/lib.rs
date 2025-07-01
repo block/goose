@@ -1,11 +1,12 @@
-pub use crate::agents::parallel_execution_tool::executor::parallel_execute;
-pub use crate::agents::parallel_execution_tool::types::{
+use crate::agents::sub_agent_execution_tool::executor::execute_single_task;
+pub use crate::agents::sub_agent_execution_tool::executor::parallel_execute;
+pub use crate::agents::sub_agent_execution_tool::types::{
     Config, ExecutionResponse, ExecutionStats, Task, TaskResult,
 };
 
 use serde_json::Value;
 
-pub async fn llm_parallel_execute(input: Value) -> Result<Value, String> {
+pub async fn execute_tasks(input: Value) -> Result<Value, String> {
     let tasks: Vec<Task> =
         serde_json::from_value(input.get("tasks").ok_or("Missing tasks field")?.clone())
             .map_err(|e| format!("Failed to parse tasks: {}", e))?;
@@ -16,6 +17,11 @@ pub async fn llm_parallel_execute(input: Value) -> Result<Value, String> {
     } else {
         Config::default()
     };
+    let task_count = tasks.len();
+    if task_count == 1 {
+        let response = execute_single_task(&tasks[0], config).await;
+        return serde_json::to_value(response).map_err(|e| format!("Failed to serialize response: {}", e));
+    }
 
     // Execute tasks
     let response = parallel_execute(tasks, config).await;

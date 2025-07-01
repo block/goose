@@ -3,7 +3,7 @@ mod context;
 pub mod extension;
 pub mod extension_manager;
 mod large_response_handler;
-pub mod parallel_execution_tool;
+pub mod sub_agent_execution_tool;
 pub mod platform_tools;
 pub mod prompt_manager;
 mod recipe_tools;

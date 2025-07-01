@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use crate::agents::parallel_execution_tool::lib::Task;
+use crate::agents::sub_agent_execution_tool::lib::Task;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 pub const SUB_RECIPE_TOOL_NAME_PREFIX: &str = "subrecipe__run_";

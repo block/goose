@@ -3,10 +3,31 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::agents::parallel_execution_tool::lib::{
+use crate::agents::sub_agent_execution_tool::lib::{
     Config, ExecutionResponse, ExecutionStats, Task, TaskResult,
 };
-use crate::agents::parallel_execution_tool::workers::{run_scaler, spawn_worker, SharedState};
+use crate::agents::sub_agent_execution_tool::tasks::process_task;
+use crate::agents::sub_agent_execution_tool::workers::{run_scaler, spawn_worker, SharedState};
+
+pub async fn execute_single_task(task: &Task, config: Config) -> ExecutionResponse {
+    let start_time = Instant::now();
+    let result = process_task(task, config.timeout_seconds).await;
+    
+    let execution_time = start_time.elapsed().as_millis();
+    let completed = if result.status == "success" { 1 } else { 0 };
+    let failed = if result.status == "failed" { 1 } else { 0 };
+
+    return ExecutionResponse {
+        status: "completed".to_string(),
+        results: vec![result],
+        stats: ExecutionStats {
+            total_tasks: 1,
+            completed,
+            failed,
+            execution_time_ms: execution_time,
+        },
+    };
+}
 
 // Main parallel execution function
 pub async fn parallel_execute(tasks: Vec<Task>, config: Config) -> ExecutionResponse {

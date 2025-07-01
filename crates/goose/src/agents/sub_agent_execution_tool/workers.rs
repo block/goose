@@ -1,5 +1,5 @@
-use crate::agents::parallel_execution_tool::tasks::process_task;
-use crate::agents::parallel_execution_tool::types::{Task, TaskResult};
+use crate::agents::sub_agent_execution_tool::tasks::process_task;
+use crate::agents::sub_agent_execution_tool::types::{Task, TaskResult};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
