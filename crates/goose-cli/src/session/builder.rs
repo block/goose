@@ -556,6 +556,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
+        assert!(config.final_output_response.is_none());
     }
 
     #[tokio::test]
