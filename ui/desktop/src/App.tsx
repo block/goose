@@ -25,6 +25,7 @@ import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
 import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
+import { useWindowManager } from './hooks/useWindowManager';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
@@ -474,19 +475,29 @@ export default function App() {
     };
   }, []);
 
-  // Listen for toggle-diff-viewer event at App level
+  // Handle window resizing when diff panel opens/closes with window manager
+  const { toggleWindow } = useWindowManager({
+    expandPercentage: 50,
+    maxWidthForExpansion: 900,
+  });
+
   useEffect(() => {
     const handleToggleDiffViewer = () => {
-      const diffContent = window.pendingDiffContent;
-      if (isDiffSidePanelOpen && diffContent === diffSidePanelContent) {
-        // Same diff content - close the panel
-        setIsDiffSidePanelOpen(false);
-      } else if (diffContent) {
-        // Different diff content or panel is closed - show the new diff
-        window.electron.logInfo('Showing diff viewer with new content');
-        setDiffSidePanelContent(diffContent);
+      const currentDiffContent = window.pendingDiffContent;
+      const diffContentMatches = currentDiffContent === diffSidePanelContent;
+
+      setDiffSidePanelContent(currentDiffContent || '');
+
+      if (!isDiffSidePanelOpen) {
+        // Always open when closed
         setIsDiffSidePanelOpen(true);
+        toggleWindow();
+      } else if (diffContentMatches) {
+        // Close when open and content matches
+        setIsDiffSidePanelOpen(false);
+        toggleWindow();
       }
+
       // Clear the pending diff content
       window.pendingDiffContent = undefined;
     };
@@ -496,38 +507,7 @@ export default function App() {
     return () => {
       window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
     };
-  }, [isDiffSidePanelOpen, diffSidePanelContent]);
-
-  // Handle window resizing when diff panel opens/closes with smooth transitions
-  useEffect(() => {
-    const resizeWindow = async () => {
-      try {
-        // Use window.innerWidth to check current viewport size
-        const currentWidth = window.innerWidth;
-        const minWidthToAvoidResize = 900; // Don't resize if window is wider than 500px
-
-        if (isDiffSidePanelOpen) {
-          // Only expand window if viewport is minWidthToAvoidResize or smaller
-          if (currentWidth <= minWidthToAvoidResize) {
-            await window.electron.resizeWindow(50); // Add 50% more width
-          }
-          // If window is > minWidthToAvoidResize, just show the panel without resizing
-        } else {
-          // Only restore size if we're in a smaller viewport that we might have expanded
-          // This is a heuristic - only restore if current width is small enough that we might have expanded it
-          if (currentWidth <= minWidthToAvoidResize * 1.5) {
-            await window.electron.resizeWindow(0); // Reset to original size
-          }
-          // If window is large, don't restore size
-        }
-      } catch (error) {
-        console.error('Error resizing window:', error);
-        // Fallback to no resizing behavior to be safe
-        console.log('Skipping window resize due to error');
-      }
-    };
-    resizeWindow();
-  }, [isDiffSidePanelOpen]);
+  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow]);
 
   const handleConfirm = async () => {
     if (pendingLink) {
@@ -667,7 +647,10 @@ export default function App() {
         <DiffSidePanel
           diffContent={diffSidePanelContent}
           isOpen={isDiffSidePanelOpen}
-          onClose={() => setIsDiffSidePanelOpen(false)}
+          onClose={() => {
+            setIsDiffSidePanelOpen(false);
+            toggleWindow();
+          }}
           enableActions={false}
         />
       </div>
