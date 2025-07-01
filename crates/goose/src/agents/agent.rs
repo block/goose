@@ -10,7 +10,9 @@ use futures_util::stream;
 use futures_util::stream::StreamExt;
 use mcp_core::protocol::JsonRpcMessage;
 
-use crate::agents::parallel_execution_tool::parallel_run_task_tool::{self, PARALLEL_RUN_TASK_TOOL_NAME_PREFIX};
+use crate::agents::parallel_execution_tool::parallel_run_task_tool::{
+    self, PARALLEL_RUN_TASK_TOOL_NAME_PREFIX,
+};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -261,8 +263,9 @@ impl Agent {
 
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-
+        println!("==========Dispatching tool call: {}", tool_call.name);
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+            println!("==========Dispatching sub recipe tool call: {}", tool_call.name);
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
                 .await

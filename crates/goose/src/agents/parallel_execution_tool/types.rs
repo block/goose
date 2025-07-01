@@ -1,10 +1,11 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // Task definition that LLMs will send
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
+    pub task_type: String,
     pub payload: Value,
 }
 
@@ -40,9 +41,15 @@ impl Default for Config {
     }
 }
 
-fn default_max_workers() -> usize { 10 }
-fn default_timeout() -> u64 { 30 }
-fn default_initial_workers() -> usize { 2 }
+fn default_max_workers() -> usize {
+    10
+}
+fn default_timeout() -> u64 {
+    300
+}
+fn default_initial_workers() -> usize {
+    2
+}
 
 // Stats for the execution
 #[derive(Debug, Serialize)]

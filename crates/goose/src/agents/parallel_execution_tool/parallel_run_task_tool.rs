@@ -1,7 +1,9 @@
 use mcp_core::{tool::ToolAnnotations, Content, Tool, ToolError};
 use serde_json::Value;
 
-use crate::agents::{parallel_execution_tool::lib::llm_parallel_execute, tool_execution::ToolCallResult};
+use crate::agents::{
+    parallel_execution_tool::lib::llm_parallel_execute, tool_execution::ToolCallResult,
+};
 
 pub const PARALLEL_RUN_TASK_TOOL_NAME_PREFIX: &str = "parallel__run_task";
 pub fn create_parallel_run_task_tool() -> Tool {
@@ -20,9 +22,36 @@ pub fn create_parallel_run_task_tool() -> Tool {
                                 "type": "string",
                                 "description": "Unique identifier for the task"
                             },
-                            "payload": {
+                            "task_type": {
                                 "type": "string",
-                                "description": "the task description to be executed"
+                                "description": "the type of task to execute, can be one of: sub_recipe, text_instruction"
+                            },
+                            "payload": {
+                                "type": "object",
+                                "properties": {
+                                    "sub_recipe": {
+                                        "type": "object",
+                                        "description": "sub recipe to execute",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "description": "name of the sub recipe to execute"
+                                            },
+                                            "recipe_path": {
+                                                "type": "string",
+                                                "description": "path of the sub recipe file"
+                                            },
+                                            "command_parameters": {
+                                                "type": "object",
+                                                "description": "parameters to pass to run recipe command with sub recipe file"
+                                            }
+                                        }
+                                    },
+                                    "text_instruction": {
+                                        "type": "string",
+                                        "description": "text instruction to execute"
+                                    }
+                                }
                             }
                         },
                         "required": ["id", "payload"]
@@ -61,7 +90,7 @@ pub async fn run_tasks(execute_data: Value) -> ToolCallResult {
         Ok(result) => {
             let output = serde_json::to_string(&result).unwrap();
             ToolCallResult::from(Ok(vec![Content::text(output)]))
-        },
+        }
         Err(e) => ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string()))),
     }
 }
