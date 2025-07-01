@@ -3,11 +3,12 @@ use async_trait::async_trait;
 use axum::http::HeaderMap;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
-use std::time::Duration;
+use std::sync::Arc;
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::anthropic::{create_request, get_usage, response_to_message};
+use super::provider_common::{AuthType, HeaderBuilder, ProviderConfigBuilder, get_shared_client, build_endpoint_url, retry_with_backoff, RetryConfig};
 use super::utils::{emit_debug_trace, get_model};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -32,10 +33,12 @@ pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     api_key: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for AnthropicProvider {
@@ -48,76 +51,82 @@ impl Default for AnthropicProvider {
 impl AnthropicProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
-        let host: String = config
-            .get_param("ANTHROPIC_HOST")
-            .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let config_builder = ProviderConfigBuilder::new(&config, "ANTHROPIC");
+        
+        let api_key = config_builder.get_api_key()?;
+        let host = config_builder.get_host("https://api.anthropic.com");
+        
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+        
+        // Configure retry settings
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            initial_delay_ms: 1000,
+            max_delay_ms: 32000,
+            backoff_multiplier: 2.0,
+        };
 
         Ok(Self {
             client,
             host,
             api_key,
             model,
+            retry_config,
         })
     }
 
     async fn post(&self, headers: HeaderMap, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("v1/messages").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+        let url = build_endpoint_url(&self.host, "v1/messages")?;
+        
+        retry_with_backoff(&self.retry_config, || async {
+            let response = self
+                .client
+                .post(url.clone())
+                .headers(headers.clone())
+                .json(&payload)
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .post(url)
-            .headers(headers)
-            .json(&payload)
-            .send()
-            .await?;
+            let status = response.status();
+            let payload: Option<Value> = response.json().await.ok();
 
-        let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
-
-        // https://docs.anthropic.com/en/api/errors
-        match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
+            // https://docs.anthropic.com/en/api/errors
+            match status {
+                StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                        Status: {}. Response: {:?}", status, payload)))
+                }
+                StatusCode::BAD_REQUEST => {
+                    let mut error_msg = "Unknown error".to_string();
+                    if let Some(payload) = &payload {
+                        if let Some(error) = payload.get("error") {
+                        tracing::debug!("Bad Request Error: {error:?}");
+                        error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                        if error_msg.to_lowercase().contains("too long") || error_msg.to_lowercase().contains("too many") {
+                            return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
+                        }
+                    }}
+                    tracing::debug!(
+                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    );
+                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
+                }
+                StatusCode::TOO_MANY_REQUESTS => {
+                    Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
+                }
+                StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+                    Err(ProviderError::ServerError(format!("{:?}", payload)))
+                }
+                _ => {
+                    tracing::debug!(
+                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    );
+                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                }
             }
-            StatusCode::BAD_REQUEST => {
-                let mut error_msg = "Unknown error".to_string();
-                if let Some(payload) = &payload {
-                    if let Some(error) = payload.get("error") {
-                    tracing::debug!("Bad Request Error: {error:?}");
-                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
-                    if error_msg.to_lowercase().contains("too long") || error_msg.to_lowercase().contains("too many") {
-                        return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
-                    }
-                }}
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
-            _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
-            }
-        }
+        }).await
     }
 }
 
@@ -171,23 +180,22 @@ impl Provider for AnthropicProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("x-api-key", self.api_key.parse().unwrap());
-        headers.insert("anthropic-version", ANTHROPIC_API_VERSION.parse().unwrap());
+        // Build headers using the new HeaderBuilder
+        let mut header_builder = HeaderBuilder::new(self.api_key.clone(), AuthType::Custom("x-api-key".to_string()));
+        header_builder = header_builder.add_custom_header("anthropic-version".to_string(), ANTHROPIC_API_VERSION.to_string());
 
         let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
-        if self.model.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
-            // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
-            headers.insert("anthropic-beta", "output-128k-2025-02-19".parse().unwrap());
-        }
-
         if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            // https://docs.anthropic.com/en/docs/build-with-claude/tool-use/token-efficient-tool-use
-            headers.insert(
-                "anthropic-beta",
-                "token-efficient-tools-2025-02-19".parse().unwrap(),
-            );
+            if is_thinking_enabled {
+                // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
+                header_builder = header_builder.add_custom_header("anthropic-beta".to_string(), "output-128k-2025-02-19".to_string());
+            } else {
+                // https://docs.anthropic.com/en/docs/build-with-claude/tool-use/token-efficient-tool-use
+                header_builder = header_builder.add_custom_header("anthropic-beta".to_string(), "token-efficient-tools-2025-02-19".to_string());
+            }
         }
+        
+        let headers = header_builder.build();
 
         // Make request
         let response = self.post(headers, payload.clone()).await?;

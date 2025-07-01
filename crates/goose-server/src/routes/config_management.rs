@@ -332,9 +332,17 @@ pub struct PricingResponse {
 }
 
 #[derive(Deserialize, ToSchema)]
+pub struct ModelRequest {
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
     /// If true, only return pricing for configured providers. If false, return all.
     pub configured_only: Option<bool>,
+    /// Specific models to fetch pricing for. If provided, only these models will be returned.
+    pub models: Option<Vec<ModelRequest>>,
 }
 
 #[utoipa::path(
@@ -353,6 +361,7 @@ pub async fn get_pricing(
     verify_secret_key(&headers, &state)?;
 
     let configured_only = query.configured_only.unwrap_or(true);
+    let has_specific_models = query.models.is_some();
 
     // If refresh requested (configured_only = false), refresh the cache
     if !configured_only {
@@ -363,7 +372,42 @@ pub async fn get_pricing(
 
     let mut pricing_data = Vec::new();
 
-    if !configured_only {
+    // If specific models are requested, fetch only those
+    if let Some(requested_models) = query.models {
+        for model_req in requested_models {
+            // Try to get pricing from cache
+            if let Some(pricing) = get_model_pricing(&model_req.provider, &model_req.model).await {
+                pricing_data.push(PricingData {
+                    provider: model_req.provider,
+                    model: model_req.model,
+                    input_token_cost: pricing.input_cost,
+                    output_token_cost: pricing.output_cost,
+                    currency: "$".to_string(),
+                    context_length: pricing.context_length,
+                });
+            }
+            // Check if the model has embedded pricing data from provider metadata
+            else if let Some(metadata) = get_providers().iter().find(|p| p.name == model_req.provider) {
+                if let Some(model_info) = metadata.known_models.iter().find(|m| m.name == model_req.model) {
+                    if let (Some(input_cost), Some(output_cost)) =
+                        (model_info.input_token_cost, model_info.output_token_cost)
+                    {
+                        pricing_data.push(PricingData {
+                            provider: model_req.provider,
+                            model: model_req.model,
+                            input_token_cost: input_cost,
+                            output_token_cost: output_cost,
+                            currency: model_info
+                                .currency
+                                .clone()
+                                .unwrap_or_else(|| "$".to_string()),
+                            context_length: Some(model_info.context_limit as u32),
+                        });
+                    }
+                }
+            }
+        }
+    } else if !configured_only {
         // Get ALL pricing data from the cache
         let all_pricing = get_all_pricing().await;
 
@@ -424,7 +468,9 @@ pub async fn get_pricing(
     tracing::info!(
         "Returning pricing for {} models{}",
         pricing_data.len(),
-        if configured_only {
+        if has_specific_models {
+            " (specific models requested)"
+        } else if configured_only {
             " (configured providers only)"
         } else {
             " (all cached models)"

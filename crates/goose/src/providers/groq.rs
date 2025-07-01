@@ -3,14 +3,14 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use crate::providers::utils::get_model;
+use crate::providers::provider_common::{AuthType, HeaderBuilder, ProviderConfigBuilder, get_shared_client, build_endpoint_url, retry_with_backoff, RetryConfig};
+use crate::providers::utils::{get_model, handle_response_openai_compat};
 use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::Tool;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
-use std::time::Duration;
-use url::Url;
+use std::sync::Arc;
 
 pub const GROQ_API_HOST: &str = "https://api.groq.com";
 pub const GROQ_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
@@ -21,10 +21,12 @@ pub const GROQ_DOC_URL: &str = "https://console.groq.com/docs/models";
 #[derive(serde::Serialize)]
 pub struct GroqProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     api_key: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for GroqProvider {
@@ -37,63 +39,44 @@ impl Default for GroqProvider {
 impl GroqProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("GROQ_API_KEY")?;
-        let host: String = config
-            .get_param("GROQ_HOST")
-            .unwrap_or_else(|_| GROQ_API_HOST.to_string());
-
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let config_builder = ProviderConfigBuilder::new(&config, "GROQ");
+        
+        let api_key = config_builder.get_api_key()?;
+        let host = config_builder.get_host(GROQ_API_HOST);
+        
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+        
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         Ok(Self {
             client,
             host,
             api_key,
             model,
+            retry_config,
         })
     }
 
-    async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("openai/v1/chat/completions").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        let url = build_endpoint_url(&self.host, "openai/v1/chat/completions")?;
+        
+        // Build headers using the new HeaderBuilder
+        let headers = HeaderBuilder::new(self.api_key.clone(), AuthType::Bearer).build();
+        
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            let response = self.client
+                .post(url.clone())
+                .headers(headers.clone())
+                .json(&payload)
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&payload)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
-
-        match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
-            }
-            StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
-            _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
-            }
-        }
+            // Use the common response handler
+            handle_response_openai_compat(response).await
+        }).await
     }
 }
 
@@ -155,21 +138,19 @@ impl Provider for GroqProvider {
     /// Fetch supported models from Groq; returns Err on failure, Ok(None) if no models found
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Construct the Groq models endpoint
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {}", e)))?;
-        let url = base_url.join("openai/v1/models").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {}", e))
-        })?;
+        let url = build_endpoint_url(&self.host, "openai/v1/models")?;
 
-        // Build the request with required headers
-        let request = self
-            .client
-            .get(url)
-            .bearer_auth(&self.api_key)
-            .header("Content-Type", "application/json");
+        // Build headers using HeaderBuilder
+        let headers = HeaderBuilder::new(self.api_key.clone(), AuthType::Bearer)
+            .add_custom_header("Content-Type".to_string(), "application/json".to_string())
+            .build();
 
         // Send request
-        let response = request.send().await?;
+        let response = self.client
+            .get(url)
+            .headers(headers)
+            .send()
+            .await?;
         let status = response.status();
         let payload: serde_json::Value = response.json().await.map_err(|_| {
             ProviderError::RequestFailed("Response body is not valid JSON".to_string())

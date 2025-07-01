@@ -1,10 +1,9 @@
-use std::time::Duration;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
-use tokio::time::sleep;
 use url::Url;
 
 use crate::message::Message;
@@ -19,21 +18,16 @@ use crate::providers::formats::gcpvertexai::{
 
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
+use crate::providers::provider_common::{ProviderConfigBuilder, get_shared_client, retry_with_backoff, RetryConfig};
 use crate::providers::utils::emit_debug_trace;
 use mcp_core::tool::Tool;
 
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
-/// Default timeout for API requests in seconds
-const DEFAULT_TIMEOUT_SECS: u64 = 600;
-/// Default initial interval for retry (in milliseconds)
-const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 5000;
-/// Default maximum number of retries
-const DEFAULT_MAX_RETRIES: usize = 6;
-/// Default retry backoff multiplier
-const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
-/// Default maximum interval for retry (in milliseconds)
-const DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 320_000;
+// GCP Vertex AI specific retry settings
+const GCP_MAX_RETRIES: u32 = 6;
+const GCP_INITIAL_RETRY_INTERVAL_MS: u64 = 5000;
+const GCP_MAX_RETRY_INTERVAL_MS: u64 = 320_000;
 
 /// Represents errors specific to GCP Vertex AI operations.
 #[derive(Debug, thiserror::Error)]
@@ -47,52 +41,6 @@ enum GcpVertexAIError {
     AuthError(String),
 }
 
-/// Retry configuration for handling rate limit errors
-#[derive(Debug, Clone)]
-struct RetryConfig {
-    /// Maximum number of retry attempts
-    max_retries: usize,
-    /// Initial interval between retries in milliseconds
-    initial_interval_ms: u64,
-    /// Multiplier for backoff (exponential)
-    backoff_multiplier: f64,
-    /// Maximum interval between retries in milliseconds
-    max_interval_ms: u64,
-}
-
-impl Default for RetryConfig {
-    fn default() -> Self {
-        Self {
-            max_retries: DEFAULT_MAX_RETRIES,
-            initial_interval_ms: DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
-            max_interval_ms: DEFAULT_MAX_RETRY_INTERVAL_MS,
-        }
-    }
-}
-
-impl RetryConfig {
-    /// Calculate the delay for a specific retry attempt (with jitter)
-    fn delay_for_attempt(&self, attempt: usize) -> Duration {
-        if attempt == 0 {
-            return Duration::from_millis(0);
-        }
-
-        // Calculate exponential backoff
-        let exponent = (attempt - 1) as u32;
-        let base_delay_ms = (self.initial_interval_ms as f64
-            * self.backoff_multiplier.powi(exponent as i32)) as u64;
-
-        // Apply max limit
-        let capped_delay_ms = std::cmp::min(base_delay_ms, self.max_interval_ms);
-
-        // Add jitter (+/-20% randomness) to avoid thundering herd problem
-        let jitter_factor = 0.8 + (rand::random::<f64>() * 0.4); // Between 0.8 and 1.2
-        let jittered_delay_ms = (capped_delay_ms as f64 * jitter_factor) as u64;
-
-        Duration::from_millis(jittered_delay_ms)
-    }
-}
 
 /// Provider implementation for Google Cloud Platform's Vertex AI service.
 ///
@@ -103,7 +51,7 @@ impl RetryConfig {
 pub struct GcpVertexAIProvider {
     /// HTTP client for making API requests
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     /// GCP authentication handler
     #[serde(skip)]
     auth: GcpAuth,
@@ -146,18 +94,30 @@ impl GcpVertexAIProvider {
     /// * `model` - Configuration for the model to be used
     async fn new_async(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
+        let config_builder = ProviderConfigBuilder::new(&config, "GCP");
+        
         let project_id = config.get_param("GCP_PROJECT_ID")?;
-        let location = Self::determine_location(config)?;
+        let location = Self::determine_location(&config)?;
         let host = format!("https://{}-aiplatform.googleapis.com", location);
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
 
         let auth = GcpAuth::new().await?;
 
-        // Load optional retry configuration from environment
-        let retry_config = Self::load_retry_config(config);
+        // Configure retry settings with GCP's specific requirements
+        let retry_config = RetryConfig {
+            max_retries: config_builder.get_param("MAX_RETRIES", None)
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(GCP_MAX_RETRIES),
+            initial_delay_ms: config_builder.get_param("INITIAL_RETRY_INTERVAL_MS", None)
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(GCP_INITIAL_RETRY_INTERVAL_MS),
+            max_delay_ms: config_builder.get_param("MAX_RETRY_INTERVAL_MS", None)
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(GCP_MAX_RETRY_INTERVAL_MS),
+            backoff_multiplier: 2.0,
+        };
 
         Ok(Self {
             client,
@@ -168,40 +128,6 @@ impl GcpVertexAIProvider {
             model,
             retry_config,
         })
-    }
-
-    /// Loads retry configuration from environment variables or uses defaults.
-    fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
-        let max_retries = config
-            .get_param("GCP_MAX_RETRIES")
-            .ok()
-            .and_then(|v: String| v.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_MAX_RETRIES);
-
-        let initial_interval_ms = config
-            .get_param("GCP_INITIAL_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
-            .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
-
-        let backoff_multiplier = config
-            .get_param("GCP_BACKOFF_MULTIPLIER")
-            .ok()
-            .and_then(|v: String| v.parse::<f64>().ok())
-            .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
-
-        let max_interval_ms = config
-            .get_param("GCP_MAX_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
-            .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
-
-        RetryConfig {
-            max_retries,
-            initial_interval_ms,
-            backoff_multiplier,
-            max_interval_ms,
-        }
     }
 
     /// Determines the appropriate GCP location for model deployment.
@@ -285,21 +211,7 @@ impl GcpVertexAIProvider {
             .build_request_url(context.provider(), location)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        // Initialize retry counter
-        let mut attempts = 0;
-        let mut last_error = None;
-
-        loop {
-            // Check if we've exceeded max retries
-            if attempts > 0 && attempts > self.retry_config.max_retries {
-                let error_msg = format!(
-                    "Exceeded maximum retry attempts ({}) for rate limiting (429)",
-                    self.retry_config.max_retries
-                );
-                tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
-            }
-
+        retry_with_backoff(&self.retry_config, || async {
             // Get a fresh auth token for each attempt
             let auth_header = self
                 .get_auth_header()
@@ -318,61 +230,46 @@ impl GcpVertexAIProvider {
 
             let status = response.status();
 
-            // If not a 429, process normally
-            if status != StatusCode::TOO_MANY_REQUESTS {
-                let response_json = response.json::<Value>().await.map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse response: {e}"))
-                })?;
-
-                return match status {
-                    StatusCode::OK => Ok(response_json),
-                    StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                        tracing::debug!(
-                            "Authentication failed. Status: {status}, Payload: {payload:?}"
-                        );
-                        Err(ProviderError::Authentication(format!(
-                            "Authentication failed: {response_json:?}"
-                        )))
-                    }
-                    _ => {
-                        tracing::debug!(
-                            "Request failed. Status: {status}, Response: {response_json:?}"
-                        );
-                        Err(ProviderError::RequestFailed(format!(
-                            "Request failed with status {status}: {response_json:?}"
-                        )))
-                    }
+            // Handle rate limits specially for GCP
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                // Try to parse response for more detailed error info
+                let cite_gcp_vertex_429 =
+                    "See https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429";
+                let response_text = response.text().await.unwrap_or_default();
+                let quota_error = if response_text.contains("Exceeded the Provisioned Throughput") {
+                    format!("Exceeded the Provisioned Throughput: {cite_gcp_vertex_429}.")
+                } else {
+                    format!("Pay-as-you-go resource exhausted: {cite_gcp_vertex_429}.")
                 };
+                
+                return Err(ProviderError::RateLimitExceeded(quota_error));
             }
 
-            // Handle 429 Too Many Requests
-            attempts += 1;
+            let response_json = response.json::<Value>().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse response: {e}"))
+            })?;
 
-            // Try to parse response for more detailed error info
-            let cite_gcp_vertex_429 =
-                "See https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429";
-            let response_text = response.text().await.unwrap_or_default();
-            let quota_error = if response_text.contains("Exceeded the Provisioned Throughput") {
-                format!("Exceeded the Provisioned Throughput: {cite_gcp_vertex_429}.")
-            } else {
-                format!("Pay-as-you-go resource exhausted: {cite_gcp_vertex_429}.")
-            };
-
-            tracing::warn!(
-                "Rate limit exceeded (attempt {}/{}): {}. Retrying after backoff...",
-                attempts,
-                self.retry_config.max_retries,
-                quota_error
-            );
-
-            // Store the error in case we need to return it after max retries
-            last_error = Some(ProviderError::RateLimitExceeded(quota_error));
-
-            // Calculate and apply the backoff delay
-            let delay = self.retry_config.delay_for_attempt(attempts);
-            tracing::info!("Backing off for {:?} before retry", delay);
-            sleep(delay).await;
-        }
+            match status {
+                StatusCode::OK => Ok(response_json),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    tracing::debug!(
+                        "Authentication failed. Status: {status}, Payload: {payload:?}"
+                    );
+                    Err(ProviderError::Authentication(format!(
+                        "Authentication failed: {response_json:?}"
+                    )))
+                }
+                _ => {
+                    tracing::debug!(
+                        "Request failed. Status: {status}, Response: {response_json:?}"
+                    );
+                    Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status {status}: {response_json:?}"
+                    )))
+                }
+            }
+        })
+        .await
     }
 
     /// Makes an authenticated POST request to the Vertex AI API with fallback for invalid locations.
@@ -460,25 +357,19 @@ impl Provider for GcpVertexAIProvider {
                     "GCP_MAX_RETRIES",
                     false,
                     false,
-                    Some(&DEFAULT_MAX_RETRIES.to_string()),
+                    Some(&GCP_MAX_RETRIES.to_string()),
                 ),
                 ConfigKey::new(
                     "GCP_INITIAL_RETRY_INTERVAL_MS",
                     false,
                     false,
-                    Some(&DEFAULT_INITIAL_RETRY_INTERVAL_MS.to_string()),
-                ),
-                ConfigKey::new(
-                    "GCP_BACKOFF_MULTIPLIER",
-                    false,
-                    false,
-                    Some(&DEFAULT_BACKOFF_MULTIPLIER.to_string()),
+                    Some(&GCP_INITIAL_RETRY_INTERVAL_MS.to_string()),
                 ),
                 ConfigKey::new(
                     "GCP_MAX_RETRY_INTERVAL_MS",
                     false,
                     false,
-                    Some(&DEFAULT_MAX_RETRY_INTERVAL_MS.to_string()),
+                    Some(&GCP_MAX_RETRY_INTERVAL_MS.to_string()),
                 ),
             ],
         )
@@ -527,32 +418,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_retry_config_delay_calculation() {
-        let config = RetryConfig {
-            max_retries: 5,
-            initial_interval_ms: 1000,
-            backoff_multiplier: 2.0,
-            max_interval_ms: 32000,
-        };
-
-        // First attempt has no delay
-        let delay0 = config.delay_for_attempt(0);
-        assert_eq!(delay0.as_millis(), 0);
-
-        // First retry should be around initial_interval with jitter
-        let delay1 = config.delay_for_attempt(1);
-        assert!(delay1.as_millis() >= 800 && delay1.as_millis() <= 1200);
-
-        // Second retry should be around initial_interval * multiplier^1 with jitter
-        let delay2 = config.delay_for_attempt(2);
-        assert!(delay2.as_millis() >= 1600 && delay2.as_millis() <= 2400);
-
-        // Check that max interval is respected
-        let delay10 = config.delay_for_attempt(10);
-        assert!(delay10.as_millis() <= 38400); // max_interval_ms * 1.2 (max jitter)
-    }
-
-    #[test]
     fn test_model_provider_conversion() {
         assert_eq!(ModelProvider::Anthropic.as_str(), "anthropic");
         assert_eq!(ModelProvider::Google.as_str(), "google");
@@ -596,7 +461,7 @@ mod tests {
             .collect();
         assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
-        // Should contain the original 2 config keys plus 4 new retry-related ones
-        assert_eq!(metadata.config_keys.len(), 6);
+        // Should contain the original 2 config keys plus 3 new retry-related ones
+        assert_eq!(metadata.config_keys.len(), 5);
     }
 }

@@ -8,6 +8,7 @@ use goose::agents::Agent;
 use goose::config::APP_STRATEGY;
 use goose::scheduler_factory::SchedulerFactory;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::compression::CompressionLayer;
 use tracing::info;
 
 use goose::providers::pricing::initialize_pricing_cache;
@@ -49,8 +50,15 @@ pub async fn run() -> Result<()> {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+    
+    // Add compression middleware for gzip and brotli
+    let compression = CompressionLayer::new()
+        .gzip(true)
+        .br(true);
 
-    let app = crate::routes::configure(app_state).layer(cors);
+    let app = crate::routes::configure(app_state)
+        .layer(cors)
+        .layer(compression);
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);

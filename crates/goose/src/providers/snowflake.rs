@@ -3,17 +3,17 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::sync::Arc;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
-use super::utils::{get_model, ImageFormat};
+use super::provider_common::{ProviderConfigBuilder, get_shared_client, build_endpoint_url, retry_with_backoff, RetryConfig};
+use super::utils::{get_model, emit_debug_trace, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
-use url::Url;
 
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
 pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-7-sonnet", "claude-3-5-sonnet"];
@@ -35,11 +35,13 @@ impl SnowflakeAuth {
 #[derive(Debug, serde::Serialize)]
 pub struct SnowflakeProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     auth: SnowflakeAuth,
     model: ModelConfig,
     image_format: ImageFormat,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for SnowflakeProvider {
@@ -52,6 +54,9 @@ impl Default for SnowflakeProvider {
 impl SnowflakeProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
+        let _config_builder = ProviderConfigBuilder::new(&config, "SNOWFLAKE");
+        
+        // Try to get host from params or secrets
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {
             host = config.get_secret("SNOWFLAKE_HOST")
@@ -73,12 +78,11 @@ impl SnowflakeProvider {
             host = format!("{}.snowflakecomputing.com", host);
         }
 
+        // Try to get token from params or secrets
         let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
-
         if token.is_err() {
             token = config.get_secret("SNOWFLAKE_TOKEN")
         }
-
         if token.is_err() {
             return Err(ConfigError::NotFound(
                 "Did not find SNOWFLAKE_TOKEN in either config file or keyring".to_string(),
@@ -86,9 +90,11 @@ impl SnowflakeProvider {
             .into());
         }
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+        
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         // Use token-based authentication
         let api_key = token?;
@@ -98,6 +104,7 @@ impl SnowflakeProvider {
             auth: SnowflakeAuth::token(api_key),
             model,
             image_format: ImageFormat::OpenAi,
+            retry_config,
         })
     }
 
@@ -109,32 +116,28 @@ impl SnowflakeProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url_str =
-            if !self.host.starts_with("https://") && !self.host.starts_with("http://") {
-                format!("https://{}", self.host)
-            } else {
-                self.host.clone()
-            };
-        let base_url = Url::parse(&base_url_str)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = "api/v2/cortex/inference:complete";
-        let url = base_url.join(path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+        let host = if !self.host.starts_with("https://") && !self.host.starts_with("http://") {
+            format!("https://{}", self.host)
+        } else {
+            self.host.clone()
+        };
+        
+        let url = build_endpoint_url(&host, "api/v2/cortex/inference:complete")?;
+        
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            let auth_header = self.ensure_auth_header().await?;
+            let response = self
+                .client
+                .post(url.clone())
+                .header("Authorization", auth_header)
+                .header("User-Agent", "Goose")
+                .json(&payload)
+                .send()
+                .await?;
 
-        let auth_header = self.ensure_auth_header().await?;
-        let response = self
-            .client
-            .post(url)
-            .header("Authorization", auth_header)
-            .header("User-Agent", "Goose")
-            .json(&payload)
-            .send()
-            .await?;
-
-        let status = response.status();
-
-        let payload_text: String = response.text().await.ok().unwrap_or_default();
+            let status = response.status();
+            let payload_text: String = response.text().await.ok().unwrap_or_default();
 
         if status == StatusCode::OK {
             if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
@@ -390,6 +393,7 @@ impl SnowflakeProvider {
                 )))
             }
         }
+        }).await
     }
 }
 
@@ -432,7 +436,7 @@ impl Provider for SnowflakeProvider {
         let message = response_to_message(response.clone())?;
         let usage = get_usage(&response)?;
         let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
     }

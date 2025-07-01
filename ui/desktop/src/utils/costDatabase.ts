@@ -14,6 +14,9 @@ let currentModelPricing: {
   costInfo: ModelCostInfo | null;
 } | null = null;
 
+// Request batching to prevent duplicate API calls
+let pendingRequests = new Map<string, Promise<ModelCostInfo | null>>();
+
 // LocalStorage keys
 const PRICING_CACHE_KEY = 'goose_pricing_cache';
 const PRICING_CACHE_TIMESTAMP_KEY = 'goose_pricing_cache_timestamp';
@@ -168,10 +171,14 @@ async function fetchPricingForModel(
       headers['X-Secret-Key'] = secretKey;
     }
 
+    // Use the new model-specific pricing request
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ configured_only: false }),
+      body: JSON.stringify({
+        models: [{ provider, model }],
+        configured_only: false,
+      }),
     });
 
     if (!response.ok) {
@@ -420,8 +427,25 @@ export async function fetchAndCachePricing(
   provider: string,
   model: string
 ): Promise<{ costInfo: ModelCostInfo | null; error?: string } | null> {
+  const key = `${provider}/${model}`;
+
+  // Check if request is already pending
+  if (pendingRequests.has(key)) {
+    console.log(`Request already pending for ${key}, waiting...`);
+    try {
+      const result = await pendingRequests.get(key);
+      return result ? { costInfo: result } : { costInfo: null, error: 'model_not_found' };
+    } catch (error) {
+      return null;
+    }
+  }
+
   try {
-    const costInfo = await fetchPricingForModel(provider, model);
+    // Create promise for batching
+    const promise = fetchPricingForModel(provider, model);
+    pendingRequests.set(key, promise);
+
+    const costInfo = await promise;
 
     if (costInfo) {
       // Cache the result in memory
@@ -468,6 +492,9 @@ export async function fetchAndCachePricing(
     console.error('Error in fetchAndCachePricing:', error);
     // This is a real API/network error
     return null;
+  } finally {
+    // Always remove from pending
+    pendingRequests.delete(key);
   }
 }
 
