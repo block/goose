@@ -476,26 +476,41 @@ export default function App() {
   }, []);
 
   // Handle window resizing when diff panel opens/closes with window manager
-  const { toggleWindow } = useWindowManager({
+  const { toggleWindow, windowState } = useWindowManager({
     expandPercentage: 50,
     maxWidthForExpansion: 900,
   });
 
+  // Note: isComponentMounted and canExpand are available for future enhancements
+  // They can be used to conditionally render components or provide user feedback
+
   useEffect(() => {
-    const handleToggleDiffViewer = () => {
+    const handleToggleDiffViewer = async () => {
+      // Prevent action if window is already transitioning
+      if (windowState.isTransitioning) {
+        console.log('Window is already transitioning, ignoring diff viewer toggle');
+        return;
+      }
+
       const currentDiffContent = window.pendingDiffContent;
       const diffContentMatches = currentDiffContent === diffSidePanelContent;
 
       setDiffSidePanelContent(currentDiffContent || '');
 
-      if (!isDiffSidePanelOpen) {
-        // Always open when closed
-        setIsDiffSidePanelOpen(true);
-        toggleWindow();
-      } else if (diffContentMatches) {
-        // Close when open and content matches
-        setIsDiffSidePanelOpen(false);
-        toggleWindow();
+      try {
+        if (!isDiffSidePanelOpen) {
+          // Always open when closed
+          setIsDiffSidePanelOpen(true);
+          await toggleWindow();
+        } else if (diffContentMatches) {
+          // Close when open and content matches
+          setIsDiffSidePanelOpen(false);
+          await toggleWindow();
+        }
+      } catch (error) {
+        console.error('Failed to toggle window for diff viewer:', error);
+        // Revert UI state on error
+        setIsDiffSidePanelOpen(!isDiffSidePanelOpen);
       }
 
       // Clear the pending diff content
@@ -507,7 +522,7 @@ export default function App() {
     return () => {
       window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
     };
-  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow]);
+  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow, windowState.isTransitioning]);
 
   const handleConfirm = async () => {
     if (pendingLink) {
@@ -647,9 +662,21 @@ export default function App() {
         <DiffSidePanel
           diffContent={diffSidePanelContent}
           isOpen={isDiffSidePanelOpen}
-          onClose={() => {
-            setIsDiffSidePanelOpen(false);
-            toggleWindow();
+          onClose={async () => {
+            // Prevent action if window is already transitioning
+            if (windowState.isTransitioning) {
+              console.log('Window is transitioning, cannot close diff panel now');
+              return;
+            }
+
+            try {
+              setIsDiffSidePanelOpen(false);
+              await toggleWindow();
+            } catch (error) {
+              console.error('Failed to toggle window when closing diff panel:', error);
+              // Revert state on error
+              setIsDiffSidePanelOpen(true);
+            }
           }}
           enableActions={false}
         />
