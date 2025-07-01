@@ -13,7 +13,9 @@ use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
-use goose::providers::pricing::{get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing};
+use goose::providers::pricing::{
+    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
+};
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};

@@ -258,36 +258,35 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-
         // IMPORTANT: Based on the API responses, when caching is used:
         // - input_tokens is ONLY the new/fresh tokens (can be very small, like 7)
         // - cache_creation_input_tokens and cache_read_input_tokens are the cached content
         // - These cached tokens are charged at different rates:
         //   * Fresh input tokens: 100% of regular price
-        //   * Cache creation tokens: 125% of regular price  
+        //   * Cache creation tokens: 125% of regular price
         //   * Cache read tokens: 10% of regular price
         //
         // Calculate effective input tokens for cost calculation based on Anthropic's pricing:
         // - Fresh input tokens: 100% of regular price (1.0x)
-        // - Cache creation tokens: 125% of regular price (1.25x) 
+        // - Cache creation tokens: 125% of regular price (1.25x)
         // - Cache read tokens: 10% of regular price (0.10x)
         //
-        // The effective input tokens represent the cost-equivalent tokens when multiplied 
+        // The effective input tokens represent the cost-equivalent tokens when multiplied
         // by the regular input price, ensuring accurate cost calculations in the frontend.
-        let effective_input_tokens = input_tokens as f64 * 1.0 + 
-                                   cache_creation_tokens as f64 * 1.25 + 
-                                   cache_read_tokens as f64 * 0.10;
+        let effective_input_tokens = input_tokens as f64 * 1.0
+            + cache_creation_tokens as f64 * 1.25
+            + cache_read_tokens as f64 * 0.10;
 
         // For token counting purposes, we still want to show the actual total count
         let _total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
 
         // Return the effective input tokens for cost calculation
         // This ensures the frontend cost calculation is accurate when multiplying by regular prices
         let effective_input_i32 = effective_input_tokens.round().clamp(0.0, i32::MAX as f64) as i32;
         let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 = (effective_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-        
+        let total_tokens_i32 =
+            (effective_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+
         Ok(Usage::new(
             Some(effective_input_i32),
             Some(output_tokens_i32),
@@ -416,7 +415,7 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(27)); // 12 * 1.0 + 12 * 1.25 = 27 effective tokens 
+        assert_eq!(usage.input_tokens, Some(27)); // 12 * 1.0 + 12 * 1.25 = 27 effective tokens
         assert_eq!(usage.output_tokens, Some(15));
         assert_eq!(usage.total_tokens, Some(42)); // 27 + 15
 
@@ -666,7 +665,7 @@ mod tests {
         // Test realistic cache scenario: small fresh input, large cached content
         let response = json!({
             "id": "msg_cache_test",
-            "type": "message", 
+            "type": "message",
             "role": "assistant",
             "content": [{
                 "type": "text",

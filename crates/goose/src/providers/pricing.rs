@@ -376,7 +376,7 @@ mod tests {
             Some(("openai".to_string(), "gpt-4".to_string()))
         );
         assert_eq!(parse_model_id("invalid-format"), None);
-        
+
         // Test the specific model causing issues
         assert_eq!(
             parse_model_id("anthropic/claude-sonnet-4"),
@@ -398,17 +398,23 @@ mod tests {
             println!("Failed to initialize pricing cache: {}", e);
             return;
         }
-        
+
         // Test lookup for the specific model
         let pricing = get_model_pricing("anthropic", "claude-sonnet-4").await;
-        
-        println!("Pricing lookup result for anthropic/claude-sonnet-4: {:?}", pricing);
-        
+
+        println!(
+            "Pricing lookup result for anthropic/claude-sonnet-4: {:?}",
+            pricing
+        );
+
         // Should find pricing data
         if let Some(pricing_info) = pricing {
             assert!(pricing_info.input_cost > 0.0);
             assert!(pricing_info.output_cost > 0.0);
-            println!("Found pricing: input={}, output={}", pricing_info.input_cost, pricing_info.output_cost);
+            println!(
+                "Found pricing: input={}, output={}",
+                pricing_info.input_cost, pricing_info.output_cost
+            );
         } else {
             // Print debug info
             let all_pricing = get_all_pricing().await;

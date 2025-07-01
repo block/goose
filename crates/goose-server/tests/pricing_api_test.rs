@@ -1,15 +1,15 @@
 use axum::http::StatusCode;
+use axum::Router;
 use axum::{body::Body, http::Request};
+use etcetera::AppStrategy;
 use serde_json::json;
 use std::sync::Arc;
-use axum::Router;
 use tower::ServiceExt;
-use etcetera::AppStrategy;
 
 async fn create_test_app() -> Router {
     let agent = Arc::new(goose::agents::Agent::default());
     let state = goose_server::AppState::new(agent, "test".to_string()).await;
-    
+
     // Add scheduler setup like in the existing tests
     let sched_storage_path = etcetera::choose_app_strategy(goose::config::APP_STRATEGY.clone())
         .unwrap()
@@ -19,7 +19,7 @@ async fn create_test_app() -> Router {
         .await
         .unwrap();
     state.set_scheduler(sched).await;
-    
+
     goose_server::routes::config_management::routes(state)
 }
 
@@ -33,9 +33,7 @@ async fn test_pricing_endpoint_basic() {
         .method("POST")
         .header("content-type", "application/json")
         .header("x-secret-key", "test")
-        .body(Body::from(
-            json!({"configured_only": true}).to_string()
-        ))
+        .body(Body::from(json!({"configured_only": true}).to_string()))
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
