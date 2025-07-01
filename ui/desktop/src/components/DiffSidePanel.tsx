@@ -110,8 +110,8 @@ export default function DiffSidePanel({
   const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textSubtle`;
 
   return (
-    <div className="flex-1 p-6 bg-bgSubtle animate-in slide-in-from-right duration-300 ease-out">
-      <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle shadow-lg">
+    <div className="flex-1 bg-bgSubtle animate-in slide-in-from-right duration-300 ease-out flex flex-col">
+      <div className="flex m-6 flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-borderSubtle">
           <h2 className="text-textSubtle font-medium text-sm inline-flex items-center gap-2">
