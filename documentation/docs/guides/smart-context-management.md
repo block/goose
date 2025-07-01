@@ -181,6 +181,6 @@ Pricing data is regularly fetched from the OpenRouter API and cached locally. Th
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
 </TabItem>
     <TabItem value="cli" label="Goose CLI">
-    Cost tracking is not yet available in the Goose CLI. 
+    Cost tracking is [not yet available](https://github.com/block/goose/issues/3206) in the Goose CLI. 
     </TabItem>
 </Tabs>
