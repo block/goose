@@ -150,6 +150,7 @@ mod tests {
     use mcp_core::{content::TextContent, Role};
     use std::env;
 
+    #[warn(dead_code)]
     #[derive(Clone)]
     struct MockTestProvider {
         name: String,

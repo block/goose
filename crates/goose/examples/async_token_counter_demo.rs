@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test original TokenCounter
     let start = Instant::now();
-    let sync_counter = TokenCounter::new("Xenova--gpt-4o");
+    let sync_counter = TokenCounter::new();
     let sync_init_time = start.elapsed();
 
     let start = Instant::now();
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test AsyncTokenCounter
     let start = Instant::now();
-    let async_counter = create_async_token_counter("Xenova--gpt-4o").await?;
+    let async_counter = create_async_token_counter().await?;
     let async_init_time = start.elapsed();
 
     let start = Instant::now();
@@ -89,20 +89,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(sync_total, async_total);
     assert_eq!(async_total, cached_total);
 
-    println!("\n✅ Key Improvements:");
-    println!("   • No blocking runtime creation (eliminates deadlock risk)");
-    println!("   • Global tokenizer caching with DashMap (lock-free concurrent access)");
-    println!("   • Fast AHash for better cache performance");
-    println!("   • Cache size management (prevents unbounded growth)");
     println!(
-        "   • Token result caching ({}x faster on repeated text)",
+        "   Token result caching: {}x faster on cached text",
         async_count_time.as_nanos() / cached_time.as_nanos().max(1)
     );
-    println!("   • Proper async patterns throughout");
-    println!("   • Robust network failure handling with exponential backoff");
-    println!("   • Download validation and corruption detection");
-    println!("   • Progress reporting for large tokenizer downloads");
-    println!("   • Smart retry logic (3 attempts, server errors only)");
 
     Ok(())
 }
