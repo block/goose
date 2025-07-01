@@ -10,6 +10,7 @@ use futures_util::stream;
 use futures_util::stream::StreamExt;
 use mcp_core::protocol::JsonRpcMessage;
 
+use crate::agents::parallel_execution_tool::parallel_run_task_tool::{self, PARALLEL_RUN_TASK_TOOL_NAME_PREFIX};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -265,6 +266,8 @@ impl Agent {
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
                 .await
+        } else if tool_call.name == PARALLEL_RUN_TASK_TOOL_NAME_PREFIX {
+            parallel_run_task_tool::run_tasks(tool_call.arguments.clone()).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -545,6 +548,7 @@ impl Agent {
             let sub_recipe_manager = self.sub_recipe_manager.lock().await;
             prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
         }
+        prefixed_tools.push(parallel_run_task_tool::create_parallel_run_task_tool());
 
         prefixed_tools
     }
