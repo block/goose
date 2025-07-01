@@ -165,8 +165,10 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
 </Tabs>
 
 ### Cost Tracking
-Display real-time costs of your session at the bottom of the Goose Desktop window. 
+Display real-time costs of your session at the bottom of the Goose Desktop window.
 
+<Tabs>
+    <TabItem value="ui" label="Goose Desktop" default>
 To enable live cost tracking:
   1. Click `⚙️` in the upper right corner 
   2. Click `Advanced Settings`
@@ -177,3 +179,8 @@ The session cost updates dynamically as tokens are consumed. Hover over the cost
 Pricing data is regularly fetched from the OpenRouter API and cached locally. The `Advanced Settings` tab shows when the data was last updated and allows you to refresh. 
 
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
+</TabItem>
+    <TabItem value="cli" label="Goose CLI">
+    Cost tracking is not available in the Goose CLI. 
+    </TabItem>
+</Tabs>
