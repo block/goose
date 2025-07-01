@@ -60,7 +60,7 @@ impl FinalOutputTool {
             - The expected format
         "#, serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap()).unwrap()};
 
-        return Tool::new(
+        Tool::new(
             FINAL_OUTPUT_TOOL_NAME.to_string(),
             instructions,
             json!({
@@ -80,7 +80,7 @@ impl FinalOutputTool {
                 idempotent_hint: true,
                 open_world_hint: false,
             }),
-        );
+        )
     }
 
     pub fn system_prompt(&self) -> String {

@@ -5,6 +5,7 @@ use goose::recipe::{Response, SubRecipe};
 
 use crate::{cli::InputConfig, recipes::recipe::load_recipe_as_template, session::SessionSettings};
 
+#[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,

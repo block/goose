@@ -273,7 +273,7 @@ impl Agent {
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
-                return (request_id, Ok(ToolCallResult::from(result)));
+                return (request_id, Ok(result));
             } else {
                 return (
                     request_id,
