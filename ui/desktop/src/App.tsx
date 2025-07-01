@@ -504,14 +504,14 @@ export default function App() {
       try {
         // Use window.innerWidth to check current viewport size
         const currentWidth = window.innerWidth;
-        const minWidthToAvoidResize = 500; // Don't resize if window is wider than 500px
-        
+        const minWidthToAvoidResize = 900; // Don't resize if window is wider than 500px
+
         if (isDiffSidePanelOpen) {
-          // Only expand window if viewport is 500px or smaller
+          // Only expand window if viewport is minWidthToAvoidResize or smaller
           if (currentWidth <= minWidthToAvoidResize) {
             await window.electron.resizeWindow(50); // Add 50% more width
           }
-          // If window is > 500px, just show the panel without resizing
+          // If window is > minWidthToAvoidResize, just show the panel without resizing
         } else {
           // Only restore size if we're in a smaller viewport that we might have expanded
           // This is a heuristic - only restore if current width is small enough that we might have expanded it
@@ -526,11 +526,7 @@ export default function App() {
         console.log('Skipping window resize due to error');
       }
     };
-
-    // Add a small delay to allow for smoother transitions
-    const timeoutId = window.setTimeout(resizeWindow, 150);
-    
-    return () => window.clearTimeout(timeoutId);
+    resizeWindow();
   }, [isDiffSidePanelOpen]);
 
   const handleConfirm = async () => {
