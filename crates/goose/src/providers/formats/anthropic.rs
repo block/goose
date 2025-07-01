@@ -279,7 +279,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
                                    cache_read_tokens as f64 * 0.10;
 
         // For token counting purposes, we still want to show the actual total count
-        let total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
+        let _total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
 
 
         // Return the effective input tokens for cost calculation
