@@ -10,6 +10,7 @@ use futures_util::stream;
 use futures_util::stream::StreamExt;
 use mcp_core::protocol::JsonRpcMessage;
 
+use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -17,7 +18,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe, Settings, SubRecipe};
+use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
@@ -52,12 +53,14 @@ use super::router_tools;
 use super::subagent_manager::SubAgentManager;
 use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::final_output_tool::FinalOutputTool;
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: RwLock<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
+    pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -131,6 +134,7 @@ impl Agent {
             provider: Mutex::new(None),
             extension_manager: RwLock::new(ExtensionManager::new()),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
+            final_output_tool: Mutex::new(None),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -205,6 +209,14 @@ impl Agent {
         Ok(tools)
     }
 
+    pub async fn add_final_output_tool(&self, response: Response) {
+        let mut final_output_tool = self.final_output_tool.lock().await;
+        let created_final_output_tool = FinalOutputTool::new(response);
+        let final_output_system_prompt = created_final_output_tool.system_prompt();
+        *final_output_tool = Some(created_final_output_tool);
+        self.extend_system_prompt(final_output_system_prompt).await;
+    }
+
     pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
         let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
         sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
@@ -256,6 +268,20 @@ impl Agent {
                 .await;
 
             return (request_id, Ok(ToolCallResult::from(result)));
+        }
+
+        if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
+            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
+                let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
+                return (request_id, Ok(ToolCallResult::from(result)));
+            } else {
+                return (
+                    request_id,
+                    Err(ToolError::ExecutionError(
+                        "Final output tool not defined".to_string(),
+                    )),
+                );
+            }
         }
 
         let extension_manager = self.extension_manager.read().await;
@@ -544,6 +570,10 @@ impl Agent {
         if extension_name.is_none() {
             let sub_recipe_manager = self.sub_recipe_manager.lock().await;
             prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
+
+            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                prefixed_tools.push(final_output_tool.tool());
+            }
         }
 
         prefixed_tools
@@ -766,6 +796,15 @@ impl Agent {
 
                         let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                         if num_tool_requests == 0 {
+                            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                                if final_output_tool.final_output.is_none() {
+                                    tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                                    yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
+                                    continue;
+                                } else {
+                                    yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                                }
+                            }
                             break;
                         }
 
