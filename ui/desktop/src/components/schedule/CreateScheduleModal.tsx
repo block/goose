@@ -119,7 +119,7 @@ function parseDeepLink(deepLink: string): Recipe | null {
       return null;
     }
 
-    const configJson = Buffer.from(configParam, 'base64').toString('utf-8');
+    const configJson = Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8');
     return JSON.parse(configJson) as Recipe;
   } catch (error) {
     console.error('Failed to parse deep link:', error);
