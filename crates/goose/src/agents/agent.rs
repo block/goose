@@ -1299,3 +1299,46 @@ impl Agent {
         Ok(recipe)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recipe::Response;
+
+    #[tokio::test]
+    async fn test_add_final_output_tool() -> Result<()> {
+        let agent = Agent::new();
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            })),
+        };
+
+        agent.add_final_output_tool(response).await;
+
+        let tools = agent.list_tools(None).await;
+        let final_output_tool = tools
+            .iter()
+            .find(|tool| tool.name == "final_output");
+
+        assert!(final_output_tool.is_some(), "Final output tool should be present after adding");
+
+        let prompt_manager = agent.prompt_manager.lock().await;
+        let system_prompt = prompt_manager.build_system_prompt(
+            vec![],
+            None,
+            serde_json::Value::Null,
+            None,
+            None,
+        );
+
+        let final_output_tool_ref = agent.final_output_tool.lock().await;
+        let final_output_tool_system_prompt = final_output_tool_ref.as_ref().unwrap().system_prompt();
+        assert!(system_prompt.contains(&final_output_tool_system_prompt));
+        Ok(())
+    }
+}
