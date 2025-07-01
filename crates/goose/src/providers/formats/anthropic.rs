@@ -237,49 +237,79 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 pub fn get_usage(data: &Value) -> Result<Usage> {
     // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // For cost tracking, we should only use the actual billable tokens
-        // According to Anthropic's pricing, cached tokens are much cheaper but still charged
-        // However, we should not double-count tokens that are both created and read from cache
-
-        // Get the raw input tokens (not from cache)
-        let raw_input_tokens = usage
+        // Get all token fields for analysis
+        let input_tokens = usage
             .get("input_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-        // Get cache-related tokens for logging
         let cache_creation_tokens = usage
             .get("cache_creation_input_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
+
         let cache_read_tokens = usage
             .get("cache_read_input_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-        // Log the token breakdown for debugging
-        if cache_creation_tokens > 0 || cache_read_tokens > 0 {
-            tracing::debug!(
-                "Token usage - raw: {}, cache_creation: {}, cache_read: {}",
-                raw_input_tokens,
-                cache_creation_tokens,
-                cache_read_tokens
-            );
-        }
-
-        // For billing purposes, use only the raw input tokens
-        // Anthropic charges separately for cached tokens at a reduced rate
-        // The API already accounts for this in the raw_input_tokens field
-        let input_tokens = Some(raw_input_tokens as i32);
-
         let output_tokens = usage
             .get("output_tokens")
             .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
+            .unwrap_or(0);
 
-        let total_tokens = output_tokens.map(|o| raw_input_tokens as i32 + o);
+        // Always log complete token breakdown for analysis
+        tracing::info!(
+            "Anthropic API response - input_tokens: {}, cache_creation: {}, cache_read: {}, output: {}, usage_json: {}",
+            input_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
+            output_tokens,
+            serde_json::to_string(usage).unwrap_or_default()
+        );
 
-        Ok(Usage::new(input_tokens, output_tokens, total_tokens))
+        // IMPORTANT: Based on the API responses, when caching is used:
+        // - input_tokens is ONLY the new/fresh tokens (can be very small, like 7)
+        // - cache_creation_input_tokens and cache_read_input_tokens are the cached content
+        // - These cached tokens are charged at different rates:
+        //   * Fresh input tokens: 100% of regular price
+        //   * Cache creation tokens: 125% of regular price  
+        //   * Cache read tokens: 10% of regular price
+        //
+        // Calculate effective input tokens for cost calculation based on Anthropic's pricing:
+        // - Fresh input tokens: 100% of regular price (1.0x)
+        // - Cache creation tokens: 125% of regular price (1.25x) 
+        // - Cache read tokens: 10% of regular price (0.10x)
+        //
+        // The effective input tokens represent the cost-equivalent tokens when multiplied 
+        // by the regular input price, ensuring accurate cost calculations in the frontend.
+        let effective_input_tokens = input_tokens as f64 * 1.0 + 
+                                   cache_creation_tokens as f64 * 1.25 + 
+                                   cache_read_tokens as f64 * 0.10;
+
+        // For token counting purposes, we still want to show the actual total count
+        let total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
+
+        tracing::info!(
+            "Anthropic token accounting - fresh: {} tokens (1.0x), cache_creation: {} tokens (1.25x), cache_read: {} tokens (0.10x), actual_total: {}, effective_for_cost: {:.2}",
+            input_tokens,
+            cache_creation_tokens, 
+            cache_read_tokens,
+            total_actual_tokens,
+            effective_input_tokens
+        );
+
+        // Return the effective input tokens for cost calculation
+        // This ensures the frontend cost calculation is accurate when multiplying by regular prices
+        let effective_input_i32 = effective_input_tokens.round().clamp(0.0, i32::MAX as f64) as i32;
+        let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
+        let total_tokens_i32 = (effective_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+        
+        Ok(Usage::new(
+            Some(effective_input_i32),
+            Some(output_tokens_i32),
+            Some(total_tokens_i32),
+        ))
     } else {
         tracing::debug!(
             "Failed to get usage data: {}",
@@ -403,9 +433,9 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(12)); // Only raw input tokens
+        assert_eq!(usage.input_tokens, Some(27)); // 12 * 1.0 + 12 * 1.25 = 27 effective tokens 
         assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(27)); // 12 + 15
+        assert_eq!(usage.total_tokens, Some(42)); // 27 + 15
 
         Ok(())
     }
@@ -446,9 +476,9 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(15)); // Only raw input tokens
+        assert_eq!(usage.input_tokens, Some(34)); // 15 * 1.0 + 15 * 1.25 = 33.75 → 34 effective tokens
         assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(35)); // 15 + 20
+        assert_eq!(usage.total_tokens, Some(54)); // 34 + 20
 
         Ok(())
     }
@@ -646,5 +676,38 @@ mod tests {
 
         // Return the test result
         result
+    }
+
+    #[test]
+    fn test_cache_pricing_calculation() -> Result<()> {
+        // Test realistic cache scenario: small fresh input, large cached content
+        let response = json!({
+            "id": "msg_cache_test",
+            "type": "message", 
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Based on the cached context, here's my response."
+            }],
+            "model": "claude-3-5-sonnet-latest",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 7,        // Small fresh input
+                "output_tokens": 50,      // Output tokens
+                "cache_creation_input_tokens": 10000, // Large cache creation
+                "cache_read_input_tokens": 5000       // Large cache read
+            }
+        });
+
+        let usage = get_usage(&response)?;
+
+        // Effective input tokens should be:
+        // 7 * 1.0 + 10000 * 1.25 + 5000 * 0.10 = 7 + 12500 + 500 = 13007
+        assert_eq!(usage.input_tokens, Some(13007));
+        assert_eq!(usage.output_tokens, Some(50));
+        assert_eq!(usage.total_tokens, Some(13057)); // 13007 + 50
+
+        Ok(())
     }
 }
