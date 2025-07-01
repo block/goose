@@ -53,6 +53,7 @@ pub struct Session {
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     save_session: bool,               // Whether to save session to file
+    max_turns: Option<u32>,
 }
 
 // Cache structure for completion data
@@ -115,6 +116,7 @@ impl Session {
         debug: bool,
         scheduled_job_id: Option<String>,
         save_session: bool,
+        max_turns: Option<u32>,
     ) -> Self {
         let messages = if save_session {
             match session::read_messages(&session_file) {
@@ -138,6 +140,7 @@ impl Session {
             run_mode: RunMode::Normal,
             scheduled_job_id,
             save_session,
+            max_turns,
         }
     }
 
@@ -755,6 +758,7 @@ impl Session {
                         .expect("failed to get current session working directory"),
                     schedule_id: self.scheduled_job_id.clone(),
                     execution_mode: None,
+                    max_turns: self.max_turns,
                 }),
             )
             .await?;
@@ -891,6 +895,7 @@ impl Session {
                                                 .expect("failed to get current session working directory"),
                                             schedule_id: self.scheduled_job_id.clone(),
                                             execution_mode: None,
+                                            max_turns: self.max_turns,
                                         }),
                                     )
                                     .await?;

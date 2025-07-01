@@ -132,6 +132,18 @@ goose configure
     goose session --name my-session --debug
     ```
 
+- Limit the maximum number of turns the agent can take before asking for user input to continue
+
+    **Options:**
+
+    **`--max-turns <NUMBER>`**
+
+    **Usage:**
+
+    ```bash
+    goose session --max-turns 50
+    ```
+
 ---
 ### session list [options]
 
@@ -293,6 +305,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
+- **`--max-turns <NUMBER>`**: Limit the maximum number of turns the agent can take before asking for user input to continue (default: 1000)
 
 **Usage:**
 
@@ -319,6 +332,9 @@ goose run --recipe recipe.yaml --explain
 
 #Run instructions from a file without session storage
 goose run --no-session -i instructions.txt
+
+#Run with a limit of 25 turns before asking for user input
+goose run --max-turns 25 -i plan.md
 ```
 
 ---
