@@ -22,6 +22,14 @@ impl FinalOutputTool {
             panic!("Cannot create FinalOutputTool: json_schema is required");
         }
         let schema = response.json_schema.as_ref().unwrap();
+        
+        // Check for empty schema
+        if let Some(obj) = schema.as_object() {
+            if obj.is_empty() {
+                panic!("Cannot create FinalOutputTool: empty json_schema is not allowed");
+            }
+        }
+        
         jsonschema::meta::validate(schema).unwrap();
         Self { response, final_output: None }
     }
@@ -150,5 +158,82 @@ impl FinalOutputTool {
     // Formats the parsed JSON as a single line string so its easy to extract from the output
     fn parsed_final_output_string(parsed_json: Value) -> String {
         serde_json::to_string(&parsed_json).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recipe::Response;
+    use serde_json::json;
+
+    #[test]
+    fn test_new_with_valid_schema() {
+        let response = Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "A message"
+                    }
+                },
+                "required": ["message"]
+            })),
+        };
+
+        let tool = FinalOutputTool::new(response);
+        assert!(tool.final_output.is_none());
+        assert!(tool.response.json_schema.is_some());
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot create FinalOutputTool: json_schema is required")]
+    fn test_new_with_missing_schema() {
+        let response = Response {
+            json_schema: None,
+        };
+
+        FinalOutputTool::new(response);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_new_with_invalid_schema() {
+        let response = Response {
+            json_schema: Some(json!({
+                "type": "invalid_type",
+                "properties": {
+                    "message": {
+                        "type": "unknown_type"
+                    }
+                }
+            })),
+        };
+
+        FinalOutputTool::new(response);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_new_with_malformed_schema() {
+        let response = Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": "this should be an object not a string"
+            })),
+        };
+
+        FinalOutputTool::new(response);
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot create FinalOutputTool: empty json_schema is not allowed")]
+    fn test_new_with_empty_schema() {
+        let response = Response {
+            json_schema: Some(json!({})),
+        };
+
+        FinalOutputTool::new(response);
     }
 }
