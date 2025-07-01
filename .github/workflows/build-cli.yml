@@ -284,11 +284,14 @@ jobs:
               chmod +x build.sh
               # Set Windows build environment and run build script
               GOOS=windows GOARCH=amd64 ./build.sh
+              
+              # Move the built binary to the expected location (inside container)
+              mkdir -p ../target/x86_64-pc-windows-gnu/release
+              mv temporal-service.exe ../target/x86_64-pc-windows-gnu/release/temporal-service.exe
+              
+              # Fix permissions for host access
+              chmod -R 755 ../target/x86_64-pc-windows-gnu
             "
-          
-          # Move the built binary to the expected location
-          mkdir -p target/x86_64-pc-windows-gnu/release
-          mv temporal-service/temporal-service.exe target/x86_64-pc-windows-gnu/release/temporal-service.exe
           echo "temporal-service.exe built successfully for Windows"
 
       - name: Download temporal CLI (Linux/macOS)
@@ -348,6 +351,9 @@ jobs:
           curl -L "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_VERSION}/temporal_cli_${TEMPORAL_VERSION}_windows_amd64.zip" -o temporal-cli-windows.zip
           unzip -o temporal-cli-windows.zip
           chmod +x temporal.exe
+          
+          # Fix permissions on target directory (created by Docker as root)
+          sudo chown -R $(whoami):$(whoami) target/x86_64-pc-windows-gnu/ || true
           
           # Move to target directory
           mv temporal.exe target/x86_64-pc-windows-gnu/release/temporal.exe

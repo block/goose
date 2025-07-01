@@ -1,0 +1,74 @@
+version: 1.0.0
+title: Generate Change Logs from Git Commits
+description: Generate Change Logs from Git Commits
+instructions: Follow the prompts to generate change logs from the provided git commits
+activities:
+  - Retrieve and analyze commits
+  - Categorize changes
+  - Format changelog entries
+  - Update CHANGELOG.md
+prompt: |
+  Task: Add change logs from Git Commits
+  1. Please retrieve all commits between SHA {{start_sha}} and SHA {{end_sha}} (inclusive) from the repository.
+
+  2. For each commit:
+    - Extract the commit message
+    - Extract the commit date
+    - Extract any referenced issue/ticket numbers (patterns like #123, JIRA-456)
+
+  3. Organize the commits into the following categories:
+    - Features: New functionality added (commits that mention "feat", "feature", "add", etc.)
+    - Bug Fixes: Issues that were resolved (commits with "fix", "bug", "resolve", etc.)
+    - Performance Improvements: Optimizations (commits with "perf", "optimize", "performance", etc.)
+    - Documentation: Documentation changes (commits with "doc", "readme", etc.)
+    - Refactoring: Code restructuring (commits with "refactor", "clean", etc.)
+    - Other: Anything that doesn't fit above categories
+
+  4. Format the release notes as follows:
+    
+    # [Version/Date]
+    
+    ## Features
+    - [Feature description] - [PR #number](PR link)
+    
+    
+    ## Bug Fixes
+    - [Bug fix description] - [PR #number](PR link)
+    
+    [Continue with other categories...]
+    
+    Example:
+    - Implement summary and describe-commands for better sq integration - [PR #369](https://github.com/squareup/dx-ai-toolbox/pull/369)
+    
+  5. Ensure all the commit items has a PR link. If you cannot find it, try again. If you still cannot find it, use the commit sha link instead. For example: [commit sha](commit url)
+
+  6. If commit messages follow conventional commit format (type(scope): message), use the type to categorize and include the scope in the notes.
+
+  7. Ignore merge commits and automated commits (like those from CI systems) unless they contain significant information.
+
+  8. For each category, sort entries by date (newest first).
+
+  9. formatted change logs as a markdown document
+
+  10. Create an empty CHANGELOG.md file if it does not exist
+
+  11. Read CHANGELOG.md and understand its format.
+
+  11. Insert the formatted change logs at the beginning of the CHANGELOG.md, and adjust its format to match the existing CHANGELOG.md format. Do not change any existing CHANGELOG.md content.
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+parameters:
+- key: start_sha
+  input_type: string
+  requirement: user_prompt
+  description: the start sha of the git commits
+- key: end_sha
+  input_type: string
+  requirement: user_prompt
+  description: the end sha of the git commits
+author:
+  contact: lifeizhou-ap
