@@ -41,11 +41,21 @@ export default function MoreMenuLayout({
                       window.electron.directoryChooser(true);
                     }
                   }}
+                  style={{ minWidth: 0 }}
                 >
                   <Document className="mr-1" />
-                  <div className="max-w-[200px] truncate [direction:rtl]">
+                  <span
+                    className="flex-grow block text-ellipsis overflow-hidden"
+                    style={{
+                      direction: 'rtl',
+                      textAlign: 'left',
+                      unicodeBidi: 'plaintext',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                    }}
+                  >
                     {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
-                  </div>
+                  </span>
                 </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">

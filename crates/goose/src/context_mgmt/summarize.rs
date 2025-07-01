@@ -1,7 +1,7 @@
-use super::common::get_messages_token_counts;
+use super::common::{get_messages_token_counts, get_messages_token_counts_async};
 use crate::message::{Message, MessageContent};
 use crate::providers::base::Provider;
-use crate::token_counter::TokenCounter;
+use crate::token_counter::{AsyncTokenCounter, TokenCounter};
 use anyhow::Result;
 use mcp_core::Role;
 use std::sync::Arc;
@@ -156,6 +156,59 @@ pub async fn summarize_messages(
     Ok((
         final_summary.clone(),
         get_messages_token_counts(token_counter, &final_summary),
+    ))
+}
+
+/// Async version using AsyncTokenCounter for better performance
+pub async fn summarize_messages_async(
+    provider: Arc<dyn Provider>,
+    messages: &[Message],
+    token_counter: &AsyncTokenCounter,
+    context_limit: usize,
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    let chunk_size = context_limit / 3; // 33% of the context window.
+    let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
+    let mut accumulated_summary = Vec::new();
+
+    // Preprocess messages to handle tool response edge case.
+    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
+
+    // Get token counts for each message.
+    let token_counts = get_messages_token_counts_async(token_counter, &preprocessed_messages);
+
+    // Tokenize and break messages into chunks.
+    let mut current_chunk: Vec<Message> = Vec::new();
+    let mut current_chunk_tokens = 0;
+
+    for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
+        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
+            // Summarize the current chunk with the accumulated summary.
+            accumulated_summary =
+                summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
+                    .await?;
+
+            // Reset for the next chunk.
+            current_chunk.clear();
+            current_chunk_tokens = 0;
+        }
+
+        // Add message to the current chunk.
+        current_chunk.push(message.clone());
+        current_chunk_tokens += message_tokens;
+    }
+
+    // Summarize the final chunk if it exists.
+    if !current_chunk.is_empty() {
+        accumulated_summary =
+            summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
+    }
+
+    // Add back removed messages.
+    let final_summary = reintegrate_removed_messages(&accumulated_summary, &removed_messages);
+
+    Ok((
+        final_summary.clone(),
+        get_messages_token_counts_async(token_counter, &final_summary),
     ))
 }
 

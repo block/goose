@@ -3448,8 +3448,9 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
+ "ahash",
  "anyhow",
  "arrow",
  "async-stream",
@@ -3464,6 +3465,7 @@ dependencies = [
  "chrono",
  "criterion",
  "ctor",
+ "dashmap 6.1.0",
  "dirs 5.0.1",
  "dotenv",
  "etcetera",
@@ -3512,7 +3514,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3536,7 +3538,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3548,6 +3550,7 @@ dependencies = [
  "clap 4.5.31",
  "cliclack",
  "console",
+ "dirs 5.0.1",
  "etcetera",
  "futures",
  "goose",
@@ -3586,7 +3589,7 @@ dependencies = [
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "cbindgen",
  "futures",
@@ -3600,7 +3603,7 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3629,7 +3632,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3680,7 +3683,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.30"
+version = "1.0.31"
 dependencies = [
  "anyhow",
  "async-trait",
