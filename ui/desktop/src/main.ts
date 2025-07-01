@@ -1649,11 +1649,6 @@ const setupMenuModifications = () => {
     },
   };
 
-  template.push({
-    label: 'Prompt',
-    submenu: [previousPromptItem, nextPromptItem, { type: 'separator' }, sendPromptItem],
-  });
-
   const viewSubmenu: MenuItemConstructorOptions[] = [
     { role: 'reload' },
     { role: 'forceReload' },
@@ -1677,6 +1672,11 @@ const setupMenuModifications = () => {
   ];
 
   template.push({ label: 'View', submenu: viewSubmenu });
+
+  template.push({
+    label: 'Prompt',
+    submenu: [previousPromptItem, nextPromptItem, { type: 'separator' }, sendPromptItem],
+  });
 
   if (isMac) {
     template.push({
