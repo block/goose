@@ -7,8 +7,9 @@ Goose uses [Hermit](https://github.com/cashapp/hermit) to manage dependencies, s
 
 ```
 git clone git@github.com:block/goose.git
+cd goose
 source ./bin/activate-hermit
-cd goose/ui/desktop
+cd ui/desktop
 npm install
 npm run start
 ```

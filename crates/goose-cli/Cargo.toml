@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "goose"
 path = "src/main.rs"
@@ -56,6 +59,7 @@ regex = "1.11.1"
 minijinja = { version = "2.10.2", features = ["loader"] }
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
+dirs = "5.0"
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }

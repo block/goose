@@ -10,11 +10,22 @@ use goose::scheduler_factory::SchedulerFactory;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
+use goose::providers::pricing::initialize_pricing_cache;
+
 pub async fn run() -> Result<()> {
     // Initialize logging
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
+
+    // Initialize pricing cache on startup
+    tracing::info!("Initializing pricing cache...");
+    if let Err(e) = initialize_pricing_cache().await {
+        tracing::warn!(
+            "Failed to initialize pricing cache: {}. Pricing data may not be available.",
+            e
+        );
+    }
 
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());

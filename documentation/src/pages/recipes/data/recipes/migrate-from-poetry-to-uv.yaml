@@ -1,0 +1,28 @@
+version: 1.0.0
+title: migrate from poetry to uv
+description: migrate from poetry to uv
+instructions: Follow the instructions to move the project from using `poetry` to `uv`
+author:
+  contact: jamadeo
+activities:
+  - Check if project already uses uv
+  - Run migration using uvx
+  - Remove poetry-related files and virtualenv
+  - Run uv sync
+prompt: |
+  The current project uses `poetry` for Python environment and dependency management. We want to use `uv` instead.
+
+  First, verify that the above is true. If the project is actually already using `uv`, you can stop.
+
+  Start by running `uvx migrate-to-uv`. If you don't have `uv` installed, use `hermit install uv` to add it. If hermit isn't set up, use `hermit init` to do so.
+
+  Once `migrate-to-uv` has run, delete any local virtualenvs (often located at ./.venv) and run `uv sync`.
+
+  Grep for other uses of `poetry` in the project. If you can switch these commands to `uv`, do so. If not, just make a note of it.
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true

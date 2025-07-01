@@ -120,7 +120,7 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None);
+    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None, true);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -234,7 +234,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     } else if session_config.resume {
         if let Some(identifier) = session_config.identifier {
-            let session_file = session::get_path(identifier);
+            let session_file = match session::get_path(identifier) {
+                Ok(path) => path,
+                Err(e) => {
+                    output::render_error(&format!("Invalid session identifier: {}", e));
+                    process::exit(1);
+                }
+            };
             if !session_file.exists() {
                 output::render_error(&format!(
                     "Cannot resume session {} - no such session exists",
@@ -262,7 +268,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         };
 
         // Just get the path - file will be created when needed
-        session::get_path(id)
+        match session::get_path(id) {
+            Ok(path) => path,
+            Err(e) => {
+                output::render_error(&format!("Failed to create session path: {}", e));
+                process::exit(1);
+            }
+        }
     };
 
     if session_config.resume && !session_config.no_session {
@@ -354,6 +366,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_file.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
+        !session_config.no_session, // save_session is the inverse of no_session
     );
 
     // Add extensions if provided

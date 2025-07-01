@@ -5,9 +5,10 @@ use super::{
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
+    claude_code::ClaudeCodeProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
-    githubcopilot::GithubCopilotProvider,
+    gemini_cli::GeminiCliProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
@@ -42,9 +43,11 @@ pub fn providers() -> Vec<ProviderMetadata> {
         AnthropicProvider::metadata(),
         AzureProvider::metadata(),
         BedrockProvider::metadata(),
+        ClaudeCodeProvider::metadata(),
         DatabricksProvider::metadata(),
         GcpVertexAIProvider::metadata(),
-        GithubCopilotProvider::metadata(),
+        GeminiCliProvider::metadata(),
+        // GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
@@ -120,7 +123,9 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
         "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
+        "claude-code" => Ok(Arc::new(ClaudeCodeProvider::from_env(model)?)),
         "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
+        "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
         "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
         "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
@@ -129,7 +134,7 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
-        "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
         "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
@@ -144,6 +149,7 @@ mod tests {
     use mcp_core::{content::TextContent, Role};
     use std::env;
 
+    #[warn(dead_code)]
     #[derive(Clone)]
     struct MockTestProvider {
         name: String,

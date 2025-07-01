@@ -305,13 +305,33 @@ impl TemporalScheduler {
 
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
-        let mut command = Command::new("./temporal-service");
+        let mut command = Command::new(&binary_path);
         command
             .current_dir(working_dir)
-            .env("PORT", self.port_config.http_port.to_string())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .stdin(std::process::Stdio::null());
+            .env("PORT", self.port_config.http_port.to_string());
+
+        // Platform-specific process configuration based on Electron app approach
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // On Windows, prevent console window and run detached:
+            // - Use CREATE_NO_WINDOW (0x08000000) to prevent console window
+            // - Use DETACHED_PROCESS (0x00000008) for independence
+            // - Redirect output to null to prevent console attachment
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null())
+                .creation_flags(0x08000000 | 0x00000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
+        }
+
+        #[cfg(not(windows))]
+        {
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null());
+        }
 
         // On Unix systems, create a new process group
         #[cfg(unix)]
@@ -333,12 +353,27 @@ impl TemporalScheduler {
             pid, self.port_config.http_port
         );
 
-        // Give the process a moment to start up
-        sleep(Duration::from_millis(100)).await;
+        // Platform-specific process handling
+        #[cfg(windows)]
+        {
+            // On Windows, wait longer for initialization and use unref-like behavior
+            sleep(Duration::from_millis(1000)).await; // Wait 1 second for Windows initialization
 
-        // Verify the process is still running
+            // Use a different approach - spawn a monitoring thread that waits longer
+            std::thread::spawn(move || {
+                // Give the process significant time to initialize on Windows
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                // After 5 seconds, let it run completely independently
+                let _ = child.wait();
+            });
+        }
+
         #[cfg(unix)]
         {
+            // Give the process a moment to start up
+            sleep(Duration::from_millis(100)).await;
+
+            // Verify the process is still running
             use std::process::Command as StdCommand;
             let ps_check = StdCommand::new("ps")
                 .arg("-p")
@@ -359,13 +394,13 @@ impl TemporalScheduler {
                     warn!("Could not verify Temporal service process status: {}", e);
                 }
             }
-        }
 
-        // Detach the child process by not waiting for it
-        // This allows it to continue running independently
-        std::thread::spawn(move || {
-            let _ = child.wait();
-        });
+            // Detach the child process by not waiting for it
+            // This allows it to continue running independently
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
 
         Ok(())
     }
@@ -374,17 +409,16 @@ impl TemporalScheduler {
         // Try to find the Go service binary by looking for it relative to the current executable
         // or in common locations
 
-        let possible_paths = vec![
-            // Relative to current working directory (original behavior)
-            "./temporal-service/temporal-service",
-        ];
-
-        // Also try to find it relative to the current executable path
+        // First try to find it relative to the current executable path (most common for bundled apps)
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 // Try various relative paths from the executable directory
                 let exe_relative_paths = vec![
-                    // First check in the same directory as the executable (bundled location)
+                    // First check in resources/bin subdirectory (bundled Electron app location)
+                    exe_dir.join("resources/bin/temporal-service"),
+                    exe_dir.join("resources/bin/temporal-service.exe"), // Windows version
+                    exe_dir.join("resources\\bin\\temporal-service.exe"), // Windows with backslashes
+                    // Then check in the same directory as the executable
                     exe_dir.join("temporal-service"),
                     exe_dir.join("temporal-service.exe"), // Windows version
                     // Then check in temporal-service subdirectory
@@ -399,21 +433,45 @@ impl TemporalScheduler {
 
                 for path in exe_relative_paths {
                     if path.exists() {
+                        tracing::debug!("Found temporal-service binary at: {}", path.display());
                         return Ok(path.to_string_lossy().to_string());
                     }
                 }
             }
         }
 
-        // Try the original relative paths
+        // Try relative to current working directory (original behavior)
+        let possible_paths = vec![
+            "./temporal-service/temporal-service",
+            "./temporal-service.exe",               // Windows in current dir
+            "./resources/bin/temporal-service.exe", // Windows bundled in current dir
+        ];
+
         for path in &possible_paths {
             if std::path::Path::new(path).exists() {
+                tracing::debug!("Found temporal-service binary at: {}", path);
                 return Ok(path.to_string());
             }
         }
 
+        // Check environment variable override
+        if let Ok(binary_path) = std::env::var("GOOSE_TEMPORAL_BIN") {
+            if std::path::Path::new(&binary_path).exists() {
+                tracing::info!(
+                    "Using temporal-service binary from GOOSE_TEMPORAL_BIN: {}",
+                    binary_path
+                );
+                return Ok(binary_path);
+            } else {
+                tracing::warn!(
+                    "GOOSE_TEMPORAL_BIN points to non-existent file: {}",
+                    binary_path
+                );
+            }
+        }
+
         Err(SchedulerError::SchedulerInternalError(
-            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available.".to_string()
+            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available, or set GOOSE_TEMPORAL_BIN environment variable.".to_string()
         ))
     }
 
@@ -501,7 +559,7 @@ impl TemporalScheduler {
         let request = JobRequest {
             action: "create".to_string(),
             job_id: Some(job.id.clone()),
-            cron: Some(normalized_cron),
+            cron: Some(normalized_cron.clone()),
             recipe_path: Some(job.source.clone()),
             execution_mode: job.execution_mode.clone(),
         };
@@ -801,9 +859,19 @@ impl TemporalScheduler {
                 let mut has_active_session = false;
 
                 for (session_name, _) in recent_sessions {
-                    let session_path = crate::session::storage::get_path(
-                        crate::session::storage::Identifier::Name(session_name),
-                    );
+                    let session_path = match crate::session::storage::get_path(
+                        crate::session::storage::Identifier::Name(session_name.clone()),
+                    ) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to get session path for '{}': {}",
+                                session_name,
+                                e
+                            );
+                            continue;
+                        }
+                    };
 
                     // Check if session file was modified recently (within last 5 minutes instead of 2)
                     if let Ok(metadata) = std::fs::metadata(&session_path) {
@@ -899,9 +967,23 @@ impl TemporalScheduler {
 
                         if let Some((session_name, _session_metadata)) = recent_sessions.first() {
                             // Check if this session is still active by looking at the session file
-                            let session_path = crate::session::storage::get_path(
+                            let session_path = match crate::session::storage::get_path(
                                 crate::session::storage::Identifier::Name(session_name.clone()),
-                            );
+                            ) {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to get session path for '{}': {}",
+                                        session_name,
+                                        e
+                                    );
+                                    // Fallback: return a temporal session ID with current time
+                                    let session_id =
+                                        format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
+                                    let start_time = Utc::now();
+                                    return Ok(Some((session_id, start_time)));
+                                }
+                            };
 
                             // If the session file was modified recently (within last 5 minutes),
                             // consider it as the current running session
@@ -1312,15 +1394,15 @@ mod tests {
         use crate::scheduler::normalize_cron_expression;
 
         // Test cases that should be normalized
-        assert_eq!(normalize_cron_expression("0 12 * * *"), "0 0 12 * * *");
-        assert_eq!(normalize_cron_expression("*/5 * * * *"), "0 */5 * * * *");
-        assert_eq!(normalize_cron_expression("0 0 * * 1"), "0 0 0 * * 1");
+        assert_eq!(normalize_cron_expression("0 12 * * *"), "0 0 12 * * * *");
+        assert_eq!(normalize_cron_expression("*/5 * * * *"), "0 */5 * * * * *");
+        assert_eq!(normalize_cron_expression("0 0 * * 1"), "0 0 0 * * 1 *");
 
         // Test cases that should remain unchanged
-        assert_eq!(normalize_cron_expression("0 0 12 * * *"), "0 0 12 * * *");
+        assert_eq!(normalize_cron_expression("0 0 12 * * *"), "0 0 12 * * * *");
         assert_eq!(
             normalize_cron_expression("*/30 */5 * * * *"),
-            "*/30 */5 * * * *"
+            "*/30 */5 * * * * *"
         );
 
         println!("✅ Cron normalization works correctly in TemporalScheduler");

@@ -210,7 +210,20 @@ async fn handler(
         };
 
         let mut all_messages = messages.clone();
-        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Failed to get session path: {}", e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get session path: {}", e),
+                    },
+                    &tx,
+                )
+                .await;
+                return;
+            }
+        };
 
         loop {
             tokio::select! {
@@ -264,6 +277,7 @@ async fn handler(
                                 ).await;
                             }
                         }
+
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
                             let _ = stream_event(
@@ -379,6 +393,7 @@ async fn ask_handler(
                 // Handle notifications if needed
                 tracing::info!("Received notification: {:?}", n);
             }
+
             Err(e) => {
                 tracing::error!("Error processing as_ai message: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -390,13 +405,21 @@ async fn ask_handler(
         all_messages.push(response_message);
     }
 
-    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(e) => {
+            tracing::error!("Failed to get session path: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
 
-    let session_path = session_path.clone();
+    let session_path_clone = session_path.clone();
     let messages = all_messages.clone();
     let provider = Arc::clone(provider.as_ref().unwrap());
     tokio::spawn(async move {
-        if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
+        if let Err(e) =
+            session::persist_messages(&session_path_clone, &messages, Some(provider)).await
+        {
             tracing::error!("Failed to store session history: {:?}", e);
         }
     });

@@ -52,6 +52,7 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    save_session: bool,               // Whether to save session to file
 }
 
 // Cache structure for completion data
@@ -113,13 +114,19 @@ impl Session {
         session_file: PathBuf,
         debug: bool,
         scheduled_job_id: Option<String>,
+        save_session: bool,
     ) -> Self {
-        let messages = match session::read_messages(&session_file) {
-            Ok(msgs) => msgs,
-            Err(e) => {
-                eprintln!("Warning: Failed to load message history: {}", e);
-                Vec::new()
+        let messages = if save_session {
+            match session::read_messages(&session_file) {
+                Ok(msgs) => msgs,
+                Err(e) => {
+                    eprintln!("Warning: Failed to load message history: {}", e);
+                    Vec::new()
+                }
             }
+        } else {
+            // Don't try to read messages if we're not saving sessions
+            Vec::new()
         };
 
         Session {
@@ -130,6 +137,7 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
+            save_session,
         }
     }
 
@@ -319,6 +327,7 @@ impl Session {
             &self.messages,
             Some(provider),
             self.scheduled_job_id.clone(),
+            self.save_session,
         )
         .await?;
 
@@ -431,6 +440,7 @@ impl Session {
                                 &self.messages,
                                 Some(provider),
                                 self.scheduled_job_id.clone(),
+                                self.save_session,
                             )
                             .await?;
 
@@ -619,6 +629,7 @@ impl Session {
                             &self.messages,
                             Some(provider),
                             self.scheduled_job_id.clone(),
+                            self.save_session,
                         )
                         .await?;
 
@@ -792,7 +803,7 @@ impl Session {
                                         Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
                                     self.messages.push(response_message);
-                                    session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone()).await?;
+                                    session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
 
                                     drop(stream);
                                     break;
@@ -889,7 +900,7 @@ impl Session {
                                 self.messages.push(message.clone());
 
                                 // No need to update description on assistant messages
-                                session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone()).await?;
+                                session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
@@ -906,23 +917,87 @@ impl Session {
                                 match method.as_str() {
                                     "notifications/message" => {
                                         let data = o.get("data").unwrap_or(&Value::Null);
-                                        let message = match data {
-                                            Value::String(s) => s.clone(),
+                                        let (formatted_message, subagent_id, _notification_type) = match data {
+                                            Value::String(s) => (s.clone(), None, None),
                                             Value::Object(o) => {
-                                                if let Some(Value::String(output)) = o.get("output") {
-                                                    output.to_owned()
+                                                // Check for subagent notification structure first
+                                                if let Some(Value::String(msg)) = o.get("message") {
+                                                    // Extract subagent info for better display
+                                                    let subagent_id = o.get("subagent_id")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("unknown");
+                                                    let notification_type = o.get("type")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("");
+
+                                                    let formatted = match notification_type {
+                                                        "subagent_created" | "completed" | "terminated" => {
+                                                            format!("🤖 {}", msg)
+                                                        }
+                                                        "tool_usage" | "tool_completed" | "tool_error" => {
+                                                            format!("🔧 {}", msg)
+                                                        }
+                                                        "message_processing" | "turn_progress" => {
+                                                            format!("💭 {}", msg)
+                                                        }
+                                                        "response_generated" => {
+                                                            // Check verbosity setting for subagent response content
+                                                            let config = Config::global();
+                                                            let min_priority = config
+                                                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                                                                .ok()
+                                                                .unwrap_or(0.5);
+
+                                                            if min_priority > 0.1 && !self.debug {
+                                                                // High/Medium verbosity: show truncated response
+                                                                if let Some(response_content) = msg.strip_prefix("Responded: ") {
+                                                                    if response_content.len() > 100 {
+                                                                        format!("🤖 Responded: {}...", &response_content[..100])
+                                                                    } else {
+                                                                        format!("🤖 {}", msg)
+                                                                    }
+                                                                } else {
+                                                                    format!("🤖 {}", msg)
+                                                                }
+                                                            } else {
+                                                                // All verbosity or debug: show full response
+                                                                format!("🤖 {}", msg)
+                                                            }
+                                                        }
+                                                        _ => {
+                                                            msg.to_string()
+                                                        }
+                                                    };
+                                                    (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
+                                                } else if let Some(Value::String(output)) = o.get("output") {
+                                                    // Fallback for other MCP notification types
+                                                    (output.to_owned(), None, None)
                                                 } else {
-                                                    data.to_string()
+                                                    (data.to_string(), None, None)
                                                 }
                                             },
                                             v => {
-                                                    v.to_string()
+                                                (v.to_string(), None, None)
                                             },
                                         };
-                                        if interactive {
-                                            output::set_thinking_message(&message);
+
+                                        // Handle subagent notifications - show immediately
+                                        if let Some(_id) = subagent_id {
+                                            // Show subagent notifications immediately (no buffering) with compact spacing
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                                println!("{}", console::style(&formatted_message).green().dim());
+                                            } else {
+                                                progress_bars.log(&formatted_message);
+                                            }
                                         } else {
-                                            progress_bars.log(&message);
+                                            // Non-subagent notification, display immediately with compact spacing
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                                println!("{}", console::style(&formatted_message).green().dim());
+                                            } else {
+                                                progress_bars.log(&formatted_message);
+                                            }
                                         }
                                     },
                                     "notifications/progress" => {
@@ -951,6 +1026,7 @@ impl Session {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
+
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);
@@ -1028,6 +1104,7 @@ impl Session {
                 &self.messages,
                 None,
                 self.scheduled_job_id.clone(),
+                self.save_session,
             )
             .await?;
 
@@ -1043,6 +1120,7 @@ impl Session {
                 &self.messages,
                 None,
                 self.scheduled_job_id.clone(),
+                self.save_session,
             )
             .await?;
 
@@ -1063,6 +1141,7 @@ impl Session {
                                 &self.messages,
                                 None,
                                 self.scheduled_job_id.clone(),
+                                self.save_session,
                             )
                             .await?;
 

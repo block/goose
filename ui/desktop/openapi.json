@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.29"
+    "version": "1.0.30"
   },
   "paths": {
     "/agent/tools": {
@@ -306,6 +306,29 @@
         }
       }
     },
+    "/config/recover": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "recover_config",
+        "responses": {
+          "200": {
+            "description": "Config recovery attempted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/remove": {
       "post": {
         "tags": [
@@ -371,6 +394,29 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/validate": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "validate_config",
+        "responses": {
+          "200": {
+            "description": "Config validation result",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Config file is corrupted"
           }
         }
       }
@@ -1748,9 +1794,26 @@
             "description": "The maximum context length this model supports",
             "minimum": 0
           },
+          "currency": {
+            "type": "string",
+            "description": "Currency for the costs (default: \"$\")",
+            "nullable": true
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for input (optional)",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "description": "The name of the model"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for output (optional)",
+            "nullable": true
           }
         }
       },

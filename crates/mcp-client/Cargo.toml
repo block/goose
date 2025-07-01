@@ -3,6 +3,9 @@ name = "mcp-client"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 tokio = { version = "1", features = ["full"] }
