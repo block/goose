@@ -84,6 +84,8 @@ type ElectronAPI = {
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
+  onMouseBackButtonClicked: (callback: () => void) => void;
+  offMouseBackButtonClicked: (callback: () => void) => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -164,6 +166,15 @@ const electronAPI: ElectronAPI = {
   setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
   getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
+  onMouseBackButtonClicked: (callback: () => void) => {
+    // Wrapper that ignores the event parameter.
+    const wrappedCallback = (_event: Electron.IpcRendererEvent) => callback();
+    ipcRenderer.on('mouse-back-button-clicked', wrappedCallback);
+    return wrappedCallback;
+  },
+  offMouseBackButtonClicked: (callback: () => void) => {
+    ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+  },
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
