@@ -163,3 +163,17 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
 
     </TabItem>
 </Tabs>
+
+### Cost Tracking
+Display real-time costs of your session at the bottom of the Goose Desktop window. 
+
+To enable live cost tracking:
+  1. Click `⚙️` in the upper right corner 
+  2. Click `Advanced Settings`
+  3. Scroll to `App Settings` and toggle `Cost Tracking` on or off.
+
+The session cost updates dynamically as tokens are consumed. Hover over the cost to see a detailed breakdown of token usage. If multiple models are used in the session, this includes a cost breakdown by model. Ollama and local deployments always show a cost of $0.00.
+
+Pricing data is regularly fetched from the OpenRouter API and cached locally. The `Advanced Settings` tab shows when the data was last updated and allows you to refresh. 
+
+These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
