@@ -281,14 +281,6 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
         // For token counting purposes, we still want to show the actual total count
         let total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
 
-        tracing::info!(
-            "Anthropic token accounting - fresh: {} tokens (1.0x), cache_creation: {} tokens (1.25x), cache_read: {} tokens (0.10x), actual_total: {}, effective_for_cost: {:.2}",
-            input_tokens,
-            cache_creation_tokens, 
-            cache_read_tokens,
-            total_actual_tokens,
-            effective_input_tokens
-        );
 
         // Return the effective input tokens for cost calculation
         // This ensures the frontend cost calculation is accurate when multiplying by regular prices
