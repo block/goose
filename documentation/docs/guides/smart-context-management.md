@@ -135,7 +135,7 @@ Key information has been preserved while reducing context length.
   </TabItem>
 </Tabs>
 
-### Token usage
+## Token usage
 After sending your first message, Goose Desktop and Goose CLI display token usage.
 
 <Tabs>
@@ -164,7 +164,7 @@ After sending your first message, Goose Desktop and Goose CLI display token usag
     </TabItem>
 </Tabs>
 
-### Cost Tracking
+## Cost Tracking
 Display real-time costs of your session at the bottom of the Goose Desktop window.
 
 <Tabs>
