@@ -1054,7 +1054,7 @@ pub async fn persist_messages(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
-    persist_messages_with_schedule_id(session_file, messages, provider, None).await
+    persist_messages_with_schedule_id(session_file, messages, provider, None, true).await
 }
 
 /// Write messages to a session file with metadata, including an optional scheduled job ID
@@ -1071,7 +1071,13 @@ pub async fn persist_messages_with_schedule_id(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
     schedule_id: Option<String>,
+    save_session: bool,
 ) -> Result<()> {
+    if !save_session {
+        tracing::debug!("Skipping session persistence (save_session=false)");
+        return Ok(());
+    }
+
     // Validate the session file path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
@@ -1091,8 +1097,14 @@ pub async fn persist_messages_with_schedule_id(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description_with_schedule_id(&secure_path, messages, provider, schedule_id)
-                .await
+            generate_description_with_schedule_id(
+                &secure_path,
+                messages,
+                provider,
+                schedule_id,
+                save_session,
+            )
+            .await
         }
         _ => {
             // Read existing metadata
@@ -1102,7 +1114,7 @@ pub async fn persist_messages_with_schedule_id(
                 metadata.schedule_id = schedule_id;
             }
             // Write the file with metadata and messages
-            save_messages_with_metadata(&secure_path, &metadata, messages)
+            save_messages_with_metadata(&secure_path, &metadata, messages, save_session)
         }
     }
 }
@@ -1124,7 +1136,13 @@ pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
     messages: &[Message],
+    save_session: bool,
 ) -> Result<()> {
+    if !save_session {
+        tracing::debug!("Skipping session file write (save_session=false)");
+        return Ok(());
+    }
+
     use fs2::FileExt;
 
     // Validate the path for security
@@ -1239,7 +1257,7 @@ pub async fn generate_description(
     messages: &[Message],
     provider: Arc<dyn Provider>,
 ) -> Result<()> {
-    generate_description_with_schedule_id(session_file, messages, provider, None).await
+    generate_description_with_schedule_id(session_file, messages, provider, None, true).await
 }
 
 /// Generate a description for the session using the provider, including an optional scheduled job ID
@@ -1256,7 +1274,13 @@ pub async fn generate_description_with_schedule_id(
     messages: &[Message],
     provider: Arc<dyn Provider>,
     schedule_id: Option<String>,
+    save_session: bool,
 ) -> Result<()> {
+    if !save_session {
+        tracing::debug!("Skipping description generation (save_session=false)");
+        return Ok(());
+    }
+
     // Validate the path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
@@ -1331,7 +1355,7 @@ pub async fn generate_description_with_schedule_id(
     }
 
     // Update the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, &metadata, messages)
+    save_messages_with_metadata(&secure_path, &metadata, messages, save_session)
 }
 
 /// Update only the metadata in a session file, preserving all messages
@@ -1347,7 +1371,7 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
     let messages = read_messages(&secure_path)?;
 
     // Rewrite the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, metadata, &messages)
+    save_messages_with_metadata(&secure_path, metadata, &messages, true)
 }
 
 #[cfg(test)]
@@ -1662,7 +1686,7 @@ mod tests {
         let messages = vec![Message::user().with_text("test")];
 
         // Write with special metadata
-        save_messages_with_metadata(&file_path, &metadata, &messages)?;
+        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
 
         // Read back metadata
         let read_metadata = read_metadata(&file_path)?;
@@ -1686,7 +1710,7 @@ mod tests {
 
         // Test deserialization of invalid directory
         let messages = vec![Message::user().with_text("test")];
-        save_messages_with_metadata(&file_path, &metadata, &messages)?;
+        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
 
         // Modify the file to include invalid directory
         let contents = fs::read_to_string(&file_path)?;
@@ -1754,5 +1778,85 @@ mod tests {
         fs::create_dir_all(&test_path).unwrap();
         let normalized_existing = normalize_path_for_comparison(&test_path);
         assert!(!normalized_existing.as_os_str().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_save_session_parameter() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test_save_session.jsonl");
+
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there"),
+        ];
+
+        let metadata = SessionMetadata::default();
+
+        // Test with save_session = false - should not create file
+        save_messages_with_metadata(&file_path, &metadata, &messages, false)?;
+        assert!(
+            !file_path.exists(),
+            "File should not be created when save_session=false"
+        );
+
+        // Test with save_session = true - should create file
+        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
+        assert!(
+            file_path.exists(),
+            "File should be created when save_session=true"
+        );
+
+        // Verify content is correct
+        let read_messages = read_messages(&file_path)?;
+        assert_eq!(messages.len(), read_messages.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_persist_messages_with_save_session_false() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test_persist_no_save.jsonl");
+
+        let messages = vec![
+            Message::user().with_text("Test message"),
+            Message::assistant().with_text("Test response"),
+        ];
+
+        // Test persist_messages_with_schedule_id with save_session = false
+        persist_messages_with_schedule_id(
+            &file_path,
+            &messages,
+            None,
+            Some("test_schedule".to_string()),
+            false,
+        )
+        .await?;
+
+        assert!(
+            !file_path.exists(),
+            "File should not be created when save_session=false"
+        );
+
+        // Test persist_messages_with_schedule_id with save_session = true
+        persist_messages_with_schedule_id(
+            &file_path,
+            &messages,
+            None,
+            Some("test_schedule".to_string()),
+            true,
+        )
+        .await?;
+
+        assert!(
+            file_path.exists(),
+            "File should be created when save_session=true"
+        );
+
+        // Verify the schedule_id was set correctly
+        let metadata = read_metadata(&file_path)?;
+        assert_eq!(metadata.schedule_id, Some("test_schedule".to_string()));
+
+        Ok(())
     }
 }

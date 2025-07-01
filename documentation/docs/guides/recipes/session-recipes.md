@@ -16,16 +16,17 @@ You can turn your current Goose session into a reusable recipe that includes the
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
    :::warning
-   You cannot create a recipe from an existing recipe session - the "Make recipe from this session" option will be disabled.
+   You cannot create a recipe from an existing recipe session, but you can view or [edit the recipe](#edit-recipe).
    :::
 
-   1. While in the session you want to save as a recipe, click the menu icon **⋮** in the top right corner  
+   1. While in the session you want to save as a recipe, click the gear icon `⚙️` in the top right corner  
    2. Select **Make recipe from this session**
    3. In the dialog that appears:
-      - Name the recipe
-      - Provide a description
-      - Some **activities** will be automatically generated. Add or remove as needed.
-      - A set of **instructions** will also be automatically generated. Review and edit as needed. 
+      - Provide a **title** for the recipe
+      - Provide a **description**
+      - A set of **instructions** will also be automatically generated. Review and edit as needed.
+      - Provide an optional initial **prompt** to display in the chat box.
+      - Some **activities** will be automatically generated. Add or remove as needed. 
    4. Copy the recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
 
   </TabItem>
@@ -128,6 +129,8 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
    </details>
 
+   See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference) for more information about recipe fields. 
+
    ### Validate Recipe
 
    [Exit the session](/docs/guides/managing-goose-sessions#exit-session) and run:
@@ -151,13 +154,32 @@ Validation ensures that:
    ```
 
    </TabItem> 
+
+
+  <TabItem value="generator" label="Recipe Generator">
+    Use the online [Recipe Generator](https://block.github.io/goose/recipe-generator) tool to create a recipe. First choose your preferred format:
+
+    - **URL Format**: Generates a shareable link that opens a session in the Goose Desktop app
+    - **YAML Format**: Generates YAML content that you can save to file and then run in the Goose CLI app
+
+    Then fill out the recipe form by providing:
+      - A **title** for the recipe
+      - A **description**
+      - A set of **instructions** for the recipe.
+      - An optional inital **prompt**:
+        - In the Desktop app, the prompt displays in the chat box.
+        - In the CLI app, the prompt provides the initial message to run. Note that a prompt is required to run the recipe in headless (non-interactive) mode.
+      - A set of optional **activities** to display in the Desktop app.
+      - YAML format only: Optional **author** contact information and **extensions** the recipe usess.
+
+  </TabItem>
 </Tabs>
 
 ## Edit Recipe
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
 
-   1. While in the session created from a recipe, click the menu icon **⋮** in the top right corner  
+   1. While in the session created from a recipe, click the gear icon `⚙️` in the top right corner  
    2. Select **View recipe**  
    3. In the dialog that appears, you can edit the:
       - Title
