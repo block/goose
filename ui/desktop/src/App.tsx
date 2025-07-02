@@ -476,21 +476,13 @@ export default function App() {
   }, []);
 
   // Handle window resizing when diff panel opens/closes with window manager
-  const { toggleWindow, windowState, canExpand } = useWindowManager({
+  const { toggleWindow, windowState } = useWindowManager({
     expandPercentage: 50,
     maxWidthForExpansion: 900,
   });
 
-  // Track if window was resized for diff panel to avoid unnecessary resizing
-  const [wasWindowResizedForDiff, setWasWindowResizedForDiff] = useState(false);
-
-  // Reset tracking when window size changes externally or when canExpand changes
-  useEffect(() => {
-    // If window can no longer expand, reset the tracking
-    if (!canExpand && wasWindowResizedForDiff) {
-      setWasWindowResizedForDiff(false);
-    }
-  }, [canExpand, wasWindowResizedForDiff]);
+  // Note: isComponentMounted and canExpand are available for future enhancements
+  // They can be used to conditionally render components or provide user feedback
 
   useEffect(() => {
     const handleToggleDiffViewer = async () => {
@@ -507,23 +499,13 @@ export default function App() {
 
       try {
         if (!isDiffSidePanelOpen) {
-          // Opening diff panel
+          // Always open when closed
           setIsDiffSidePanelOpen(true);
-          
-          // Only resize if window can expand and hasn't been resized yet
-          if (canExpand && !wasWindowResizedForDiff) {
-            await toggleWindow();
-            setWasWindowResizedForDiff(true);
-          }
+          await toggleWindow();
         } else if (diffContentMatches) {
-          // Closing diff panel
+          // Close when open and content matches
           setIsDiffSidePanelOpen(false);
-          
-          // Only resize back if we had resized it for the diff panel
-          if (wasWindowResizedForDiff) {
-            await toggleWindow();
-            setWasWindowResizedForDiff(false);
-          }
+          await toggleWindow();
         }
       } catch (error) {
         console.error('Failed to toggle window for diff viewer:', error);
@@ -540,7 +522,7 @@ export default function App() {
     return () => {
       window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
     };
-  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow, windowState.isTransitioning, canExpand, wasWindowResizedForDiff]);
+  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow, windowState.isTransitioning]);
 
   const handleConfirm = async () => {
     if (pendingLink) {
@@ -689,12 +671,7 @@ export default function App() {
 
             try {
               setIsDiffSidePanelOpen(false);
-              
-              // Only resize back if we had resized it for the diff panel
-              if (wasWindowResizedForDiff) {
-                await toggleWindow();
-                setWasWindowResizedForDiff(false);
-              }
+              await toggleWindow();
             } catch (error) {
               console.error('Failed to toggle window when closing diff panel:', error);
               // Revert state on error
