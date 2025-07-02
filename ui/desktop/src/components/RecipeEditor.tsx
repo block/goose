@@ -1,4 +1,3 @@
-import yaml from 'js-yaml';
 import { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
 import { Parameter } from '../recipe/index';
@@ -24,23 +23,6 @@ interface RecipeEditorProps {
 function generateDeepLink(recipe: Recipe): string {
   const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
   return `goose://recipe?config=${configBase64}`;
-}
-
-// Function to serialize parameters to YAML format
-function serializeParametersToYAML(parameters: Parameter[]): string {
-  const yamlParams = parameters.map((param) => {
-    const paramYaml: Parameter = {
-      key: param.key,
-      input_type: 'string',
-      requirement: param.requirement,
-      description: param.description,
-    };
-    if (param.requirement === 'optional' && param.default) {
-      paramYaml.default = param.default;
-    }
-    return paramYaml;
-  });
-  return yaml.dump({ parameters: yamlParams });
 }
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
