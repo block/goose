@@ -115,7 +115,7 @@ impl Session {
         scheduled_job_id: Option<String>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
-            match session::read_messages(&session_file) {
+            match session::read_messages(session_file) {
                 Ok(msgs) => msgs,
                 Err(e) => {
                     eprintln!("Warning: Failed to load message history: {}", e);
@@ -321,7 +321,7 @@ impl Session {
         // Persist messages with provider for automatic description generation
         if let Some(session_file) = &self.session_file {
             session::persist_messages_with_schedule_id(
-                &session_file,
+                session_file,
                 &self.messages,
                 Some(provider),
                 self.scheduled_job_id.clone(),
@@ -437,7 +437,7 @@ impl Session {
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
                                 session::persist_messages_with_schedule_id(
-                                    &session_file,
+                                    session_file,
                                     &self.messages,
                                     Some(provider),
                                     self.scheduled_job_id.clone(),
@@ -659,8 +659,7 @@ impl Session {
         println!(
             "\nClosing session.{}",
             self.session_file
-                .as_ref()
-                .and_then(|p| Some(format!(" Recorded to {}", p.display())))
+                .as_ref().map(|p| format!(" Recorded to {}", p.display()))
                 .unwrap_or_default()
         );
         Ok(())
@@ -1133,7 +1132,7 @@ impl Session {
             // No need for description update here
             if let Some(session_file) = &self.session_file {
                 session::persist_messages_with_schedule_id(
-                    &session_file,
+                    session_file,
                     &self.messages,
                     None,
                     self.scheduled_job_id.clone(),
@@ -1155,7 +1154,7 @@ impl Session {
                             // No need for description update here
                             if let Some(session_file) = &self.session_file {
                                 session::persist_messages_with_schedule_id(
-                                    &session_file,
+                                    session_file,
                                     &self.messages,
                                     None,
                                     self.scheduled_job_id.clone(),
@@ -1265,7 +1264,7 @@ impl Session {
             return Err(anyhow::anyhow!("Session file does not exist"));
         }
 
-        session::read_metadata(&self.session_file.as_ref().unwrap())
+        session::read_metadata(self.session_file.as_ref().unwrap())
     }
 
     // Get the session's total token usage
