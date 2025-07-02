@@ -659,7 +659,8 @@ impl Session {
         println!(
             "\nClosing session.{}",
             self.session_file
-                .as_ref().map(|p| format!(" Recorded to {}", p.display()))
+                .as_ref()
+                .map(|p| format!(" Recorded to {}", p.display()))
                 .unwrap_or_default()
         );
         Ok(())
