@@ -19,7 +19,7 @@ use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::databricks::response_to_streaming_message;
+use crate::providers::formats::openai::response_to_streaming_message;
 use mcp_core::tool::Tool;
 use serde_json::json;
 use tokio::time::sleep;
