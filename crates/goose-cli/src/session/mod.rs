@@ -46,13 +46,12 @@ pub enum RunMode {
 pub struct Session {
     agent: Agent,
     messages: Vec<Message>,
-    session_file: PathBuf,
+    session_file: Option<PathBuf>,
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
-    save_session: bool,               // Whether to save session to file
 }
 
 // Cache structure for completion data
@@ -111,13 +110,12 @@ pub async fn classify_planner_response(
 impl Session {
     pub fn new(
         agent: Agent,
-        session_file: PathBuf,
+        session_file: Option<PathBuf>,
         debug: bool,
         scheduled_job_id: Option<String>,
-        save_session: bool,
     ) -> Self {
-        let messages = if save_session {
-            match session::read_messages(&session_file) {
+        let messages = if let Some(session_file) = &session_file {
+            match session::read_messages(session_file) {
                 Ok(msgs) => msgs,
                 Err(e) => {
                     eprintln!("Warning: Failed to load message history: {}", e);
@@ -137,7 +135,6 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
-            save_session,
         }
     }
 
@@ -322,19 +319,21 @@ impl Session {
         let provider = self.agent.provider().await?;
 
         // Persist messages with provider for automatic description generation
-        session::persist_messages_with_schedule_id(
-            &self.session_file,
-            &self.messages,
-            Some(provider),
-            self.scheduled_job_id.clone(),
-            self.save_session,
-        )
-        .await?;
+        if let Some(session_file) = &self.session_file {
+            session::persist_messages_with_schedule_id(
+                session_file,
+                &self.messages,
+                Some(provider),
+                self.scheduled_job_id.clone(),
+            )
+            .await?;
+        }
 
         // Track the current directory and last instruction in projects.json
         let session_id = self
             .session_file
-            .file_stem()
+            .as_ref()
+            .and_then(|p| p.file_stem())
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
 
@@ -420,7 +419,8 @@ impl Session {
                             // Track the current directory and last instruction in projects.json
                             let session_id = self
                                 .session_file
-                                .file_stem()
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
                                 .and_then(|s| s.to_str())
                                 .map(|s| s.to_string());
 
@@ -435,14 +435,15 @@ impl Session {
                             let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
-                            session::persist_messages_with_schedule_id(
-                                &self.session_file,
-                                &self.messages,
-                                Some(provider),
-                                self.scheduled_job_id.clone(),
-                                self.save_session,
-                            )
-                            .await?;
+                            if let Some(session_file) = &self.session_file {
+                                session::persist_messages_with_schedule_id(
+                                    session_file,
+                                    &self.messages,
+                                    Some(provider),
+                                    self.scheduled_job_id.clone(),
+                                )
+                                .await?;
+                            }
 
                             output::show_thinking();
                             self.process_agent_response(true).await?;
@@ -624,14 +625,15 @@ impl Session {
                         self.messages = summarized_messages;
 
                         // Persist the summarized messages
-                        session::persist_messages_with_schedule_id(
-                            &self.session_file,
-                            &self.messages,
-                            Some(provider),
-                            self.scheduled_job_id.clone(),
-                            self.save_session,
-                        )
-                        .await?;
+                        if let Some(session_file) = &self.session_file {
+                            session::persist_messages_with_schedule_id(
+                                session_file,
+                                &self.messages,
+                                Some(provider),
+                                self.scheduled_job_id.clone(),
+                            )
+                            .await?;
+                        }
 
                         output::hide_thinking();
                         println!(
@@ -655,8 +657,11 @@ impl Session {
         }
 
         println!(
-            "\nClosing session. Recorded to {}",
-            self.session_file.display()
+            "\nClosing session.{}",
+            self.session_file
+                .as_ref()
+                .map(|p| format!(" Recorded to {}", p.display()))
+                .unwrap_or_default()
         );
         Ok(())
     }
@@ -744,19 +749,19 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let session_id = session::Identifier::Path(self.session_file.clone());
+        let session_config = self.session_file.as_ref().map(|s| {
+            let session_id = session::Identifier::Path(s.clone());
+            SessionConfig {
+                id: session_id.clone(),
+                working_dir: std::env::current_dir()
+                    .expect("failed to get current session working directory"),
+                schedule_id: self.scheduled_job_id.clone(),
+                execution_mode: None,
+            }
+        });
         let mut stream = self
             .agent
-            .reply(
-                &self.messages,
-                Some(SessionConfig {
-                    id: session_id.clone(),
-                    working_dir: std::env::current_dir()
-                        .expect("failed to get current session working directory"),
-                    schedule_id: self.scheduled_job_id.clone(),
-                    execution_mode: None,
-                }),
-            )
+            .reply(&self.messages, session_config.clone())
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
@@ -803,7 +808,15 @@ impl Session {
                                         Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
                                     self.messages.push(response_message);
-                                    session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
+                                    if let Some(session_file) = &self.session_file {
+                                        session::persist_messages_with_schedule_id(
+                                            session_file,
+                                            &self.messages,
+                                            None,
+                                            self.scheduled_job_id.clone(),
+                                        )
+                                        .await?;
+                                    }
 
                                     drop(stream);
                                     break;
@@ -885,13 +898,7 @@ impl Session {
                                     .agent
                                     .reply(
                                         &self.messages,
-                                        Some(SessionConfig {
-                                            id: session_id.clone(),
-                                            working_dir: std::env::current_dir()
-                                                .expect("failed to get current session working directory"),
-                                            schedule_id: self.scheduled_job_id.clone(),
-                                            execution_mode: None,
-                                        }),
+                                        session_config.clone(),
                                     )
                                     .await?;
                             }
@@ -900,7 +907,15 @@ impl Session {
                                 self.messages.push(message.clone());
 
                                 // No need to update description on assistant messages
-                                session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
+                                if let Some(session_file) = &self.session_file {
+                                    session::persist_messages_with_schedule_id(
+                                        session_file,
+                                        &self.messages,
+                                        None,
+                                        self.scheduled_job_id.clone(),
+                                    )
+                                    .await?;
+                                }
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
@@ -1099,14 +1114,15 @@ impl Session {
             self.messages.push(response_message);
 
             // No need for description update here
-            session::persist_messages_with_schedule_id(
-                &self.session_file,
-                &self.messages,
-                None,
-                self.scheduled_job_id.clone(),
-                self.save_session,
-            )
-            .await?;
+            if let Some(session_file) = &self.session_file {
+                session::persist_messages_with_schedule_id(
+                    session_file,
+                    &self.messages,
+                    None,
+                    self.scheduled_job_id.clone(),
+                )
+                .await?;
+            }
 
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
@@ -1115,14 +1131,15 @@ impl Session {
             self.messages.push(Message::assistant().with_text(&prompt));
 
             // No need for description update here
-            session::persist_messages_with_schedule_id(
-                &self.session_file,
-                &self.messages,
-                None,
-                self.scheduled_job_id.clone(),
-                self.save_session,
-            )
-            .await?;
+            if let Some(session_file) = &self.session_file {
+                session::persist_messages_with_schedule_id(
+                    session_file,
+                    &self.messages,
+                    None,
+                    self.scheduled_job_id.clone(),
+                )
+                .await?;
+            }
 
             output::render_message(&Message::assistant().with_text(&prompt), self.debug);
         } else {
@@ -1136,14 +1153,15 @@ impl Session {
                             self.messages.push(Message::assistant().with_text(prompt));
 
                             // No need for description update here
-                            session::persist_messages_with_schedule_id(
-                                &self.session_file,
-                                &self.messages,
-                                None,
-                                self.scheduled_job_id.clone(),
-                                self.save_session,
-                            )
-                            .await?;
+                            if let Some(session_file) = &self.session_file {
+                                session::persist_messages_with_schedule_id(
+                                    session_file,
+                                    &self.messages,
+                                    None,
+                                    self.scheduled_job_id.clone(),
+                                )
+                                .await?;
+                            }
 
                             output::render_message(
                                 &Message::assistant().with_text(prompt),
@@ -1167,7 +1185,7 @@ impl Session {
         Ok(())
     }
 
-    pub fn session_file(&self) -> PathBuf {
+    pub fn session_file(&self) -> Option<PathBuf> {
         self.session_file.clone()
     }
 
@@ -1243,11 +1261,11 @@ impl Session {
 
     /// Get the session metadata
     pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
-        if !self.session_file.exists() {
+        if !self.session_file.as_ref().is_some_and(|f| f.exists()) {
             return Err(anyhow::anyhow!("Session file does not exist"));
         }
 
-        session::read_metadata(&self.session_file)
+        session::read_metadata(self.session_file.as_ref().unwrap())
     }
 
     // Get the session's total token usage
