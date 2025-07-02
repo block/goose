@@ -191,9 +191,6 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     };
     console.log('Final config extensions:', config.extensions);
 
-    const yamlString = serializeParametersToYAML(parameters);
-    console.log('Serialized Parameters to YAML:', yamlString);
-
     return config;
   };
 

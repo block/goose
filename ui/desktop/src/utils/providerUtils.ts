@@ -77,7 +77,6 @@ export const updateSystemPromptWithParameters = async (
     const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
 
     if (!originalInstructions) {
-      console.log('No instructions to substitute parameters in');
       return;
     }
 
