@@ -97,8 +97,6 @@ export const updateSystemPromptWithParameters = async (
 
     if (!response.ok) {
       console.warn(`Failed to update system prompt with parameters: ${response.statusText}`);
-    } else {
-      console.log('Successfully updated system prompt with parameter-substituted instructions');
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
