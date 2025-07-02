@@ -9,7 +9,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -550,12 +550,12 @@ pub fn display_session_info(
     resume: bool,
     provider: &str,
     model: &str,
-    session_file: &Path,
+    session_file: &Option<PathBuf>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
     let start_session_msg = if resume {
         "resuming session |"
-    } else if session_file.to_str() == Some("/dev/null") || session_file.to_str() == Some("NUL") {
+    } else if session_file.is_none() {
         "running without session |"
     } else {
         "starting session |"
@@ -597,7 +597,7 @@ pub fn display_session_info(
         );
     }
 
-    if session_file.to_str() != Some("/dev/null") && session_file.to_str() != Some("NUL") {
+    if let Some(session_file) = session_file {
         println!(
             "    {} {}",
             style("logging to").dim(),

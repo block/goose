@@ -122,7 +122,7 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None, true);
+    let mut debug_session = Session::new(debug_agent, Some(temp_session_file.clone()), false, None);
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -229,24 +229,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Handle session file resolution and resuming
-    let session_file: std::path::PathBuf = if session_config.no_session {
-        // Use a temporary path that won't be written to
-        #[cfg(unix)]
-        {
-            std::path::PathBuf::from("/dev/null")
-        }
-        #[cfg(windows)]
-        {
-            std::path::PathBuf::from("NUL")
-        }
+    let session_file: Option<std::path::PathBuf> = if session_config.no_session {
+        None
     } else if session_config.resume {
         if let Some(identifier) = session_config.identifier {
             let session_file = match session::get_path(identifier) {
-                Ok(path) => path,
                 Err(e) => {
                     output::render_error(&format!("Invalid session identifier: {}", e));
                     process::exit(1);
                 }
+                Ok(path) => path,
             };
             if !session_file.exists() {
                 output::render_error(&format!(
@@ -256,11 +248,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 process::exit(1);
             }
 
-            session_file
+            Some(session_file)
         } else {
             // Try to resume most recent session
             match session::get_most_recent_session() {
-                Ok(file) => file,
+                Ok(file) => Some(file),
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
@@ -276,7 +268,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
         // Just get the path - file will be created when needed
         match session::get_path(id) {
-            Ok(path) => path,
+            Ok(path) => Some(path),
             Err(e) => {
                 output::render_error(&format!("Failed to create session path: {}", e));
                 process::exit(1);
@@ -284,9 +276,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     };
 
-    if session_config.resume && !session_config.no_session {
+    if let Some(session_file) = session_file.as_ref() {
         // Read the session metadata
-        let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
+        let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
             output::render_error(&format!("Failed to read session metadata: {}", e));
             process::exit(1);
         });
@@ -373,7 +365,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_file.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
-        !session_config.no_session, // save_session is the inverse of no_session
     );
 
     // Add extensions if provided
