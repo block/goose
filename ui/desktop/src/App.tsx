@@ -475,45 +475,14 @@ export default function App() {
     };
   }, []);
 
-  // Handle window resizing when diff panel opens/closes
-  const { windowState, canExpand } = useWindowManager({
+  // Handle window resizing when diff panel opens/closes with window manager
+  const { toggleWindow, windowState } = useWindowManager({
     expandPercentage: 50,
     maxWidthForExpansion: 900,
   });
 
-  // Track the original window width when we first expand for diff panel
-  const [originalWidthForDiff, setOriginalWidthForDiff] = useState<number | null>(null);
-
-  // Reset tracking when window size changes externally or when canExpand changes
-  useEffect(() => {
-    // If window can no longer expand, reset the tracking
-    if (!canExpand && originalWidthForDiff !== null) {
-      setOriginalWidthForDiff(null);
-    }
-  }, [canExpand, originalWidthForDiff]);
-
-  // Helper function to resize window directly
-  const resizeWindowForDiff = async (expand: boolean) => {
-    if (windowState.isTransitioning) {
-      console.log('Window is already transitioning, skipping resize');
-      return false;
-    }
-
-    try {
-      if (expand) {
-        // Expand window by 50%
-        const success = await window.electron.resizeWindow(50);
-        return success;
-      } else {
-        // Reset to original size
-        const success = await window.electron.resizeWindow(0);
-        return success;
-      }
-    } catch (error) {
-      console.error('Failed to resize window:', error);
-      return false;
-    }
-  };
+  // Note: isComponentMounted and canExpand are available for future enhancements
+  // They can be used to conditionally render components or provide user feedback
 
   useEffect(() => {
     const handleToggleDiffViewer = async () => {
@@ -530,24 +499,13 @@ export default function App() {
 
       try {
         if (!isDiffSidePanelOpen) {
-          // Opening diff panel
+          // Always open when closed
           setIsDiffSidePanelOpen(true);
-          
-          // Only resize if window can expand and we haven't stored original width yet
-          if (canExpand && originalWidthForDiff === null) {
-            // Store the current width as the original width to restore to
-            setOriginalWidthForDiff(windowState.currentWidth);
-            await resizeWindowForDiff(true);
-          }
+          await toggleWindow();
         } else if (diffContentMatches) {
-          // Closing diff panel
+          // Close when open and content matches
           setIsDiffSidePanelOpen(false);
-          
-          // Only resize back if we have an original width stored
-          if (originalWidthForDiff !== null) {
-            await resizeWindowForDiff(false);
-            setOriginalWidthForDiff(null);
-          }
+          await toggleWindow();
         }
       } catch (error) {
         console.error('Failed to toggle window for diff viewer:', error);
@@ -564,7 +522,7 @@ export default function App() {
     return () => {
       window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
     };
-  }, [isDiffSidePanelOpen, diffSidePanelContent, windowState.isTransitioning, windowState.currentWidth, canExpand, originalWidthForDiff]);
+  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow, windowState.isTransitioning]);
 
   const handleConfirm = async () => {
     if (pendingLink) {
@@ -713,14 +671,9 @@ export default function App() {
 
             try {
               setIsDiffSidePanelOpen(false);
-              
-              // Only resize back if we have an original width stored
-              if (originalWidthForDiff !== null) {
-                await resizeWindowForDiff(false);
-                setOriginalWidthForDiff(null);
-              }
+              await toggleWindow();
             } catch (error) {
-              console.error('Failed to resize window when closing diff panel:', error);
+              console.error('Failed to toggle window when closing diff panel:', error);
               // Revert state on error
               setIsDiffSidePanelOpen(true);
             }
