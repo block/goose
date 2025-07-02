@@ -276,32 +276,34 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     };
 
-    if let Some(session_file) = session_file.as_ref() {
-        // Read the session metadata
-        let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to read session metadata: {}", e));
-            process::exit(1);
-        });
+    if session_config.resume {
+        if let Some(session_file) = session_file.as_ref() {
+            // Read the session metadata
+            let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to read session metadata: {}", e));
+                process::exit(1);
+            });
 
-        let current_workdir =
-            std::env::current_dir().expect("Failed to get current working directory");
-        if current_workdir != metadata.working_dir {
-            // Ask user if they want to change the working directory
-            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
+            let current_workdir =
+                std::env::current_dir().expect("Failed to get current working directory");
+            if current_workdir != metadata.working_dir {
+                // Ask user if they want to change the working directory
+                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
             .initial_value(true)
             .interact().expect("Failed to get user input");
 
-            if change_workdir {
-                if !metadata.working_dir.exists() {
-                    output::render_error(&format!(
-                        "Cannot switch to original working directory - {} no longer exists",
-                        style(metadata.working_dir.display()).cyan()
-                    ));
-                } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
-                    output::render_error(&format!(
-                        "Failed to switch to original working directory: {}",
-                        e
-                    ));
+                if change_workdir {
+                    if !metadata.working_dir.exists() {
+                        output::render_error(&format!(
+                            "Cannot switch to original working directory - {} no longer exists",
+                            style(metadata.working_dir.display()).cyan()
+                        ));
+                    } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
+                        output::render_error(&format!(
+                            "Failed to switch to original working directory: {}",
+                            e
+                        ));
+                    }
                 }
             }
         }
