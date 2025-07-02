@@ -130,6 +130,7 @@ impl StreamableHttpActor {
             .post(&self.mcp_endpoint)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
+            .header("MCP-Protocol-Version", "2025-06-18") // Required protocol version header
             .body(message_str.to_string());
 
         // Add session ID header if we have one
@@ -215,7 +216,7 @@ impl StreamableHttpActor {
             Ok(config) => {
                 info!("Created OAuth config for endpoint: {}", self.mcp_endpoint);
 
-                match authenticate_service(config).await {
+                match authenticate_service(config, &self.mcp_endpoint).await {
                     Ok(token) => {
                         info!("OAuth authentication successful!");
                         Ok(Some(token))
@@ -326,7 +327,8 @@ impl StreamableHttpTransportHandle {
             let mut request = self
                 .http_client
                 .delete(&self.mcp_endpoint)
-                .header("Mcp-Session-Id", session_id);
+                .header("Mcp-Session-Id", session_id)
+                .header("MCP-Protocol-Version", "2025-06-18"); // Required protocol version header
 
             // Add custom headers
             for (key, value) in &self.headers {
@@ -353,7 +355,8 @@ impl StreamableHttpTransportHandle {
         let mut request = self
             .http_client
             .get(&self.mcp_endpoint)
-            .header("Accept", "text/event-stream");
+            .header("Accept", "text/event-stream")
+            .header("MCP-Protocol-Version", "2025-06-18"); // Required protocol version header
 
         // Add session ID header if we have one
         if let Some(session_id) = self.session_id.read().await.as_ref() {
