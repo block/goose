@@ -11,6 +11,46 @@ use crate::config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
 
+/// Configuration for secret acquisition methods
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[serde(tag = "method")]
+pub enum SecretAcquisition {
+    #[serde(rename = "prompt")]
+    Prompt {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_message: Option<String>,
+    },
+    #[serde(rename = "oauth2")]
+    OAuth2 {
+        authorization_url: String,
+        token_url: String,
+        client_id: String,
+        #[serde(default)]
+        scopes: Vec<String>,
+        #[serde(default = "default_refresh")]
+        refresh: bool,
+    },
+    #[serde(rename = "command")]
+    Command {
+        command: String,
+    },
+}
+
+fn default_refresh() -> bool {
+    true
+}
+
+/// Configuration for a single secret
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+pub struct SecretConfig {
+    /// The environment variable name for the secret
+    pub name: String,
+    /// Human-readable description of what this secret is used for
+    pub description: String,
+    /// Configuration for how to acquire this secret
+    pub acquisition: SecretAcquisition,
+}
+
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
@@ -28,6 +68,8 @@ pub enum ExtensionError {
     SetupError(String),
     #[error("Join error occurred during task execution: {0}")]
     TaskJoinError(#[from] tokio::task::JoinError),
+    #[error("JSON serialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -132,6 +174,9 @@ pub enum ExtensionConfig {
         envs: Envs,
         #[serde(default)]
         env_keys: Vec<String>,
+        /// Configuration for secrets that need to be acquired and injected
+        #[serde(default)]
+        secrets: Vec<SecretConfig>,
         description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
@@ -151,6 +196,9 @@ pub enum ExtensionConfig {
         envs: Envs,
         #[serde(default)]
         env_keys: Vec<String>,
+        /// Configuration for secrets that need to be acquired and injected
+        #[serde(default)]
+        secrets: Vec<SecretConfig>,
         timeout: Option<u64>,
         description: Option<String>,
         /// Whether this extension is bundled with Goose
@@ -221,6 +269,7 @@ impl ExtensionConfig {
             uri: uri.into(),
             envs: Envs::default(),
             env_keys: Vec::new(),
+            secrets: Vec::new(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
@@ -257,6 +306,7 @@ impl ExtensionConfig {
             args: vec![],
             envs: Envs::default(),
             env_keys: Vec::new(),
+            secrets: Vec::new(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
@@ -274,6 +324,7 @@ impl ExtensionConfig {
                 cmd,
                 envs,
                 env_keys,
+                secrets,
                 timeout,
                 description,
                 bundled,
@@ -283,6 +334,7 @@ impl ExtensionConfig {
                 cmd,
                 envs,
                 env_keys,
+                secrets,
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,

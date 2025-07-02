@@ -12,11 +12,12 @@ use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{error, warn};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo, SecretConfig, SecretAcquisition as SecretAcquisitionConfig};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::Envs;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
+use goose_secure_store::SecretAcquisition;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
 use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
@@ -117,15 +118,17 @@ impl ExtensionManager {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
 
-        /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
+        /// Helper function to merge environment variables from direct envs, keychain-stored env_keys, and secrets
         async fn merge_environments(
             envs: &Envs,
             env_keys: &[String],
+            secrets: &[SecretConfig],
             ext_name: &str,
         ) -> Result<HashMap<String, String>, ExtensionError> {
             let mut all_envs = envs.get_env();
             let config_instance = Config::global();
 
+            // Handle legacy env_keys (existing keychain-stored environment variables)
             for key in env_keys {
                 // If the Envs payload already contains the key, prefer that value
                 // over looking into the keychain/secret store
@@ -171,6 +174,89 @@ impl ExtensionManager {
                 }
             }
 
+            // Handle new secrets configuration
+            let secret_acquisition = SecretAcquisition::new();
+            
+            // Validate secrets configuration against JSON schema
+            let secrets_json = serde_json::to_value(secrets)?;
+            if let Err(validation_error) = goose_secure_store::validation::validate_secrets_config(&secrets_json) {
+                return Err(ExtensionError::SetupError(format!(
+                    "Invalid secrets configuration for extension '{}': {}",
+                    ext_name, validation_error
+                )));
+            }
+            
+            for secret_config in secrets {
+                // If the environment variable is already set, skip acquisition
+                if all_envs.contains_key(&secret_config.name) {
+                    continue;
+                }
+
+                // Check if we already have this secret in the secure store
+                if secret_acquisition.has_secret(ext_name, &secret_config.name) {
+                    match secret_acquisition.get_secret(ext_name, &secret_config.name) {
+                        Ok(secret_value) => {
+                            all_envs.insert(secret_config.name.clone(), secret_value);
+                        }
+                        Err(e) => {
+                            warn!(
+                                secret_name = %secret_config.name,
+                                ext_name = %ext_name,
+                                error = %e,
+                                "Failed to retrieve existing secret from secure store."
+                            );
+                        }
+                    }
+                    continue;
+                }
+
+                // Acquire the secret based on the acquisition method
+                match &secret_config.acquisition {
+                    SecretAcquisitionConfig::Prompt { prompt_message } => {
+                        match secret_acquisition.acquire_prompt_secret(
+                            ext_name,
+                            &secret_config.name,
+                            &secret_config.description,
+                            prompt_message.as_deref(),
+                        ) {
+                            Ok(secret_value) => {
+                                all_envs.insert(secret_config.name.clone(), secret_value);
+                            }
+                            Err(e) => {
+                                // Check if we can fall back to environment variable
+                                if let Ok(env_value) = std::env::var(&secret_config.name) {
+                                    warn!(
+                                        secret_name = %secret_config.name,
+                                        ext_name = %ext_name,
+                                        "Failed to acquire secret via prompt, falling back to environment variable."
+                                    );
+                                    all_envs.insert(secret_config.name.clone(), env_value);
+                                } else {
+                                    return Err(ExtensionError::SetupError(format!(
+                                        "Failed to acquire secret '{}' for extension '{}': {}\n\nTo resolve this issue, you can:\n1. Run the command again and provide the secret when prompted\n2. Set the environment variable '{}' with your secret value\n3. Check that your system's keychain/credential store is accessible",
+                                        secret_config.name, ext_name, e, secret_config.name
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                    SecretAcquisitionConfig::OAuth2 { .. } => {
+                        // OAuth2 not implemented in Milestone 1
+                        return Err(ExtensionError::SetupError(format!(
+                            "OAuth2 secret acquisition not yet implemented for secret '{}' in extension '{}'",
+                            secret_config.name, ext_name
+                        )));
+                    }
+                    SecretAcquisitionConfig::Command { .. } => {
+                        // Command not implemented in Milestone 1
+                        return Err(ExtensionError::SetupError(format!(
+                            "Command secret acquisition not yet implemented for secret '{}' in extension '{}'",
+                            secret_config.name, ext_name
+                        )));
+                    }
+                }
+            }
+
             Ok(all_envs)
         }
 
@@ -179,10 +265,11 @@ impl ExtensionManager {
                 uri,
                 envs,
                 env_keys,
+                secrets,
                 timeout,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let all_envs = merge_environments(envs, env_keys, secrets, &sanitized_name).await?;
                 let transport = SseTransport::new(uri, all_envs);
                 let handle = transport.start().await?;
                 Box::new(
@@ -222,10 +309,11 @@ impl ExtensionManager {
                 args,
                 envs,
                 env_keys,
+                secrets,
                 timeout,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let all_envs = merge_environments(envs, env_keys, secrets, &sanitized_name).await?;
                 let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
                 let handle = transport.start().await?;
                 Box::new(
