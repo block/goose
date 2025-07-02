@@ -363,11 +363,11 @@ const createChat = async (
     },
   });
 
-  // Enable spellcheck / right and ctrl + click on mispelled word
+  // Enable spellcheck / right and ctrl + click on misspelled word
   //
   // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
   // all languages in the list of spell checked words, but it diminishes the times you
-  // get red squigglies back for mispelled english words. Given the rest of Goose only
+  // get red squigglies back for misspelled english words. Given the rest of Goose only
   // renders in english right now, this feels like the correct set of language codes
   // for the moment.
   //
