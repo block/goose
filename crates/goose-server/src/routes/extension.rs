@@ -190,6 +190,7 @@ async fn add_extension(
             uri,
             envs,
             env_keys,
+            secrets: Vec::new(),
             description: None,
             timeout,
             bundled: None,
@@ -238,6 +239,7 @@ async fn add_extension(
                 description: None,
                 envs,
                 env_keys,
+                secrets: Vec::new(),
                 timeout,
                 bundled: None,
             }
