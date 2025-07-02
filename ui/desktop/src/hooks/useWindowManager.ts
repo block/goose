@@ -47,40 +47,62 @@ export function useWindowManager(options: WindowManagerOptions = {}): WindowMana
   // Update window dimensions when window is resized externally
   useEffect(() => {
     const handleResize = () => {
-      // Only update if we're not in the middle of a programmatic resize
-      if (!resizeInProgressRef.current) {
-        setWindowState((prev) => {
-          const newWidth = window.innerWidth;
-          
-          // If the window was manually resized to a smaller size, reset the expanded state
-          // We consider it "manually resized to smaller" if:
-          // 1. It was previously expanded, AND
-          // 2. The new width is significantly smaller than the expanded width (with some tolerance)
-          const wasManuallyCollapsed = prev.isExpanded && newWidth < prev.currentWidth * 0.9;
-          
-          if (wasManuallyCollapsed) {
+      setWindowState((prev) => {
+        const newWidth = window.innerWidth;
+
+        // Always update current width to match actual window
+        const updatedState = {
+          ...prev,
+          currentWidth: newWidth,
+        };
+
+        // If we're in the middle of a programmatic resize, don't change expanded state
+        if (resizeInProgressRef.current) {
+          return updatedState;
+        }
+
+        // Check if window was manually resized to a smaller size
+        // We consider it manually collapsed if:
+        // 1. It was previously expanded, AND
+        // 2. The new width is significantly smaller than what we expect for expanded state
+        if (prev.isExpanded) {
+          // Calculate what the expanded width should be based on original width
+          const expectedExpandedWidth = Math.floor(
+            prev.originalWidth * (1 + opts.expandPercentage / 100)
+          );
+          const collapseThreshold = expectedExpandedWidth * 0.85; // 85% threshold for more reliable detection
+
+          if (newWidth < collapseThreshold) {
             console.log('Window manually collapsed - resetting expanded state', {
-              previousWidth: prev.currentWidth,
+              originalWidth: prev.originalWidth,
+              expectedExpandedWidth,
               newWidth,
-              threshold: prev.currentWidth * 0.9
+              threshold: collapseThreshold,
             });
+
+            return {
+              ...updatedState,
+              isExpanded: false,
+              originalWidth: newWidth, // Update original width to new smaller size
+            };
           }
-          
+        }
+
+        // If not expanded, update original width to track manual resizing
+        if (!prev.isExpanded) {
           return {
-            ...prev,
-            currentWidth: newWidth,
-            // Reset expanded state if manually collapsed
-            isExpanded: wasManuallyCollapsed ? false : prev.isExpanded,
-            // Update original width when not expanded or when manually collapsed
-            originalWidth: (!prev.isExpanded || wasManuallyCollapsed) ? newWidth : prev.originalWidth,
+            ...updatedState,
+            originalWidth: newWidth,
           };
-        });
-      }
+        }
+
+        return updatedState;
+      });
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [opts.expandPercentage]);
 
   // Manage component mounting based on window state
   useEffect(() => {
