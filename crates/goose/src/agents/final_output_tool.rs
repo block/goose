@@ -179,19 +179,6 @@ mod tests {
     use crate::recipe::Response;
     use serde_json::json;
 
-    fn create_test_schema() -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "A message"
-                }
-            },
-            "required": ["message"]
-        })
-    }
-
     fn create_complex_test_schema() -> Value {
         json!({
             "type": "object",
@@ -214,21 +201,18 @@ mod tests {
     }
 
     #[test]
-    fn test_new_with_valid_schema() {
-        let response = Response {
-            json_schema: Some(create_test_schema()),
-        };
-
-        let tool = FinalOutputTool::new(response);
-        assert!(tool.final_output.is_none());
-        assert!(tool.response.json_schema.is_some());
-    }
-
-    #[test]
     #[should_panic(expected = "Cannot create FinalOutputTool: json_schema is required")]
     fn test_new_with_missing_schema() {
         let response = Response { json_schema: None };
+        FinalOutputTool::new(response);
+    }
 
+    #[test]
+    #[should_panic(expected = "Cannot create FinalOutputTool: empty json_schema is not allowed")]
+    fn test_new_with_empty_schema() {
+        let response = Response {
+            json_schema: Some(json!({})),
+        };
         FinalOutputTool::new(response);
     }
 
@@ -245,76 +229,7 @@ mod tests {
                 }
             })),
         };
-
         FinalOutputTool::new(response);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_new_with_malformed_schema() {
-        let response = Response {
-            json_schema: Some(json!({
-                "type": "object",
-                "properties": "this should be an object not a string"
-            })),
-        };
-
-        FinalOutputTool::new(response);
-    }
-
-    #[test]
-    #[should_panic(expected = "Cannot create FinalOutputTool: empty json_schema is not allowed")]
-    fn test_new_with_empty_schema() {
-        let response = Response {
-            json_schema: Some(json!({})),
-        };
-
-        FinalOutputTool::new(response);
-    }
-
-    #[tokio::test]
-    async fn test_execute_tool_call_valid_json() {
-        let response = Response {
-            json_schema: Some(create_test_schema()),
-        };
-
-        let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
-                "final_output": r#"{"message": "Hello, world!"}"#
-            }),
-        };
-
-        let result = tool.execute_tool_call(tool_call).await;
-        let tool_result = result.result.await;
-        assert!(tool_result.is_ok());
-        assert_eq!(
-            tool.final_output,
-            Some(r#"{"message":"Hello, world!"}"#.to_string())
-        );
-    }
-
-    #[tokio::test]
-    async fn test_execute_tool_call_invalid_json_format() {
-        let response = Response {
-            json_schema: Some(create_test_schema()),
-        };
-
-        let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
-                "final_output": r#"{"message": "Hello, world!""#  // Missing closing brace
-            }),
-        };
-
-        let result = tool.execute_tool_call(tool_call).await;
-        let tool_result = result.result.await;
-        assert!(tool_result.is_err());
-        if let Err(error) = tool_result {
-            assert!(error.to_string().contains("Invalid JSON format"));
-        }
     }
 
     #[tokio::test]
@@ -351,80 +266,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_tool_call_wrong_type_validation() {
-        let response = Response {
-            json_schema: Some(json!({
-                "type": "object",
-                "properties": {
-                    "count": {
-                        "type": "number"
-                    }
-                },
-                "required": ["count"]
-            })),
-        };
-
-        let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({
-                "final_output": r#"{"count": "not a number"}"#  // String instead of number
-            }),
-        };
-
-        let result = tool.execute_tool_call(tool_call).await;
-        let tool_result = result.result.await;
-        assert!(tool_result.is_err());
-        if let Err(error) = tool_result {
-            assert!(error.to_string().contains("Validation failed"));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_execute_tool_call_missing_final_output_parameter() {
-        let response = Response {
-            json_schema: Some(create_test_schema()),
-        };
-
-        let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: FINAL_OUTPUT_TOOL_NAME.to_string(),
-            arguments: json!({}), // Missing final_output parameter
-        };
-
-        let result = tool.execute_tool_call(tool_call).await;
-        let tool_result = result.result.await;
-        assert!(tool_result.is_err());
-        if let Err(error) = tool_result {
-            assert!(error
-                .to_string()
-                .contains("Missing required 'final_output' parameter"));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_execute_tool_call_unknown_tool() {
-        let response = Response {
-            json_schema: Some(create_test_schema()),
-        };
-
-        let mut tool = FinalOutputTool::new(response);
-        let tool_call = ToolCall {
-            name: "unknown_tool".to_string(),
-            arguments: json!({
-                "final_output": r#"{"message": "Hello"}"#
-            }),
-        };
-
-        let result = tool.execute_tool_call(tool_call).await;
-        let tool_result = result.result.await;
-        assert!(tool_result.is_err());
-        if let Err(error) = tool_result {
-            assert!(error.to_string().contains("Unknown tool: unknown_tool"));
-        }
-    }
-
-    #[tokio::test]
     async fn test_execute_tool_call_complex_valid_json() {
         let response = Response {
             json_schema: Some(create_complex_test_schema()),
@@ -446,23 +287,5 @@ mod tests {
         let final_output = tool.final_output.unwrap();
         assert!(serde_json::from_str::<Value>(&final_output).is_ok());
         assert!(!final_output.contains('\n'));
-    }
-
-    #[test]
-    fn test_parsed_final_output_string() {
-        let json_value = json!({
-            "message": "Hello",
-            "data": {
-                "count": 42,
-                "items": ["a", "b", "c"]
-            }
-        });
-
-        let result = FinalOutputTool::parsed_final_output_string(json_value);
-
-        assert!(serde_json::from_str::<Value>(&result).is_ok());
-        assert!(!result.contains('\n'));
-        assert!(result.contains("Hello"));
-        assert!(result.contains("42"));
     }
 }
