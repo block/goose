@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
+import { Parameter } from '../recipe/index';
+
 import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
@@ -11,6 +13,7 @@ import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
+import ParameterInput from './parameter/ParameterInput';
 import { saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../toasts';
 
@@ -33,6 +36,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [prompt, setPrompt] = useState(config?.prompt || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
+  const [parameters, setParameters] = useState<Parameter[]>(
+    parseParametersFromInstructions(instructions)
+  );
+
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -108,11 +115,39 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeExtensions, extensionsLoaded]);
 
+  // Use effect to set parameters whenever instructions or prompt changes
+  useEffect(() => {
+    const instructionsParams = parseParametersFromInstructions(instructions);
+    const promptParams = parseParametersFromInstructions(prompt);
+
+    // Combine parameters, ensuring no duplicates by key
+    const allParams = [...instructionsParams];
+    promptParams.forEach((promptParam) => {
+      if (!allParams.some((param) => param.key === promptParam.key)) {
+        allParams.push(promptParam);
+      }
+    });
+
+    setParameters(allParams);
+  }, [instructions, prompt]);
+
   const getCurrentConfig = (): Recipe => {
-    console.log('Creating config with:', {
-      selectedExtensions: recipeExtensions,
-      availableExtensions: extensionOptions,
-      recipeConfig,
+    // Transform the internal parameters state into the desired output format.
+    const formattedParameters = parameters.map((param) => {
+      const formattedParam: Parameter = {
+        key: param.key,
+        input_type: 'string',
+        requirement: param.requirement,
+        description: param.description,
+      };
+
+      // Add the 'default' key ONLY if the parameter is optional and has a default value.
+      if (param.requirement === 'optional' && param.default) {
+        // Note: `default` is a reserved keyword in JS, but assigning it as a property key like this is valid.
+        formattedParam.default = param.default;
+      }
+
+      return formattedParam;
     });
 
     const config = {
@@ -122,6 +157,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       instructions,
       activities,
       prompt,
+      // Use the newly formatted parameters array in the final config object.
+      parameters: formattedParameters,
       extensions: recipeExtensions
         .map((name) => {
           const extension = extensionOptions.find((e) => e.name === name);
@@ -142,6 +179,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         .filter(Boolean) as FullExtensionConfig[],
     };
     console.log('Final config extensions:', config.extensions);
+
     return config;
   };
 
@@ -168,6 +206,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleParameterChange = (name: string, value: Partial<Parameter>) => {
+    setParameters((prev) =>
+      prev.map((param) => (param.key === name ? { ...param, ...value } : param))
+    );
   };
 
   const deeplink = generateDeepLink(getCurrentConfig());
@@ -261,6 +305,21 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const subtitle = config?.title
     ? "You can edit the recipe below to change the agent's behavior in a new session."
     : 'Your custom agent recipe can be shared with others. Fill in the sections below to create!';
+
+  function parseParametersFromInstructions(instructions: string): Parameter[] {
+    const regex = /\{\{(.*?)\}\}/g;
+    const matches = [...instructions.matchAll(regex)];
+
+    return matches.map((match) => {
+      return {
+        key: match[1].trim(),
+        description: `Enter value for ${match[1].trim()}`,
+        requirement: 'required',
+        input_type: 'string', // Default to string; can be changed based on requirements
+      };
+    });
+  }
+
   return (
     <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
       {activeSection === 'none' && (
@@ -339,6 +398,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>
             )}
           </div>
+          {parameters.map((parameter: Parameter) => (
+            <ParameterInput
+              key={parameter.key}
+              parameter={parameter}
+              onChange={(name, value) => handleParameterChange(name, value)}
+            />
+          ))}
           <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
             <RecipeExpandableInfo
               infoLabel="Initial Prompt"
@@ -420,6 +486,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
         </div>
       </div>
+
       <RecipeInfoModal
         infoLabel={recipeInfoModelProps?.label}
         originalValue={recipeInfoModelProps?.value}
