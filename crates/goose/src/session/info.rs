@@ -37,16 +37,16 @@ pub fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInf
                         .format("%Y-%m-%d %H:%M:%S UTC")
                         .to_string()
                 })
-                .unwrap_or_else(|_| "Unknown".to_string());
+                .ok()?;
 
-            session::read_metadata(&path)
-                .ok()
-                .map(|metadata| SessionInfo {
-                    id,
-                    path: path.to_string_lossy().to_string(),
-                    modified,
-                    metadata,
-                })
+            let metadata = session::read_metadata(&path).ok()?;
+
+            Some(SessionInfo {
+                id,
+                path: path.to_string_lossy().to_string(),
+                modified,
+                metadata,
+            })
         })
         .collect();
 
