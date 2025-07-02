@@ -687,6 +687,7 @@ pub async fn cli() -> Result<()> {
                         interactive: true,
                         quiet: false,
                         sub_recipes: None,
+                        final_output_response: None,
                     })
                     .await;
                     setup_logging(
@@ -736,7 +737,7 @@ pub async fn cli() -> Result<()> {
             quiet,
             additional_sub_recipes,
         }) => {
-            let (input_config, session_settings, sub_recipes) = match (
+            let (input_config, session_settings, sub_recipes, final_output_response) = match (
                 instructions,
                 input_text,
                 recipe,
@@ -753,6 +754,7 @@ pub async fn cli() -> Result<()> {
                             extensions_override: None,
                             additional_system_prompt: system,
                         },
+                        None,
                         None,
                         None,
                     )
@@ -773,6 +775,7 @@ pub async fn cli() -> Result<()> {
                         },
                         None,
                         None,
+                        None,
                     )
                 }
                 (_, Some(text), _) => (
@@ -781,6 +784,7 @@ pub async fn cli() -> Result<()> {
                         extensions_override: None,
                         additional_system_prompt: system,
                     },
+                    None,
                     None,
                     None,
                 ),
@@ -822,6 +826,7 @@ pub async fn cli() -> Result<()> {
                 interactive, // Use the interactive flag from the Run command
                 quiet,
                 sub_recipes,
+                final_output_response,
             })
             .await;
 
@@ -941,6 +946,7 @@ pub async fn cli() -> Result<()> {
                     interactive: true, // Default case is always interactive
                     quiet: false,
                     sub_recipes: None,
+                    final_output_response: None,
                 })
                 .await;
                 setup_logging(

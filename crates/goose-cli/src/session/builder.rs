@@ -3,7 +3,7 @@ use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
-use goose::recipe::SubRecipe;
+use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -49,6 +49,8 @@ pub struct SessionBuilderConfig {
     pub quiet: bool,
     /// Sub-recipes to add to the session
     pub sub_recipes: Option<Vec<SubRecipe>>,
+    /// Final output expected response
+    pub final_output_response: Option<Response>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -180,6 +182,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     if let Some(sub_recipes) = session_config.sub_recipes {
         agent.add_sub_recipes(sub_recipes).await;
     }
+
+    if let Some(final_output_response) = session_config.final_output_response {
+        agent.add_final_output_tool(final_output_response).await;
+    }
+
     let new_provider = match create(&provider_name, model_config) {
         Ok(provider) => provider,
         Err(e) => {
@@ -520,6 +527,7 @@ mod tests {
             interactive: true,
             quiet: false,
             sub_recipes: None,
+            final_output_response: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -549,6 +557,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
+        assert!(config.final_output_response.is_none());
     }
 
     #[tokio::test]

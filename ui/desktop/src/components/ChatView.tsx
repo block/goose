@@ -619,10 +619,22 @@ function ChatContent({
         }));
       }
 
-      // Reset token counters for the new model
-      setSessionTokenCount(0);
-      setSessionInputTokens(0);
-      setSessionOutputTokens(0);
+      // Restore token counters from session metadata instead of resetting to 0
+      // This preserves the accumulated session tokens when switching models
+      // and ensures cost tracking remains accurate across model changes
+      if (sessionMetadata) {
+        // Use Math.max to ensure non-negative values and handle potential data issues
+        setSessionTokenCount(Math.max(0, sessionMetadata.totalTokens || 0));
+        setSessionInputTokens(Math.max(0, sessionMetadata.accumulatedInputTokens || 0));
+        setSessionOutputTokens(Math.max(0, sessionMetadata.accumulatedOutputTokens || 0));
+      } else {
+        // Fallback: if no session metadata, preserve current session tokens instead of resetting
+        // This handles edge cases where metadata might not be available yet
+        console.warn(
+          'No session metadata available during model change, preserving current tokens'
+        );
+      }
+      // Only reset local token estimation counters since they're model-specific
       setLocalInputTokens(0);
       setLocalOutputTokens(0);
 
@@ -631,7 +643,7 @@ function ChatContent({
         `${prevProviderRef.current}/${prevModelRef.current}`,
         'to',
         `${currentProvider}/${currentModel}`,
-        '- saved costs and reset token counters'
+        '- saved costs and restored session token counters'
       );
     }
 
@@ -644,6 +656,7 @@ function ChatContent({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    sessionMetadata,
   ]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {

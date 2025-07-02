@@ -9,7 +9,6 @@ use super::{
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
-    githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
@@ -48,7 +47,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         DatabricksProvider::metadata(),
         GcpVertexAIProvider::metadata(),
         GeminiCliProvider::metadata(),
-        GithubCopilotProvider::metadata(),
+        // GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
@@ -135,7 +134,7 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
-        "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
         "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
@@ -150,6 +149,7 @@ mod tests {
     use mcp_core::{content::TextContent, Role};
     use std::env;
 
+    #[warn(dead_code)]
     #[derive(Clone)]
     struct MockTestProvider {
         name: String,

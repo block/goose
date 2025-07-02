@@ -44,11 +44,13 @@ And then once you have a connection to an LLM provider working, you can run a se
 ```
 
 These same commands can be recompiled and immediately run using `cargo run -p goose-cli` for iteration.
-As you make changes to the rust code, you can try it out on the CLI, or also run checks and tests:
+As you make changes to the rust code, you can try it out on the CLI, or also run checks, tests, and linter:
 
 ```
 cargo check  # do your changes compile
-cargo test  # do the tests pass with your changes.
+cargo test  # do the tests pass with your changes
+cargo fmt   # format your code
+cargo clippy  # run the linter
 ```
 
 ### Node
