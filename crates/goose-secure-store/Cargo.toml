@@ -1,0 +1,19 @@
+[package]
+name = "goose-secure-store"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Secure storage for MCP server secrets"
+
+[dependencies]
+keyring = "3.6"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+console = "0.15"
+jsonschema = "0.18"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
