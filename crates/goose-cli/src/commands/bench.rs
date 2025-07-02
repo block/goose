@@ -48,6 +48,7 @@ pub async fn agent_generator(
         max_turns: None,
         quiet: false,
         sub_recipes: None,
+        final_output_response: None,
     })
     .await;
 

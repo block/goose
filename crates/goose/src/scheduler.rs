@@ -1423,6 +1423,7 @@ mod tests {
             author: None,
             parameters: None,
             settings: None,
+            response: None,
             sub_recipes: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;

@@ -73,6 +73,8 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="windows" label="Windows">
+    Choose to install Goose on CLI and/or Desktop:
+
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         <WindowsDesktopInstallButtons/>
@@ -82,27 +84,15 @@ Let's begin 🚀
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
+        
+        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
 
-        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
-
-        ```bash
-        wsl --install
-        ```
-
-        2. Restart your computer if prompted.
-
-        3. Run the Goose installation script:
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
         ```
-        :::tip
-          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+        
+        Learn about prerequisites in the [installation guide](/docs/getting-started/installation).
 
-          ```bash
-          sudo apt update && sudo apt install bzip2 -y
-          ```
-        :::
       </TabItem>
     </Tabs>
   </TabItem>

@@ -4,4 +4,6 @@ pub mod transport;
 
 pub use client::{ClientCapabilities, ClientInfo, Error, McpClient, McpClientTrait};
 pub use service::McpService;
-pub use transport::{SseTransport, StdioTransport, Transport, TransportHandle};
+pub use transport::{
+    SseTransport, StdioTransport, StreamableHttpTransport, Transport, TransportHandle,
+};
