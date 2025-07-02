@@ -21,7 +21,8 @@ interface RecipeEditorProps {
 // Function to generate a deep link from a recipe
 function generateDeepLink(recipe: Recipe): string {
   const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  return `goose://recipe?config=${configBase64}`;
+  const urlSafe = encodeURIComponent(configBase64);
+  return `goose://recipe?config=${urlSafe}`;
 }
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
