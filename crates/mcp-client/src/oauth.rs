@@ -81,6 +81,37 @@ impl ServiceConfig {
         self.discovery_path = Some(discovery_path);
         self
     }
+
+    /// Get the canonical resource URI for the MCP server
+    /// This is used as the resource parameter in OAuth requests (RFC 8707)
+    pub fn get_canonical_resource_uri(&self, mcp_url: &str) -> Result<String> {
+        let parsed_url = Url::parse(mcp_url.trim())?;
+
+        // Build canonical URI: scheme://host[:port][/path]
+        let mut canonical = format!(
+            "{}://{}",
+            parsed_url.scheme().to_lowercase(),
+            parsed_url
+                .host_str()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Invalid MCP URL: no host found in {}", mcp_url)
+                })?
+                .to_lowercase()
+        );
+
+        // Add port if not default
+        if let Some(port) = parsed_url.port() {
+            canonical.push_str(&format!(":{}", port));
+        }
+
+        // Add path if present and not just "/"
+        let path = parsed_url.path();
+        if !path.is_empty() && path != "/" {
+            canonical.push_str(path);
+        }
+
+        Ok(canonical)
+    }
 }
 
 struct OAuthFlow {
@@ -149,7 +180,7 @@ impl OAuthFlow {
         Ok(registration_response.client_id)
     }
 
-    fn get_authorization_url(&self) -> String {
+    fn get_authorization_url(&self, resource: &str) -> String {
         let challenge = {
             let digest = sha2::Sha256::digest(self.verifier.as_bytes());
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(digest)
@@ -162,6 +193,7 @@ impl OAuthFlow {
             ("state", &self.state),
             ("code_challenge", &challenge),
             ("code_challenge_method", "S256"),
+            ("resource", resource), // RFC 8707 Resource Parameter
         ];
 
         format!(
@@ -171,13 +203,14 @@ impl OAuthFlow {
         )
     }
 
-    async fn exchange_code_for_token(&self, code: &str) -> Result<TokenData> {
+    async fn exchange_code_for_token(&self, code: &str, resource: &str) -> Result<TokenData> {
         let params = [
             ("grant_type", "authorization_code"),
             ("code", code),
             ("redirect_uri", &self.redirect_url),
             ("code_verifier", &self.verifier),
             ("client_id", &self.client_id),
+            ("resource", resource), // RFC 8707 Resource Parameter
         ];
 
         let client = reqwest::Client::new();
@@ -215,7 +248,7 @@ impl OAuthFlow {
         })
     }
 
-    async fn execute(&self) -> Result<TokenData> {
+    async fn execute(&self, resource: &str) -> Result<TokenData> {
         // Create a channel that will send the auth code from the callback
         let (tx, rx) = oneshot::channel();
         let state = self.state.clone();
@@ -264,7 +297,7 @@ impl OAuthFlow {
         });
 
         // Open the browser for OAuth
-        let authorization_url = self.get_authorization_url();
+        let authorization_url = self.get_authorization_url(resource);
         tracing::info!("Opening browser for OAuth authentication...");
 
         if webbrowser::open(&authorization_url).is_err() {
@@ -284,7 +317,7 @@ impl OAuthFlow {
         server_handle.abort();
 
         // Exchange the code for a token
-        self.exchange_code_for_token(&code).await
+        self.exchange_code_for_token(&code, resource).await
     }
 }
 
@@ -399,8 +432,12 @@ fn parse_oauth_config(oidc_config: Value) -> Result<OidcEndpoints> {
 }
 
 /// Perform OAuth flow for a service
-pub async fn authenticate_service(config: ServiceConfig) -> Result<String> {
+pub async fn authenticate_service(config: ServiceConfig, mcp_url: &str) -> Result<String> {
     tracing::info!("Starting OAuth authentication for service...");
+
+    // Get the canonical resource URI for the MCP server
+    let resource_uri = config.get_canonical_resource_uri(mcp_url)?;
+    tracing::info!("Using resource URI: {}", resource_uri);
 
     // Get OAuth endpoints using flexible discovery
     let endpoints =
@@ -412,7 +449,7 @@ pub async fn authenticate_service(config: ServiceConfig) -> Result<String> {
     // Create and execute OAuth flow with the dynamic client_id
     let flow = OAuthFlow::new(endpoints, client_id, config.redirect_uri);
 
-    let token_data = flow.execute().await?;
+    let token_data = flow.execute(&resource_uri).await?;
 
     tracing::info!("OAuth authentication successful!");
     Ok(token_data.access_token)
