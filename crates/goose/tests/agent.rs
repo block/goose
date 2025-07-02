@@ -595,7 +595,7 @@ mod final_output_tool_tests {
         let tool_call = mcp_core::tool::ToolCall::new(
             FINAL_OUTPUT_TOOL_NAME,
             serde_json::json!({
-                "final_output": r#"{"result": "Test output"}"#
+                "result": "Test output"
             }),
         );
         let (_, result) = agent

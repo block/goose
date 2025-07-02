@@ -5,7 +5,7 @@ use mcp_core::{
     tool::{Tool, ToolAnnotations},
     Content, ToolCall, ToolError,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
@@ -63,16 +63,7 @@ impl FinalOutputTool {
         Tool::new(
             FINAL_OUTPUT_TOOL_NAME.to_string(),
             instructions,
-            json!({
-                "type": "object",
-                "properties": {
-                    "final_output": {
-                        "type": "string",
-                        "description": "The JSON string final output to validate and collect"
-                    }
-                },
-                "required": ["final_output"]
-            }),
+            self.response.json_schema.as_ref().unwrap().clone(),
             Some(ToolAnnotations {
                 title: Some("Final Output".to_string()),
                 read_only_hint: false,
@@ -96,19 +87,7 @@ impl FinalOutputTool {
         "#, serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap()).unwrap()}
     }
 
-    async fn validate_json_output(&self, output: &str) -> Result<Value, String> {
-        // First, try to parse the output as JSON
-        let parsed_value: Value = match serde_json::from_str(output) {
-            Ok(value) => value,
-            Err(e) => {
-                return Err(format!(
-                    "Invalid JSON format: {}\n\nExpected format:\n{}\n\nPlease provide valid JSON that matches the expected schema.",
-                    e,
-                    serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap()).unwrap_or_else(|_| "Invalid schema".to_string())
-                ));
-            }
-        };
-
+    async fn validate_json_output(&self, output: &Value) -> Result<Value, String> {
         let compiled_schema =
             match jsonschema::validator_for(self.response.json_schema.as_ref().unwrap()) {
                 Ok(schema) => schema,
@@ -118,12 +97,12 @@ impl FinalOutputTool {
             };
 
         let validation_errors: Vec<String> = compiled_schema
-            .iter_errors(&parsed_value)
+            .iter_errors(output)
             .map(|error| format!("- {}: {}", error.instance_path, error))
             .collect();
 
         if validation_errors.is_empty() {
-            Ok(parsed_value)
+            Ok(output.clone())
         } else {
             Err(format!(
                 "Validation failed:\n{}\n\nExpected format:\n{}\n\nPlease correct your output to match the expected JSON schema and try again.",
@@ -136,28 +115,15 @@ impl FinalOutputTool {
     pub async fn execute_tool_call(&mut self, tool_call: ToolCall) -> ToolCallResult {
         match tool_call.name.as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
-                let args = &tool_call.arguments;
-                let final_output = args.get("final_output").and_then(|v| v.as_str());
-                match final_output {
-                    Some(final_output) => {
-                        self.final_output = Some(final_output.to_string());
-                        let result = self.validate_json_output(final_output).await;
-                        match result {
-                            Ok(parsed_value) => {
-                                self.final_output =
-                                    Some(Self::parsed_final_output_string(parsed_value));
-                                ToolCallResult::from(Ok(vec![Content::text(
-                                    "Final output successfully collected.".to_string(),
-                                )]))
-                            }
-                            Err(error) => {
-                                ToolCallResult::from(Err(ToolError::InvalidParameters(error)))
-                            }
-                        }
+                let result = self.validate_json_output(&tool_call.arguments).await;
+                match result {
+                    Ok(parsed_value) => {
+                        self.final_output = Some(Self::parsed_final_output_string(parsed_value));
+                        ToolCallResult::from(Ok(vec![Content::text(
+                            "Final output successfully collected.".to_string(),
+                        )]))
                     }
-                    None => ToolCallResult::from(Err(ToolError::InvalidParameters(
-                        "Missing required 'final_output' parameter".to_string(),
-                    ))),
+                    Err(error) => ToolCallResult::from(Err(ToolError::InvalidParameters(error))),
                 }
             }
             _ => ToolCallResult::from(Err(ToolError::NotFound(format!(
@@ -253,7 +219,7 @@ mod tests {
         let tool_call = ToolCall {
             name: FINAL_OUTPUT_TOOL_NAME.to_string(),
             arguments: json!({
-                "final_output": r#"{"message": "Hello"}"#  // Missing required "count" field
+                "message": "Hello"  // Missing required "count" field
             }),
         };
 
@@ -275,7 +241,11 @@ mod tests {
         let tool_call = ToolCall {
             name: FINAL_OUTPUT_TOOL_NAME.to_string(),
             arguments: json!({
-                "final_output": r#"{"user": {"name": "John", "age": 30}, "tags": ["developer", "rust"]}"#
+                "user": {
+                    "name": "John",
+                    "age": 30
+                },
+                "tags": ["developer", "rust"]
             }),
         };
 
