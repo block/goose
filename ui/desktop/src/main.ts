@@ -683,7 +683,6 @@ const createChat = async (
     }
   });
 
-  // Handle mouse back button navigation.
   mainWindow.on('app-command', (e, cmd) => {
     if (cmd === 'browser-backward') {
       mainWindow.webContents.send('mouse-back-button-clicked');
@@ -691,9 +690,8 @@ const createChat = async (
     }
   });
 
-  // Handle mouse back button for platforms where app-command is not supported.
   mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
-    // MouseButton 3 is the back button on many mice
+    // MouseButton 3 is the back button.
     if (mouseButton === 3) {
       mainWindow.webContents.send('mouse-back-button-clicked');
     }
