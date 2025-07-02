@@ -503,9 +503,9 @@ export default function App() {
           setIsDiffSidePanelOpen(true);
           await toggleWindow();
         } else if (diffContentMatches) {
-          // Close when open and content matches
+          // Close when open and content matches - don't resize window
           setIsDiffSidePanelOpen(false);
-          await toggleWindow();
+          // Note: We don't call toggleWindow() here because the window should stay at its current size
         }
       } catch (error) {
         console.error('Failed to toggle window for diff viewer:', error);
@@ -669,14 +669,9 @@ export default function App() {
               return;
             }
 
-            try {
-              setIsDiffSidePanelOpen(false);
-              await toggleWindow();
-            } catch (error) {
-              console.error('Failed to toggle window when closing diff panel:', error);
-              // Revert state on error
-              setIsDiffSidePanelOpen(true);
-            }
+            // Just close the panel - don't resize the window
+            setIsDiffSidePanelOpen(false);
+            // Note: We don't call toggleWindow() here because the window should stay at its current size
           }}
           enableActions={false}
         />
