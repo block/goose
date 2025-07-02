@@ -1259,7 +1259,6 @@ impl Session {
         );
     }
 
-    /// Get the session metadata
     pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
         if !self.session_file.as_ref().is_some_and(|f| f.exists()) {
             return Err(anyhow::anyhow!("Session file does not exist"));

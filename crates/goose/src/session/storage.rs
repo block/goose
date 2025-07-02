@@ -1309,7 +1309,6 @@ pub async fn generate_description_with_schedule_id(
         description
     };
 
-    // Read current metadata
     let mut metadata = read_metadata(&secure_path)?;
 
     // Update description and schedule_id
