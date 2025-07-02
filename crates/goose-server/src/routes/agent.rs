@@ -295,12 +295,12 @@ async fn update_session_config(
     })?;
 
     if let Some(response) = payload.response {
-        agent
-            .add_final_output_tool(response)
-            .await;
+        agent.add_final_output_tool(response).await;
 
         tracing::info!("Added final output tool with response config");
-        Ok(Json("Session config updated with final output tool".to_string()))
+        Ok(Json(
+            "Session config updated with final output tool".to_string(),
+        ))
     } else {
         Ok(Json("Nothing provided to update.".to_string()))
     }
