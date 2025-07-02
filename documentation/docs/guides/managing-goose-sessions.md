@@ -12,11 +12,15 @@ A session is a single, continuous interaction between you and Goose, providing a
 
 ## Start Session 
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
         To start a new session at any time, click the gear icon `⚙️` in the top-right corner of the application and select **New session** from the dropdown menu.
+
+        To start a new session in a different directory, click the current directory displayed at the top of the application, or click the gear icon `⚙️` in the top-right corner of the application and select **Open directory** from the dropdown menu. You can select an existing folder or create a new folder.
+
+        On macOS, you can drag and drop a folder onto the Goose icon in the dock to open a new session in that directory.
 
         You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
@@ -49,7 +53,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 :::
 
 ## Name Session
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Within the Desktop app, sessions are automatically named using the current timestamp in the format `YYYYMMDD_HHMMSS`. Goose also provides a description of the session based on context.
     </TabItem>
@@ -71,7 +75,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 
 ## Exit Session
 Note that sessions are automatically saved when you exit.
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     To exit a session, simply close the application.
     </TabItem>    
@@ -84,7 +88,7 @@ Note that sessions are automatically saved when you exit.
 
 ## Resume Session
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     1. Click `⚙️` in the upper right corner
     2. Click `Session history`
@@ -121,7 +125,7 @@ Note that sessions are automatically saved when you exit.
 
 ### Search Session History
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         In Goose Desktop, you can search session metadata including the description, filename, and working directory path. The search is text-based and supports case-sensitive matching, but doesn't search session content or support regex patterns.
 
@@ -173,7 +177,7 @@ Note that sessions are automatically saved when you exit.
 
 You can resume a CLI session in Desktop and vice versa.
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     All saved sessions are listed in the Desktop app, even CLI sessions. To resume a CLI session within the Desktop:
 
@@ -238,7 +242,7 @@ You can remove sessions using CLI commands. For detailed instructions on session
 
 Export sessions to Markdown to share with your team, create documentation, archive conversations, or review them in a readable format.
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Session export is currently only available through the CLI. You can export Desktop sessions via their session filename:
 
@@ -267,7 +271,7 @@ For more details on export options, available flags, and output formats, see the
 
 Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Trigger search using keyboard shortcuts or the search icon:
 
@@ -299,7 +303,7 @@ Search allows you to find specific content within your current session. The sear
 
 ## Share Files in Session
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Share files with Goose in three ways:
 

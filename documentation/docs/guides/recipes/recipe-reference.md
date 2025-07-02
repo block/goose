@@ -16,6 +16,8 @@ Files should be named either:
 - `recipe.yaml`/`recipe.json` 
 - `<recipe_name>.yaml`/`<recipe_name>.json`
 
+After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goose-cli-commands) to run or validate the files and to manage recipe sharing.
+
 ## Recipe Structure
 
 ### Required Fields
@@ -31,9 +33,10 @@ Files should be named either:
 | Field | Type | Description |
 |-------|------|-------------|
 | `instructions` | String | Template instructions that can include parameter substitutions |
-| `prompt` | String | A template prompt that can include parameter substitutions |
+| `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
+| `response` | Object | Configuration for structured output validation |
 
 ## Parameters
 
@@ -104,6 +107,54 @@ extensions:
     description: "For searching logs using Presidio"
 ```
 
+## Structured Output with `response`
+
+The `response` field enables recipes to enforce a final structured JSON output from Goose. When you specify a `json_schema`, Goose will:
+
+1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
+2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
+
+This **Enables automation** by returning consistent, parseable results for scripts and workflows.
+
+### Basic Structure
+
+```yaml
+response:
+  json_schema:
+    type: object
+    properties:
+      # Define your fields here, with their type and description
+    required:
+      # List required field names
+```
+
+### Simple Example
+
+```yaml
+version: "1.0.0"
+title: "Task Summary"
+description: "Summarize completed tasks"
+prompt: "Summarize the tasks you completed"
+response:
+  json_schema:
+    type: object
+    properties:
+      summary:
+        type: string
+        description: "Brief summary of work done"
+      tasks_completed:
+        type: number
+        description: "Number of tasks finished"
+      next_steps:
+        type: array
+        items:
+          type: string
+        description: "Recommended next actions"
+    required:
+      - summary
+      - tasks_completed
+```
+
 ## Template Support
 
 Recipes support Jinja-style template syntax in both `instructions` and `prompt` fields:
@@ -162,6 +213,22 @@ extensions:
     timeout: 300
     bundled: true
     description: "Query codesearch directly from goose"
+
+response:
+  json_schema:
+    type: object
+    properties:
+      result:
+        type: string
+        description: "The main result of the task"
+      details:
+        type: array
+        items:
+          type: string
+        description: "Additional details of steps taken"
+    required:
+      - result
+      - status
 ```
 
 ## Template Inheritance

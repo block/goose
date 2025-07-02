@@ -305,13 +305,33 @@ impl TemporalScheduler {
 
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
-        let mut command = Command::new("./temporal-service");
+        let mut command = Command::new(&binary_path);
         command
             .current_dir(working_dir)
-            .env("PORT", self.port_config.http_port.to_string())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .stdin(std::process::Stdio::null());
+            .env("PORT", self.port_config.http_port.to_string());
+
+        // Platform-specific process configuration based on Electron app approach
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // On Windows, prevent console window and run detached:
+            // - Use CREATE_NO_WINDOW (0x08000000) to prevent console window
+            // - Use DETACHED_PROCESS (0x00000008) for independence
+            // - Redirect output to null to prevent console attachment
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null())
+                .creation_flags(0x08000000 | 0x00000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
+        }
+
+        #[cfg(not(windows))]
+        {
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null());
+        }
 
         // On Unix systems, create a new process group
         #[cfg(unix)]
@@ -333,12 +353,27 @@ impl TemporalScheduler {
             pid, self.port_config.http_port
         );
 
-        // Give the process a moment to start up
-        sleep(Duration::from_millis(100)).await;
+        // Platform-specific process handling
+        #[cfg(windows)]
+        {
+            // On Windows, wait longer for initialization and use unref-like behavior
+            sleep(Duration::from_millis(1000)).await; // Wait 1 second for Windows initialization
 
-        // Verify the process is still running
+            // Use a different approach - spawn a monitoring thread that waits longer
+            std::thread::spawn(move || {
+                // Give the process significant time to initialize on Windows
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                // After 5 seconds, let it run completely independently
+                let _ = child.wait();
+            });
+        }
+
         #[cfg(unix)]
         {
+            // Give the process a moment to start up
+            sleep(Duration::from_millis(100)).await;
+
+            // Verify the process is still running
             use std::process::Command as StdCommand;
             let ps_check = StdCommand::new("ps")
                 .arg("-p")
@@ -359,13 +394,13 @@ impl TemporalScheduler {
                     warn!("Could not verify Temporal service process status: {}", e);
                 }
             }
-        }
 
-        // Detach the child process by not waiting for it
-        // This allows it to continue running independently
-        std::thread::spawn(move || {
-            let _ = child.wait();
-        });
+            // Detach the child process by not waiting for it
+            // This allows it to continue running independently
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
 
         Ok(())
     }
@@ -374,17 +409,16 @@ impl TemporalScheduler {
         // Try to find the Go service binary by looking for it relative to the current executable
         // or in common locations
 
-        let possible_paths = vec![
-            // Relative to current working directory (original behavior)
-            "./temporal-service/temporal-service",
-        ];
-
-        // Also try to find it relative to the current executable path
+        // First try to find it relative to the current executable path (most common for bundled apps)
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 // Try various relative paths from the executable directory
                 let exe_relative_paths = vec![
-                    // First check in the same directory as the executable (bundled location)
+                    // First check in resources/bin subdirectory (bundled Electron app location)
+                    exe_dir.join("resources/bin/temporal-service"),
+                    exe_dir.join("resources/bin/temporal-service.exe"), // Windows version
+                    exe_dir.join("resources\\bin\\temporal-service.exe"), // Windows with backslashes
+                    // Then check in the same directory as the executable
                     exe_dir.join("temporal-service"),
                     exe_dir.join("temporal-service.exe"), // Windows version
                     // Then check in temporal-service subdirectory
@@ -399,21 +433,45 @@ impl TemporalScheduler {
 
                 for path in exe_relative_paths {
                     if path.exists() {
+                        tracing::debug!("Found temporal-service binary at: {}", path.display());
                         return Ok(path.to_string_lossy().to_string());
                     }
                 }
             }
         }
 
-        // Try the original relative paths
+        // Try relative to current working directory (original behavior)
+        let possible_paths = vec![
+            "./temporal-service/temporal-service",
+            "./temporal-service.exe",               // Windows in current dir
+            "./resources/bin/temporal-service.exe", // Windows bundled in current dir
+        ];
+
         for path in &possible_paths {
             if std::path::Path::new(path).exists() {
+                tracing::debug!("Found temporal-service binary at: {}", path);
                 return Ok(path.to_string());
             }
         }
 
+        // Check environment variable override
+        if let Ok(binary_path) = std::env::var("GOOSE_TEMPORAL_BIN") {
+            if std::path::Path::new(&binary_path).exists() {
+                tracing::info!(
+                    "Using temporal-service binary from GOOSE_TEMPORAL_BIN: {}",
+                    binary_path
+                );
+                return Ok(binary_path);
+            } else {
+                tracing::warn!(
+                    "GOOSE_TEMPORAL_BIN points to non-existent file: {}",
+                    binary_path
+                );
+            }
+        }
+
         Err(SchedulerError::SchedulerInternalError(
-            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available.".to_string()
+            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available, or set GOOSE_TEMPORAL_BIN environment variable.".to_string()
         ))
     }
 

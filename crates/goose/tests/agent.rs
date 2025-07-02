@@ -531,3 +531,110 @@ mod schedule_tool_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod final_output_tool_tests {
+    use super::*;
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
+    use goose::recipe::Response;
+
+    #[tokio::test]
+    async fn test_final_output_assistant_message_in_reply() -> Result<()> {
+        use async_trait::async_trait;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{Provider, ProviderUsage, Usage};
+        use goose::providers::errors::ProviderError;
+        use mcp_core::tool::Tool;
+
+        #[derive(Clone)]
+        struct MockProvider {
+            model_config: ModelConfig,
+        }
+
+        #[async_trait]
+        impl Provider for MockProvider {
+            fn metadata() -> goose::providers::base::ProviderMetadata {
+                goose::providers::base::ProviderMetadata::empty()
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                self.model_config.clone()
+            }
+
+            async fn complete(
+                &self,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                Ok((
+                    Message::assistant().with_text("Task completed."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            }
+        }
+
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockProvider { model_config });
+        agent.update_provider(mock_provider).await?;
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                },
+                "required": ["result"]
+            })),
+        };
+        agent.add_final_output_tool(response).await;
+
+        // Simulate a final output tool call occurring.
+        let tool_call = mcp_core::tool::ToolCall::new(
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({
+                "result": "Test output"
+            }),
+        );
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_id".to_string())
+            .await;
+
+        assert!(result.is_ok(), "Tool call should succeed");
+        let final_result = result.unwrap().result.await;
+        assert!(final_result.is_ok(), "Tool execution should succeed");
+
+        let content = final_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.contains("Final output successfully collected."),
+            "Tool result missing expected content: {}",
+            text
+        );
+
+        // Simulate the reply stream continuing after the final output tool call.
+        let reply_stream = agent.reply(&vec![], None).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+        let last_message = responses.last().unwrap();
+
+        // Check that the last message is an assistant message with our final output
+        assert_eq!(last_message.role, mcp_core::role::Role::Assistant);
+        let message_text = last_message.as_concat_text();
+        assert_eq!(message_text, r#"{"result":"Test output"}"#);
+
+        Ok(())
+    }
+}

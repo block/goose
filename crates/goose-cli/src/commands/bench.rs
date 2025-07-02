@@ -47,6 +47,7 @@ pub async fn agent_generator(
         scheduled_job_id: None,
         quiet: false,
         sub_recipes: None,
+        final_output_response: None,
     })
     .await;
 

@@ -157,7 +157,9 @@ if (process.platform === 'win32') {
             const configParam = parsedUrl.searchParams.get('config');
             if (configParam) {
               try {
-                recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+                recipeConfig = JSON.parse(
+                  Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+                );
 
                 // Check if this is a scheduled job
                 const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -260,7 +262,9 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
-        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        recipeConfig = JSON.parse(
+          Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+        );
 
         // Check if this is a scheduled job
         const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');

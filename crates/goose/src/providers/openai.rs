@@ -132,13 +132,13 @@ impl Provider for OpenAiProvider {
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             vec![
-                ModelInfo::with_cost("gpt-4o", 128000, 0.0000025, 0.00001),
-                ModelInfo::with_cost("gpt-4o-mini", 128000, 0.00000015, 0.0000006),
-                ModelInfo::with_cost("gpt-4-turbo", 128000, 0.00001, 0.00003),
-                ModelInfo::with_cost("gpt-3.5-turbo", 16385, 0.0000005, 0.0000015),
-                ModelInfo::with_cost("o1", 200000, 0.000015, 0.00006),
-                ModelInfo::with_cost("o3", 200000, 0.000015, 0.00006), // Using o1 pricing as placeholder
-                ModelInfo::with_cost("o4-mini", 128000, 0.000003, 0.000012), // Using o1-mini pricing as placeholder
+                ModelInfo::new("gpt-4o", 128000),
+                ModelInfo::new("gpt-4o-mini", 128000),
+                ModelInfo::new("gpt-4-turbo", 128000),
+                ModelInfo::new("gpt-3.5-turbo", 16385),
+                ModelInfo::new("o1", 200000),
+                ModelInfo::new("o3", 200000),
+                ModelInfo::new("o4-mini", 128000),
             ],
             OPEN_AI_DOC_URL,
             vec![
