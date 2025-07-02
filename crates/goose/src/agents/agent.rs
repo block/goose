@@ -713,7 +713,9 @@ impl Agent {
             let max_turns = session
                 .as_ref()
                 .and_then(|s| s.max_turns)
-                .unwrap_or(DEFAULT_MAX_TURNS);
+                .unwrap_or_else(|| {
+                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
+                });
 
             loop {
                 turns_taken += 1;
