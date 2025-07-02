@@ -67,6 +67,21 @@ you can talk to goose!
 
 You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
 
+### Regenerating the OpenAPI schema
+
+The file `ui/desktop/openapi.json` is automatically generated during the build.
+It is written by the `generate_schema` binary in `crates/goose-server`.
+If you need to update the spec without starting the UI, run:
+
+```
+just generate-openapi
+```
+
+This command regenerates `ui/desktop/openapi.json` and then runs the UI's
+`generate-api` script to rebuild the TypeScript client from that spec.
+
+Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
+
 ## Creating a fork
 
 To fork the repository:
