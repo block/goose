@@ -3,6 +3,7 @@ import { IpcRendererEvent } from 'electron';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
+import { initializeCostDatabase } from './utils/costDatabase';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
@@ -11,6 +12,7 @@ import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
 import { type Recipe } from './recipe';
+import AnnouncementModal from './components/AnnouncementModal';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -20,13 +22,20 @@ import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
+import RecipesView from './components/RecipesView';
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
-import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
+import {
+  backupConfig,
+  initConfig,
+  readAllConfig,
+  recoverConfig,
+  validateConfig,
+} from './api/sdk.gen';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import { type SessionDetails } from './sessions';
@@ -45,6 +54,7 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
+  | 'recipes'
   | 'permission';
 
 export type ViewOptions = {
@@ -105,7 +115,6 @@ const getInitialView = (): ViewConfig => {
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [appInitialized, setAppInitialized] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
@@ -157,6 +166,11 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
+        // Initialize cost database early to pre-load pricing data
+        initializeCostDatabase().catch((error) => {
+          console.error('Failed to initialize cost database:', error);
+        });
+
         await initConfig();
         try {
           await readAllConfig({ throwOnError: true });
@@ -167,7 +181,39 @@ export default function App() {
             await backupConfig({ throwOnError: true });
             await initConfig();
           } else {
-            throw new Error('Unable to read config file, it may be malformed');
+            // Config appears corrupted, try recovery
+            console.warn('Config file appears corrupted, attempting recovery...');
+            try {
+              // First try to validate the config
+              try {
+                await validateConfig({ throwOnError: true });
+                // Config is valid but readAllConfig failed for another reason
+                throw new Error('Unable to read config file, it may be malformed');
+              } catch (validateError) {
+                console.log('Config validation failed, attempting recovery...');
+
+                // Try to recover the config
+                try {
+                  const recoveryResult = await recoverConfig({ throwOnError: true });
+                  console.log('Config recovery result:', recoveryResult);
+
+                  // Try to read config again after recovery
+                  try {
+                    await readAllConfig({ throwOnError: true });
+                    console.log('Config successfully recovered and loaded');
+                  } catch (retryError) {
+                    console.warn('Config still corrupted after recovery, reinitializing...');
+                    await initConfig();
+                  }
+                } catch (recoverError) {
+                  console.warn('Config recovery failed, reinitializing...');
+                  await initConfig();
+                }
+              }
+            } catch (recoveryError) {
+              console.error('Config recovery process failed:', recoveryError);
+              throw new Error('Unable to read config file, it may be malformed');
+            }
           }
         }
 
@@ -207,15 +253,10 @@ export default function App() {
       toastService.configure({ silent: false });
     };
 
-    (async () => {
-      try {
-        await initializeApp();
-        setAppInitialized(true);
-      } catch (error) {
-        console.error('Unhandled error in initialization:', error);
-        setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    })();
+    initializeApp().catch((error) => {
+      console.error('Unhandled error in initialization:', error);
+      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+    });
   }, [read, getExtensions, addExtension]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
@@ -515,7 +556,6 @@ export default function App() {
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
-              readyForAutoUserPrompt={appInitialized}
               chat={chat}
               setChat={setChat}
               setView={setView}
@@ -557,6 +597,7 @@ export default function App() {
               config={(viewOptions?.config as Recipe) || window.electron.getConfig().recipeConfig}
             />
           )}
+          {view === 'recipes' && <RecipesView onBack={() => setView('chat')} />}
           {view === 'permission' && (
             <PermissionSettingsView
               onClose={() => setView((viewOptions as { parentView: View }).parentView)}
@@ -570,6 +611,7 @@ export default function App() {
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}
+      <AnnouncementModal />
     </ModelAndProviderProvider>
   );
 }

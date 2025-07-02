@@ -266,6 +266,10 @@ pub unsafe extern "C" fn goose_agent_send_message(
                 Ok(AgentEvent::McpNotification(_)) => {
                     // TODO: Handle MCP notifications.
                 }
+                Ok(AgentEvent::ModelChange { .. }) => {
+                    // Model change events are informational, just continue
+                }
+
                 Err(e) => {
                     full_response.push_str(&format!("\nError in message stream: {}", e));
                 }

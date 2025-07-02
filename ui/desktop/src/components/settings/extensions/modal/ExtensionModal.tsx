@@ -3,11 +3,13 @@ import { Button } from '../../../ui/button';
 import Modal from '../../../Modal';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
+import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api/sdk.gen';
+import { ConfirmationModal } from '../../../ui/ConfirmationModal';
 
 interface ExtensionModalProps {
   title: string;
@@ -31,6 +33,71 @@ export default function ExtensionModal({
   const [formData, setFormData] = useState<ExtensionFormData>(initialData);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
+  const [hasPendingEnvVars, setHasPendingEnvVars] = useState(false);
+  const [hasPendingHeaders, setHasPendingHeaders] = useState(false);
+
+  // Function to check if form has been modified
+  const hasFormChanges = (): boolean => {
+    // Check if command/endpoint has changed
+    const commandChanged =
+      (formData.type === 'stdio' && formData.cmd !== initialData.cmd) ||
+      (formData.type === 'sse' && formData.endpoint !== initialData.endpoint) ||
+      (formData.type === 'streamable_http' && formData.endpoint !== initialData.endpoint);
+
+    // Check if headers have changed
+    const headersChanged = formData.headers.some((header) => header.isEdited === true);
+
+    // Check if any environment variables have been modified
+    const envVarsChanged = formData.envVars.some((envVar) => envVar.isEdited === true);
+
+    // Check if new env vars have been added
+    const envVarsAdded = formData.envVars.length > initialData.envVars.length;
+
+    // Check if env vars have been removed
+    const envVarsRemoved = formData.envVars.length < initialData.envVars.length;
+
+    // Check if any environment variable fields have text entered (even if not marked as edited)
+    const envVarsHaveText = formData.envVars.some(
+      (envVar) =>
+        (envVar.key.trim() !== '' || envVar.value.trim() !== '') &&
+        // Don't count placeholder values for existing secrets
+        envVar.value !== '••••••••'
+    );
+
+    // Check if there are pending environment variables being typed
+    const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
+
+    return (
+      commandChanged ||
+      headersChanged ||
+      envVarsChanged ||
+      envVarsAdded ||
+      envVarsRemoved ||
+      envVarsHaveText ||
+      hasPendingInput
+    );
+  };
+
+  // Handle backdrop close with confirmation if needed
+  const handleBackdropClose = () => {
+    if (hasFormChanges()) {
+      setShowCloseConfirmation(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Handle confirmed close
+  const handleConfirmClose = () => {
+    setShowCloseConfirmation(false);
+    onClose();
+  };
+
+  // Handle cancel close confirmation
+  const handleCancelClose = () => {
+    setShowCloseConfirmation(false);
+  };
 
   const handleAddEnvVar = (key: string, value: string) => {
     setFormData({
@@ -60,6 +127,37 @@ export default function ExtensionModal({
     setFormData({
       ...formData,
       envVars: newEnvVars,
+    });
+  };
+
+  const handleAddHeader = (key: string, value: string) => {
+    setFormData({
+      ...formData,
+      headers: [...formData.headers, { key, value, isEdited: true }],
+    });
+  };
+
+  const handleRemoveHeader = (index: number) => {
+    const newHeaders = [...formData.headers];
+    newHeaders.splice(index, 1);
+    setFormData({
+      ...formData,
+      headers: newHeaders,
+    });
+  };
+
+  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    const newHeaders = [...formData.headers];
+    newHeaders[index][field] = value;
+
+    // Mark as edited if it's a value change
+    if (field === 'value') {
+      newHeaders[index].isEdited = true;
+    }
+
+    setFormData({
+      ...formData,
+      headers: newHeaders,
     });
   };
 
@@ -99,12 +197,21 @@ export default function ExtensionModal({
   const isConfigValid = () => {
     return (
       (formData.type === 'stdio' && !!formData.cmd && formData.cmd.trim() !== '') ||
-      (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '')
+      (formData.type === 'sse' && !!formData.endpoint && formData.endpoint.trim() !== '') ||
+      (formData.type === 'streamable_http' &&
+        !!formData.endpoint &&
+        formData.endpoint.trim() !== '')
     );
   };
 
   const isEnvVarsValid = () => {
     return formData.envVars.every(
+      ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
+    );
+  };
+
+  const isHeadersValid = () => {
+    return formData.headers.every(
       ({ key, value }) => (key === '' && value === '') || (key !== '' && value !== '')
     );
   };
@@ -125,7 +232,9 @@ export default function ExtensionModal({
 
   // Form validation
   const isFormValid = () => {
-    return isNameValid() && isConfigValid() && isEnvVarsValid() && isTimeoutValid();
+    return (
+      isNameValid() && isConfigValid() && isEnvVarsValid() && isHeadersValid() && isTimeoutValid()
+    );
   };
 
   // Handle submit with validation and secret storage
@@ -208,7 +317,7 @@ export default function ExtensionModal({
         {submitLabel}
       </Button>
       <Button
-        onClick={onClose}
+        onClick={handleBackdropClose}
         variant="ghost"
         className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
       >
@@ -221,69 +330,103 @@ export default function ExtensionModal({
   const modalTitle = showDeleteConfirmation ? `Delete Extension "${formData.name}"` : title;
 
   return (
-    <Modal footer={footerContent} onClose={onClose}>
-      {/* Title and Icon */}
-      <div className="flex flex-col mb-6">
-        <div>{getModalIcon()}</div>
-        <div className="mt-2">
-          <h2 className="text-2xl font-regular text-textStandard">{modalTitle}</h2>
+    <>
+      <Modal footer={footerContent} onClose={handleBackdropClose}>
+        {/* Title and Icon */}
+        <div className="flex flex-col mb-6">
+          <div>{getModalIcon()}</div>
+          <div className="mt-2">
+            <h2 className="text-2xl font-regular text-textStandard">{modalTitle}</h2>
+          </div>
         </div>
-      </div>
 
-      {showDeleteConfirmation ? (
-        <div className="mb-6">
-          <p className="text-textStandard">
-            This will permanently remove this extension and all of its settings.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Form Fields */}
-          {/* Name and Type */}
-          <ExtensionInfoFields
-            name={formData.name}
-            type={formData.type}
-            description={formData.description}
-            onChange={(key, value) => setFormData({ ...formData, [key]: value })}
-            submitAttempted={submitAttempted}
-          />
-
-          {/* Divider */}
-          <hr className="border-t border-borderSubtle mb-4" />
-
-          {/* Command */}
+        {showDeleteConfirmation ? (
           <div className="mb-6">
-            <ExtensionConfigFields
+            <p className="text-textStandard">
+              This will permanently remove this extension and all of its settings.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Form Fields */}
+            {/* Name and Type */}
+            <ExtensionInfoFields
+              name={formData.name}
               type={formData.type}
-              full_cmd={formData.cmd || ''}
-              endpoint={formData.endpoint || ''}
-              onChange={(key, value) => setFormData({ ...formData, [key]: value })}
-              submitAttempted={submitAttempted}
-              isValid={isConfigValid()}
-            />
-            <div className="mb-4" />
-            <ExtensionTimeoutField
-              timeout={formData.timeout || 300}
+              description={formData.description}
               onChange={(key, value) => setFormData({ ...formData, [key]: value })}
               submitAttempted={submitAttempted}
             />
-          </div>
 
-          {/* Divider */}
-          <hr className="border-t border-borderSubtle mb-4" />
+            {/* Divider */}
+            <hr className="border-t border-borderSubtle mb-4" />
 
-          {/* Environment Variables */}
-          <div className="mb-6">
-            <EnvVarsSection
-              envVars={formData.envVars}
-              onAdd={handleAddEnvVar}
-              onRemove={handleRemoveEnvVar}
-              onChange={handleEnvVarChange}
-              submitAttempted={submitAttempted}
-            />
-          </div>
-        </>
+            {/* Command */}
+            <div className="mb-6">
+              <ExtensionConfigFields
+                type={formData.type}
+                full_cmd={formData.cmd || ''}
+                endpoint={formData.endpoint || ''}
+                onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+                submitAttempted={submitAttempted}
+                isValid={isConfigValid()}
+              />
+              <div className="mb-4" />
+              <ExtensionTimeoutField
+                timeout={formData.timeout || 300}
+                onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+                submitAttempted={submitAttempted}
+              />
+            </div>
+
+            {/* Divider */}
+            <hr className="border-t border-borderSubtle mb-4" />
+
+            {/* Environment Variables */}
+            <div className="mb-6">
+              <EnvVarsSection
+                envVars={formData.envVars}
+                onAdd={handleAddEnvVar}
+                onRemove={handleRemoveEnvVar}
+                onChange={handleEnvVarChange}
+                submitAttempted={submitAttempted}
+                onPendingInputChange={setHasPendingEnvVars}
+              />
+            </div>
+
+            {/* Request Headers - Only for streamable_http */}
+            {formData.type === 'streamable_http' && (
+              <>
+                {/* Divider */}
+                <hr className="border-t border-borderSubtle mb-4" />
+
+                <div className="mb-6">
+                  <HeadersSection
+                    headers={formData.headers}
+                    onAdd={handleAddHeader}
+                    onRemove={handleRemoveHeader}
+                    onChange={handleHeaderChange}
+                    submitAttempted={submitAttempted}
+                    onPendingInputChange={setHasPendingHeaders}
+                  />
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </Modal>
+
+      {/* Close Confirmation Modal */}
+      {showCloseConfirmation && (
+        <ConfirmationModal
+          isOpen={showCloseConfirmation}
+          title="Unsaved Changes"
+          message="You have unsaved changes to the extension configuration. Are you sure you want to close without saving?"
+          confirmLabel="Close Without Saving"
+          onConfirm={handleConfirmClose}
+          onCancel={handleCancelClose}
+        />
       )}
-    </Modal>
+    </>
   );
 }

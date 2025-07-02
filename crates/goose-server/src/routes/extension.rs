@@ -56,6 +56,24 @@ enum ExtensionConfigRequest {
         display_name: Option<String>,
         timeout: Option<u64>,
     },
+    /// Streamable HTTP extension using MCP Streamable HTTP specification.
+    #[serde(rename = "streamable_http")]
+    StreamableHttp {
+        /// The name to identify this extension
+        name: String,
+        /// The URI endpoint for the streamable HTTP extension.
+        uri: String,
+        #[serde(default)]
+        /// Map of environment variable key to values.
+        envs: Envs,
+        /// List of environment variable keys. The server will fetch their values from the keyring.
+        #[serde(default)]
+        env_keys: Vec<String>,
+        /// Custom headers to include in requests.
+        #[serde(default)]
+        headers: std::collections::HashMap<String, String>,
+        timeout: Option<u64>,
+    },
     /// Frontend extension that provides tools to be executed by the frontend.
     #[serde(rename = "frontend")]
     Frontend {
@@ -172,6 +190,23 @@ async fn add_extension(
             uri,
             envs,
             env_keys,
+            description: None,
+            timeout,
+            bundled: None,
+        },
+        ExtensionConfigRequest::StreamableHttp {
+            name,
+            uri,
+            envs,
+            env_keys,
+            headers,
+            timeout,
+        } => ExtensionConfig::StreamableHttp {
+            name,
+            uri,
+            envs,
+            env_keys,
+            headers,
             description: None,
             timeout,
             bundled: None,

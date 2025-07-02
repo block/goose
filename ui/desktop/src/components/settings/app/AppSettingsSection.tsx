@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import Modal from '../../Modal';
 import UpdateSection from './UpdateSection';
-import { UPDATES_ENABLED } from '../../../updates';
+import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
+import { getApiUrl, getSecretKey } from '../../../config';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -13,15 +14,91 @@ interface AppSettingsSectionProps {
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
+  const [quitConfirmationEnabled, setQuitConfirmationEnabled] = useState(true);
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [pricingStatus, setPricingStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPricing, setShowPricing] = useState(true);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if running on macOS
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
+
+  // Load show pricing setting
+  useEffect(() => {
+    const stored = localStorage.getItem('show_pricing');
+    setShowPricing(stored !== 'false');
+  }, []);
+
+  // Check pricing status on mount
+  useEffect(() => {
+    checkPricingStatus();
+  }, []);
+
+  const checkPricingStatus = async () => {
+    try {
+      const apiUrl = getApiUrl('/config/pricing');
+      const secretKey = getSecretKey();
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (secretKey) {
+        headers['X-Secret-Key'] = secretKey;
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ configured_only: true }),
+      });
+
+      if (response.ok) {
+        await response.json(); // Consume the response
+        setPricingStatus('success');
+        setLastFetchTime(new Date());
+      } else {
+        setPricingStatus('error');
+      }
+    } catch (error) {
+      setPricingStatus('error');
+    }
+  };
+
+  const handleRefreshPricing = async () => {
+    setIsRefreshing(true);
+    try {
+      const apiUrl = getApiUrl('/config/pricing');
+      const secretKey = getSecretKey();
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (secretKey) {
+        headers['X-Secret-Key'] = secretKey;
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ configured_only: false }),
+      });
+
+      if (response.ok) {
+        setPricingStatus('success');
+        setLastFetchTime(new Date());
+        // Trigger a reload of the cost database
+        window.dispatchEvent(new CustomEvent('pricing-updated'));
+      } else {
+        setPricingStatus('error');
+      }
+    } catch (error) {
+      setPricingStatus('error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Handle scrolling to update section
   useEffect(() => {
@@ -37,6 +114,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     window.electron.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);
+    });
+
+    window.electron.getQuitConfirmationState().then((enabled) => {
+      setQuitConfirmationEnabled(enabled);
     });
 
     if (isMacOS) {
@@ -84,6 +165,21 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     if (success) {
       setDockIconEnabled(newState);
     }
+  };
+
+  const handleQuitConfirmationToggle = async () => {
+    const newState = !quitConfirmationEnabled;
+    const success = await window.electron.setQuitConfirmation(newState);
+    if (success) {
+      setQuitConfirmationEnabled(newState);
+    }
+  };
+
+  const handleShowPricingToggle = (checked: boolean) => {
+    setShowPricing(checked);
+    localStorage.setItem('show_pricing', String(checked));
+    // Trigger storage event for other components
+    window.dispatchEvent(new CustomEvent('storage'));
   };
 
   return (
@@ -158,6 +254,106 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 />
               </div>
             </div>
+          )}
+
+          {/* Quit Confirmation */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-textStandard">Quit Confirmation</h3>
+              <p className="text-xs text-textSubtle max-w-md mt-[2px]">
+                Show confirmation dialog when quitting the app
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={quitConfirmationEnabled}
+                onCheckedChange={handleQuitConfirmationToggle}
+                variant="mono"
+              />
+            </div>
+          </div>
+
+          {/* Cost Tracking */}
+          {COST_TRACKING_ENABLED && (
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-textStandard">Cost Tracking</h3>
+                <p className="text-xs text-textSubtle max-w-md mt-[2px]">
+                  Show model pricing and usage costs
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={showPricing}
+                  onCheckedChange={handleShowPricingToggle}
+                  variant="mono"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Pricing Status - only show if cost tracking is enabled */}
+          {COST_TRACKING_ENABLED && showPricing && (
+            <>
+              <div className="flex items-center justify-between text-xs mb-2 px-4">
+                <span className="text-textSubtle">Pricing Source:</span>
+                <a
+                  href="https://openrouter.ai/docs#models"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                >
+                  OpenRouter Docs
+                  <ExternalLink size={10} />
+                </a>
+              </div>
+
+              <div className="flex items-center justify-between text-xs mb-2 px-4">
+                <span className="text-textSubtle">Status:</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-medium ${
+                      pricingStatus === 'success'
+                        ? 'text-green-600 dark:text-green-400'
+                        : pricingStatus === 'error'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-textSubtle'
+                    }`}
+                  >
+                    {pricingStatus === 'success'
+                      ? '✓ Connected'
+                      : pricingStatus === 'error'
+                        ? '✗ Failed'
+                        : '... Checking'}
+                  </span>
+                  <button
+                    className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                    onClick={handleRefreshPricing}
+                    disabled={isRefreshing}
+                    title="Refresh pricing data"
+                    type="button"
+                  >
+                    <RefreshCw
+                      size={8}
+                      className={`text-textSubtle hover:text-textStandard ${isRefreshing ? 'animate-spin-fast' : ''}`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {lastFetchTime && (
+                <div className="flex items-center justify-between text-xs mb-2 px-4">
+                  <span className="text-textSubtle">Last updated:</span>
+                  <span className="text-textSubtle">{lastFetchTime.toLocaleTimeString()}</span>
+                </div>
+              )}
+
+              {pricingStatus === 'error' && (
+                <p className="text-xs text-red-600 dark:text-red-400 px-4">
+                  Unable to fetch pricing data. Costs will not be displayed.
+                </p>
+              )}
+            </>
           )}
         </div>
 

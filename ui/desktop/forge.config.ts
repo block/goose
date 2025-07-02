@@ -10,7 +10,7 @@ let cfg = {
   win32: {
     icon: 'src/images/icon.ico',
     certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
-    certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
+    signingRole: process.env.WINDOW_SIGNING_ROLE,
     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
     signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256'
   },
@@ -21,6 +21,18 @@ let cfg = {
       schemes: ["goose"]
     }
   ],
+  // macOS Info.plist extensions for drag-and-drop support
+  extendInfo: {
+    // Document types for drag-and-drop support onto dock icon
+    CFBundleDocumentTypes: [
+      {
+        CFBundleTypeName: "Folders",
+        CFBundleTypeRole: "Viewer", 
+        LSHandlerRank: "Alternate",
+        LSItemContentTypes: ["public.directory", "public.folder"]
+      }
+    ]
+  },
   // macOS specific configuration
   osxSign: {
     entitlements: 'entitlements.plist',

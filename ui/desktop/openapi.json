@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.28"
+    "version": "1.0.31"
   },
   "paths": {
     "/agent/tools": {
@@ -306,6 +306,29 @@
         }
       }
     },
+    "/config/recover": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "recover_config",
+        "responses": {
+          "200": {
+            "description": "Config recovery attempted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/remove": {
       "post": {
         "tags": [
@@ -371,6 +394,29 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/validate": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "validate_config",
+        "responses": {
+          "200": {
+            "description": "Config validation result",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Config file is corrupted"
           }
         }
       }
@@ -479,6 +525,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid cron expression or recipe file"
+          },
+          "409": {
+            "description": "Job ID already exists"
           },
           "500": {
             "description": "Internal server error"
@@ -1085,6 +1137,10 @@
           "cron": {
             "type": "string"
           },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
+          },
           "id": {
             "type": "string"
           },
@@ -1256,6 +1312,54 @@
                 "enum": [
                   "builtin"
                 ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification",
+            "required": [
+              "name",
+              "uri",
+              "type"
+            ],
+            "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "env_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "envs": {
+                "$ref": "#/components/schemas/Envs"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "streamable_http"
+                ]
+              },
+              "uri": {
+                "type": "string"
               }
             }
           },
@@ -1690,9 +1794,26 @@
             "description": "The maximum context length this model supports",
             "minimum": 0
           },
+          "currency": {
+            "type": "string",
+            "description": "Currency for the costs (default: \"$\")",
+            "nullable": true
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for input (optional)",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "description": "The name of the model"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Cost per token for output (optional)",
+            "nullable": true
           }
         }
       },
@@ -1900,6 +2021,10 @@
           },
           "currently_running": {
             "type": "boolean"
+          },
+          "execution_mode": {
+            "type": "string",
+            "nullable": true
           },
           "id": {
             "type": "string"

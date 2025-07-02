@@ -36,9 +36,9 @@ As teams adopt AI tools like Goose, the ability to define and share these automa
 
 ## AI Plays: Standardizing Your Team's Workflows
 
-Goose can help standardize and automate these tasks, by [creating recipes](/docs/guides/session-recipes). As a developer on your team uses Goose, they can create a recipe that describes how to perform a task, and then share that with the rest of the team. These recipes can be shared and reused, and improved over time, just like a sports team’s playbook.
+Goose can help standardize and automate these tasks, by [creating recipes](/docs/guides/recipes/session-recipes). As a developer on your team uses Goose, they can create a recipe that describes how to perform a task, and then share that with the rest of the team. These recipes can be shared and reused, and improved over time, just like a sports team’s playbook.
 
-Recipes are built with an understanding of the workflow you want Goose to help with, and these may involve one or more MCP servers, such as [GitHub](/docs/tutorials/github-mcp/) or [PostgreSQL](/docs/tutorials/postgres-mcp/). The recipes are designed to be reusable and adaptable, allowing developers to create a library that can be used across different projects.
+Recipes are built with an understanding of the workflow you want Goose to help with, and these may involve one or more MCP servers, such as [GitHub](/docs/mcp/github-mcp/) or [PostgreSQL](/docs/mcp/postgres-mcp/). The recipes are designed to be reusable and adaptable, allowing developers to create a library that can be used across different projects.
 
 A shared playbook of AI plays helps everyone on the team perform tasks consistently. It can also reduce the time spent on repetitive work.
 
@@ -50,7 +50,7 @@ A Goose Recipe can be saved from a current Goose session, or written as a YAML f
 
 ### Creating a Recipe
 
-If you [create a recipe from a current Goose session](/docs/guides/session-recipes/#create-recipe), it will prompt you for a name and description and will generate some activities that you can edit, along with instructions that you should review and edit. You will be given a URL that you can share with your team.
+If you [create a recipe from a current Goose session](/docs/guides/recipes/session-recipes/#create-recipe), it will prompt you for a name and description and will generate some activities that you can edit, along with instructions that you should review and edit. You will be given a URL that you can share with your team.
 
 To create a recipe from scratch, you can use the Goose CLI to create a new recipe file by using a `/recipe` command in the session. This will create a `recipe.yaml` file in your current directory. To make a custom file you can use `/recipe custom-filename.yaml`. From there, you will add your own instructions and activities.
 

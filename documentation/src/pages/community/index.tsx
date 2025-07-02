@@ -45,7 +45,6 @@ function CommunityAllStarsSection() {
   
   const currentData = communityDataMap[activeMonth];
 
-  // Handle scroll to show/hide indicator
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold

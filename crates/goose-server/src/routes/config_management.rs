@@ -13,6 +13,9 @@ use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
+use goose::providers::pricing::{
+    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
+};
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
@@ -314,6 +317,127 @@ pub async fn providers(
     Ok(Json(providers_response))
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct PricingData {
+    pub provider: String,
+    pub model: String,
+    pub input_token_cost: f64,
+    pub output_token_cost: f64,
+    pub currency: String,
+    pub context_length: Option<u32>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct PricingResponse {
+    pub pricing: Vec<PricingData>,
+    pub source: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct PricingQuery {
+    /// If true, only return pricing for configured providers. If false, return all.
+    pub configured_only: Option<bool>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/pricing",
+    request_body = PricingQuery,
+    responses(
+        (status = 200, description = "Model pricing data retrieved successfully", body = PricingResponse)
+    )
+)]
+pub async fn get_pricing(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(query): Json<PricingQuery>,
+) -> Result<Json<PricingResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let configured_only = query.configured_only.unwrap_or(true);
+
+    // If refresh requested (configured_only = false), refresh the cache
+    if !configured_only {
+        if let Err(e) = refresh_pricing().await {
+            tracing::error!("Failed to refresh pricing data: {}", e);
+        }
+    }
+
+    let mut pricing_data = Vec::new();
+
+    if !configured_only {
+        // Get ALL pricing data from the cache
+        let all_pricing = get_all_pricing().await;
+
+        for (provider, models) in all_pricing {
+            for (model, pricing) in models {
+                pricing_data.push(PricingData {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    input_token_cost: pricing.input_cost,
+                    output_token_cost: pricing.output_cost,
+                    currency: "$".to_string(),
+                    context_length: pricing.context_length,
+                });
+            }
+        }
+    } else {
+        // Get only configured providers' pricing
+        let providers_metadata = get_providers();
+
+        for metadata in providers_metadata {
+            // Skip unconfigured providers if filtering
+            if !check_provider_configured(&metadata) {
+                continue;
+            }
+
+            for model_info in &metadata.known_models {
+                // Handle OpenRouter models specially - they store full provider/model names
+                let (lookup_provider, lookup_model) = if metadata.name == "openrouter" {
+                    // For OpenRouter, parse the model name to extract real provider/model
+                    if let Some((provider, model)) = parse_model_id(&model_info.name) {
+                        (provider, model)
+                    } else {
+                        // Fallback if parsing fails
+                        (metadata.name.clone(), model_info.name.clone())
+                    }
+                } else {
+                    // For other providers, use names as-is
+                    (metadata.name.clone(), model_info.name.clone())
+                };
+
+                // Only get pricing from OpenRouter cache
+                if let Some(pricing) = get_model_pricing(&lookup_provider, &lookup_model).await {
+                    pricing_data.push(PricingData {
+                        provider: metadata.name.clone(),
+                        model: model_info.name.clone(),
+                        input_token_cost: pricing.input_cost,
+                        output_token_cost: pricing.output_cost,
+                        currency: "$".to_string(),
+                        context_length: pricing.context_length,
+                    });
+                }
+                // No fallback to hardcoded prices
+            }
+        }
+    }
+
+    tracing::debug!(
+        "Returning pricing for {} models{}",
+        pricing_data.len(),
+        if configured_only {
+            " (configured providers only)"
+        } else {
+            " (all cached models)"
+        }
+    );
+
+    Ok(Json(PricingResponse {
+        pricing: pricing_data,
+        source: "openrouter".to_string(),
+    }))
+}
+
 #[utoipa::path(
     post,
     path = "/config/init",
@@ -334,44 +458,15 @@ pub async fn init_config(
         return Ok(Json("Config already exists".to_string()));
     }
 
-    let workspace_root = match std::env::current_exe() {
-        Ok(mut exe_path) => {
-            while let Some(parent) = exe_path.parent() {
-                let cargo_toml = parent.join("Cargo.toml");
-                if cargo_toml.exists() {
-                    if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                        if content.contains("[workspace]") {
-                            exe_path = parent.to_path_buf();
-                            break;
-                        }
-                    }
-                }
-                exe_path = parent.to_path_buf();
-            }
-            exe_path
-        }
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    let init_config_path = workspace_root.join("init-config.yaml");
-    if !init_config_path.exists() {
-        return Ok(Json(
+    // Use the shared function to load init-config.yaml
+    match goose::config::base::load_init_config_from_workspace() {
+        Ok(init_values) => match config.save_values(init_values) {
+            Ok(_) => Ok(Json("Config initialized successfully".to_string())),
+            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        },
+        Err(_) => Ok(Json(
             "No init-config.yaml found, using default configuration".to_string(),
-        ));
-    }
-
-    let init_content = match std::fs::read_to_string(&init_config_path) {
-        Ok(content) => content,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-    let init_values: HashMap<String, Value> = match serde_yaml::from_str(&init_content) {
-        Ok(values) => values,
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
-    match config.save_values(init_values) {
-        Ok(_) => Ok(Json("Config initialized successfully".to_string())),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        )),
     }
 }
 
@@ -432,13 +527,109 @@ pub async fn backup_config(
         backup_name.push(".bak");
 
         let backup = config_path.with_file_name(backup_name);
-        match std::fs::rename(&config_path, &backup) {
-            Ok(_) => Ok(Json(format!("Moved {:?} to {:?}", config_path, backup))),
+        match std::fs::copy(&config_path, &backup) {
+            Ok(_) => Ok(Json(format!("Copied {:?} to {:?}", config_path, backup))),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/recover",
+    responses(
+        (status = 200, description = "Config recovery attempted", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn recover_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+
+    // Force a reload which will trigger recovery if needed
+    match config.load_values() {
+        Ok(values) => {
+            let recovered_keys: Vec<String> = values.keys().cloned().collect();
+            if recovered_keys.is_empty() {
+                Ok(Json("Config recovery completed, but no data was recoverable. Starting with empty configuration.".to_string()))
+            } else {
+                Ok(Json(format!(
+                    "Config recovery completed. Recovered {} keys: {}",
+                    recovered_keys.len(),
+                    recovered_keys.join(", ")
+                )))
+            }
+        }
+        Err(e) => {
+            tracing::error!("Config recovery failed: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/validate",
+    responses(
+        (status = 200, description = "Config validation result", body = String),
+        (status = 422, description = "Config file is corrupted")
+    )
+)]
+pub async fn validate_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    let config_path = config_dir.join("config.yaml");
+
+    if !config_path.exists() {
+        return Ok(Json("Config file does not exist".to_string()));
+    }
+
+    match std::fs::read_to_string(&config_path) {
+        Ok(content) => match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+            Ok(_) => Ok(Json("Config file is valid".to_string())),
+            Err(e) => {
+                tracing::warn!("Config validation failed: {}", e);
+                Err(StatusCode::UNPROCESSABLE_ENTITY)
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to read config file: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/current-model",
+    responses(
+        (status = 200, description = "Current model retrieved successfully", body = String),
+    )
+)]
+pub async fn get_current_model(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let current_model = goose::providers::base::get_current_model();
+
+    Ok(Json(serde_json::json!({
+        "model": current_model
+    })))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -451,9 +642,13 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
+        .route("/config/recover", post(recover_config))
+        .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
+        .route("/config/current-model", get(get_current_model))
         .with_state(state)
 }
 

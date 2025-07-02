@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -126,12 +126,20 @@ impl OpenAiProvider {
 #[async_trait]
 impl Provider for OpenAiProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::with_models(
             "openai",
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
-            OPEN_AI_KNOWN_MODELS.to_vec(),
+            vec![
+                ModelInfo::new("gpt-4o", 128000),
+                ModelInfo::new("gpt-4o-mini", 128000),
+                ModelInfo::new("gpt-4-turbo", 128000),
+                ModelInfo::new("gpt-3.5-turbo", 16385),
+                ModelInfo::new("o1", 200000),
+                ModelInfo::new("o3", 200000),
+                ModelInfo::new("o4-mini", 128000),
+            ],
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),

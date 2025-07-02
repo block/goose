@@ -1,4 +1,4 @@
-# This workflow is triggered by a comment on an issue or PR with the text ".build-cli"
+# This workflow is triggered by a comment on PR with the text ".build-cli"
 on:
   issue_comment:
     types: [created]
@@ -22,14 +22,17 @@ concurrency:
 
 jobs:
   trigger-on-command:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '.build-cli'))
     name: Trigger on ".build-cli" PR comment
     runs-on: ubuntu-latest
     outputs:
-      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
+      continue: 'true'
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
       head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
-      - if: ${{ github.event_name == 'issue_comment' }}
+      - name: Run command action
         uses: github/command@v1.3.0
         id: command
         with:
@@ -86,6 +89,7 @@ jobs:
             - [📦 Linux (aarch64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-unknown-linux-gnu.zip)
             - [📦 macOS (x86_64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
             - [📦 macOS (aarch64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
+            - [📦 Windows (x86_64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-pc-windows-gnu.zip)
 
             These links are provided by nightly.link and will work even if you're not logged into GitHub.
   

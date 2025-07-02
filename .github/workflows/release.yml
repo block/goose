@@ -7,6 +7,13 @@ on:
       - "v1.*"
 
 name: Release
+
+# Permissions needed for AWS OIDC authentication in called workflows
+permissions:
+  id-token: write   # Required for AWS OIDC authentication in called workflow
+  contents: write   # Required for creating releases and by actions/checkout
+  actions: read     # May be needed for some workflows
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -69,15 +76,14 @@ jobs:
 #  # ------------------------------------------------------------
 #  # 6) Bundle Desktop App (Windows)
 #  # ------------------------------------------------------------
-#  bundle-desktop-windows:
-#    uses: ./.github/workflows/bundle-desktop-windows.yml
-#    # Signing is disabled by default until we have a certificate
-#    with:
-#      signing: false
-#    # Uncomment and configure these when we have a certificate:
-#    # secrets:
-#    #   WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-#    #   WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+  bundle-desktop-windows:
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    with:
+      signing: true
+    secrets:
+      WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
+      WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
+      WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
 
   # ------------------------------------
   # 7) Create/Update GitHub Release
@@ -85,7 +91,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux]
+    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux, bundle-desktop-windows]
     permissions:
       contents: write
     steps:
@@ -101,6 +107,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
+            goose-*.zip
             Goose*.zip
             *.deb
             *.rpm
@@ -118,6 +125,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
+            goose-*.zip
             Goose*.zip
             *.deb
             *.rpm

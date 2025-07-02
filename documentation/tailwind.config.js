@@ -1,7 +1,7 @@
 // tailwind.config.js
 module.exports = {
   content: ["./src/**/*.{js,jsx,ts,tsx}"],
-  darkMode: "class",
+  darkMode: ["class", '[data-theme="dark"]'],
   corePlugins: {
     preflight: false,
   },

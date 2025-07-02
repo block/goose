@@ -10,7 +10,7 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::info::{get_session_info, SessionInfo, SortOrder};
+use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -53,8 +53,8 @@ async fn list_sessions(
 ) -> Result<Json<SessionListResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let sessions =
-        get_session_info(SortOrder::Descending).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions = get_valid_sorted_sessions(SortOrder::Descending)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
@@ -84,9 +84,11 @@ async fn get_session_history(
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
 
-    // Read metadata
     let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
 
     let messages = match session::read_messages(&session_path) {

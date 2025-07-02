@@ -1,6 +1,10 @@
+use anyhow::Result;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 
 fn default_version() -> String {
@@ -25,6 +29,7 @@ fn default_version() -> String {
 /// * `activities` - Activity labels that appear when loading the Recipe
 /// * `author` - Information about the Recipe's creator and metadata
 /// * `parameters` - Additional parameters for the Recipe
+/// * `response` - Response configuration including JSON schema validation
 ///
 /// # Example
 ///
@@ -52,9 +57,11 @@ fn default_version() -> String {
 ///     author: None,
 ///     settings: None,
 ///     parameters: None,
+///     response: None,
+///     sub_recipes: None,
 /// };
 ///
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Recipe {
     // Required fields
     #[serde(default = "default_version")]
@@ -89,9 +96,15 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<Response>, // response configuration including JSON schema
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Author {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<String>, // creator/contact information of the recipe
@@ -100,7 +113,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,
@@ -112,7 +125,46 @@ pub struct Settings {
     pub temperature: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Response {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SubRecipe {
+    pub name: String,
+    pub path: String,
+    #[serde(default, deserialize_with = "deserialize_value_map_as_string")]
+    pub values: Option<HashMap<String, String>>,
+}
+
+fn deserialize_value_map_as_string<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<String, String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // First, try to deserialize a map of values
+    let opt_raw: Option<HashMap<String, Value>> = Option::deserialize(deserializer)?;
+
+    match opt_raw {
+        Some(raw_map) => {
+            let mut result = HashMap::new();
+            for (k, v) in raw_map {
+                let s = match v {
+                    Value::String(s) => s,
+                    _ => serde_json::to_string(&v).map_err(serde::de::Error::custom)?,
+                };
+                result.insert(k, s);
+            }
+            Ok(Some(result))
+        }
+        None => Ok(None),
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -130,7 +182,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -150,7 +202,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,
@@ -176,6 +228,8 @@ pub struct RecipeBuilder {
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
+    response: Option<Response>,
+    sub_recipes: Option<Vec<SubRecipe>>,
 }
 
 impl Recipe {
@@ -206,6 +260,19 @@ impl Recipe {
             activities: None,
             author: None,
             parameters: None,
+            response: None,
+            sub_recipes: None,
+        }
+    }
+    pub fn from_content(content: &str) -> Result<Self> {
+        if serde_json::from_str::<serde_json::Value>(content).is_ok() {
+            Ok(serde_json::from_str(content)?)
+        } else if serde_yaml::from_str::<serde_yaml::Value>(content).is_ok() {
+            Ok(serde_yaml::from_str(content)?)
+        } else {
+            Err(anyhow::anyhow!(
+                "Unsupported format. Expected JSON or YAML."
+            ))
         }
     }
 }
@@ -275,6 +342,16 @@ impl RecipeBuilder {
         self
     }
 
+    pub fn response(mut self, response: Response) -> Self {
+        self.response = Some(response);
+        self
+    }
+
+    pub fn sub_recipes(mut self, sub_recipes: Vec<SubRecipe>) -> Self {
+        self.sub_recipes = Some(sub_recipes);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -298,6 +375,250 @@ impl RecipeBuilder {
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
+            response: self.response,
+            sub_recipes: self.sub_recipes,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_content_with_json() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "prompt": "Test prompt",
+            "instructions": "Test instructions",
+            "extensions": [
+                {
+                    "type": "stdio",
+                    "name": "test_extension",
+                    "cmd": "test_cmd",
+                    "args": ["arg1", "arg2"],
+                    "timeout": 300,
+                    "description": "Test extension"
+                }
+            ],
+            "parameters": [
+                {
+                    "key": "test_param",
+                    "input_type": "string",
+                    "requirement": "required",
+                    "description": "A test parameter"
+                }
+            ],
+            "response": {
+                "json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "age": {
+                            "type": "number"
+                        }
+                    },
+                    "required": ["name"]
+                }
+            },
+            "sub_recipes": [
+                {
+                    "name": "test_sub_recipe",
+                    "path": "test_sub_recipe.yaml",
+                    "values": {
+                        "sub_recipe_param": "sub_recipe_value"
+                    }
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.version, "1.0.0");
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        assert!(recipe.parameters.is_some());
+        let parameters = recipe.parameters.unwrap();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(parameters[0].key, "test_param");
+        assert!(matches!(
+            parameters[0].input_type,
+            RecipeParameterInputType::String
+        ));
+        assert!(matches!(
+            parameters[0].requirement,
+            RecipeParameterRequirement::Required
+        ));
+
+        assert!(recipe.response.is_some());
+        let response = recipe.response.unwrap();
+        assert!(response.json_schema.is_some());
+        let json_schema = response.json_schema.unwrap();
+        assert_eq!(json_schema["type"], "object");
+        assert!(json_schema["properties"].is_object());
+        assert_eq!(json_schema["properties"]["name"]["type"], "string");
+        assert_eq!(json_schema["properties"]["age"]["type"], "number");
+        assert_eq!(json_schema["required"], serde_json::json!(["name"]));
+
+        assert!(recipe.sub_recipes.is_some());
+        let sub_recipes = recipe.sub_recipes.unwrap();
+        assert_eq!(sub_recipes.len(), 1);
+        assert_eq!(sub_recipes[0].name, "test_sub_recipe");
+        assert_eq!(sub_recipes[0].path, "test_sub_recipe.yaml");
+        assert_eq!(
+            sub_recipes[0].values,
+            Some(HashMap::from([(
+                "sub_recipe_param".to_string(),
+                "sub_recipe_value".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn test_from_content_with_yaml() {
+        let content = r#"version: 1.0.0
+title: Test Recipe
+description: A test recipe
+prompt: Test prompt
+instructions: Test instructions
+extensions:
+  - type: stdio
+    name: test_extension
+    cmd: test_cmd
+    args: [arg1, arg2]
+    timeout: 300
+    description: Test extension
+parameters:
+  - key: test_param
+    input_type: string
+    requirement: required
+    description: A test parameter
+response:
+  json_schema:
+    type: object
+    properties:
+      name:
+        type: string
+      age:
+        type: number
+    required:
+      - name
+sub_recipes:
+  - name: test_sub_recipe
+    path: test_sub_recipe.yaml
+    values:
+      sub_recipe_param: sub_recipe_value"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.version, "1.0.0");
+        assert_eq!(recipe.title, "Test Recipe");
+        assert_eq!(recipe.description, "A test recipe");
+        assert_eq!(recipe.instructions, Some("Test instructions".to_string()));
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        assert!(recipe.parameters.is_some());
+        let parameters = recipe.parameters.unwrap();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(parameters[0].key, "test_param");
+        assert!(matches!(
+            parameters[0].input_type,
+            RecipeParameterInputType::String
+        ));
+        assert!(matches!(
+            parameters[0].requirement,
+            RecipeParameterRequirement::Required
+        ));
+
+        assert!(recipe.response.is_some());
+        let response = recipe.response.unwrap();
+        assert!(response.json_schema.is_some());
+        let json_schema = response.json_schema.unwrap();
+        assert_eq!(json_schema["type"], "object");
+        assert!(json_schema["properties"].is_object());
+        assert_eq!(json_schema["properties"]["name"]["type"], "string");
+        assert_eq!(json_schema["properties"]["age"]["type"], "number");
+        assert_eq!(json_schema["required"], serde_json::json!(["name"]));
+
+        assert!(recipe.sub_recipes.is_some());
+        let sub_recipes = recipe.sub_recipes.unwrap();
+        assert_eq!(sub_recipes.len(), 1);
+        assert_eq!(sub_recipes[0].name, "test_sub_recipe");
+        assert_eq!(sub_recipes[0].path, "test_sub_recipe.yaml");
+        assert_eq!(
+            sub_recipes[0].values,
+            Some(HashMap::from([(
+                "sub_recipe_param".to_string(),
+                "sub_recipe_value".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn test_from_content_invalid_json() {
+        let content = "{ invalid json }";
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_content_missing_required_fields() {
+        let content = r#"{
+            "version": "1.0.0",
+            "description": "A test recipe"
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_content_with_author() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "author": {
+                "contact": "test@example.com"
+            }
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.author.is_some());
+        let author = recipe.author.unwrap();
+        assert_eq!(author.contact, Some("test@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_from_content_with_activities() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "activities": ["activity1", "activity2"]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.activities.is_some());
+        let activities = recipe.activities.unwrap();
+        assert_eq!(activities, vec!["activity1", "activity2"]);
     }
 }

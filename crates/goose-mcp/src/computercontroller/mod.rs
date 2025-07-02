@@ -24,7 +24,6 @@ use mcp_server::Router;
 
 mod docx_tool;
 mod pdf_tool;
-mod presentation_tool;
 mod xlsx_tool;
 
 mod platform;
@@ -363,47 +362,6 @@ impl ComputerControllerRouter {
             None,
         );
 
-        let make_presentation_tool = Tool::new(
-            "make_presentation",
-            indoc! {r#"
-                Create and manage HTML presentations with a simple, modern design.
-                Operations:
-                - create: Create new presentation with template
-                - add_slide: Add a new slide with content
-
-                Open in a browser (using a command) to show the user: open <path> 
-
-                For advanced edits, use developer tools to modify the HTML directly.
-                A template slide is included in comments for reference.
-            "#},
-            json!({
-                "type": "object",
-                "required": ["path", "operation"],
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the presentation file"
-                    },
-                    "operation": {
-                        "type": "string",
-                        "enum": ["create", "add_slide"],
-                        "description": "Operation to perform"
-                    },
-                    "params": {
-                        "type": "object",
-                        "description": "Parameters for add_slide operation",
-                        "properties": {
-                            "content": {
-                                "type": "string",
-                                "description": "Content for the new slide"
-                            }
-                        }
-                    }
-                }
-            }),
-            None,
-        );
-
         let xlsx_tool = Tool::new(
             "xlsx_tool",
             indoc! {r#"
@@ -593,7 +551,6 @@ impl ComputerControllerRouter {
                 pdf_tool,
                 docx_tool,
                 xlsx_tool,
-                make_presentation_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -779,10 +736,7 @@ impl ComputerControllerRouter {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
 
-                format!(
-                    "powershell -NoProfile -NonInteractive -File {}",
-                    script_path.display()
-                )
+                script_path.display().to_string()
             }
             _ => {
                 return Err( ToolError::InvalidParameters(
@@ -792,12 +746,27 @@ impl ComputerControllerRouter {
         };
 
         // Run the script
-        let output = Command::new(shell)
-            .arg(shell_arg)
-            .arg(&command)
-            .output()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to run script: {}", e)))?;
+        let output = match language {
+            "powershell" => {
+                // For PowerShell, we need to use -File instead of -Command
+                Command::new("powershell")
+                    .arg("-NoProfile")
+                    .arg("-NonInteractive")
+                    .arg("-File")
+                    .arg(&command)
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        ToolError::ExecutionError(format!("Failed to run script: {}", e))
+                    })?
+            }
+            _ => Command::new(shell)
+                .arg(shell_arg)
+                .arg(&command)
+                .output()
+                .await
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to run script: {}", e)))?,
+        };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
         let error_str = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -1168,24 +1137,6 @@ impl Router for ComputerControllerRouter {
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
-                "make_presentation" => {
-                    let path = arguments
-                        .get("path")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ToolError::InvalidParameters("Missing 'path' parameter".into())
-                        })?;
-
-                    let operation = arguments
-                        .get("operation")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ToolError::InvalidParameters("Missing 'operation' parameter".into())
-                        })?;
-
-                    presentation_tool::make_presentation(path, operation, arguments.get("params"))
-                        .await
-                }
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })

@@ -27,7 +27,7 @@ LLMs have context windows, which are limits on how much conversation history the
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
 ### Teach Goose your preferences
-Help Goose remember how you like to work by using [`.goosehints`](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/tutorials/memory-mcp) for things you want Goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
+Help Goose remember how you like to work by using [`.goosehints`](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want Goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
 
 ### Protect sensitive files
 Goose is often eager to make changes. You can stop it from changing specific files by creating a [.gooseignore](/docs/guides/using-gooseignore) file. In this file, you can list all the file paths you want it to avoid.
@@ -39,7 +39,7 @@ Commit your code changes early and often. This allows you to rollback any unexpe
 Administrators can use an [allowlist](/docs/guides/allowlist) to restrict Goose to approved extensions only. This helps prevent risky installs from unknown MCP servers.
 
 ### Set up starter templates
-You can turn a successful session into a reusable "[recipe](/docs/guides/session-recipes)" to share with others or use again later—no need to start from scratch.
+You can turn a successful session into a reusable "[recipe](/docs/guides/recipes/session-recipes)" to share with others or use again later—no need to start from scratch.
 
 ### Embrace an experimental mindset
 You don’t need to get it right the first time. Iterating on prompts and tools is part of the workflow.

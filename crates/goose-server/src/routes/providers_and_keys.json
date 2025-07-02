@@ -29,7 +29,7 @@
         "models": ["gemini-1.5-flash"],
         "required_keys": ["GOOGLE_API_KEY"]
     },
-    "grok": {
+    "groq": {
         "name": "Groq",
         "description": "Lorem ipsum",
         "models": ["llama-3.3-70b-versatile"],
@@ -58,5 +58,11 @@
         "description": "Connect to LLMs via AWS Bedrock",
         "models": ["us.anthropic.claude-3-7-sonnet-20250219-v1:0"],
         "required_keys": ["AWS_PROFILE"]
-    }
+    },
+    "xai": {
+        "name": "Xai",
+        "description": "Lorem ipsum",
+        "models": ["grok-3"],
+        "required_keys": ["XAI_API_KEY"]
+    },
 }

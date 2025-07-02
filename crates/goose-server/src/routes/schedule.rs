@@ -19,6 +19,8 @@ pub struct CreateScheduleRequest {
     id: String,
     recipe_source: String,
     cron: String,
+    #[serde(default)]
+    execution_mode: Option<String>, // "foreground" or "background"
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
@@ -93,6 +95,8 @@ fn parse_session_name_to_iso(session_name: &str) -> String {
     request_body = CreateScheduleRequest,
     responses(
         (status = 200, description = "Scheduled job created successfully", body = ScheduledJob),
+        (status = 400, description = "Invalid cron expression or recipe file"),
+        (status = 409, description = "Job ID already exists"),
         (status = 500, description = "Internal server error")
     ),
     tag = "schedule"
@@ -122,13 +126,20 @@ async fn create_schedule(
         paused: false,
         current_session_id: None,
         process_start_time: None,
+        execution_mode: req.execution_mode.or(Some("background".to_string())), // Default to background
     };
     scheduler
         .add_scheduled_job(job.clone())
         .await
         .map_err(|e| {
             eprintln!("Error creating schedule: {:?}", e); // Log error
-            StatusCode::INTERNAL_SERVER_ERROR
+            match e {
+                goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
+                goose::scheduler::SchedulerError::CronParseError(_) => StatusCode::BAD_REQUEST,
+                goose::scheduler::SchedulerError::RecipeLoadError(_) => StatusCode::BAD_REQUEST,
+                goose::scheduler::SchedulerError::JobIdExists(_) => StatusCode::CONFLICT,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            }
         })?;
     Ok(Json(job))
 }

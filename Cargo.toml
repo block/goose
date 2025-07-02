@@ -4,11 +4,14 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.0.28"
+version = "1.0.31"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
 description = "An AI agent"
+
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]

@@ -18,6 +18,14 @@ export type ExtensionConfig =
       timeout?: number;
     }
   | {
+      type: 'streamable_http';
+      name: string;
+      uri: string;
+      env_keys?: string[];
+      headers?: Record<string, string>;
+      timeout?: number;
+    }
+  | {
       type: 'stdio';
       name: string;
       cmd: string;
@@ -70,6 +78,10 @@ export async function addExtension(
         args: extension.args || [],
       }),
       ...(extension.type === 'sse' && {
+        name: sanitizeName(extension.name),
+        uri: extension.uri,
+      }),
+      ...(extension.type === 'streamable_http' && {
         name: sanitizeName(extension.name),
         uri: extension.uri,
       }),

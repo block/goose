@@ -32,7 +32,7 @@ Goose’s permissions determine how much autonomy it has when modifying files, u
        |
 
 :::warning
-`Autonoumous Mode` is applied by default.
+`Autonomous Mode` is applied by default.
 :::
 
 ## Configuring Goose Mode
@@ -61,7 +61,7 @@ Here's how to configure:
       <TabItem value="session" label="In Session" default>
         To change modes mid-session, use the `/mode` command.
 
-        * Autonoumous: `/mode auto`
+        * Autonomous: `/mode auto`
         * Approve: `/mode approve`
         * Chat: `/mode chat`     
       </TabItem>
