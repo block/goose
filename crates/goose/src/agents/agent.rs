@@ -738,7 +738,7 @@ impl Agent {
                     &toolshim_tools,
                 ).await?;
 
-                let mut called_tools = false;
+                let mut added_message = false;
                 while let Some(next) = stream.next().await {
                     match next {
                         Ok((response, usage)) => {
@@ -805,20 +805,8 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
-                                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                                        if final_output_tool.final_output.is_none() {
-                                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                            yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
-                                            continue;
-                                        } else {
-                                            yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
-                                        }
-                                    } else {
-                                        continue;
-                                    }
+                                    continue;
                                 }
-
-                                called_tools = true;
 
                                 // Process tool requests depending on frontend tools and then goose_mode
                                 let message_tool_response = Arc::new(Mutex::new(Message::user()));
@@ -950,6 +938,7 @@ impl Agent {
                                 let final_message_tool_resp = message_tool_response.lock().await.clone();
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
+                                added_message = true;
                                 messages.push(response);
                                 messages.push(final_message_tool_resp);
 
@@ -996,7 +985,16 @@ impl Agent {
                         }
                     }
                 }
-                if !called_tools {
+                if !added_message {
+                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                        if final_output_tool.final_output.is_none() {
+                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
+                            continue;
+                        } else {
+                            yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                        }
+                    }
                     break;
                 }
 
