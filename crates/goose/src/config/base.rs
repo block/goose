@@ -757,14 +757,6 @@ mod tests {
     use serial_test::serial;
     use tempfile::NamedTempFile;
 
-    fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry = Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
-        match entry.delete_credential() {
-            Ok(_) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
-        }
-    }
 
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
@@ -878,9 +870,9 @@ mod tests {
     #[test]
     #[serial]
     fn test_secret_management() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(temp_file.path(), secrets_file.path())?;
 
         // Test setting and getting a simple secret
         config.set_secret("api_key", Value::String("secret123".to_string()))?;
@@ -898,16 +890,15 @@ mod tests {
         let result: Result<String, ConfigError> = config.get_secret("api_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
-        cleanup_keyring()?;
         Ok(())
     }
 
     #[test]
     #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(temp_file.path(), secrets_file.path())?;
 
         // Set multiple secrets
         config.set_secret("key1", Value::String("secret1".to_string()))?;
@@ -928,7 +919,6 @@ mod tests {
         assert!(matches!(result1, Err(ConfigError::NotFound(_))));
         assert_eq!(value2, "secret2");
 
-        cleanup_keyring()?;
         Ok(())
     }
 
