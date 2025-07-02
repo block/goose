@@ -1,15 +1,21 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use goose::recipe::SubRecipe;
+use goose::recipe::{Response, SubRecipe};
 
 use crate::{cli::InputConfig, recipes::recipe::load_recipe_as_template, session::SessionSettings};
 
+#[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
-) -> Result<(InputConfig, Option<SessionSettings>, Option<Vec<SubRecipe>>)> {
+) -> Result<(
+    InputConfig,
+    Option<SessionSettings>,
+    Option<Vec<SubRecipe>>,
+    Option<Response>,
+)> {
     let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
@@ -43,6 +49,7 @@ pub fn extract_recipe_info_from_cli(
             temperature: s.temperature,
         }),
         Some(all_sub_recipes),
+        recipe.response,
     ))
 }
 
@@ -69,7 +76,7 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, settings, sub_recipes) =
+        let (input_config, settings, sub_recipes, response) =
             extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
@@ -91,6 +98,17 @@ mod tests {
         assert_eq!(sub_recipes[0].path, "existing_sub_recipe.yaml".to_string());
         assert_eq!(sub_recipes[0].name, "existing_sub_recipe".to_string());
         assert!(sub_recipes[0].values.is_none());
+        assert!(response.is_some());
+        let response = response.unwrap();
+        assert_eq!(
+            response.json_schema,
+            Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            }))
+        );
     }
 
     #[test]
@@ -103,7 +121,7 @@ mod tests {
             "another/sub_recipe2.yaml".to_string(),
         ];
 
-        let (input_config, settings, sub_recipes) =
+        let (input_config, settings, sub_recipes, response) =
             extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
@@ -131,6 +149,17 @@ mod tests {
         assert_eq!(sub_recipes[2].path, "another/sub_recipe2.yaml".to_string());
         assert_eq!(sub_recipes[2].name, "sub_recipe2".to_string());
         assert!(sub_recipes[2].values.is_none());
+        assert!(response.is_some());
+        let response = response.unwrap();
+        assert_eq!(
+            response.json_schema,
+            Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            }))
+        );
     }
 
     fn create_recipe() -> (TempDir, PathBuf) {
@@ -151,6 +180,12 @@ settings:
 sub_recipes:
 - path: existing_sub_recipe.yaml
   name: existing_sub_recipe        
+response:
+  json_schema:
+    type: object
+    properties:
+      result:
+        type: string
 "#;
         let temp_dir = tempfile::tempdir().unwrap();
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
