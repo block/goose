@@ -5376,14 +5376,20 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
  "eventsource-client",
  "futures",
  "mcp-core",
+ "nanoid",
  "nix 0.30.1",
  "rand 0.8.5",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "serde_urlencoded",
+ "sha2",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
@@ -5392,6 +5398,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "webbrowser 1.0.4",
 ]
 
 [[package]]

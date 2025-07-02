@@ -25,5 +25,13 @@ tower = { version = "0.4", features = ["timeout", "util"] }
 tower-service = "0.3"
 rand = "0.8"
 nix = { version = "0.30.1", features = ["process", "signal"] }
+# OAuth dependencies
+axum = { version = "0.8", features = ["query"] }
+base64 = "0.22"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+nanoid = "0.4"
+webbrowser = "1.0"
+serde_urlencoded = "0.7"
 
 [dev-dependencies]
