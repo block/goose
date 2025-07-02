@@ -15,7 +15,7 @@ impl BenchBaseSession for Session {
     async fn headless(&mut self, message: String) -> anyhow::Result<()> {
         self.headless(message).await
     }
-    fn session_file(&self) -> PathBuf {
+    fn session_file(&self) -> Option<PathBuf> {
         self.session_file()
     }
     fn message_history(&self) -> Vec<Message> {

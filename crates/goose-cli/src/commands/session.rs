@@ -1,7 +1,7 @@
 use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 use cliclack::{confirm, multiselect, select};
-use goose::session::info::{get_session_info, SessionInfo, SortOrder};
+use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::{self, Identifier};
 use regex::Regex;
 use std::fs;
@@ -75,7 +75,7 @@ fn prompt_interactive_session_removal(sessions: &[SessionInfo]) -> Result<Vec<Se
 }
 
 pub fn handle_session_remove(id: Option<String>, regex_string: Option<String>) -> Result<()> {
-    let all_sessions = match get_session_info(SortOrder::Descending) {
+    let all_sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to retrieve sessions: {:?}", e);
@@ -125,7 +125,7 @@ pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Re
         SortOrder::Descending
     };
 
-    let sessions = match get_session_info(sort_order) {
+    let sessions = match get_valid_sorted_sessions(sort_order) {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
@@ -294,7 +294,7 @@ fn export_session_to_markdown(
 /// Shows a list of available sessions and lets the user select one
 pub fn prompt_interactive_session_selection() -> Result<session::Identifier> {
     // Get sessions sorted by modification date (newest first)
-    let sessions = match get_session_info(SortOrder::Descending) {
+    let sessions = match get_valid_sorted_sessions(SortOrder::Descending) {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
