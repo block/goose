@@ -95,10 +95,6 @@ fn prepare_command_params(
 }
 
 pub async fn create_sub_recipe_task(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
-    println!(
-        "==========Creating task for sub recipe: {}",
-        sub_recipe.name
-    );
     let command_params = prepare_command_params(sub_recipe, params)?;
     let payload = json!({
         "sub_recipe": {
@@ -114,7 +110,6 @@ pub async fn create_sub_recipe_task(sub_recipe: &SubRecipe, params: Value) -> Re
     };
     let task_json = serde_json::to_string(&task)
         .map_err(|e| anyhow::anyhow!("Failed to serialize Task: {}", e))?;
-    println!("==========Created task: {}", task_json);
     Ok(task_json)
 }
 

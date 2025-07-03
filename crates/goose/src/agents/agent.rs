@@ -292,10 +292,6 @@ impl Agent {
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
-            println!(
-                "==========Dispatching sub recipe tool call: {}",
-                tool_call.name
-            );
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
                 .await

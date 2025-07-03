@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -36,12 +36,13 @@ pub async fn process_task(task: &Task, timeout_seconds: u64) -> TaskResult {
 }
 
 async fn execute_task(task: Task) -> Result<Value, String> {
-    println!("=======Executing task: {:?}", task);
-
+    let mut output_identifier = task.id.clone();
     let mut command = if task.task_type == "sub_recipe" {
         let sub_recipe = task.payload.get("sub_recipe").unwrap();
+        let sub_recipe_name = sub_recipe.get("name").unwrap().as_str().unwrap();
         let path = sub_recipe.get("recipe_path").unwrap().as_str().unwrap();
         let command_parameters = sub_recipe.get("command_parameters").unwrap();
+        output_identifier = format!("sub-recipe {}", sub_recipe_name);
         let mut cmd = Command::new("goose");
         cmd.arg("run").arg("--recipe").arg(path);
         if let Some(params_map) = command_parameters.as_object() {
@@ -74,28 +75,45 @@ async fn execute_task(task: Task) -> Result<Value, String> {
         .spawn()
         .map_err(|e| format!("Failed to spawn goose: {}", e))?;
 
-    // Pipe the stdout
-    if let Some(stdout) = child.stdout.take() {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
 
-        println!("--- Goose output ---");
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("{}", line);
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut stderr_reader = BufReader::new(stderr).lines();
+
+    // Spawn background tasks to read from stdout and stderr
+    let output_identifier_clone = output_identifier.clone();
+    let stdout_task = tokio::spawn(async move {
+        let mut buffer = String::new();
+        while let Ok(Some(line)) = stdout_reader.next_line().await {
+            println!("[{}] {}", output_identifier_clone, line);
+            buffer.push_str(&line);
+            buffer.push('\n');
         }
-    }
+        buffer
+    });
 
-    // Await final status
+    let stderr_task = tokio::spawn(async move {
+        let mut buffer = String::new();
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            eprintln!("[stderr for {}] {}", output_identifier, line);
+            buffer.push_str(&line);
+            buffer.push('\n');
+        }
+        buffer
+    });
+
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Failed to wait on goose: {}", e))?;
-    if !status.success() {
-        return Err(format!(
-            "Goose command failed with exit code: {:?}",
-            status.code()
-        ));
-    }
+        .map_err(|e| format!("Failed to wait for process: {}", e))?;
 
-    Ok(json!({ "output": "Goose command completed." }))
+    let stdout_output = stdout_task.await.unwrap();
+    let stderr_output = stderr_task.await.unwrap();
+
+    if status.success() {
+        Ok(Value::String(stdout_output))
+    } else {
+        Err(format!("Command failed:\n{}", stderr_output))
+    }
 }
