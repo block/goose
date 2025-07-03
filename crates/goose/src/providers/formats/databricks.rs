@@ -467,7 +467,13 @@ where
                     }
                 }
 
-                let content = match serde_json::from_str::<Value>(&arguments) {
+                let parsed = if arguments.is_empty() {
+                    Ok(json!({}))
+                } else {
+                    serde_json::from_str::<Value>(&arguments)
+                };
+
+                let content = match parsed {
                     Ok(params) => MessageContent::tool_request(
                         id,
                         Ok(ToolCall::new(function_name, params)),
