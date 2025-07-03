@@ -407,25 +407,25 @@ mod tests {
             "You are a helpful assistant that can answer questions about the weather.";
 
         let messages = vec![
-            Message {
-                role: Role::User,
-                created: 0,
-                content: vec![MessageContent::text(
+            Message::new(
+                Role::User,
+                0,
+                vec![MessageContent::text(
                     "What's the weather like in San Francisco?",
                 )],
-            },
-            Message {
-                role: Role::Assistant,
-                created: 1,
-                content: vec![MessageContent::text(
+            ),
+            Message::new(
+                Role::Assistant,
+                1,
+                vec![MessageContent::text(
                     "Looks like it's 60 degrees Fahrenheit in San Francisco.",
                 )],
-            },
-            Message {
-                role: Role::User,
-                created: 2,
-                content: vec![MessageContent::text("How about New York?")],
-            },
+            ),
+            Message::new(
+                Role::User,
+                2,
+                vec![MessageContent::text("How about New York?")],
+            ),
         ];
 
         let tools = vec![Tool {
@@ -505,25 +505,25 @@ mod tests {
             "You are a helpful assistant that can answer questions about the weather.";
 
         let messages = vec![
-            Message {
-                role: Role::User,
-                created: 0,
-                content: vec![MessageContent::text(
+            Message::new(
+                Role::User,
+                0,
+                vec![MessageContent::text(
                     "What's the weather like in San Francisco?",
                 )],
-            },
-            Message {
-                role: Role::Assistant,
-                created: 1,
-                content: vec![MessageContent::text(
+            ),
+            Message::new(
+                Role::Assistant,
+                1,
+                vec![MessageContent::text(
                     "Looks like it's 60 degrees Fahrenheit in San Francisco.",
                 )],
-            },
-            Message {
-                role: Role::User,
-                created: 2,
-                content: vec![MessageContent::text("How about New York?")],
-            },
+            ),
+            Message::new(
+                Role::User,
+                2,
+                vec![MessageContent::text("How about New York?")],
+            ),
         ];
 
         let tools = vec![Tool {

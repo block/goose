@@ -247,14 +247,14 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(TextContent {
                         text: "Summarized content".to_string(),
                         annotations: None,
                     })],
-                },
+                ),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
         }
@@ -277,30 +277,26 @@ mod tests {
     }
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message {
-            role,
-            created: 0,
-            content: vec![MessageContent::text(text.to_string())],
-        }
+        Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
-        Message {
-            role: Role::Assistant,
-            created: 0,
-            content: vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
-        }
+        Message::new(
+            Role::Assistant,
+            0,
+            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+        )
     }
 
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
-        Message {
-            role: Role::User,
-            created: 0,
-            content: vec![MessageContent::tool_response(
+        Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_response(
                 id.to_string(),
                 Ok(tool_response),
             )],
-        }
+        )
     }
 
     #[tokio::test]
@@ -448,14 +444,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_reintegrate_removed_messages() {
-        let summarized_messages = vec![Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
+        let summarized_messages = vec![Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![MessageContent::Text(TextContent {
                 text: "Summary".to_string(),
                 annotations: None,
             })],
-        }];
+        )];
         let arguments = json!({
             "param1": "value1"
         });

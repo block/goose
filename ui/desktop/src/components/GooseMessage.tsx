@@ -130,7 +130,7 @@ export default function GooseMessage({
   ]);
 
   return (
-    <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="goose-message flex w-[90%] justify-start">
       <div className="flex flex-col w-full">
         {/* Chain-of-Thought (hidden by default) */}
         {cotText && (

@@ -359,11 +359,7 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
             }
 
             if has_tool_content {
-                Message {
-                    role: message.role.clone(),
-                    content: new_content,
-                    created: message.created,
-                }
+                Message::new(message.role.clone(), message.created, new_content)
             } else {
                 message.clone()
             }

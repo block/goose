@@ -8,7 +8,7 @@ use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Error;
+use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -153,7 +153,8 @@ pub fn render_message(message: &Message, debug: bool) {
             }
         }
     }
-    println!();
+
+    let _ = std::io::stdout().flush();
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
