@@ -45,7 +45,7 @@ import styles from '@site/src/components/Card/styles.module.css';
     <Card 
       title="SubRecipes"
       description="Learn how a recipe can use sub-recipes to do specific tasks."
-      link="/docs/guides/recipes/sub-recipes"
+      link="/docs/guides/recipes/subrecipes"
     />
   </div>
 </div>
