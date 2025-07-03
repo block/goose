@@ -377,7 +377,7 @@ const MentionPopover = forwardRef<
                     <FileIcon fileName={file.name} isDirectory={file.isDirectory} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate">
+                    <div className="text-sm truncate text-textStandard">
                       {file.name}
                     </div>
                     <div className="text-xs text-textSubtle truncate">
