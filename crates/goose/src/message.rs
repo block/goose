@@ -309,6 +309,26 @@ pub struct Message {
     pub content: Vec<MessageContent>,
 }
 
+pub fn push_message(messages: &mut Vec<Message>, message: Message) {
+    if let Some(last) = messages
+        .last_mut()
+        .filter(|m| m.id.is_some() && m.id == message.id)
+    {
+        match (last.content.last_mut(), message.content.last()) {
+            (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
+                if message.content.len() == 1 =>
+            {
+                last.text.push_str(&format!("\n{}", new.text));
+            }
+            (_, _) => {
+                last.content.extend(message.content);
+            }
+        }
+    } else {
+        messages.push(message);
+    }
+}
+
 impl Message {
     pub fn new(role: Role, created: i64, content: Vec<MessageContent>) -> Self {
         Message {

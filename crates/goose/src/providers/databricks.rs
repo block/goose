@@ -455,7 +455,7 @@ impl Provider for DatabricksProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
+        let usage = match response.get("usage").map(get_usage) {
             Some(usage) => usage,
             None => {
                 tracing::debug!("Failed to get usage data");

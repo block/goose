@@ -433,9 +433,9 @@ where
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
             let model = chunk.model.clone();
 
-            let usage = chunk.usage.as_ref().and_then(get_usage).map(|u| {
+            let usage = chunk.usage.as_ref().map(|u| {
                 ProviderUsage {
-                    usage: u,
+                    usage: get_usage(u),
                     model,
                 }
             });
@@ -504,38 +504,38 @@ where
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
                     }),
-                    None,
+                    if chunk.choices[0].finish_reason.is_some() {
+                        usage
+                    } else {
+                        None
+                    },
                 )
             }
         }
     }
 }
 
-pub fn get_usage(data: &Value) -> Option<Usage> {
-    if let Some(usage) = data.get("usage") {
-        let input_tokens = usage
-            .get("prompt_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
+pub fn get_usage(usage: &Value) -> Usage {
+    let input_tokens = usage
+        .get("prompt_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
 
-        let output_tokens = usage
-            .get("completion_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
+    let output_tokens = usage
+        .get("completion_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
 
-        let total_tokens = usage
-            .get("total_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32)
-            .or_else(|| match (input_tokens, output_tokens) {
-                (Some(input), Some(output)) => Some(input + output),
-                _ => None,
-            });
+    let total_tokens = usage
+        .get("total_tokens")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32)
+        .or_else(|| match (input_tokens, output_tokens) {
+            (Some(input), Some(output)) => Some(input + output),
+            _ => None,
+        });
 
-        Some(Usage::new(input_tokens, output_tokens, total_tokens))
-    } else {
-        None
-    }
+    Usage::new(input_tokens, output_tokens, total_tokens)
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.

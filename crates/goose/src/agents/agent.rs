@@ -13,7 +13,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
-use crate::message::Message;
+use crate::message::{push_message, Message};
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -957,8 +957,8 @@ impl Agent {
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
                                 added_message = true;
-                                messages.push(response);
-                                messages.push(final_message_tool_resp);
+                                push_message(&mut messages, response);
+                                push_message(&mut messages, final_message_tool_resp);
 
                                 // Check for MCP notifications from subagents again before next iteration
                                 // Note: These are already handled as McpNotification events above,
