@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
-use futures::{FutureExt, Stream, TryStreamExt};
-use futures_util::stream;
-use futures_util::stream::StreamExt;
+use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
