@@ -54,6 +54,7 @@ base64 = "0.21"
 url = "2.5"
 axum = "0.8.1"
 webbrowser = "0.8"
+lazy_static = "1.5.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
@@ -97,7 +98,6 @@ wiremock = "0.6.0"
 tokio = { version = "1.43", features = ["full"] }
 temp-env = "0.3.6"
 dotenv = "0.15.0"
-lazy_static = "1.5.0"
 ctor = "0.2.9"
 
 [[example]]
