@@ -54,7 +54,7 @@ impl GroqProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> anyhow::Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("openai/v1/chat/completions").map_err(|e| {
@@ -65,7 +65,7 @@ impl GroqProvider {
             .client
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
@@ -136,9 +136,9 @@ impl Provider for GroqProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {

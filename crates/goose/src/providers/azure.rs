@@ -85,7 +85,7 @@ impl AzureProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let mut base_url = url::Url::parse(&self.endpoint)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
@@ -141,7 +141,7 @@ impl AzureProvider {
                 }
             }
 
-            let response_result = request_builder.json(&payload).send().await;
+            let response_result = request_builder.json(payload).send().await;
 
             match response_result {
                 Ok(response) => match handle_response_openai_compat(response).await {
@@ -246,9 +246,9 @@ impl Provider for AzureProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {

@@ -56,12 +56,12 @@ impl OllamaProvider {
     fn get_base_url(&self) -> Result<Url, ProviderError> {
         // OLLAMA_HOST is sometimes just the 'host' or 'host:port' without a scheme
         let base = if self.host.starts_with("http://") || self.host.starts_with("https://") {
-            self.host.clone()
+            &self.host
         } else {
-            format!("http://{}", self.host)
+            &format!("http://{}", self.host)
         };
 
-        let mut base_url = Url::parse(&base)
+        let mut base_url = Url::parse(base)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
@@ -80,7 +80,7 @@ impl OllamaProvider {
         Ok(base_url)
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         // TODO: remove this later when the UI handles provider config refresh
         let base_url = self.get_base_url()?;
 
@@ -88,7 +88,7 @@ impl OllamaProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let response = self.client.post(url).json(&payload).send().await?;
+        let response = self.client.post(url).json(payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -135,8 +135,8 @@ impl Provider for OllamaProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(payload.clone()).await?;
-        let message = response_to_message(response.clone())?;
+        let response = self.post(&payload).await?;
+        let message = response_to_message(&response)?;
 
         let usage = match get_usage(&response) {
             Ok(usage) => usage,

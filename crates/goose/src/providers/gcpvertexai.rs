@@ -238,14 +238,14 @@ impl GcpVertexAIProvider {
     ) -> Result<Url, GcpVertexAIError> {
         // Create host URL for the specified location
         let host_url = if self.location == location {
-            self.host.clone()
+            &self.host
         } else {
             // Only allocate a new string if location differs
-            self.host.replace(&self.location, location)
+            &self.host.replace(&self.location, location)
         };
 
         let base_url =
-            Url::parse(&host_url).map_err(|e| GcpVertexAIError::InvalidUrl(e.to_string()))?;
+            Url::parse(host_url).map_err(|e| GcpVertexAIError::InvalidUrl(e.to_string()))?;
 
         // Determine endpoint based on provider type
         let endpoint = match provider {
@@ -380,10 +380,14 @@ impl GcpVertexAIProvider {
     /// # Arguments
     /// * `payload` - The request payload to send
     /// * `context` - Request context containing model information
-    async fn post(&self, payload: Value, context: &RequestContext) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        payload: &Value,
+        context: &RequestContext,
+    ) -> Result<Value, ProviderError> {
         // Try with user-specified location first
         let result = self
-            .post_with_location(&payload, context, &self.location)
+            .post_with_location(payload, context, &self.location)
             .await;
 
         // If location is already the known location for the model or request succeeded, return result
@@ -402,7 +406,7 @@ impl GcpVertexAIProvider {
                     "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
                 );
 
-                self.post_with_location(&payload, context, &known_location)
+                self.post_with_location(payload, context, &known_location)
                     .await
             }
             // For any other error, return the original result
@@ -504,7 +508,7 @@ impl Provider for GcpVertexAIProvider {
         let (request, context) = create_request(&self.model, system, messages, tools)?;
 
         // Send request and process response
-        let response = self.post(request.clone(), &context).await?;
+        let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
         emit_debug_trace(&self.model, &request, &response, &usage);
