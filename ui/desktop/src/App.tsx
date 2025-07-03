@@ -13,6 +13,7 @@ import { GoosehintsModal } from './components/GoosehintsModal';
 import { type ExtensionConfig } from './extensions';
 import { type Recipe } from './recipe';
 import AnnouncementModal from './components/AnnouncementModal';
+import { ChatInputProvider } from './components/ChatInputContext';
 
 import ChatView from './components/ChatView';
 import SuspenseLoader from './suspense-loader';
@@ -111,6 +112,8 @@ const getInitialView = (): ViewConfig => {
     viewOptions: {},
   };
 };
+
+import { ChatInputProvider } from './components/ChatInputContext';
 
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -509,8 +512,9 @@ export default function App() {
     );
 
   return (
-    <ModelAndProviderProvider>
-      <ToastContainer
+    <ChatInputProvider>
+      <ModelAndProviderProvider>
+        <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
           `relative min-h-16 mb-4 p-2 rounded-lg
@@ -613,5 +617,6 @@ export default function App() {
       )}
       <AnnouncementModal />
     </ModelAndProviderProvider>
+    </ChatInputProvider>
   );
 }

@@ -11,6 +11,7 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import { useChatInput } from './ChatInputContext';
 
 interface PastedImage {
   id: string;
@@ -63,7 +64,8 @@ export default function ChatInput({
   sessionCosts,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  const { inputValue, setInputValue } = useChatInput();
+  const [displayValue, setDisplayValue] = useState(inputValue || initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [mentionPopover, setMentionPopover] = useState<{
@@ -113,6 +115,18 @@ export default function ChatInput({
       });
     },
   });
+
+  // Update context when display value changes
+  useEffect(() => {
+    setInputValue(displayValue);
+  }, [displayValue, setInputValue]);
+
+  // Update display value when context value changes
+  useEffect(() => {
+    if (inputValue !== displayValue) {
+      setDisplayValue(inputValue);
+    }
+  }, [inputValue]);
 
   // Update internal value when initialValue changes
   useEffect(() => {
@@ -472,6 +486,7 @@ export default function ChatInput({
 
       setDisplayValue('');
       setValue('');
+      setInputValue('');
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
