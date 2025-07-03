@@ -3445,7 +3445,7 @@ dependencies = [
  "goose-secure-store",
  "include_dir",
  "indoc 2.0.6",
- "jsonschema",
+ "jsonschema 0.30.0",
  "jsonwebtoken",
  "lancedb",
  "lazy_static",
@@ -3528,7 +3528,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "indicatif",
- "jsonschema",
+ "jsonschema 0.30.0",
  "mcp-client",
  "mcp-core",
  "mcp-server",
@@ -3658,7 +3658,7 @@ version = "1.0.31"
 dependencies = [
  "console",
  "etcetera",
- "jsonschema",
+ "jsonschema 0.18.3",
  "keyring",
  "serde",
  "serde_json",
@@ -4466,15 +4466,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iso8601"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1082f0c48f143442a1ac6122f67e360ceee130b967af4d50996e5154a45df46"
-dependencies = [
- "nom 8.0.0",
-]
-
-[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4566,6 +4557,36 @@ dependencies = [
  "pest",
  "pest_derive",
  "serde",
+]
+
+[[package]]
+name = "jsonschema"
+version = "0.18.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa0f4bea31643be4c6a678e9aa4ae44f0db9e5609d5ca9dc9083d06eb3e9a27a"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "base64 0.22.1",
+ "bytecount",
+ "clap 4.5.31",
+ "fancy-regex 0.13.0",
+ "fraction",
+ "getrandom 0.2.15",
+ "iso8601",
+ "itoa",
+ "memchr",
+ "num-cmp",
+ "once_cell",
+ "parking_lot",
+ "percent-encoding",
+ "regex",
+ "reqwest 0.12.12",
+ "serde",
+ "serde_json",
+ "time",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -7835,18 +7856,6 @@ checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "spm_precompiled"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5851699c4033c63636f7ea4cf7b7c1f1bf06d0cc03cfb42e711de5a5c46cf326"
-dependencies = [
- "base64 0.13.1",
- "nom 7.1.3",
- "serde",
- "unicode-segmentation",
 ]
 
 [[package]]
