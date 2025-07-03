@@ -8,7 +8,6 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use futures_util::stream::StreamExt;
 use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
 use mcp_core::{handler::ToolError, role::Role, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -370,148 +369,135 @@ impl SubAgent {
         let system_prompt = self.build_system_prompt(&tools).await?;
 
         // Generate response from provider
-        'outer: loop {
-            let mut stream = Agent::generate_response_from_provider(
+        loop {
+            match Agent::generate_response_from_provider(
                 Arc::clone(&provider),
                 &system_prompt,
                 &messages,
                 &tools,
                 &toolshim_tools,
             )
-            .await?;
+            .await
+            {
+                Ok((response, _usage)) => {
+                    // Process any tool calls in the response
+                    let tool_requests: Vec<ToolRequest> = response
+                        .content
+                        .iter()
+                        .filter_map(|content| {
+                            if let MessageContent::ToolRequest(req) = content {
+                                Some(req.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
 
-            while let Some(next) = stream.next().await {
-                match next {
-                    Ok((Some(response), _usage)) => {
-                        // Process any tool calls in the response
-                        let tool_requests: Vec<ToolRequest> = response
-                            .content
-                            .iter()
-                            .filter_map(|content| {
-                                if let MessageContent::ToolRequest(req) = content {
-                                    Some(req.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
+                    // If there are no tool requests, we're done
+                    if tool_requests.is_empty() {
+                        self.add_message(response.clone()).await;
 
-                        // If there are no tool requests, we're done
-                        if tool_requests.is_empty() {
-                            self.add_message(response.clone()).await;
+                        // Send notification about response
+                        self.send_mcp_notification(
+                            "response_generated",
+                            &format!("Responded: {}", response.as_concat_text()),
+                        )
+                        .await;
 
-                            // Send notification about response
+                        // Add delay before completion to ensure all processing finishes
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                        // Set status back to ready and return the final response
+                        self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
+                            .await;
+                        break Ok(response);
+                    }
+
+                    // Add the assistant message with tool calls to the conversation
+                    messages.push(response.clone());
+
+                    // Process each tool request and create user response messages
+                    for request in &tool_requests {
+                        if let Ok(tool_call) = &request.tool_call {
+                            // Send notification about tool usage
                             self.send_mcp_notification(
-                                "response_generated",
-                                &format!("Responded: {}", response.as_concat_text()),
+                                "tool_usage",
+                                &format!("Using tool: {}", tool_call.name),
                             )
                             .await;
 
-                            // Add delay before completion to ensure all processing finishes
-                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-                            // Set status back to ready and return the final response
-                            self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
-                                .await;
-                            break 'outer Ok(response);
-                        }
-
-                        // Add the assistant message with tool calls to the conversation
-                        messages.push(response.clone());
-
-                        // Process each tool request and create user response messages
-                        for request in &tool_requests {
-                            if let Ok(tool_call) = &request.tool_call {
-                                // Send notification about tool usage
-                                self.send_mcp_notification(
-                                    "tool_usage",
-                                    &format!("Using tool: {}", tool_call.name),
+                            // Handle platform tools or dispatch to extension manager
+                            let tool_result = if self.is_platform_tool(&tool_call.name) {
+                                self.handle_platform_tool_call(
+                                    tool_call.clone(),
+                                    &extension_manager,
                                 )
-                                .await;
-
-                                // Handle platform tools or dispatch to extension manager
-                                let tool_result = if self.is_platform_tool(&tool_call.name) {
-                                    self.handle_platform_tool_call(
-                                        tool_call.clone(),
-                                        &extension_manager,
-                                    )
+                                .await
+                            } else {
+                                match extension_manager
+                                    .dispatch_tool_call(tool_call.clone())
                                     .await
-                                } else {
-                                    match extension_manager
-                                        .dispatch_tool_call(tool_call.clone())
-                                        .await
-                                    {
-                                        Ok(result) => result.result.await,
-                                        Err(e) => Err(ToolError::ExecutionError(e.to_string())),
-                                    }
-                                };
+                                {
+                                    Ok(result) => result.result.await,
+                                    Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+                                }
+                            };
 
-                                match tool_result {
-                                    Ok(result) => {
-                                        // Create a user message with the tool response
-                                        let tool_response_message = Message::user()
-                                            .with_tool_response(
-                                                request.id.clone(),
-                                                Ok(result.clone()),
-                                            );
-                                        messages.push(tool_response_message);
+                            match tool_result {
+                                Ok(result) => {
+                                    // Create a user message with the tool response
+                                    let tool_response_message = Message::user()
+                                        .with_tool_response(request.id.clone(), Ok(result.clone()));
+                                    messages.push(tool_response_message);
 
-                                        // Send notification about tool completion
-                                        self.send_mcp_notification(
-                                            "tool_completed",
-                                            &format!(
-                                                "Tool {} completed successfully",
-                                                tool_call.name
-                                            ),
-                                        )
-                                        .await;
-                                    }
-                                    Err(e) => {
-                                        // Create a user message with the tool error
-                                        let tool_error_message = Message::user()
-                                            .with_tool_response(
-                                                request.id.clone(),
-                                                Err(ToolError::ExecutionError(e.to_string())),
-                                            );
-                                        messages.push(tool_error_message);
+                                    // Send notification about tool completion
+                                    self.send_mcp_notification(
+                                        "tool_completed",
+                                        &format!("Tool {} completed successfully", tool_call.name),
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    // Create a user message with the tool error
+                                    let tool_error_message = Message::user().with_tool_response(
+                                        request.id.clone(),
+                                        Err(ToolError::ExecutionError(e.to_string())),
+                                    );
+                                    messages.push(tool_error_message);
 
-                                        // Send notification about tool error
-                                        self.send_mcp_notification(
-                                            "tool_error",
-                                            &format!("Tool {} error: {}", tool_call.name, e),
-                                        )
-                                        .await;
-                                    }
+                                    // Send notification about tool error
+                                    self.send_mcp_notification(
+                                        "tool_error",
+                                        &format!("Tool {} error: {}", tool_call.name, e),
+                                    )
+                                    .await;
                                 }
                             }
                         }
-
-                        // Continue the loop to get the next response from the provider
                     }
-                    Ok((None, _)) => (),
-                    Err(ProviderError::ContextLengthExceeded(_)) => {
-                        self.set_status(SubAgentStatus::Completed(
-                            "Context length exceeded".to_string(),
-                        ))
-                        .await;
-                        break 'outer Ok(Message::assistant().with_context_length_exceeded(
+
+                    // Continue the loop to get the next response from the provider
+                }
+                Err(ProviderError::ContextLengthExceeded(_)) => {
+                    self.set_status(SubAgentStatus::Completed(
+                        "Context length exceeded".to_string(),
+                    ))
+                    .await;
+                    break Ok(Message::assistant().with_context_length_exceeded(
                         "The context length of the model has been exceeded. Please start a new session and try again.",
                     ));
-                    }
-                    Err(ProviderError::RateLimitExceeded(_)) => {
-                        self.set_status(SubAgentStatus::Completed(
-                            "Rate limit exceeded".to_string(),
-                        ))
+                }
+                Err(ProviderError::RateLimitExceeded(_)) => {
+                    self.set_status(SubAgentStatus::Completed("Rate limit exceeded".to_string()))
                         .await;
-                        break 'outer Ok(Message::assistant()
-                            .with_text("Rate limit exceeded. Please try again later."));
-                    }
-                    Err(e) => {
-                        self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
-                            .await;
-                        error!("Error: {}", e);
-                        break 'outer Ok(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
-                    }
+                    break Ok(Message::assistant()
+                        .with_text("Rate limit exceeded. Please try again later."));
+                }
+                Err(e) => {
+                    self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
+                        .await;
+                    error!("Error: {}", e);
+                    break Ok(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
                 }
             }
         }

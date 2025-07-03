@@ -730,7 +730,7 @@ impl Agent {
                     }
                 }
 
-                let mut stream = Self::generate_response_from_provider(
+                let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
                     &messages,

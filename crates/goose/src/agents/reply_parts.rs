@@ -8,7 +8,7 @@ use futures::stream::StreamExt;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider};
+use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -18,6 +18,19 @@ use crate::session;
 use mcp_core::tool::Tool;
 
 use super::super::agents::Agent;
+
+async fn toolshim_postprocess(
+    response: Message,
+    toolshim_tools: &[Tool],
+) -> Result<Message, ProviderError> {
+    let interpreter = OllamaInterpreter::new().map_err(|e| {
+        ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
+    })?;
+
+    augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
+        .await
+        .map_err(|e| ProviderError::ExecutionError(format!("Failed to augment message: {}", e)))
+}
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
@@ -116,6 +129,38 @@ impl Agent {
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let config = provider.get_model_config();
+
+        // Convert tool messages to text if toolshim is enabled
+        let messages_for_provider = if config.toolshim {
+            convert_tool_messages_to_text(messages)
+        } else {
+            messages.to_vec()
+        };
+
+        // Call the provider to get a response
+        let (mut response, usage) = provider
+            .complete(system_prompt, &messages_for_provider, tools)
+            .await?;
+
+        crate::providers::base::set_current_model(&usage.model);
+
+        if config.toolshim {
+            response = toolshim_postprocess(response, toolshim_tools).await?;
+        }
+
+        Ok((response, usage))
+    }
+
+    /// Stream a response from the LLM provider.
+    /// Handles toolshim transformations if needed
+    pub(crate) async fn stream_response_from_provider(
+        provider: Arc<dyn Provider>,
+        system_prompt: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
@@ -152,15 +197,7 @@ impl Agent {
 
                 // Post-process / structure the response only if tool interpretation is enabled
                 if message.is_some() && config.toolshim {
-                    let interpreter = OllamaInterpreter::new().map_err(|e| {
-                        ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
-                    })?;
-
-                    message = Some(augment_message_with_tool_calls(&interpreter, message.unwrap(), &toolshim_tools)
-                        .await
-                        .map_err(|e| {
-                            ProviderError::ExecutionError(format!("Failed to augment message: {}", e))
-                        })?);
+                    message = Some(toolshim_postprocess(message.unwrap(), &toolshim_tools).await?);
                 }
 
                 yield (message, usage);
