@@ -127,7 +127,6 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
           prose-ol:my-2
           prose-ul:mt-0 prose-ul:mb-3
           prose-li:m-0
-          ${className.includes('user-message') ? 'prose-headings:text-white prose-strong:text-white prose-em:text-white' : ''}
 
           ${className}`}
         components={{
