@@ -23,6 +23,7 @@ interface MentionPopoverProps {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   filteredFiles: FileItemWithMatch[];
+  onFilteredFilesChange: (files: FileItemWithMatch[]) => void;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -91,7 +92,8 @@ export default function MentionPopover({
   query,
   selectedIndex,
   onSelectedIndexChange,
-  filteredFiles
+  filteredFiles,
+  onFilteredFilesChange
 }: MentionPopoverProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -264,12 +266,16 @@ export default function MentionPopover({
     }
     
     if (!query.trim()) {
-      return files.slice(0, 15).map(file => ({
+      const defaultFiles = files.slice(0, 15).map(file => ({
         ...file,
         matchScore: 0,
         matches: [],
         matchedText: file.name
       })); // Show first 15 files when no query
+      
+      // Update parent with the filtered files
+      onFilteredFilesChange(defaultFiles);
+      return defaultFiles;
     }
     
     const results = files
@@ -312,8 +318,10 @@ export default function MentionPopover({
       })
       .slice(0, 20); // Increase to 20 results
     
+    // Update parent with the filtered files
+    onFilteredFilesChange(results);
     return results;
-  }, [files, query, filteredFiles]);
+  }, [files, query, filteredFiles, onFilteredFilesChange]);
 
   // Scroll selected item into view
   useEffect(() => {

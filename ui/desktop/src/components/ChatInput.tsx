@@ -285,7 +285,7 @@ export default function ChatInput({
       query: afterAt,
       mentionStart: lastAtIndex,
       selectedIndex: 0, // Reset selection when query changes
-      filteredFiles: [], // Will be populated by the popover
+      // filteredFiles will be populated by the MentionPopover component
     }));
   };
 
@@ -495,9 +495,10 @@ export default function ChatInput({
     if (mentionPopover.isOpen) {
       if (evt.key === 'ArrowDown') {
         evt.preventDefault();
+        const maxIndex = Math.max(0, mentionPopover.filteredFiles.length - 1);
         setMentionPopover(prev => ({
           ...prev,
-          selectedIndex: Math.min(prev.selectedIndex + 1, prev.filteredFiles.length - 1)
+          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex)
         }));
         return;
       }
@@ -842,6 +843,7 @@ export default function ChatInput({
         selectedIndex={mentionPopover.selectedIndex}
         onSelectedIndexChange={(index) => setMentionPopover(prev => ({ ...prev, selectedIndex: index }))}
         filteredFiles={mentionPopover.filteredFiles}
+        onFilteredFilesChange={(files) => setMentionPopover(prev => ({ ...prev, filteredFiles: files }))}
       />
     </>
   );
