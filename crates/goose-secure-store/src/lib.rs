@@ -9,7 +9,7 @@ pub mod acquisition;
 pub mod validation;
 
 pub use error::SecretError;
-pub use store::{SecureStore, KeyringSecureStore};
+pub use store::{SecureStore, KeyringSecureStore, LegacyConfigStore, FileBackedStore};
 pub use acquisition::SecretAcquisition;
 
 #[cfg(test)]

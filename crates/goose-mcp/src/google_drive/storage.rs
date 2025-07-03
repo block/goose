@@ -1,237 +1,73 @@
-use anyhow::Result;
-use keyring::Entry;
+use goose_secure_store::{KeyringSecureStore, SecureStore, SecretError, FileBackedStore};
 use serde::{de::DeserializeOwned, Serialize};
-use std::fs;
-use std::path::Path;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use etcetera::AppStrategy;
 
-#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum StorageError {
-    #[error("Failed to access keychain: {0}")]
-    KeyringError(#[from] keyring::Error),
-    #[error("Failed to access file system: {0}")]
-    FileSystemError(#[from] std::io::Error),
+    #[error("Secret storage error: {0}")]
+    SecretError(#[from] SecretError),
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
     #[error("No credentials found")]
     NotFound,
-    #[error("Critical error: {0}")]
-    Critical(String),
-    #[error("Failed to serialize/deserialize: {0}")]
-    SerializationError(#[from] serde_json::Error),
 }
 
-/// CredentialsManager handles secure storage of OAuth credentials.
-/// It attempts to store credentials in the system keychain first,
-/// with fallback to file system storage if keychain access fails and fallback is enabled.
+/// Simplified credentials manager using secure store
 pub struct CredentialsManager {
-    credentials_path: String,
-    fallback_to_disk: bool,
-    keychain_service: String,
-    keychain_username: String,
+    store: Box<dyn SecureStore>,
+    service: String,
+    username: String,
 }
 
 impl CredentialsManager {
     pub fn new(
-        credentials_path: String,
+        _credentials_path: String,    // Ignored - kept for API compatibility
         fallback_to_disk: bool,
-        keychain_service: String,
-        keychain_username: String,
+        _keychain_service: String,    // Ignored - use standard naming
+        _keychain_username: String,   // Ignored - use standard naming
     ) -> Self {
+        let store: Box<dyn SecureStore> = if fallback_to_disk {
+            // Use file fallback - but store in standard location
+            let config_dir = etcetera::choose_app_strategy(etcetera::AppStrategyArgs {
+                top_level_domain: "Block".to_string(),
+                author: "Block".to_string(),
+                app_name: "goose".to_string(),
+            })
+            .expect("Failed to get config dir")      
+            .config_dir();
+            let fallback_path = config_dir.join("google_drive_credentials.yaml");
+            Box::new(FileBackedStore::new(fallback_path))
+        } else {
+            Box::new(KeyringSecureStore::new())
+        };
+
         Self {
-            credentials_path,
-            fallback_to_disk,
-            keychain_service,
-            keychain_username,
+            store,
+            service: "goose.mcp.google_drive".to_string(),  // Use standard naming
+            username: "oauth_credentials".to_string(),
         }
     }
 
-    /// Reads and deserializes credentials from secure storage.
-    ///
-    /// This method attempts to read credentials from the system keychain first.
-    /// If keychain access fails and fallback is enabled, it will try to read from the file system.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `T` - The type to deserialize the credentials into. Must implement `serde::de::DeserializeOwned`.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(T)` - The deserialized credentials
-    /// * `Err(StorageError)` - If reading or deserialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use goose_mcp::google_drive::storage::CredentialsManager;
-    /// use serde::{Serialize, Deserialize};
-    ///
-    /// #[derive(Serialize, Deserialize)]
-    /// struct OAuthToken {
-    ///     access_token: String,
-    ///     refresh_token: String,
-    ///     expiry: u64,
-    /// }
-    ///
-    /// let manager = CredentialsManager::new(
-    ///     String::from("/path/to/credentials.json"),
-    ///     true,  // fallback to disk if keychain fails
-    ///     String::from("test_service"),
-    ///     String::from("test_user")
-    /// );
-    /// match manager.read_credentials::<OAuthToken>() {
-    ///     Ok(token) => println!("Token expires at: {}", token.expiry),
-    ///     Err(e) => eprintln!("Failed to read token: {}", e),
-    /// }
-    /// ```
-    pub fn read_credentials<T>(&self) -> Result<T, StorageError>
-    where
-        T: DeserializeOwned,
-    {
-        let json_str = Entry::new(&self.keychain_service, &self.keychain_username)
-            .and_then(|entry| entry.get_password())
-            .inspect(|_| {
-                debug!("Successfully read credentials from keychain");
-            })
-            .or_else(|e| {
-                if self.fallback_to_disk {
-                    debug!("Falling back to file system due to keyring error: {}", e);
-                    self.read_from_file()
-                } else {
-                    match e {
-                        keyring::Error::NoEntry => Err(StorageError::NotFound),
-                        _ => Err(StorageError::KeyringError(e)),
-                    }
-                }
+    pub fn read_credentials<T: DeserializeOwned>(&self) -> Result<T, StorageError> {
+        let json_str = self.store.get_secret(&self.service, &self.username)
+            .map_err(|e| match e {
+                SecretError::NotFound(_) => StorageError::NotFound,
+                _ => StorageError::SecretError(e),
             })?;
-
+        
         serde_json::from_str(&json_str).map_err(StorageError::SerializationError)
     }
 
-    fn read_from_file(&self) -> Result<String, StorageError> {
-        let path = Path::new(&self.credentials_path);
-        if path.exists() {
-            match fs::read_to_string(path) {
-                Ok(content) => {
-                    debug!("Successfully read credentials from file system");
-                    Ok(content)
-                }
-                Err(e) => {
-                    error!("Failed to read credentials file: {}", e);
-                    Err(StorageError::FileSystemError(e))
-                }
-            }
-        } else {
-            debug!("No credentials found in file system");
-            Err(StorageError::NotFound)
-        }
+
+    pub fn write_credentials<T: Serialize>(&self, content: &T) -> Result<(), StorageError> {
+        let json_str = serde_json::to_string(content)?;
+        self.store.set_secret(&self.service, &self.username, &json_str)
+            .map_err(StorageError::SecretError)
     }
 
-    /// Serializes and writes credentials to secure storage.
-    ///
-    /// This method attempts to write credentials to the system keychain first.
-    /// If keychain access fails and fallback is enabled, it will try to write to the file system.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `T` - The type to serialize. Must implement `serde::Serialize`.
-    ///
-    /// # Parameters
-    ///
-    /// * `content` - The data to serialize and store
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - If writing succeeds
-    /// * `Err(StorageError)` - If serialization or writing fails
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use goose_mcp::google_drive::storage::CredentialsManager;
-    /// use serde::{Serialize, Deserialize};
-    ///
-    /// #[derive(Serialize, Deserialize)]
-    /// struct OAuthToken {
-    ///     access_token: String,
-    ///     refresh_token: String,
-    ///     expiry: u64,
-    /// }
-    ///
-    /// let token = OAuthToken {
-    ///     access_token: String::from("access_token_value"),
-    ///     refresh_token: String::from("refresh_token_value"),
-    ///     expiry: 1672531200, // Unix timestamp
-    /// };
-    ///
-    /// let manager = CredentialsManager::new(
-    ///     String::from("/path/to/credentials.json"),
-    ///     true,  // fallback to disk if keychain fails
-    ///     String::from("test_service"),
-    ///     String::from("test_user")
-    /// );
-    /// if let Err(e) = manager.write_credentials(&token) {
-    ///     eprintln!("Failed to write token: {}", e);
-    /// }
-    /// ```
-    pub fn write_credentials<T>(&self, content: &T) -> Result<(), StorageError>
-    where
-        T: Serialize,
-    {
-        let json_str = serde_json::to_string(content).map_err(StorageError::SerializationError)?;
-
-        Entry::new(&self.keychain_service, &self.keychain_username)
-            .and_then(|entry| entry.set_password(&json_str))
-            .inspect(|_| {
-                debug!("Successfully wrote credentials to keychain");
-            })
-            .or_else(|e| {
-                if self.fallback_to_disk {
-                    warn!("Falling back to file system due to keyring error: {}", e);
-                    self.write_to_file(&json_str)
-                } else {
-                    Err(StorageError::KeyringError(e))
-                }
-            })
-    }
-
-    fn write_to_file(&self, content: &str) -> Result<(), StorageError> {
-        let path = Path::new(&self.credentials_path);
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                match fs::create_dir_all(parent) {
-                    Ok(_) => debug!("Created parent directories for credentials file"),
-                    Err(e) => {
-                        error!("Failed to create directories for credentials file: {}", e);
-                        return Err(StorageError::FileSystemError(e));
-                    }
-                }
-            }
-        }
-
-        match fs::write(path, content) {
-            Ok(_) => {
-                debug!("Successfully wrote credentials to file system");
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to write credentials to file system: {}", e);
-                Err(StorageError::FileSystemError(e))
-            }
-        }
-    }
 }
 
-impl Clone for CredentialsManager {
-    fn clone(&self) -> Self {
-        Self {
-            credentials_path: self.credentials_path.clone(),
-            fallback_to_disk: self.fallback_to_disk,
-            keychain_service: self.keychain_service.clone(),
-            keychain_username: self.keychain_username.clone(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -324,12 +160,11 @@ mod tests {
     }
 
     #[test]
-    fn test_file_system_error_handling() {
-        // Test handling of file system errors by using an invalid path
-        let invalid_path = String::from("/nonexistent_directory/credentials.json");
+    fn test_write_read_credentials() {
+        // Test basic write and read functionality with file fallback
         let manager = CredentialsManager::new(
-            invalid_path,
-            true,
+            "/tmp/test_credentials".to_string(),
+            true, // Enable file fallback
             "test_service".to_string(),
             "test_user".to_string(),
         );
@@ -337,8 +172,14 @@ mod tests {
         // Create test credentials
         let creds = TestCredentials::new();
 
-        // Attempt to write to an invalid path should result in FileSystemError
-        let result = manager.write_to_file(&serde_json::to_string(&creds).unwrap());
-        assert!(matches!(result, Err(StorageError::FileSystemError(_))));
+        // Write and read credentials
+        let write_result = manager.write_credentials(&creds);
+        assert!(write_result.is_ok(), "Write should succeed");
+
+        let read_result = manager.read_credentials::<TestCredentials>();
+        assert!(read_result.is_ok(), "Read should succeed");
+        
+        let read_creds = read_result.unwrap();
+        assert_eq!(read_creds, creds, "Credentials should match");
     }
 }

@@ -8,12 +8,14 @@ repository.workspace = true
 description = "Secure storage for MCP server secrets"
 
 [dependencies]
-keyring = "3.6"
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
 console = "0.15"
 jsonschema = "0.18"
+etcetera = "0.8"
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
