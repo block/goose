@@ -120,7 +120,7 @@ The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecip
 | `path` | String | Relative or absolute path to the sub-recipe file |
 | `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
 
-### Example Sub-Recipe Configuration
+### Example SubRecipe Configuration
 
 ```yaml
 sub_recipes:
