@@ -260,34 +260,18 @@ export default function ChatInput({
       return;
     }
     
-    // Calculate position for the popover
+    // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
-    const textBeforeAt = beforeCursor.slice(0, lastAtIndex);
     
-    // Create a temporary element to measure text width
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (context) {
-      const computedStyle = window.getComputedStyle(textArea);
-      context.font = `${computedStyle.fontSize} ${computedStyle.fontFamily}`;
-      
-      const lines = textBeforeAt.split('\n');
-      const lastLine = lines[lines.length - 1];
-      const textWidth = context.measureText(lastLine).width;
-      
-      const lineHeight = parseInt(computedStyle.lineHeight) || parseInt(computedStyle.fontSize) * 1.2;
-      const yOffset = (lines.length - 1) * lineHeight;
-      
-      setMentionPopover({
-        isOpen: true,
-        position: {
-          x: textAreaRect.left + textWidth + 16, // 16px for padding
-          y: textAreaRect.top + yOffset + 30, // 30px offset below the line
-        },
-        query: afterAt,
-        mentionStart: lastAtIndex,
-      });
-    }
+    setMentionPopover({
+      isOpen: true,
+      position: {
+        x: textAreaRect.left,
+        y: textAreaRect.top, // Position at the top of the textarea
+      },
+      query: afterAt,
+      mentionStart: lastAtIndex,
+    });
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -492,6 +476,19 @@ export default function ChatInput({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention popover is open, let it handle arrow keys and enter
+    if (mentionPopover.isOpen) {
+      if (evt.key === 'ArrowDown' || evt.key === 'ArrowUp' || evt.key === 'Enter') {
+        // Don't handle these keys here, let the popover handle them
+        return;
+      }
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        setMentionPopover(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
     // Handle history navigation first
     handleHistoryNavigation(evt);
 
@@ -500,15 +497,6 @@ export default function ChatInput({
       evt.preventDefault();
       setIsFuzzySearchOpen(true);
       return;
-    }
-
-    // Handle Escape key
-    if (evt.key === 'Escape') {
-      if (mentionPopover.isOpen) {
-        evt.preventDefault();
-        setMentionPopover(prev => ({ ...prev, isOpen: false }));
-        return;
-      }
     }
 
     if (evt.key === 'Enter') {
