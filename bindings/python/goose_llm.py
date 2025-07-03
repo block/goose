@@ -463,13 +463,15 @@ def _uniffi_check_contract_api_version(lib):
 def _uniffi_check_api_checksums(lib):
     if lib.uniffi_goose_llm_checksum_func_completion() != 47457:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    if lib.uniffi_goose_llm_checksum_func_create_completion_request() != 51008:
+    if lib.uniffi_goose_llm_checksum_func_create_completion_request() != 39068:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    if lib.uniffi_goose_llm_checksum_func_create_tool_config() != 22809:
+    if lib.uniffi_goose_llm_checksum_func_create_tool_config() != 49910:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    if lib.uniffi_goose_llm_checksum_func_generate_session_name() != 9810:
+    if lib.uniffi_goose_llm_checksum_func_generate_session_name() != 64087:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    if lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 15466:
+    if lib.uniffi_goose_llm_checksum_func_generate_structured_outputs() != 43426:
+        raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    if lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 41121:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     if lib.uniffi_goose_llm_checksum_func_print_messages() != 30278:
         raise InternalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
@@ -607,6 +609,14 @@ _UniffiLib.uniffi_goose_llm_fn_func_generate_session_name.argtypes = (
     _UniffiRustBuffer,
 )
 _UniffiLib.uniffi_goose_llm_fn_func_generate_session_name.restype = ctypes.c_uint64
+_UniffiLib.uniffi_goose_llm_fn_func_generate_structured_outputs.argtypes = (
+    _UniffiRustBuffer,
+    _UniffiRustBuffer,
+    _UniffiRustBuffer,
+    _UniffiRustBuffer,
+    _UniffiRustBuffer,
+)
+_UniffiLib.uniffi_goose_llm_fn_func_generate_structured_outputs.restype = ctypes.c_uint64
 _UniffiLib.uniffi_goose_llm_fn_func_generate_tooltip.argtypes = (
     _UniffiRustBuffer,
     _UniffiRustBuffer,
@@ -898,6 +908,9 @@ _UniffiLib.uniffi_goose_llm_checksum_func_create_tool_config.restype = ctypes.c_
 _UniffiLib.uniffi_goose_llm_checksum_func_generate_session_name.argtypes = (
 )
 _UniffiLib.uniffi_goose_llm_checksum_func_generate_session_name.restype = ctypes.c_uint16
+_UniffiLib.uniffi_goose_llm_checksum_func_generate_structured_outputs.argtypes = (
+)
+_UniffiLib.uniffi_goose_llm_checksum_func_generate_structured_outputs.restype = ctypes.c_uint16
 _UniffiLib.uniffi_goose_llm_checksum_func_generate_tooltip.argtypes = (
 )
 _UniffiLib.uniffi_goose_llm_checksum_func_generate_tooltip.restype = ctypes.c_uint16
@@ -1293,6 +1306,65 @@ class _UniffiConverterTypeProviderCompleteResponse(_UniffiConverterRustBuffer):
         _UniffiConverterTypeUsage.write(value.usage, buf)
 
 
+class ProviderExtractResponse:
+    """
+    Response from a structured‐extraction call
+    """
+
+    data: "Value"
+    """
+    The extracted JSON object
+    """
+
+    model: "str"
+    """
+    Which model produced it
+    """
+
+    usage: "Usage"
+    """
+    Token usage stats
+    """
+
+    def __init__(self, *, data: "Value", model: "str", usage: "Usage"):
+        self.data = data
+        self.model = model
+        self.usage = usage
+
+    def __str__(self):
+        return "ProviderExtractResponse(data={}, model={}, usage={})".format(self.data, self.model, self.usage)
+
+    def __eq__(self, other):
+        if self.data != other.data:
+            return False
+        if self.model != other.model:
+            return False
+        if self.usage != other.usage:
+            return False
+        return True
+
+class _UniffiConverterTypeProviderExtractResponse(_UniffiConverterRustBuffer):
+    @staticmethod
+    def read(buf):
+        return ProviderExtractResponse(
+            data=_UniffiConverterTypeValue.read(buf),
+            model=_UniffiConverterString.read(buf),
+            usage=_UniffiConverterTypeUsage.read(buf),
+        )
+
+    @staticmethod
+    def check_lower(value):
+        _UniffiConverterTypeValue.check_lower(value.data)
+        _UniffiConverterString.check_lower(value.model)
+        _UniffiConverterTypeUsage.check_lower(value.usage)
+
+    @staticmethod
+    def write(value, buf):
+        _UniffiConverterTypeValue.write(value.data, buf)
+        _UniffiConverterString.write(value.model, buf)
+        _UniffiConverterTypeUsage.write(value.usage, buf)
+
+
 class RedactedThinkingContent:
     data: "str"
     def __init__(self, *, data: "str"):
@@ -1428,6 +1500,56 @@ class _UniffiConverterTypeThinkingContent(_UniffiConverterRustBuffer):
     def write(value, buf):
         _UniffiConverterString.write(value.thinking, buf)
         _UniffiConverterString.write(value.signature, buf)
+
+
+class ToolConfig:
+    name: "str"
+    description: "str"
+    input_schema: "Value"
+    approval_mode: "ToolApprovalMode"
+    def __init__(self, *, name: "str", description: "str", input_schema: "Value", approval_mode: "ToolApprovalMode"):
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema
+        self.approval_mode = approval_mode
+
+    def __str__(self):
+        return "ToolConfig(name={}, description={}, input_schema={}, approval_mode={})".format(self.name, self.description, self.input_schema, self.approval_mode)
+
+    def __eq__(self, other):
+        if self.name != other.name:
+            return False
+        if self.description != other.description:
+            return False
+        if self.input_schema != other.input_schema:
+            return False
+        if self.approval_mode != other.approval_mode:
+            return False
+        return True
+
+class _UniffiConverterTypeToolConfig(_UniffiConverterRustBuffer):
+    @staticmethod
+    def read(buf):
+        return ToolConfig(
+            name=_UniffiConverterString.read(buf),
+            description=_UniffiConverterString.read(buf),
+            input_schema=_UniffiConverterTypeValue.read(buf),
+            approval_mode=_UniffiConverterTypeToolApprovalMode.read(buf),
+        )
+
+    @staticmethod
+    def check_lower(value):
+        _UniffiConverterString.check_lower(value.name)
+        _UniffiConverterString.check_lower(value.description)
+        _UniffiConverterTypeValue.check_lower(value.input_schema)
+        _UniffiConverterTypeToolApprovalMode.check_lower(value.approval_mode)
+
+    @staticmethod
+    def write(value, buf):
+        _UniffiConverterString.write(value.name, buf)
+        _UniffiConverterString.write(value.description, buf)
+        _UniffiConverterTypeValue.write(value.input_schema, buf)
+        _UniffiConverterTypeToolApprovalMode.write(value.approval_mode, buf)
 
 
 class ToolRequest:
@@ -2596,31 +2718,6 @@ class _UniffiConverterSequenceTypeMessage(_UniffiConverterRustBuffer):
 
 
 
-class _UniffiConverterSequenceTypeMessageContent(_UniffiConverterRustBuffer):
-    @classmethod
-    def check_lower(cls, value):
-        for item in value:
-            _UniffiConverterTypeMessageContent.check_lower(item)
-
-    @classmethod
-    def write(cls, value, buf):
-        items = len(value)
-        buf.write_i32(items)
-        for item in value:
-            _UniffiConverterTypeMessageContent.write(item, buf)
-
-    @classmethod
-    def read(cls, buf):
-        count = buf.read_i32()
-        if count < 0:
-            raise InternalError("Unexpected negative sequence length")
-
-        return [
-            _UniffiConverterTypeMessageContent.read(buf) for i in range(count)
-        ]
-
-
-
 class _UniffiConverterSequenceTypeToolConfig(_UniffiConverterRustBuffer):
     @classmethod
     def check_lower(cls, value):
@@ -2642,6 +2739,31 @@ class _UniffiConverterSequenceTypeToolConfig(_UniffiConverterRustBuffer):
 
         return [
             _UniffiConverterTypeToolConfig.read(buf) for i in range(count)
+        ]
+
+
+
+class _UniffiConverterSequenceTypeMessageContent(_UniffiConverterRustBuffer):
+    @classmethod
+    def check_lower(cls, value):
+        for item in value:
+            _UniffiConverterTypeMessageContent.check_lower(item)
+
+    @classmethod
+    def write(cls, value, buf):
+        items = len(value)
+        buf.write_i32(items)
+        for item in value:
+            _UniffiConverterTypeMessageContent.write(item, buf)
+
+    @classmethod
+    def read(cls, buf):
+        count = buf.read_i32()
+        if count < 0:
+            raise InternalError("Unexpected negative sequence length")
+
+        return [
+            _UniffiConverterTypeMessageContent.read(buf) for i in range(count)
         ]
 
 
@@ -2689,50 +2811,6 @@ class _UniffiConverterTypeContents:
         return _UniffiConverterSequenceTypeMessageContent.lower(value)
 
 
-class _UniffiConverterTypeJsonValueFfi:
-    @staticmethod
-    def write(value, buf):
-        _UniffiConverterString.write(value, buf)
-
-    @staticmethod
-    def read(buf):
-        return _UniffiConverterString.read(buf)
-
-    @staticmethod
-    def lift(value):
-        return _UniffiConverterString.lift(value)
-
-    @staticmethod
-    def check_lower(value):
-        return _UniffiConverterString.check_lower(value)
-
-    @staticmethod
-    def lower(value):
-        return _UniffiConverterString.lower(value)
-
-
-class _UniffiConverterTypeToolConfig:
-    @staticmethod
-    def write(value, buf):
-        _UniffiConverterString.write(value, buf)
-
-    @staticmethod
-    def read(buf):
-        return _UniffiConverterString.read(buf)
-
-    @staticmethod
-    def lift(value):
-        return _UniffiConverterString.lift(value)
-
-    @staticmethod
-    def check_lower(value):
-        return _UniffiConverterString.check_lower(value)
-
-    @staticmethod
-    def lower(value):
-        return _UniffiConverterString.lower(value)
-
-
 class _UniffiConverterTypeToolRequestToolCall:
     @staticmethod
     def write(value, buf):
@@ -2776,13 +2854,34 @@ class _UniffiConverterTypeToolResponseToolResult:
     def lower(value):
         return _UniffiConverterString.lower(value)
 
+
+class _UniffiConverterTypeValue:
+    @staticmethod
+    def write(value, buf):
+        _UniffiConverterString.write(value, buf)
+
+    @staticmethod
+    def read(buf):
+        return _UniffiConverterString.read(buf)
+
+    @staticmethod
+    def lift(value):
+        return _UniffiConverterString.lift(value)
+
+    @staticmethod
+    def check_lower(value):
+        return _UniffiConverterString.check_lower(value)
+
+    @staticmethod
+    def lower(value):
+        return _UniffiConverterString.lower(value)
+
 # objects.
 CompletionRequest = str
 Contents = typing.List[MessageContent]
-JsonValueFfi = str
-ToolConfig = str
 ToolRequestToolCall = str
 ToolResponseToolResult = str
+Value = str
 
 # Async support# RustFuturePoll values
 _UNIFFI_RUST_FUTURE_POLL_READY = 0
@@ -2869,10 +2968,10 @@ _UniffiConverterTypeCompletionError,
 
     )
 
-def create_completion_request(provider_name: "str",provider_config: "JsonValueFfi",model_config: "ModelConfig",system_preamble: "str",messages: "typing.List[Message]",extensions: "typing.List[ExtensionConfig]") -> "CompletionRequest":
+def create_completion_request(provider_name: "str",provider_config: "Value",model_config: "ModelConfig",system_preamble: "str",messages: "typing.List[Message]",extensions: "typing.List[ExtensionConfig]") -> "CompletionRequest":
     _UniffiConverterString.check_lower(provider_name)
     
-    _UniffiConverterTypeJsonValueFfi.check_lower(provider_config)
+    _UniffiConverterTypeValue.check_lower(provider_config)
     
     _UniffiConverterTypeModelConfig.check_lower(model_config)
     
@@ -2884,29 +2983,29 @@ def create_completion_request(provider_name: "str",provider_config: "JsonValueFf
     
     return _UniffiConverterTypeCompletionRequest.lift(_uniffi_rust_call(_UniffiLib.uniffi_goose_llm_fn_func_create_completion_request,
         _UniffiConverterString.lower(provider_name),
-        _UniffiConverterTypeJsonValueFfi.lower(provider_config),
+        _UniffiConverterTypeValue.lower(provider_config),
         _UniffiConverterTypeModelConfig.lower(model_config),
         _UniffiConverterString.lower(system_preamble),
         _UniffiConverterSequenceTypeMessage.lower(messages),
         _UniffiConverterSequenceTypeExtensionConfig.lower(extensions)))
 
 
-def create_tool_config(name: "str",description: "str",input_schema: "JsonValueFfi",approval_mode: "ToolApprovalMode") -> "ToolConfig":
+def create_tool_config(name: "str",description: "str",input_schema: "Value",approval_mode: "ToolApprovalMode") -> "ToolConfig":
     _UniffiConverterString.check_lower(name)
     
     _UniffiConverterString.check_lower(description)
     
-    _UniffiConverterTypeJsonValueFfi.check_lower(input_schema)
+    _UniffiConverterTypeValue.check_lower(input_schema)
     
     _UniffiConverterTypeToolApprovalMode.check_lower(approval_mode)
     
     return _UniffiConverterTypeToolConfig.lift(_uniffi_rust_call(_UniffiLib.uniffi_goose_llm_fn_func_create_tool_config,
         _UniffiConverterString.lower(name),
         _UniffiConverterString.lower(description),
-        _UniffiConverterTypeJsonValueFfi.lower(input_schema),
+        _UniffiConverterTypeValue.lower(input_schema),
         _UniffiConverterTypeToolApprovalMode.lower(approval_mode)))
 
-async def generate_session_name(provider_name: "str",provider_config: "JsonValueFfi",messages: "typing.List[Message]") -> "str":
+async def generate_session_name(provider_name: "str",provider_config: "Value",messages: "typing.List[Message]") -> "str":
 
     """
     Generates a short (≤4 words) session name
@@ -2914,14 +3013,14 @@ async def generate_session_name(provider_name: "str",provider_config: "JsonValue
 
     _UniffiConverterString.check_lower(provider_name)
     
-    _UniffiConverterTypeJsonValueFfi.check_lower(provider_config)
+    _UniffiConverterTypeValue.check_lower(provider_config)
     
     _UniffiConverterSequenceTypeMessage.check_lower(messages)
     
     return await _uniffi_rust_call_async(
         _UniffiLib.uniffi_goose_llm_fn_func_generate_session_name(
         _UniffiConverterString.lower(provider_name),
-        _UniffiConverterTypeJsonValueFfi.lower(provider_config),
+        _UniffiConverterTypeValue.lower(provider_config),
         _UniffiConverterSequenceTypeMessage.lower(messages)),
         _UniffiLib.ffi_goose_llm_rust_future_poll_rust_buffer,
         _UniffiLib.ffi_goose_llm_rust_future_complete_rust_buffer,
@@ -2933,7 +3032,41 @@ async def generate_session_name(provider_name: "str",provider_config: "JsonValue
 _UniffiConverterTypeProviderError,
 
     )
-async def generate_tooltip(provider_name: "str",provider_config: "JsonValueFfi",messages: "typing.List[Message]") -> "str":
+async def generate_structured_outputs(provider_name: "str",provider_config: "Value",system_prompt: "str",messages: "typing.List[Message]",schema: "Value") -> "ProviderExtractResponse":
+
+    """
+    Generates a structured output based on the provided schema,
+    system prompt and user messages.
+    """
+
+    _UniffiConverterString.check_lower(provider_name)
+    
+    _UniffiConverterTypeValue.check_lower(provider_config)
+    
+    _UniffiConverterString.check_lower(system_prompt)
+    
+    _UniffiConverterSequenceTypeMessage.check_lower(messages)
+    
+    _UniffiConverterTypeValue.check_lower(schema)
+    
+    return await _uniffi_rust_call_async(
+        _UniffiLib.uniffi_goose_llm_fn_func_generate_structured_outputs(
+        _UniffiConverterString.lower(provider_name),
+        _UniffiConverterTypeValue.lower(provider_config),
+        _UniffiConverterString.lower(system_prompt),
+        _UniffiConverterSequenceTypeMessage.lower(messages),
+        _UniffiConverterTypeValue.lower(schema)),
+        _UniffiLib.ffi_goose_llm_rust_future_poll_rust_buffer,
+        _UniffiLib.ffi_goose_llm_rust_future_complete_rust_buffer,
+        _UniffiLib.ffi_goose_llm_rust_future_free_rust_buffer,
+        # lift function
+        _UniffiConverterTypeProviderExtractResponse.lift,
+        
+    # Error FFI converter
+_UniffiConverterTypeProviderError,
+
+    )
+async def generate_tooltip(provider_name: "str",provider_config: "Value",messages: "typing.List[Message]") -> "str":
 
     """
     Generates a tooltip summarizing the last two messages in the session,
@@ -2942,14 +3075,14 @@ async def generate_tooltip(provider_name: "str",provider_config: "JsonValueFfi",
 
     _UniffiConverterString.check_lower(provider_name)
     
-    _UniffiConverterTypeJsonValueFfi.check_lower(provider_config)
+    _UniffiConverterTypeValue.check_lower(provider_config)
     
     _UniffiConverterSequenceTypeMessage.check_lower(messages)
     
     return await _uniffi_rust_call_async(
         _UniffiLib.uniffi_goose_llm_fn_func_generate_tooltip(
         _UniffiConverterString.lower(provider_name),
-        _UniffiConverterTypeJsonValueFfi.lower(provider_config),
+        _UniffiConverterTypeValue.lower(provider_config),
         _UniffiConverterSequenceTypeMessage.lower(messages)),
         _UniffiLib.ffi_goose_llm_rust_future_poll_rust_buffer,
         _UniffiLib.ffi_goose_llm_rust_future_complete_rust_buffer,
@@ -2984,10 +3117,12 @@ __all__ = [
     "Message",
     "ModelConfig",
     "ProviderCompleteResponse",
+    "ProviderExtractResponse",
     "RedactedThinkingContent",
     "RuntimeMetrics",
     "TextContent",
     "ThinkingContent",
+    "ToolConfig",
     "ToolRequest",
     "ToolResponse",
     "Usage",
@@ -2995,6 +3130,7 @@ __all__ = [
     "create_completion_request",
     "create_tool_config",
     "generate_session_name",
+    "generate_structured_outputs",
     "generate_tooltip",
     "print_messages",
 ]
