@@ -25,6 +25,7 @@ import LayingEggLoader from './LayingEggLoader';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
+import { useSessionMetadata } from '../hooks/useSessionMetadata';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import ParameterInputModal from './ParameterInputModal';
 import { Recipe } from '../recipe';
@@ -154,6 +155,10 @@ function ChatContent({
     getContextHandlerType,
   } = useChatContextManager();
 
+  // Use the session metadata hook
+  const { sessionName, isSessionNameSet, refreshSessionName, updateSessionName } =
+    useSessionMetadata(chat.id);
+
   useEffect(() => {
     // Log all messages when the component first mounts
     window.electron.logInfo(
@@ -230,6 +235,18 @@ function ChatContent({
       }
     },
   });
+
+  // Refresh session name after messages are added (for auto-generated names)
+  useEffect(() => {
+    if (messages.length > 0 && !isSessionNameSet) {
+      // Delay to allow server to process and generate name
+      const timer = setTimeout(() => {
+        refreshSessionName();
+      }, 2000);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [messages.length, isSessionNameSet, refreshSessionName]);
 
   // Wrap append to store messages in global history
   const append = useCallback(
@@ -754,6 +771,15 @@ function ChatContent({
           hasMessages={hasMessages}
           setView={setView}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          sessionId={chat.id}
+          sessionName={sessionName}
+          onSessionNameUpdated={(newName) => {
+            updateSessionName(newName);
+            setChat({
+              ...chat,
+              title: newName,
+            });
+          }}
         />
 
         <Card
