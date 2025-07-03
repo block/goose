@@ -40,7 +40,10 @@ Understanding Cognee's search types is crucial for effective usage:
 
 ## Automation Strategies
 
-### Strategy 1: Instruction Files
+<Tabs>
+<TabItem value="method1" label="Method 1 (Slow)" default>
+
+### Instruction Files
 
 Use instruction files for consistent behavior across sessions. This method uses fewer tokens but has slower startup.
 
@@ -90,7 +93,10 @@ Start Goose with instructions:
 goose run -i ~/.config/goose/cognee-instructions.md -s
 ```
 
-### Strategy 2: Goosehints File
+</TabItem>
+<TabItem value="method2" label="Method 2">
+
+### Goosehints File
 
 For faster startup with higher token usage, add to your `.goosehints` file:
 
@@ -113,6 +119,9 @@ CODE_ANALYSIS_PROTOCOL:
 - For repositories: cognee-mcp__codify with repo_path parameter
 - Only process files from rg --files output
 ```
+
+</TabItem>
+</Tabs>
 
 ### Strategy 3: Memory MCP Integration
 
