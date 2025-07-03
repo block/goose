@@ -68,6 +68,8 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
    </details>
 
+    For detailed descriptions and example configurations of all recipe fields, see the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference).
+
    :::warning
    You cannot create a recipe from an existing recipe session - the `/recipe` command will not work.
    :::

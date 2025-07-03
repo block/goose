@@ -36,6 +36,7 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
+| `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
 
 ## Parameters
@@ -105,6 +106,32 @@ extensions:
     args:
       - 'mcp_presidio@latest'
     description: "For searching logs using Presidio"
+```
+
+## Sub-Recipes
+
+The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-recipes) that the main recipe calls to perform specific tasks. Each sub-recipe in the array has the following structure:
+
+### Sub-Recipe Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Unique identifier for the sub-recipe |
+| `path` | String | Relative or absolute path to the sub-recipe file |
+| `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
+
+### Example Sub-Recipe Configuration
+
+```yaml
+sub_recipes:
+  - name: "security_scan"
+    path: "./sub-recipes/security-analysis.yaml"
+    values:  # in key-value format: {parameter_name}: {parameter_value}
+      scan_level: "comprehensive"
+      include_dependencies: "true"
+  
+  - name: "quality_check"
+    path: "./sub-recipes/quality-analysis.yaml"
 ```
 
 ## Structured Output with `response`
