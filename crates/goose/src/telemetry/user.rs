@@ -116,6 +116,7 @@ fn is_automation_environment() -> bool {
         "FUNCTION_NAME",
         "AZURE_FUNCTIONS_ENVIRONMENT",
         "GOOSE_AUTOMATION",
+        "GOOSE_JOB_ID", // Temporal service scheduled jobs
     ];
 
     automation_vars.iter().any(|var| env::var(var).is_ok())
@@ -141,14 +142,48 @@ mod tests {
         let vars_to_clear = [
             "GOOSE_USAGE_TYPE",
             "CI",
+            "CONTINUOUS_INTEGRATION",
+            "BUILD_NUMBER", 
             "GITHUB_ACTIONS",
+            "GITLAB_CI",
+            "JENKINS_URL",
+            "TRAVIS",
+            "CIRCLECI",
+            "BUILDKITE",
+            "DRONE",
+            "TEAMCITY_VERSION",
+            "TF_BUILD",
+            "CODEBUILD_BUILD_ID",
             "AWS_LAMBDA_FUNCTION_NAME",
+            "GOOSE_JOB_ID",
         ];
         for var in &vars_to_clear {
             env::remove_var(var);
         }
 
         assert_eq!(detect_usage_type(), UsageType::Human);
+    }
+
+    #[test]
+    fn test_detect_usage_type_temporal_service() {
+        // Clear all environment variables first
+        let vars_to_clear = [
+            "GOOSE_USAGE_TYPE",
+            "CI",
+            "GITHUB_ACTIONS", 
+            "AWS_LAMBDA_FUNCTION_NAME",
+            "GOOSE_JOB_ID",
+        ];
+        for var in &vars_to_clear {
+            env::remove_var(var);
+        }
+
+        // Set temporal service job ID
+        env::set_var("GOOSE_JOB_ID", "scheduled-job-abc123");
+        assert_eq!(detect_usage_type(), UsageType::Automation);
+        
+        // Clean up
+        env::remove_var("GOOSE_JOB_ID");
     }
 
     #[test]
@@ -177,6 +212,7 @@ mod tests {
     fn test_detect_automation_environment() {
         env::remove_var("AWS_LAMBDA_FUNCTION_NAME");
         env::remove_var("KUBERNETES_SERVICE_HOST");
+        env::remove_var("GOOSE_JOB_ID");
         assert!(!is_automation_environment());
 
         env::set_var("AWS_LAMBDA_FUNCTION_NAME", "test-function");
@@ -186,6 +222,11 @@ mod tests {
         env::set_var("KUBERNETES_SERVICE_HOST", "10.0.0.1");
         assert!(is_automation_environment());
         env::remove_var("KUBERNETES_SERVICE_HOST");
+
+        // Test temporal service detection
+        env::set_var("GOOSE_JOB_ID", "scheduled-job-123");
+        assert!(is_automation_environment());
+        env::remove_var("GOOSE_JOB_ID");
     }
 
     #[test]
