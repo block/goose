@@ -28,10 +28,8 @@ pub fn extract_recipe_info_from_cli(
                 Ok(recipe_file) => {
                     let name = extract_recipe_name(&sub_recipe_name);
                     let recipe_file_path = recipe_file.file_path;
-                    let canonical_path =
-                        recipe_file_path.canonicalize().unwrap_or(recipe_file_path);
                     let additional_sub_recipe = SubRecipe {
-                        path: canonical_path.to_string_lossy().to_string(),
+                        path: recipe_file_path.to_string_lossy().to_string(),
                         name,
                         values: None,
                     };
@@ -231,6 +229,7 @@ response:
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
 
         std::fs::write(&recipe_path, test_recipe_content).unwrap();
-        (temp_dir, recipe_path)
+        let canonical_recipe_path = recipe_path.canonicalize().unwrap();
+        (temp_dir, canonical_recipe_path)
     }
 }
