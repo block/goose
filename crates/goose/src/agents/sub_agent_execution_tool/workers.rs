@@ -6,12 +6,10 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
 pub struct SharedState {
-    pub task_sender: mpsc::Sender<Task>,
     pub task_receiver: Arc<tokio::sync::Mutex<mpsc::Receiver<Task>>>,
     pub result_sender: mpsc::Sender<TaskResult>,
     pub active_workers: Arc<AtomicUsize>,
     pub should_stop: Arc<AtomicBool>,
-    pub total_tasks: Arc<AtomicUsize>,
     pub completed_tasks: Arc<AtomicUsize>,
 }
 

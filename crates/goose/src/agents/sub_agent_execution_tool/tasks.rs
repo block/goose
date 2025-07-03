@@ -1,9 +1,9 @@
-use tokio::process::Command;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::time::timeout;
+use serde_json::{json, Value};
 use std::process::Stdio;
 use std::time::Duration;
-use serde_json::{json, Value};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::time::timeout;
 
 use crate::agents::sub_agent_execution_tool::types::{Task, TaskResult};
 
@@ -40,7 +40,6 @@ async fn execute_task(task: Task) -> Result<Value, String> {
 
     let mut command = if task.task_type == "sub_recipe" {
         let sub_recipe = task.payload.get("sub_recipe").unwrap();
-        let name = sub_recipe.get("name").unwrap().as_str().unwrap();
         let path = sub_recipe.get("recipe_path").unwrap().as_str().unwrap();
         let command_parameters = sub_recipe.get("command_parameters").unwrap();
         let mut cmd = Command::new("goose");
@@ -49,12 +48,18 @@ async fn execute_task(task: Task) -> Result<Value, String> {
             for (key, value) in params_map {
                 let key_str = key.to_string();
                 let value_str = value.as_str().unwrap_or(&value.to_string()).to_string();
-                cmd.arg("--params").arg(format!("{}={}", key_str, value_str));
+                cmd.arg("--params")
+                    .arg(format!("{}={}", key_str, value_str));
             }
         }
         cmd
     } else {
-        let text = task.payload.get("text_instruction").unwrap().as_str().unwrap();
+        let text = task
+            .payload
+            .get("text_instruction")
+            .unwrap()
+            .as_str()
+            .unwrap();
         let mut cmd = Command::new("goose");
         cmd.arg("run").arg("--text").arg(text);
         cmd
@@ -65,7 +70,9 @@ async fn execute_task(task: Task) -> Result<Value, String> {
     command.stderr(Stdio::piped());
 
     // Spawn the child process
-    let mut child = command.spawn().map_err(|e| format!("Failed to spawn goose: {}", e))?;
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn goose: {}", e))?;
 
     // Pipe the stdout
     if let Some(stdout) = child.stdout.take() {
@@ -79,9 +86,15 @@ async fn execute_task(task: Task) -> Result<Value, String> {
     }
 
     // Await final status
-    let status = child.wait().await.map_err(|e| format!("Failed to wait on goose: {}", e))?;
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait on goose: {}", e))?;
     if !status.success() {
-        return Err(format!("Goose command failed with exit code: {:?}", status.code()));
+        return Err(format!(
+            "Goose command failed with exit code: {:?}",
+            status.code()
+        ));
     }
 
     Ok(json!({ "output": "Goose command completed." }))

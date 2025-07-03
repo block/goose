@@ -1,9 +1,7 @@
 use mcp_core::{tool::ToolAnnotations, Content, Tool, ToolError};
 use serde_json::Value;
 
-use crate::agents::{
-    sub_agent_execution_tool::lib::execute_tasks, tool_execution::ToolCallResult,
-};
+use crate::agents::{sub_agent_execution_tool::lib::execute_tasks, tool_execution::ToolCallResult};
 
 pub const SUB_AGENT_EXECUTE_TASK_TOOL_NAME: &str = "sub_agent__execute_task";
 pub fn create_sub_agent_execute_task_tool() -> Tool {

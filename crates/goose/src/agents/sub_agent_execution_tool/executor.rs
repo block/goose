@@ -12,12 +12,12 @@ use crate::agents::sub_agent_execution_tool::workers::{run_scaler, spawn_worker,
 pub async fn execute_single_task(task: &Task, config: Config) -> ExecutionResponse {
     let start_time = Instant::now();
     let result = process_task(task, config.timeout_seconds).await;
-    
+
     let execution_time = start_time.elapsed().as_millis();
     let completed = if result.status == "success" { 1 } else { 0 };
     let failed = if result.status == "failed" { 1 } else { 0 };
 
-    return ExecutionResponse {
+    ExecutionResponse {
         status: "completed".to_string(),
         results: vec![result],
         stats: ExecutionStats {
@@ -26,7 +26,7 @@ pub async fn execute_single_task(task: &Task, config: Config) -> ExecutionRespon
             failed,
             execution_time_ms: execution_time,
         },
-    };
+    }
 }
 
 // Main parallel execution function
@@ -40,12 +40,10 @@ pub async fn parallel_execute(tasks: Vec<Task>, config: Config) -> ExecutionResp
 
     // Initialize shared state
     let shared_state = Arc::new(SharedState {
-        task_sender: task_tx.clone(),
         task_receiver: Arc::new(tokio::sync::Mutex::new(task_rx)),
         result_sender: result_tx,
         active_workers: Arc::new(AtomicUsize::new(0)),
         should_stop: Arc::new(AtomicBool::new(false)),
-        total_tasks: Arc::new(AtomicUsize::new(task_count)),
         completed_tasks: Arc::new(AtomicUsize::new(0)),
     });
 

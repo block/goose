@@ -20,7 +20,8 @@ pub async fn execute_tasks(input: Value) -> Result<Value, String> {
     let task_count = tasks.len();
     if task_count == 1 {
         let response = execute_single_task(&tasks[0], config).await;
-        return serde_json::to_value(response).map_err(|e| format!("Failed to serialize response: {}", e));
+        return serde_json::to_value(response)
+            .map_err(|e| format!("Failed to serialize response: {}", e));
     }
 
     // Execute tasks
