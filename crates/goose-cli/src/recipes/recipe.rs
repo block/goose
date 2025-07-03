@@ -2,7 +2,7 @@ use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
-use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::search_recipe::{retrieve_recipe_file, RecipeFile};
 use crate::recipes::template_recipe::{
     parse_recipe_content, render_recipe_content_with_params, render_recipe_for_preview,
 };
@@ -18,7 +18,11 @@ pub fn load_recipe_content_as_template(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<String> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let RecipeFile {
+        content: recipe_file_content,
+        parent_dir: recipe_parent_dir,
+        ..
+    } = retrieve_recipe_file(recipe_name)?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
@@ -70,7 +74,11 @@ pub fn load_recipe_as_template(recipe_name: &str, params: Vec<(String, String)>)
 }
 
 pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let RecipeFile {
+        content: recipe_file_content,
+        parent_dir: recipe_parent_dir,
+        ..
+    } = retrieve_recipe_file(recipe_name)?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
@@ -87,7 +95,11 @@ pub fn explain_recipe_with_parameters(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<()> {
-    let (recipe_file_content, recipe_parent_dir) = retrieve_recipe_file(recipe_name)?;
+    let RecipeFile {
+        content: recipe_file_content,
+        parent_dir: recipe_parent_dir,
+        ..
+    } = retrieve_recipe_file(recipe_name)?;
     let recipe_dir_str = recipe_parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;

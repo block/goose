@@ -522,9 +522,9 @@ enum Command {
         /// Additional sub-recipe file paths
         #[arg(
             long = "sub-recipe",
-            value_name = "FILE",
-            help = "Path to a sub-recipe YAML file (can be specified multiple times)",
-            long_help = "Specify paths to sub-recipe YAML files that contain additional recipe configuration or instructions to be used alongside the main recipe. Can be specified multiple times to include multiple sub-recipes.",
+            value_name = "RECIPE",
+            help = "Sub-recipe name or file path (can be specified multiple times)",
+            long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
             action = clap::ArgAction::Append
         )]
         additional_sub_recipes: Vec<String>,
