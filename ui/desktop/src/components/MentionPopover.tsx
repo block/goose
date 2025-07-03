@@ -183,11 +183,58 @@ export default function MentionPopover({
           continue;
         }
         
+        // First, check if this looks like a file based on extension
+        const hasExtension = item.includes('.');
+        const ext = item.split('.').pop()?.toLowerCase();
+        const commonExtensions = [
+          // Code files
+          'txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'h',
+          'css', 'html', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg',
+          'sh', 'bat', 'ps1', 'rb', 'go', 'rs', 'php', 'sql', 'r', 'scala',
+          'swift', 'kt', 'dart', 'vue', 'svelte', 'astro', 'scss', 'less',
+          // Documentation
+          'readme', 'license', 'changelog', 'contributing',
+          // Config files
+          'gitignore', 'dockerignore', 'editorconfig', 'prettierrc', 'eslintrc',
+          // Images and assets
+          'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp', 'tiff', 'tif',
+          // Vector and design files
+          'ai', 'eps', 'sketch', 'fig', 'xd', 'psd',
+          // Other common files
+          'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'
+        ];
+        
+        // If it has a known file extension, treat it as a file
+        if (hasExtension && ext && commonExtensions.includes(ext)) {
+          console.log('Adding file by extension:', { item, ext });
+          results.push({
+            path: fullPath,
+            name: item,
+            isDirectory: false,
+            relativePath: itemRelativePath
+          });
+          continue;
+        }
+        
+        // If it's a known file without extension (README, LICENSE, etc.)
+        const knownFiles = ['readme', 'license', 'changelog', 'contributing', 'dockerfile', 'makefile'];
+        if (!hasExtension && knownFiles.includes(item.toLowerCase())) {
+          console.log('Adding known file without extension:', { item });
+          results.push({
+            path: fullPath,
+            name: item,
+            isDirectory: false,
+            relativePath: itemRelativePath
+          });
+          continue;
+        }
+        
+        // Otherwise, try to determine if it's a directory
         try {
-          // Check if it's a directory by trying to list its contents
           await window.electron.listFiles(fullPath);
           
           // It's a directory
+          console.log('Adding directory:', { item });
           results.push({
             path: fullPath,
             name: item,
@@ -196,44 +243,13 @@ export default function MentionPopover({
           });
           
           // Recursively scan directories more aggressively
-          // Always scan priority directories and continue scanning to reasonable depth
           if (depth < 4 || priorityDirs.includes(item)) {
             const subFiles = await scanDirectoryFromRoot(fullPath, itemRelativePath, depth + 1);
             results.push(...subFiles);
           }
         } catch {
-          // It's a file - include more file types
-          const ext = item.split('.').pop()?.toLowerCase();
-          const commonExtensions = [
-            // Code files
-            'txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'h',
-            'css', 'html', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg',
-            'sh', 'bat', 'ps1', 'rb', 'go', 'rs', 'php', 'sql', 'r', 'scala',
-            'swift', 'kt', 'dart', 'vue', 'svelte', 'astro', 'scss', 'less',
-            // Documentation
-            'readme', 'license', 'changelog', 'contributing',
-            // Config files
-            'gitignore', 'dockerignore', 'editorconfig', 'prettierrc', 'eslintrc',
-            // Images and assets
-            'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp', 'tiff', 'tif',
-            // Vector and design files
-            'ai', 'eps', 'sketch', 'fig', 'xd', 'psd',
-            // Other common files
-            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'
-          ];
-          
-          // Include files without extensions (like README, LICENSE, etc.)
-          const hasExtension = item.includes('.');
-          const shouldInclude = !hasExtension || (ext && commonExtensions.includes(ext));
-          
-          if (shouldInclude) {
-            results.push({
-              path: fullPath,
-              name: item,
-              isDirectory: false,
-              relativePath: itemRelativePath
-            });
-          }
+          // If we can't list it and it doesn't have a known extension, skip it
+          console.log('Skipping unknown item:', { item });
         }
       }
       
