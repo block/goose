@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { FileIcon } from './FileIcon';
 
 interface FileItem {
   path: string;
@@ -19,6 +20,9 @@ interface MentionPopoverProps {
   onSelect: (filePath: string) => void;
   position: { x: number; y: number };
   query: string;
+  selectedIndex: number;
+  onSelectedIndexChange: (index: number) => void;
+  filteredFiles: FileItemWithMatch[];
 }
 
 // Simple fuzzy matching algorithm
@@ -61,91 +65,27 @@ const fuzzyMatch = (pattern: string, text: string): { score: number; matches: nu
   return { score: -1, matches: [] };
 };
 
-// Get file icon based on file type
-const getFileIcon = (fileName: string, isDirectory: boolean): string => {
-  if (isDirectory) {
-    return '📁';
-  }
-  
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  
-  switch (ext) {
-    case 'js':
-    case 'jsx':
-    case 'ts':
-    case 'tsx':
-      return '📄';
-    case 'py':
-      return '🐍';
-    case 'java':
-      return '☕';
-    case 'cpp':
-    case 'c':
-    case 'h':
-      return '⚙️';
-    case 'html':
-    case 'htm':
-      return '🌐';
-    case 'css':
-      return '🎨';
-    case 'json':
-      return '📋';
-    case 'md':
-    case 'markdown':
-      return '📝';
-    case 'txt':
-      return '📄';
-    case 'pdf':
-      return '📕';
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'svg':
-      return '🖼️';
-    case 'mp4':
-    case 'mov':
-    case 'avi':
-      return '🎬';
-    case 'mp3':
-    case 'wav':
-    case 'flac':
-      return '🎵';
-    case 'zip':
-    case 'tar':
-    case 'gz':
-      return '📦';
-    default:
-      return '📄';
-  }
-};
-
 export default function MentionPopover({ 
   isOpen, 
   onClose, 
   onSelect, 
   position, 
-  query
+  query,
+  selectedIndex,
+  onSelectedIndexChange,
+  filteredFiles
 }: MentionPopoverProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Scan files when component opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && filteredFiles.length === 0) {
       scanFilesFromRoot();
     }
-  }, [isOpen]);
-
-  // Focus the popover when it opens to enable keyboard navigation
-  useEffect(() => {
-    if (isOpen && popoverRef.current) {
-      popoverRef.current.focus();
-    }
-  }, [isOpen]);
+  }, [isOpen, filteredFiles.length]);
 
   // Handle clicks outside the popover
   useEffect(() => {
@@ -265,7 +205,11 @@ export default function MentionPopover({
   };
 
   // Filter and sort files based on query
-  const filteredFiles = useMemo((): FileItemWithMatch[] => {
+  const displayFiles = useMemo((): FileItemWithMatch[] => {
+    if (filteredFiles.length > 0) {
+      return filteredFiles;
+    }
+    
     if (!query.trim()) {
       return files.slice(0, 10).map(file => ({
         ...file,
@@ -295,12 +239,7 @@ export default function MentionPopover({
       .slice(0, 10); // Limit to 10 results
     
     return results;
-  }, [files, query]);
-
-  // Update selected index when filtered results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filteredFiles]);
+  }, [files, query, filteredFiles]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -312,40 +251,16 @@ export default function MentionPopover({
     }
   }, [selectedIndex]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault();
-        onClose();
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, filteredFiles.length - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (filteredFiles[selectedIndex]) {
-          onSelect(filteredFiles[selectedIndex].path);
-          onClose();
-        }
-        break;
-    }
-  };
-
   const handleItemClick = (index: number) => {
-    setSelectedIndex(index);
-    onSelect(filteredFiles[index].path);
+    onSelectedIndexChange(index);
+    onSelect(displayFiles[index].path);
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const displayedFiles = filteredFiles.slice(0, 5);
-  const remainingCount = filteredFiles.length - displayedFiles.length;
+  const displayedFiles = displayFiles.slice(0, 5);
+  const remainingCount = displayFiles.length - displayedFiles.length;
 
   return (
     <div
@@ -356,8 +271,6 @@ export default function MentionPopover({
         top: position.y - 10, // Position above the chat input
         transform: 'translateY(-100%)', // Move it fully above
       }}
-      onKeyDown={handleKeyDown}
-      tabIndex={-1}
     >
       <div className="p-3">
         {isLoading ? (
@@ -378,9 +291,9 @@ export default function MentionPopover({
                       : 'hover:bg-bgSubtle'
                   }`}
                 >
-                  <span className="text-lg flex-shrink-0">
-                    {getFileIcon(file.name, file.isDirectory)}
-                  </span>
+                  <div className="flex-shrink-0 text-textSubtle">
+                    <FileIcon fileName={file.name} isDirectory={file.isDirectory} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">
                       {file.name}

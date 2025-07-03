@@ -73,11 +73,23 @@ export default function ChatInput({
     position: { x: number; y: number };
     query: string;
     mentionStart: number;
+    selectedIndex: number;
+    filteredFiles: Array<{
+      path: string;
+      name: string;
+      isDirectory: boolean;
+      relativePath: string;
+      matchScore: number;
+      matches: number[];
+      matchedText: string;
+    }>;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
     query: '',
     mentionStart: -1,
+    selectedIndex: 0,
+    filteredFiles: [],
   });
 
   // Whisper hook for voice dictation
@@ -263,7 +275,8 @@ export default function ChatInput({
     // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
     
-    setMentionPopover({
+    setMentionPopover(prev => ({
+      ...prev,
       isOpen: true,
       position: {
         x: textAreaRect.left,
@@ -271,7 +284,9 @@ export default function ChatInput({
       },
       query: afterAt,
       mentionStart: lastAtIndex,
-    });
+      selectedIndex: 0, // Reset selection when query changes
+      filteredFiles: [], // Will be populated by the popover
+    }));
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -476,10 +491,29 @@ export default function ChatInput({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // If mention popover is open, let it handle arrow keys and enter
+    // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen) {
-      if (evt.key === 'ArrowDown' || evt.key === 'ArrowUp' || evt.key === 'Enter') {
-        // Don't handle these keys here, let the popover handle them
+      if (evt.key === 'ArrowDown') {
+        evt.preventDefault();
+        setMentionPopover(prev => ({
+          ...prev,
+          selectedIndex: Math.min(prev.selectedIndex + 1, prev.filteredFiles.length - 1)
+        }));
+        return;
+      }
+      if (evt.key === 'ArrowUp') {
+        evt.preventDefault();
+        setMentionPopover(prev => ({
+          ...prev,
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0)
+        }));
+        return;
+      }
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        if (mentionPopover.filteredFiles[mentionPopover.selectedIndex]) {
+          handleMentionFileSelect(mentionPopover.filteredFiles[mentionPopover.selectedIndex].path);
+        }
         return;
       }
       if (evt.key === 'Escape') {
@@ -805,6 +839,9 @@ export default function ChatInput({
         onSelect={handleMentionFileSelect}
         position={mentionPopover.position}
         query={mentionPopover.query}
+        selectedIndex={mentionPopover.selectedIndex}
+        onSelectedIndexChange={(index) => setMentionPopover(prev => ({ ...prev, selectedIndex: index }))}
+        filteredFiles={mentionPopover.filteredFiles}
       />
     </>
   );
