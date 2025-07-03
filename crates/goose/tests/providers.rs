@@ -119,18 +119,24 @@ impl ProviderTester {
             "Get the weather for a location",
             serde_json::json!({
                 "type": "object",
-                "required": ["location"],
+                "required": ["location", "unit"],
                 "properties": {
                     "location": {
                         "type": "string",
                         "description": "The city and state, e.g. San Francisco, CA"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The unit of temperature"
                     }
                 }
             }),
             None,
         );
 
-        let message = Message::user().with_text("What's the weather like in San Francisco?");
+        let message =
+            Message::user().with_text("What's the weather like in San Francisco in celsius?");
 
         let (response1, _) = self
             .provider
@@ -154,13 +160,25 @@ impl ProviderTester {
             "Expected tool request in response"
         );
 
-        let id = &response1
+        let tool_request = response1
             .content
             .iter()
-            .filter_map(|message| message.as_tool_request())
-            .last()
-            .expect("got tool request")
-            .id;
+            .find_map(|content| content.as_tool_request())
+            .expect("Expected tool request in response");
+
+        let tool_call = tool_request
+            .tool_call
+            .as_ref()
+            .expect("Expected successful tool_call");
+
+        assert_eq!(tool_call.name, "get_weather");
+        
+        assert_eq!(
+            tool_call.arguments.get("unit").and_then(|v| v.as_str()),
+            Some("celsius")
+        );
+
+        let id = &tool_request.id;
 
         let weather = Message::user().with_tool_response(
             id,
