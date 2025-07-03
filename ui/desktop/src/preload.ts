@@ -106,6 +106,11 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  updateMenuState: (menuState: {
+    canNavigatePrevious: boolean;
+    canNavigateNext: boolean;
+    canSend?: boolean;
+  }) => void;
 };
 
 type AppConfigAPI = {
@@ -208,6 +213,13 @@ const electronAPI: ElectronAPI = {
   },
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
+  },
+  updateMenuState: (menuState: {
+    canNavigatePrevious: boolean;
+    canNavigateNext: boolean;
+    canSend?: boolean;
+  }): void => {
+    ipcRenderer.send('update-menu-state', menuState);
   },
 };
 
