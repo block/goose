@@ -206,7 +206,6 @@ export default function MentionPopover({
         
         // If it has a known file extension, treat it as a file
         if (hasExtension && ext && commonExtensions.includes(ext)) {
-          console.log('Adding file by extension:', { item, ext });
           results.push({
             path: fullPath,
             name: item,
@@ -219,7 +218,6 @@ export default function MentionPopover({
         // If it's a known file without extension (README, LICENSE, etc.)
         const knownFiles = ['readme', 'license', 'changelog', 'contributing', 'dockerfile', 'makefile'];
         if (!hasExtension && knownFiles.includes(item.toLowerCase())) {
-          console.log('Adding known file without extension:', { item });
           results.push({
             path: fullPath,
             name: item,
@@ -234,7 +232,6 @@ export default function MentionPopover({
           await window.electron.listFiles(fullPath);
           
           // It's a directory
-          console.log('Adding directory:', { item });
           results.push({
             path: fullPath,
             name: item,
@@ -249,7 +246,7 @@ export default function MentionPopover({
           }
         } catch {
           // If we can't list it and it doesn't have a known extension, skip it
-          console.log('Skipping unknown item:', { item });
+          // This could be a file with an unknown extension or a permission issue
         }
       }
       
@@ -374,11 +371,6 @@ export default function MentionPopover({
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">
                       {file.name}
-                      {/* Debug info */}
-                      <span className="text-xs text-red-500 ml-2">
-                        {file.isDirectory ? '[DIR]' : '[FILE]'} 
-                        {file.name.includes('.') ? `[.${file.name.split('.').pop()}]` : '[NO-EXT]'}
-                      </span>
                     </div>
                     <div className="text-xs text-textSubtle truncate">
                       {file.path}
