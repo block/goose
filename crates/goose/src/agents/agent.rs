@@ -586,7 +586,6 @@ impl Agent {
             }
             prefixed_tools.push(sub_agent_execute_task_tool::create_sub_agent_execute_task_tool());
         }
-        
 
         prefixed_tools
     }

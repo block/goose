@@ -5,6 +5,41 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agents::sub_agent_execution_tool::types::Task;
+
+    #[tokio::test]
+    async fn test_spawn_worker_returns_handle() {
+        // Create a simple shared state for testing
+        let (task_tx, task_rx) = mpsc::channel::<Task>(1);
+        let (result_tx, _result_rx) = mpsc::channel::<TaskResult>(1);
+
+        let shared_state = Arc::new(SharedState {
+            task_receiver: Arc::new(tokio::sync::Mutex::new(task_rx)),
+            result_sender: result_tx,
+            active_workers: Arc::new(AtomicUsize::new(0)),
+            should_stop: Arc::new(AtomicBool::new(false)),
+            completed_tasks: Arc::new(AtomicUsize::new(0)),
+        });
+
+        // Test that spawn_worker returns a JoinHandle
+        let handle = spawn_worker(shared_state.clone(), 0, 5);
+
+        // Verify it's a JoinHandle by checking we can abort it
+        assert!(!handle.is_finished());
+
+        // Signal stop and close the channel to let the worker exit
+        shared_state.should_stop.store(true, Ordering::SeqCst);
+        drop(task_tx); // Close the channel
+
+        // Wait for the worker to finish
+        let result = handle.await;
+        assert!(result.is_ok());
+    }
+}
+
 pub struct SharedState {
     pub task_receiver: Arc<tokio::sync::Mutex<mpsc::Receiver<Task>>>,
     pub result_sender: mpsc::Sender<TaskResult>,
@@ -14,12 +49,16 @@ pub struct SharedState {
 }
 
 // Spawn a worker task
-pub fn spawn_worker(state: Arc<SharedState>, worker_id: usize, timeout_seconds: u64) {
+pub fn spawn_worker(
+    state: Arc<SharedState>,
+    worker_id: usize,
+    timeout_seconds: u64,
+) -> tokio::task::JoinHandle<()> {
     state.active_workers.fetch_add(1, Ordering::SeqCst);
 
     tokio::spawn(async move {
         worker_loop(state, worker_id, timeout_seconds).await;
-    });
+    })
 }
 
 async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, timeout_seconds: u64) {
@@ -75,7 +114,7 @@ pub async fn run_scaler(
 
         // Simple scaling logic: spawn worker if many pending tasks and under limit
         if pending > active * 2 && active < max_workers && worker_count < max_workers {
-            spawn_worker(state.clone(), worker_count, timeout_seconds);
+            let _handle = spawn_worker(state.clone(), worker_count, timeout_seconds);
             worker_count += 1;
         }
 
@@ -87,7 +126,7 @@ pub async fn run_scaler(
 
         // If no active workers and tasks remaining, spawn one
         if active == 0 && pending > 0 {
-            spawn_worker(state.clone(), worker_count, timeout_seconds);
+            let _handle = spawn_worker(state.clone(), worker_count, timeout_seconds);
             worker_count += 1;
         }
     }

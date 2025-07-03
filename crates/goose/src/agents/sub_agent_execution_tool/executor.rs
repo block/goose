@@ -55,8 +55,10 @@ pub async fn parallel_execute(tasks: Vec<Task>, config: Config) -> ExecutionResp
     drop(task_tx);
 
     // Start initial workers
+    let mut worker_handles = Vec::new();
     for i in 0..config.initial_workers {
-        spawn_worker(shared_state.clone(), i, config.timeout_seconds);
+        let handle = spawn_worker(shared_state.clone(), i, config.timeout_seconds);
+        worker_handles.push(handle);
     }
 
     // Start the scaler
