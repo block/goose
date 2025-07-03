@@ -10,11 +10,18 @@ interface FileItem {
   relativePath: string;
 }
 
+interface FileItemWithMatch extends FileItem {
+  matchScore: number;
+  matches: number[];
+  matchedText: string;
+}
+
 interface FuzzyFileSearchProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (filePath: string) => void;
-  workingDirectory: string;
+  workingDirectory?: string;
+  searchFromRoot?: boolean;
 }
 
 // Simple fuzzy matching algorithm
@@ -88,7 +95,7 @@ const HighlightedText: React.FC<{ text: string; matches: number[] }> = ({ text, 
   return <span>{elements}</span>;
 };
 
-export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDirectory }: FuzzyFileSearchProps) {
+export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDirectory, searchFromRoot = false }: FuzzyFileSearchProps) {
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -98,10 +105,14 @@ export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDire
   
   // Scan files when component opens or working directory changes
   useEffect(() => {
-    if (isOpen && workingDirectory) {
-      scanFiles();
+    if (isOpen) {
+      if (searchFromRoot) {
+        scanFilesFromRoot();
+      } else if (workingDirectory) {
+        scanFiles();
+      }
     }
-  }, [isOpen, workingDirectory]);
+  }, [isOpen, workingDirectory, searchFromRoot]);
   
   // Focus input when opened
   useEffect(() => {
@@ -121,10 +132,31 @@ export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDire
   const scanFiles = async () => {
     setIsLoading(true);
     try {
-      const scannedFiles = await scanDirectory(workingDirectory);
+      const scannedFiles = await scanDirectory(workingDirectory || '', '');
       setFiles(scannedFiles);
     } catch (error) {
       console.error('Error scanning files:', error);
+      setFiles([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const scanFilesFromRoot = async () => {
+    setIsLoading(true);
+    try {
+      // Start from common user directories for better performance
+      let startPath = '/Users'; // Default to macOS
+      if (window.electron.platform === 'win32') {
+        startPath = 'C:\\Users';
+      } else if (window.electron.platform === 'linux') {
+        startPath = '/home';
+      }
+      
+      const scannedFiles = await scanDirectoryFromRoot(startPath);
+      setFiles(scannedFiles);
+    } catch (error) {
+      console.error('Error scanning files from root:', error);
       setFiles([]);
     } finally {
       setIsLoading(false);
@@ -155,7 +187,7 @@ export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDire
         
         try {
           // Check if it's a directory by trying to list its contents
-          const subItems = await window.electron.listFiles(fullPath);
+          await window.electron.listFiles(fullPath);
           
           // It's a directory
           results.push({
@@ -187,11 +219,95 @@ export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDire
       return [];
     }
   };
+
+  const scanDirectoryFromRoot = async (dirPath: string, relativePath = '', depth = 0): Promise<FileItem[]> => {
+    // Limit depth for performance when searching from root
+    if (depth > 4) return [];
+    
+    try {
+      const items = await window.electron.listFiles(dirPath);
+      const results: FileItem[] = [];
+      
+      // Common directories to prioritize or skip
+      const priorityDirs = ['Desktop', 'Documents', 'Downloads', 'Projects', 'Development', 'Code'];
+      const skipDirs = [
+        '.git', '.svn', '.hg', 'node_modules', '__pycache__', '.vscode', '.idea',
+        'target', 'dist', 'build', '.cache', '.npm', '.yarn', 'Library', 
+        'System', 'Applications', '.Trash', 'Music', 'Movies', 'Pictures'
+      ];
+      
+      // Sort items to prioritize certain directories
+      const sortedItems = items.sort((a, b) => {
+        const aPriority = priorityDirs.includes(a);
+        const bPriority = priorityDirs.includes(b);
+        if (aPriority && !bPriority) return -1;
+        if (!aPriority && bPriority) return 1;
+        return a.localeCompare(b);
+      });
+      
+      for (const item of sortedItems.slice(0, 50)) { // Limit items per directory
+        const fullPath = `${dirPath}/${item}`;
+        const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
+        
+        // Skip hidden files and common ignore patterns
+        if (item.startsWith('.') || skipDirs.includes(item)) {
+          continue;
+        }
+        
+        try {
+          // Check if it's a directory by trying to list its contents
+          await window.electron.listFiles(fullPath);
+          
+          // It's a directory
+          results.push({
+            path: fullPath,
+            name: item,
+            isDirectory: true,
+            relativePath: itemRelativePath
+          });
+          
+          // Recursively scan important directories
+          if (depth < 3 && (priorityDirs.includes(item) || depth === 0)) {
+            const subFiles = await scanDirectoryFromRoot(fullPath, itemRelativePath, depth + 1);
+            results.push(...subFiles);
+          }
+        } catch {
+          // It's a file - only include common file types
+          const ext = item.split('.').pop()?.toLowerCase();
+          const commonExtensions = [
+            'txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'h',
+            'css', 'html', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg',
+            'sh', 'bat', 'ps1', 'rb', 'go', 'rs', 'php', 'sql', 'r', 'scala',
+            'swift', 'kt', 'dart', 'vue', 'svelte', 'astro'
+          ];
+          
+          if (ext && commonExtensions.includes(ext)) {
+            results.push({
+              path: fullPath,
+              name: item,
+              isDirectory: false,
+              relativePath: itemRelativePath
+            });
+          }
+        }
+      }
+      
+      return results;
+    } catch (error) {
+      console.error(`Error scanning directory ${dirPath}:`, error);
+      return [];
+    }
+  };
   
   // Filter and sort files based on query
-  const filteredFiles = useMemo(() => {
+  const filteredFiles = useMemo((): FileItemWithMatch[] => {
     if (!query.trim()) {
-      return files.slice(0, 50); // Show first 50 files when no query
+      return files.slice(0, 50).map(file => ({
+        ...file,
+        matchScore: 0,
+        matches: [],
+        matchedText: file.name
+      })); // Show first 50 files when no query
     }
     
     const results = files
@@ -351,7 +467,7 @@ export default function FuzzyFileSearch({ isOpen, onClose, onSelect, workingDire
           <div className="mt-4 text-xs text-textSubtle border-t border-borderSubtle pt-2">
             <div className="flex justify-between">
               <span>↑↓ Navigate • Enter Select • Esc Close</span>
-              <span>{workingDirectory}</span>
+              <span>{searchFromRoot ? 'Searching entire computer' : (workingDirectory || 'No directory')}</span>
             </div>
           </div>
         </div>

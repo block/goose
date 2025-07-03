@@ -11,6 +11,7 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import FuzzyFileSearch from './FuzzyFileSearch';
+import MentionPopover from './MentionPopover';
 
 interface PastedImage {
   id: string;
@@ -67,6 +68,17 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isFuzzySearchOpen, setIsFuzzySearchOpen] = useState(false);
+  const [mentionPopover, setMentionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    query: string;
+    mentionStart: number;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    query: '',
+    mentionStart: -1,
+  });
 
   // Whisper hook for voice dictation
   const {
@@ -221,8 +233,61 @@ export default function ChatInput({
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
+    const cursorPosition = evt.target.selectionStart;
+    
     setDisplayValue(val); // Update display immediately
     debouncedSetValue(val); // Debounce the actual state update
+    
+    // Check for @ mention
+    checkForMention(val, cursorPosition, evt.target);
+  };
+
+  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
+    // Find the last @ before the cursor
+    const beforeCursor = text.slice(0, cursorPosition);
+    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    
+    if (lastAtIndex === -1) {
+      // No @ found, close mention popover
+      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+    
+    // Check if there's a space between @ and cursor (which would end the mention)
+    const afterAt = beforeCursor.slice(lastAtIndex + 1);
+    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+    
+    // Calculate position for the popover
+    const textAreaRect = textArea.getBoundingClientRect();
+    const textBeforeAt = beforeCursor.slice(0, lastAtIndex);
+    
+    // Create a temporary element to measure text width
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (context) {
+      const computedStyle = window.getComputedStyle(textArea);
+      context.font = `${computedStyle.fontSize} ${computedStyle.fontFamily}`;
+      
+      const lines = textBeforeAt.split('\n');
+      const lastLine = lines[lines.length - 1];
+      const textWidth = context.measureText(lastLine).width;
+      
+      const lineHeight = parseInt(computedStyle.lineHeight) || parseInt(computedStyle.fontSize) * 1.2;
+      const yOffset = (lines.length - 1) * lineHeight;
+      
+      setMentionPopover({
+        isOpen: true,
+        position: {
+          x: textAreaRect.left + textWidth + 16, // 16px for padding
+          y: textAreaRect.top + yOffset + 30, // 30px offset below the line
+        },
+        query: afterAt,
+        mentionStart: lastAtIndex,
+      });
+    }
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -437,6 +502,15 @@ export default function ChatInput({
       return;
     }
 
+    // Handle Escape key
+    if (evt.key === 'Escape') {
+      if (mentionPopover.isOpen) {
+        evt.preventDefault();
+        setMentionPopover(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
     if (evt.key === 'Enter') {
       // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
       if (evt.shiftKey || isComposing) {
@@ -490,6 +564,26 @@ export default function ChatInput({
     textAreaRef.current?.focus();
   };
 
+  const handleMentionFileSelect = (filePath: string) => {
+    // Replace the @ mention with the file path
+    const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
+    const afterMention = displayValue.slice(mentionPopover.mentionStart + 1 + mentionPopover.query.length);
+    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    
+    setDisplayValue(newValue);
+    setValue(newValue);
+    setMentionPopover(prev => ({ ...prev, isOpen: false }));
+    textAreaRef.current?.focus();
+    
+    // Set cursor position after the inserted file path
+    setTimeout(() => {
+      if (textAreaRef.current) {
+        const newCursorPosition = beforeMention.length + filePath.length;
+        textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+      }
+    }, 0);
+  };
+
   const hasSubmittableContent =
     displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
@@ -509,7 +603,7 @@ export default function ChatInput({
               data-testid="chat-input"
               autoFocus
               id="dynamic-textarea"
-              placeholder={isRecording ? '' : 'What can goose help with?   ⌘↑/⌘↓ • ⌘P files'}
+              placeholder={isRecording ? '' : 'What can goose help with?   @ files • ⌘↑/⌘↓ • ⌘P files'}
               value={displayValue}
               onChange={handleChange}
               onCompositionStart={handleCompositionStart}
@@ -715,6 +809,14 @@ export default function ChatInput({
         onClose={() => setIsFuzzySearchOpen(false)}
         onSelect={handleFuzzyFileSelect}
         workingDirectory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+      />
+
+      <MentionPopover
+        isOpen={mentionPopover.isOpen}
+        onClose={() => setMentionPopover(prev => ({ ...prev, isOpen: false }))}
+        onSelect={handleMentionFileSelect}
+        position={mentionPopover.position}
+        query={mentionPopover.query}
       />
     </>
   );
