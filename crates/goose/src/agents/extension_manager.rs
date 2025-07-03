@@ -290,7 +290,7 @@ impl ExtensionManager {
                 timeout,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let all_envs = merge_environments(envs, env_keys, &[], &sanitized_name).await?;
                 let transport =
                     StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
                 let handle = transport.start().await?;
