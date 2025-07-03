@@ -74,23 +74,14 @@ export default function ChatInput({
     query: string;
     mentionStart: number;
     selectedIndex: number;
-    filteredFiles: Array<{
-      path: string;
-      name: string;
-      isDirectory: boolean;
-      relativePath: string;
-      matchScore: number;
-      matches: number[];
-      matchedText: string;
-    }>;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
     query: '',
     mentionStart: -1,
     selectedIndex: 0,
-    filteredFiles: [],
   });
+  const mentionPopoverRef = useRef<{ getDisplayFiles: () => any[]; selectFile: (index: number) => void }>(null);
 
   // Whisper hook for voice dictation
   const {
@@ -492,10 +483,11 @@ export default function ChatInput({
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
-    if (mentionPopover.isOpen) {
+    if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
         evt.preventDefault();
-        const maxIndex = Math.max(0, mentionPopover.filteredFiles.length - 1);
+        const displayFiles = mentionPopoverRef.current.getDisplayFiles();
+        const maxIndex = Math.max(0, displayFiles.length - 1);
         setMentionPopover(prev => ({
           ...prev,
           selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex)
@@ -512,9 +504,7 @@ export default function ChatInput({
       }
       if (evt.key === 'Enter') {
         evt.preventDefault();
-        if (mentionPopover.filteredFiles[mentionPopover.selectedIndex]) {
-          handleMentionFileSelect(mentionPopover.filteredFiles[mentionPopover.selectedIndex].path);
-        }
+        mentionPopoverRef.current.selectFile(mentionPopover.selectedIndex);
         return;
       }
       if (evt.key === 'Escape') {
@@ -835,6 +825,7 @@ export default function ChatInput({
       />
 
       <MentionPopover
+        ref={mentionPopoverRef}
         isOpen={mentionPopover.isOpen}
         onClose={() => setMentionPopover(prev => ({ ...prev, isOpen: false }))}
         onSelect={handleMentionFileSelect}
@@ -842,8 +833,6 @@ export default function ChatInput({
         query={mentionPopover.query}
         selectedIndex={mentionPopover.selectedIndex}
         onSelectedIndexChange={(index) => setMentionPopover(prev => ({ ...prev, selectedIndex: index }))}
-        filteredFiles={mentionPopover.filteredFiles}
-        onFilteredFilesChange={(files) => setMentionPopover(prev => ({ ...prev, filteredFiles: files }))}
       />
     </>
   );

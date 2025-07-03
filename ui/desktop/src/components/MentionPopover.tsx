@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { FileIcon } from './FileIcon';
 
 interface FileItem {
@@ -22,8 +22,6 @@ interface MentionPopoverProps {
   query: string;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
-  filteredFiles: FileItemWithMatch[];
-  onFilteredFilesChange: (files: FileItemWithMatch[]) => void;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -84,28 +82,94 @@ const fuzzyMatch = (pattern: string, text: string): { score: number; matches: nu
   return { score: -1, matches: [] };
 };
 
-export default function MentionPopover({ 
+const MentionPopover = forwardRef<
+  { getDisplayFiles: () => FileItemWithMatch[]; selectFile: (index: number) => void },
+  MentionPopoverProps
+>(({ 
   isOpen, 
   onClose, 
   onSelect, 
   position, 
   query,
   selectedIndex,
-  onSelectedIndexChange,
-  filteredFiles,
-  onFilteredFilesChange
-}: MentionPopoverProps) {
+  onSelectedIndexChange
+}, ref) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Filter and sort files based on query
+  const displayFiles = useMemo((): FileItemWithMatch[] => {
+    if (!query.trim()) {
+      return files.slice(0, 15).map(file => ({
+        ...file,
+        matchScore: 0,
+        matches: [],
+        matchedText: file.name
+      })); // Show first 15 files when no query
+    }
+    
+    const results = files
+      .map(file => {
+        const nameMatch = fuzzyMatch(query, file.name);
+        const pathMatch = fuzzyMatch(query, file.relativePath);
+        const fullPathMatch = fuzzyMatch(query, file.path);
+        
+        // Use the best match among name, relative path, and full path
+        let bestMatch = nameMatch;
+        let matchedText = file.name;
+        
+        if (pathMatch.score > bestMatch.score) {
+          bestMatch = pathMatch;
+          matchedText = file.relativePath;
+        }
+        
+        if (fullPathMatch.score > bestMatch.score) {
+          bestMatch = fullPathMatch;
+          matchedText = file.path;
+        }
+        
+        return {
+          ...file,
+          matchScore: bestMatch.score,
+          matches: bestMatch.matches,
+          matchedText
+        };
+      })
+      .filter(file => file.matchScore > 0)
+      .sort((a, b) => {
+        // Sort by score first, then prefer files over directories, then alphabetically
+        if (Math.abs(a.matchScore - b.matchScore) < 1) {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? 1 : -1; // Files first
+          }
+          return a.name.localeCompare(b.name);
+        }
+        return b.matchScore - a.matchScore;
+      })
+      .slice(0, 20); // Increase to 20 results
+    
+    return results;
+  }, [files, query]);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    getDisplayFiles: () => displayFiles,
+    selectFile: (index: number) => {
+      if (displayFiles[index]) {
+        onSelect(displayFiles[index].path);
+        onClose();
+      }
+    }
+  }), [displayFiles, onSelect, onClose]);
+
   // Scan files when component opens
   useEffect(() => {
-    if (isOpen && filteredFiles.length === 0) {
+    if (isOpen && displayFiles.length === 0) {
       scanFilesFromRoot();
     }
-  }, [isOpen, filteredFiles.length]);
+  }, [isOpen, displayFiles.length]);
 
   // Handle clicks outside the popover
   useEffect(() => {
@@ -259,70 +323,6 @@ export default function MentionPopover({
     }
   };
 
-  // Filter and sort files based on query
-  const displayFiles = useMemo((): FileItemWithMatch[] => {
-    if (filteredFiles.length > 0) {
-      return filteredFiles;
-    }
-    
-    if (!query.trim()) {
-      const defaultFiles = files.slice(0, 15).map(file => ({
-        ...file,
-        matchScore: 0,
-        matches: [],
-        matchedText: file.name
-      })); // Show first 15 files when no query
-      
-      // Update parent with the filtered files
-      onFilteredFilesChange(defaultFiles);
-      return defaultFiles;
-    }
-    
-    const results = files
-      .map(file => {
-        const nameMatch = fuzzyMatch(query, file.name);
-        const pathMatch = fuzzyMatch(query, file.relativePath);
-        const fullPathMatch = fuzzyMatch(query, file.path);
-        
-        // Use the best match among name, relative path, and full path
-        let bestMatch = nameMatch;
-        let matchedText = file.name;
-        
-        if (pathMatch.score > bestMatch.score) {
-          bestMatch = pathMatch;
-          matchedText = file.relativePath;
-        }
-        
-        if (fullPathMatch.score > bestMatch.score) {
-          bestMatch = fullPathMatch;
-          matchedText = file.path;
-        }
-        
-        return {
-          ...file,
-          matchScore: bestMatch.score,
-          matches: bestMatch.matches,
-          matchedText
-        };
-      })
-      .filter(file => file.matchScore > 0)
-      .sort((a, b) => {
-        // Sort by score first, then prefer files over directories, then alphabetically
-        if (Math.abs(a.matchScore - b.matchScore) < 1) {
-          if (a.isDirectory !== b.isDirectory) {
-            return a.isDirectory ? 1 : -1; // Files first
-          }
-          return a.name.localeCompare(b.name);
-        }
-        return b.matchScore - a.matchScore;
-      })
-      .slice(0, 20); // Increase to 20 results
-    
-    // Update parent with the filtered files
-    onFilteredFilesChange(results);
-    return results;
-  }, [files, query, filteredFiles, onFilteredFilesChange]);
-
   // Scroll selected item into view
   useEffect(() => {
     if (listRef.current) {
@@ -412,4 +412,6 @@ export default function MentionPopover({
       </div>
     </div>
   );
-}
+});
+
+export default MentionPopover;
