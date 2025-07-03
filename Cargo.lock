@@ -3544,6 +3544,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "indicatif",
+ "jsonschema",
  "mcp-client",
  "mcp-core",
  "mcp-server",

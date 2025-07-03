@@ -28,8 +28,10 @@ pub fn extract_recipe_info_from_cli(
                 Ok(recipe_file) => {
                     let name = extract_recipe_name(&sub_recipe_name);
                     let recipe_file_path = recipe_file.file_path;
+                    let canonical_path =
+                        recipe_file_path.canonicalize().unwrap_or(recipe_file_path);
                     let additional_sub_recipe = SubRecipe {
-                        path: recipe_file_path.to_string_lossy().to_string(),
+                        path: canonical_path.to_string_lossy().to_string(),
                         name,
                         values: None,
                     };
@@ -169,13 +171,21 @@ mod tests {
         assert!(sub_recipes[0].values.is_none());
         assert_eq!(
             sub_recipes[1].path,
-            sub_recipe1_path.to_string_lossy().to_string()
+            sub_recipe1_path
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
         );
         assert_eq!(sub_recipes[1].name, "sub_recipe1".to_string());
         assert!(sub_recipes[1].values.is_none());
         assert_eq!(
             sub_recipes[2].path,
-            sub_recipe2_path.to_string_lossy().to_string()
+            sub_recipe2_path
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
         );
         assert_eq!(sub_recipes[2].name, "sub_recipe2".to_string());
         assert!(sub_recipes[2].values.is_none());
