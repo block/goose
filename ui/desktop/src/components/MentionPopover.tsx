@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { FileIcon } from './FileIcon';
 
 interface FileItem {
@@ -8,7 +8,7 @@ interface FileItem {
   relativePath: string;
 }
 
-interface FileItemWithMatch extends FileItem {
+export interface FileItemWithMatch extends FileItem {
   matchScore: number;
   matches: number[];
   matchedText: string;
@@ -166,10 +166,11 @@ const MentionPopover = forwardRef<
 
   // Scan files when component opens
   useEffect(() => {
-    if (isOpen && displayFiles.length === 0) {
+    if (isOpen && files.length === 0) {
       scanFilesFromRoot();
     }
-  }, [isOpen, displayFiles.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, files.length]); // scanFilesFromRoot intentionally omitted to avoid circular dependency
 
   // Handle clicks outside the popover
   useEffect(() => {
@@ -188,28 +189,7 @@ const MentionPopover = forwardRef<
     };
   }, [isOpen, onClose]);
 
-  const scanFilesFromRoot = async () => {
-    setIsLoading(true);
-    try {
-      // Start from common user directories for better performance
-      let startPath = '/Users'; // Default to macOS
-      if (window.electron.platform === 'win32') {
-        startPath = 'C:\\Users';
-      } else if (window.electron.platform === 'linux') {
-        startPath = '/home';
-      }
-      
-      const scannedFiles = await scanDirectoryFromRoot(startPath);
-      setFiles(scannedFiles);
-    } catch (error) {
-      console.error('Error scanning files from root:', error);
-      setFiles([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const scanDirectoryFromRoot = async (dirPath: string, relativePath = '', depth = 0): Promise<FileItem[]> => {
+  const scanDirectoryFromRoot = useCallback(async (dirPath: string, relativePath = '', depth = 0): Promise<FileItem[]> => {
     // Increase depth limit for better file discovery
     if (depth > 5) return [];
     
@@ -321,7 +301,28 @@ const MentionPopover = forwardRef<
       console.error(`Error scanning directory ${dirPath}:`, error);
       return [];
     }
-  };
+  }, []);
+
+  const scanFilesFromRoot = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Start from common user directories for better performance
+      let startPath = '/Users'; // Default to macOS
+      if (window.electron.platform === 'win32') {
+        startPath = 'C:\\Users';
+      } else if (window.electron.platform === 'linux') {
+        startPath = '/home';
+      }
+      
+      const scannedFiles = await scanDirectoryFromRoot(startPath);
+      setFiles(scannedFiles);
+    } catch (error) {
+      console.error('Error scanning files from root:', error);
+      setFiles([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [scanDirectoryFromRoot]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -413,5 +414,7 @@ const MentionPopover = forwardRef<
     </div>
   );
 });
+
+MentionPopover.displayName = 'MentionPopover';
 
 export default MentionPopover;

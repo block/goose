@@ -10,7 +10,7 @@ import { Message } from '../types/message';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
-import MentionPopover from './MentionPopover';
+import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 
 interface PastedImage {
   id: string;
@@ -79,7 +79,7 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
   });
-  const mentionPopoverRef = useRef<{ getDisplayFiles: () => any[]; selectFile: (index: number) => void }>(null);
+  const mentionPopoverRef = useRef<{ getDisplayFiles: () => FileItemWithMatch[]; selectFile: (index: number) => void }>(null);
 
   // Whisper hook for voice dictation
   const {
