@@ -10,7 +10,6 @@ import { Message } from '../types/message';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
-import FuzzyFileSearch from './FuzzyFileSearch';
 import MentionPopover from './MentionPopover';
 
 interface PastedImage {
@@ -67,7 +66,6 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
-  const [isFuzzySearchOpen, setIsFuzzySearchOpen] = useState(false);
   const [mentionPopover, setMentionPopover] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -517,13 +515,6 @@ export default function ChatInput({
     // Handle history navigation first
     handleHistoryNavigation(evt);
 
-    // Handle fuzzy file search trigger (Cmd/Ctrl + P)
-    if (evt.key === 'p' && (evt.metaKey || evt.ctrlKey) && !evt.shiftKey && !evt.altKey) {
-      evt.preventDefault();
-      setIsFuzzySearchOpen(true);
-      return;
-    }
-
     if (evt.key === 'Enter') {
       // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
       if (evt.shiftKey || isComposing) {
@@ -570,13 +561,6 @@ export default function ChatInput({
     }
   };
 
-  const handleFuzzyFileSelect = (filePath: string) => {
-    const newValue = displayValue.trim() ? `${displayValue.trim()} ${filePath}` : filePath;
-    setDisplayValue(newValue);
-    setValue(newValue);
-    textAreaRef.current?.focus();
-  };
-
   const handleMentionFileSelect = (filePath: string) => {
     // Replace the @ mention with the file path
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
@@ -616,7 +600,7 @@ export default function ChatInput({
               data-testid="chat-input"
               autoFocus
               id="dynamic-textarea"
-              placeholder={isRecording ? '' : 'What can goose help with?   @ files • ⌘↑/⌘↓ • ⌘P files'}
+              placeholder={isRecording ? '' : 'What can goose help with?   @ files • ⌘↑/⌘↓'}
               value={displayValue}
               onChange={handleChange}
               onCompositionStart={handleCompositionStart}
@@ -816,13 +800,6 @@ export default function ChatInput({
           </div>
         </div>
       </div>
-
-      <FuzzyFileSearch
-        isOpen={isFuzzySearchOpen}
-        onClose={() => setIsFuzzySearchOpen(false)}
-        onSelect={handleFuzzyFileSelect}
-        workingDirectory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-      />
 
       <MentionPopover
         ref={mentionPopoverRef}
