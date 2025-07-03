@@ -7,7 +7,7 @@ use mcp_core::{
 };
 use serde_json::Value;
 
-pub const FINAL_OUTPUT_TOOL_NAME: &str = "final_output";
+pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
     "You MUST call the `final_output` tool with your final output for the user.";
 

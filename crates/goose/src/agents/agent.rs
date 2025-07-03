@@ -1321,7 +1321,9 @@ mod tests {
         agent.add_final_output_tool(response).await;
 
         let tools = agent.list_tools(None).await;
-        let final_output_tool = tools.iter().find(|tool| tool.name == "final_output");
+        let final_output_tool = tools
+            .iter()
+            .find(|tool| tool.name == FINAL_OUTPUT_TOOL_NAME);
 
         assert!(
             final_output_tool.is_some(),
