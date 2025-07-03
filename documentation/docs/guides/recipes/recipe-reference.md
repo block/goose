@@ -110,7 +110,7 @@ extensions:
 
 ## Sub-Recipes
 
-The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-recipes) that the main recipe calls to perform specific tasks. Each sub-recipe in the array has the following structure:
+The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecipes) that the main recipe calls to perform specific tasks. Each subrecipe in the array has the following structure:
 
 ### Sub-Recipe Fields
 
