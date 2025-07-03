@@ -1208,6 +1208,13 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
+              "secrets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SecretConfig"
+                },
+                "description": "Configuration for secrets that need to be acquired and injected"
+              },
               "timeout": {
                 "type": "integer",
                 "format": "int64",
@@ -1265,6 +1272,13 @@
               "name": {
                 "type": "string",
                 "description": "The name used to identify this extension"
+              },
+              "secrets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SecretConfig"
+                },
+                "description": "Configuration for secrets that need to be acquired and injected"
               },
               "timeout": {
                 "type": "integer",
@@ -2044,6 +2058,107 @@
           },
           "source": {
             "type": "string"
+          }
+        }
+      },
+      "SecretAcquisition": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "method"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "prompt"
+                ]
+              },
+              "prompt_message": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authorization_url",
+              "token_url",
+              "client_id",
+              "method"
+            ],
+            "properties": {
+              "authorization_url": {
+                "type": "string"
+              },
+              "client_id": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "oauth2"
+                ]
+              },
+              "refresh": {
+                "type": "boolean"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "token_url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "command",
+              "method"
+            ],
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "command"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Configuration for secret acquisition methods",
+        "discriminator": {
+          "propertyName": "method"
+        }
+      },
+      "SecretConfig": {
+        "type": "object",
+        "description": "Configuration for a single secret",
+        "required": [
+          "name",
+          "description",
+          "acquisition"
+        ],
+        "properties": {
+          "acquisition": {
+            "$ref": "#/components/schemas/SecretAcquisition"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this secret is used for"
+          },
+          "name": {
+            "type": "string",
+            "description": "The environment variable name for the secret"
           }
         }
       },

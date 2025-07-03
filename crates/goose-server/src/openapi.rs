@@ -1,5 +1,4 @@
-use goose::agents::extension::Envs;
-use goose::agents::extension::ToolInfo;
+use goose::agents::extension::{Envs, ToolInfo, SecretConfig, SecretAcquisition};
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
@@ -92,6 +91,8 @@ use utoipa::OpenApi;
         Tool,
         ToolAnnotations,
         ToolInfo,
+        SecretConfig,
+        SecretAcquisition,
         PermissionLevel,
         PrincipalType,
         ModelInfo,

@@ -93,6 +93,10 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    /**
+     * Configuration for secrets that need to be acquired and injected
+     */
+    secrets?: Array<SecretConfig>;
     timeout?: number | null;
     type: 'sse';
     uri: string;
@@ -110,6 +114,10 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    /**
+     * Configuration for secrets that need to be acquired and injected
+     */
+    secrets?: Array<SecretConfig>;
     timeout?: number | null;
     type: 'stdio';
 } | {
@@ -350,6 +358,39 @@ export type ScheduledJob = {
     paused?: boolean;
     process_start_time?: string | null;
     source: string;
+};
+
+/**
+ * Configuration for secret acquisition methods
+ */
+export type SecretAcquisition = {
+    method: 'prompt';
+    prompt_message?: string | null;
+} | {
+    authorization_url: string;
+    client_id: string;
+    method: 'oauth2';
+    refresh?: boolean;
+    scopes?: Array<string>;
+    token_url: string;
+} | {
+    command: string;
+    method: 'command';
+};
+
+/**
+ * Configuration for a single secret
+ */
+export type SecretConfig = {
+    acquisition: SecretAcquisition;
+    /**
+     * Human-readable description of what this secret is used for
+     */
+    description: string;
+    /**
+     * The environment variable name for the secret
+     */
+    name: string;
 };
 
 export type SessionDisplayInfo = {
