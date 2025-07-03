@@ -6,7 +6,7 @@ use rustyline::{Helper, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use super::CompletionCache;
+use super::completion_cache::CompletionCache;
 
 /// Completer for Goose CLI commands
 pub struct GooseCompleter {
@@ -29,7 +29,7 @@ impl GooseCompleter {
 
         // Create completion candidates that match the prefix
         let candidates: Vec<Pair> = cache
-            .prompts
+            .get_all_prompts()
             .iter()
             .flat_map(|(_, names)| names)
             .filter(|name| name.starts_with(prefix.trim()))
@@ -163,7 +163,7 @@ impl GooseCompleter {
 
         // Get prompt info from cache
         let cache = self.completion_cache.read().unwrap();
-        let prompt_info = cache.prompt_info.get(prompt_name).cloned();
+        let prompt_info = cache.get_prompt_info(prompt_name).cloned();
 
         if let Some(info) = prompt_info {
             if let Some(args) = info.arguments {
@@ -407,18 +407,11 @@ mod tests {
         let mut cache = CompletionCache::new();
 
         // Add some test prompts
-        let mut extension1_prompts = Vec::new();
-        extension1_prompts.push("test_prompt1".to_string());
-        extension1_prompts.push("test_prompt2".to_string());
-        cache
-            .prompts
-            .insert("extension1".to_string(), extension1_prompts);
-
-        let mut extension2_prompts = Vec::new();
-        extension2_prompts.push("other_prompt".to_string());
-        cache
-            .prompts
-            .insert("extension2".to_string(), extension2_prompts);
+        cache.update_prompts(
+            "extension1".to_string(),
+            vec!["test_prompt1".to_string(), "test_prompt2".to_string()],
+        );
+        cache.update_prompts("extension2".to_string(), vec!["other_prompt".to_string()]);
 
         // Add prompt info with arguments
         let test_prompt1_args = vec![
@@ -440,9 +433,7 @@ mod tests {
             arguments: Some(test_prompt1_args),
             extension: Some("extension1".to_string()),
         };
-        cache
-            .prompt_info
-            .insert("test_prompt1".to_string(), test_prompt1_info);
+        cache.update_prompt_info("test_prompt1".to_string(), test_prompt1_info);
 
         let test_prompt2_info = output::PromptInfo {
             name: "test_prompt2".to_string(),
@@ -450,9 +441,7 @@ mod tests {
             arguments: None,
             extension: Some("extension1".to_string()),
         };
-        cache
-            .prompt_info
-            .insert("test_prompt2".to_string(), test_prompt2_info);
+        cache.update_prompt_info("test_prompt2".to_string(), test_prompt2_info);
 
         let other_prompt_info = output::PromptInfo {
             name: "other_prompt".to_string(),
@@ -460,9 +449,7 @@ mod tests {
             arguments: None,
             extension: Some("extension2".to_string()),
         };
-        cache
-            .prompt_info
-            .insert("other_prompt".to_string(), other_prompt_info);
+        cache.update_prompt_info("other_prompt".to_string(), other_prompt_info);
 
         Arc::new(RwLock::new(cache))
     }
