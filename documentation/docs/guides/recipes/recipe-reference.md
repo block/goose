@@ -125,7 +125,7 @@ The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecip
 ```yaml
 sub_recipes:
   - name: "security_scan"
-    path: "./sub-recipes/security-analysis.yaml"
+    path: "./subrecipes/security-analysis.yaml"
     values:  # in key-value format: {parameter_name}: {parameter_value}
       scan_level: "comprehensive"
       include_dependencies: "true"
