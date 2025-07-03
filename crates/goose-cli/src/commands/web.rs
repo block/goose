@@ -483,6 +483,7 @@ async fn process_message_streaming(
         working_dir: std::env::current_dir()?,
         schedule_id: None,
         execution_mode: None,
+        max_turns: None,
     };
 
     // Get response from agent

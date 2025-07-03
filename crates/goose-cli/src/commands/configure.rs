@@ -847,6 +847,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Show more or less tool output",
         )
         .item(
+            "max_turns",
+            "Max Turns",
+            "Set maximum number of turns without user input",
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
@@ -875,6 +880,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "tool_output" => {
             configure_tool_output_dialog()?;
+        }
+        "max_turns" => {
+            configure_max_turns_dialog()?;
         }
         "experiment" => {
             toggle_experiments_dialog()?;
@@ -1286,6 +1294,38 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
         }
         _ => unreachable!(),
     };
+
+    Ok(())
+}
+
+pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    let current_max_turns: u32 = config.get_param("GOOSE_MAX_TURNS").unwrap_or(1000);
+
+    let max_turns_input: String =
+        cliclack::input("Set maximum number of agent turns without user input:")
+            .placeholder(&current_max_turns.to_string())
+            .default_input(&current_max_turns.to_string())
+            .validate(|input: &String| match input.parse::<u32>() {
+                Ok(value) => {
+                    if value < 1 {
+                        Err("Value must be at least 1")
+                    } else {
+                        Ok(())
+                    }
+                }
+                Err(_) => Err("Please enter a valid number"),
+            })
+            .interact()?;
+
+    let max_turns: u32 = max_turns_input.parse()?;
+    config.set_param("GOOSE_MAX_TURNS", Value::from(max_turns))?;
+
+    cliclack::outro(format!(
+        "Set maximum turns to {} - Goose will ask for input after {} consecutive actions",
+        max_turns, max_turns
+    ))?;
 
     Ok(())
 }

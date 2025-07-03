@@ -312,6 +312,15 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -448,6 +457,15 @@ enum Command {
             long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
         )]
         max_tool_repetitions: Option<u32>,
+
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -635,6 +653,7 @@ pub async fn cli() -> Result<()> {
             history,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
@@ -683,6 +702,7 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
+                        max_turns,
                         scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
@@ -731,6 +751,7 @@ pub async fn cli() -> Result<()> {
             no_session,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
@@ -826,6 +847,7 @@ pub async fn cli() -> Result<()> {
                 settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                max_turns,
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
@@ -950,6 +972,7 @@ pub async fn cli() -> Result<()> {
                     settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    max_turns: None,
                     scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
