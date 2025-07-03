@@ -5,9 +5,6 @@ sidebar_label: Sub-Recipes
 description: Learn how a recipe can use sub-recipes to perform specific tasks
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 Sub-recipes are recipes that are used by another recipe to perform specific tasks. They enable:
 - **Multi-step workflows** - Break complex tasks into distinct phases with specialized expertise
 - **Reusable components** - Create common tasks that can be used in various workflows
