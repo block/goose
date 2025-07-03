@@ -103,8 +103,8 @@ impl SecretAcquisition {
 
         println!("\n🔐 Secret Storage Consent");
         println!("─────────────────────────");
-        println!("Server: {}", server_name);
-        println!("Secret: {} ({})", secret_name, description);
+        println!("Server: {server_name}");
+        println!("Secret: {secret_name} ({description})");
         println!("\nGoose would like to securely store this secret in your system's keychain.");
         println!("This will allow automatic retrieval for future MCP server connections.");
 
@@ -112,11 +112,11 @@ impl SecretAcquisition {
             print!("\nDo you consent to storing this secret? [y/N]: ");
             std::io::stdout()
                 .flush()
-                .map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
+                .map_err(|e| SecretError::Other(format!("IO error: {e}")))?;
 
             let input = term
                 .read_line()
-                .map_err(|e| SecretError::Other(format!("Failed to read input: {}", e)))?;
+                .map_err(|e| SecretError::Other(format!("Failed to read input: {e}")))?;
             let input = input.trim().to_lowercase();
 
             match input.as_str() {
@@ -146,19 +146,19 @@ impl SecretAcquisition {
         println!("\n🔑 Secret Input Required");
         println!("─────────────────────────");
 
-        let default_message = format!("Please enter your {} ({})", secret_name, description);
+        let default_message = format!("Please enter your {secret_name} ({description})");
         let message = prompt_message.unwrap_or(&default_message);
-        println!("{}", message);
+        println!("{message}");
 
         loop {
-            print!("\n{}: ", secret_name);
+            print!("\n{secret_name}: ");
             std::io::stdout()
                 .flush()
-                .map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
+                .map_err(|e| SecretError::Other(format!("IO error: {e}")))?;
 
             let secret = term
                 .read_secure_line()
-                .map_err(|e| SecretError::Other(format!("Failed to read secret: {}", e)))?;
+                .map_err(|e| SecretError::Other(format!("Failed to read secret: {e}")))?;
 
             if secret.trim().is_empty() {
                 println!("Secret cannot be empty. Please try again.");

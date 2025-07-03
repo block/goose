@@ -61,8 +61,8 @@ impl KeyringSecureStore {
     /// * `secret_name` - The name of the secret (optional)
     pub fn create_service_name(server_name: &str, secret_name: Option<&str>) -> String {
         match secret_name {
-            Some(name) => format!("goose.mcp.{}.{}", server_name, name),
-            None => format!("goose.mcp.{}", server_name),
+            Some(name) => format!("goose.mcp.{server_name}.{name}"),
+            None => format!("goose.mcp.{server_name}"),
         }
     }
 }
@@ -76,7 +76,7 @@ impl Default for KeyringSecureStore {
 impl SecureStore for KeyringSecureStore {
     fn set_secret(&self, service: &str, username: &str, secret: &str) -> Result<()> {
         let entry = Entry::new(service, username).map_err(|e| {
-            SecretError::StorageFailure(format!("Failed to create keyring entry: {}", e))
+            SecretError::StorageFailure(format!("Failed to create keyring entry: {e}"))
         })?;
 
         entry.set_password(secret)?;
@@ -85,7 +85,7 @@ impl SecureStore for KeyringSecureStore {
 
     fn get_secret(&self, service: &str, username: &str) -> Result<String> {
         let entry = Entry::new(service, username).map_err(|e| {
-            SecretError::StorageFailure(format!("Failed to create keyring entry: {}", e))
+            SecretError::StorageFailure(format!("Failed to create keyring entry: {e}"))
         })?;
 
         let password = entry.get_password()?;
@@ -94,7 +94,7 @@ impl SecureStore for KeyringSecureStore {
 
     fn delete_secret(&self, service: &str, username: &str) -> Result<()> {
         let entry = Entry::new(service, username).map_err(|e| {
-            SecretError::StorageFailure(format!("Failed to create keyring entry: {}", e))
+            SecretError::StorageFailure(format!("Failed to create keyring entry: {e}"))
         })?;
 
         entry.delete_credential()?;
@@ -122,10 +122,10 @@ impl FileBackedStore {
     fn load_secrets(&self) -> Result<HashMap<String, String>> {
         if self.file_path.exists() {
             let content = std::fs::read_to_string(&self.file_path).map_err(|e| {
-                SecretError::StorageFailure(format!("Failed to read secrets file: {}", e))
+                SecretError::StorageFailure(format!("Failed to read secrets file: {e}"))
             })?;
             let secrets: HashMap<String, String> = serde_yaml::from_str(&content)
-                .map_err(|e| SecretError::StorageFailure(format!("YAML parse error: {}", e)))?;
+                .map_err(|e| SecretError::StorageFailure(format!("YAML parse error: {e}")))?;
             Ok(secrets)
         } else {
             Ok(HashMap::new())
@@ -135,19 +135,19 @@ impl FileBackedStore {
     fn save_secrets(&self, secrets: &HashMap<String, String>) -> Result<()> {
         if let Some(parent) = self.file_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                SecretError::StorageFailure(format!("Failed to create secrets directory: {}", e))
+                SecretError::StorageFailure(format!("Failed to create secrets directory: {e}"))
             })?;
         }
         let content = serde_yaml::to_string(secrets)
-            .map_err(|e| SecretError::StorageFailure(format!("YAML serialize error: {}", e)))?;
+            .map_err(|e| SecretError::StorageFailure(format!("YAML serialize error: {e}")))?;
         std::fs::write(&self.file_path, content).map_err(|e| {
-            SecretError::StorageFailure(format!("Failed to write secrets file: {}", e))
+            SecretError::StorageFailure(format!("Failed to write secrets file: {e}"))
         })?;
         Ok(())
     }
 
     fn make_key(&self, service: &str, username: &str) -> String {
-        format!("{}:{}", service, username)
+        format!("{service}:{username}")
     }
 }
 
@@ -165,7 +165,7 @@ impl SecureStore for FileBackedStore {
         secrets
             .get(&key)
             .cloned()
-            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {}", key)))
+            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {key}")))
     }
 
     fn delete_secret(&self, service: &str, username: &str) -> Result<()> {
@@ -186,6 +186,12 @@ impl SecureStore for FileBackedStore {
 /// Legacy compatibility wrapper for the config system
 pub struct LegacyConfigStore {
     inner: Box<dyn SecureStore>,
+}
+
+impl Default for LegacyConfigStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LegacyConfigStore {
@@ -211,8 +217,8 @@ impl LegacyConfigStore {
     {
         let service = "goose.config";
         let secret_str = self.inner.get_secret(service, key)?;
-        let value: Value =
-            serde_json::from_str(&secret_str).unwrap_or_else(|_| Value::String(secret_str));
+        let fallback_value = Value::String(secret_str.clone());
+        let value: Value = serde_json::from_str(&secret_str).unwrap_or(fallback_value);
         serde_json::from_value(value).map_err(SecretError::SerializationError)
     }
 
@@ -250,7 +256,7 @@ impl MockSecureStore {
     }
 
     fn make_key(service: &str, username: &str) -> String {
-        format!("{}:{}", service, username)
+        format!("{service}:{username}")
     }
 }
 
@@ -276,7 +282,7 @@ impl SecureStore for MockSecureStore {
         storage
             .get(&key)
             .cloned()
-            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {}", key)))
+            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {key}")))
     }
 
     fn delete_secret(&self, service: &str, username: &str) -> Result<()> {
@@ -284,7 +290,7 @@ impl SecureStore for MockSecureStore {
         let mut storage = self.storage.lock().unwrap();
         storage
             .remove(&key)
-            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {}", key)))?;
+            .ok_or_else(|| SecretError::NotFound(format!("Secret not found: {key}")))?;
         Ok(())
     }
 

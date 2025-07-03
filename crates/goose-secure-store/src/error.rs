@@ -40,12 +40,12 @@ impl From<keyring::Error> for SecretError {
             }
             keyring::Error::Invalid(msg, _) => SecretError::InvalidParameters(msg),
             keyring::Error::PlatformFailure(err) => {
-                SecretError::StorageFailure(format!("Platform error: {}", err))
+                SecretError::StorageFailure(format!("Platform error: {err}"))
             }
             keyring::Error::Ambiguous(err) => {
-                SecretError::StorageFailure(format!("Ambiguous keyring error: {:?}", err))
+                SecretError::StorageFailure(format!("Ambiguous keyring error: {err:?}"))
             }
-            _ => SecretError::Other(format!("Keyring error: {}", err)),
+            _ => SecretError::Other(format!("Keyring error: {err}")),
         }
     }
 }
