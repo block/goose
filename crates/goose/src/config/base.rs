@@ -1,6 +1,6 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use fs2::FileExt;
-use keyring::Entry;
+use goose_secure_store::{KeyringSecureStore, LegacyConfigStore, SecretError, SecureStore};
 use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
@@ -16,9 +16,6 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     author: "Block".to_string(),
     app_name: "goose".to_string(),
 });
-
-const KEYRING_SERVICE: &str = "goose";
-const KEYRING_USERNAME: &str = "secrets";
 
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
@@ -51,9 +48,12 @@ impl From<serde_yaml::Error> for ConfigError {
     }
 }
 
-impl From<keyring::Error> for ConfigError {
-    fn from(err: keyring::Error) -> Self {
-        ConfigError::KeyringError(err.to_string())
+impl From<SecretError> for ConfigError {
+    fn from(err: SecretError) -> Self {
+        match err {
+            SecretError::NotFound(msg) => ConfigError::NotFound(msg),
+            _ => ConfigError::KeyringError(err.to_string()),
+        }
     }
 }
 
@@ -105,12 +105,7 @@ impl From<keyring::Error> for ConfigError {
 /// For Goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
 pub struct Config {
     config_path: PathBuf,
-    secrets: SecretStorage,
-}
-
-enum SecretStorage {
-    Keyring { service: String },
-    File { path: PathBuf },
+    secrets: LegacyConfigStore,
 }
 
 // Global instance
@@ -129,14 +124,14 @@ impl Default for Config {
 
         let config_path = config_dir.join("config.yaml");
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
-                path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
-                service: KEYRING_SERVICE.to_string(),
-            },
+        // Create the store with file fallback support
+        let secrets = if env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+            let fallback_path = config_dir.join("secrets.yaml");
+            LegacyConfigStore::with_file_fallback(Some(fallback_path))
+        } else {
+            LegacyConfigStore::new()
         };
+
         Config {
             config_path,
             secrets,
@@ -157,12 +152,10 @@ impl Config {
     ///
     /// This is primarily useful for testing or for applications that need
     /// to manage multiple configuration files.
-    pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
+    pub fn new<P: AsRef<Path>>(config_path: P, _service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            secrets: SecretStorage::Keyring {
-                service: service.to_string(),
-            },
+            secrets: LegacyConfigStore::new(),
         })
     }
 
@@ -176,9 +169,9 @@ impl Config {
     ) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            secrets: SecretStorage::File {
-                path: secrets_path.as_ref().to_path_buf(),
-            },
+            secrets: LegacyConfigStore::with_file_fallback(Some(
+                secrets_path.as_ref().to_path_buf(),
+            )),
         })
     }
 
@@ -478,33 +471,7 @@ impl Config {
 
     // Load current secrets from the keyring
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-
-                match entry.get_password() {
-                    Ok(content) => {
-                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                        Ok(values)
-                    }
-                    Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-                    Err(e) => Err(ConfigError::KeyringError(e.to_string())),
-                }
-            }
-            SecretStorage::File { path } => {
-                if path.exists() {
-                    let file_content = std::fs::read_to_string(path)?;
-                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
-                    let json_value: Value = serde_json::to_value(yaml_value)?;
-                    match json_value {
-                        Value::Object(map) => Ok(map.into_iter().collect()),
-                        _ => Ok(HashMap::new()),
-                    }
-                } else {
-                    Ok(HashMap::new())
-                }
-            }
-        }
+        self.secrets.load_secrets().map_err(ConfigError::from)
     }
 
     // check all possible places for a parameter
@@ -628,12 +595,8 @@ impl Config {
             return Ok(serde_json::from_value(value)?);
         }
 
-        // Then check keyring
-        let values = self.load_secrets()?;
-        values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_json::from_value(v.clone())?))
+        // Then check secure store
+        self.secrets.get_secret(key).map_err(ConfigError::from)
     }
 
     /// Set a secret value in the system keyring.
@@ -651,21 +614,9 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
     pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets()?;
-        values.insert(key.to_string(), value);
-
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let json_value = serde_json::to_string(&values)?;
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-                entry.set_password(&json_value)?;
-            }
-            SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-            }
-        };
-        Ok(())
+        self.secrets
+            .set_secret(key, value)
+            .map_err(ConfigError::from)
     }
 
     /// Delete a secret from the system keyring.
@@ -679,21 +630,25 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the remaining values
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets()?;
-        values.remove(key);
+        self.secrets.delete_secret(key).map_err(ConfigError::from)
+    }
 
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let json_value = serde_json::to_string(&values)?;
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-                entry.set_password(&json_value)?;
-            }
-            SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-            }
-        };
-        Ok(())
+    /// Get MCP-specific secret for consistent access to extension secrets
+    ///
+    /// This method provides access to MCP server secrets using the same service
+    /// naming pattern as the extension manager: `goose.mcp.{server_name}`
+    pub fn get_mcp_secret<T: for<'de> Deserialize<'de>>(
+        &self,
+        server_name: &str,
+        secret_name: &str,
+    ) -> Result<T, ConfigError> {
+        let service = format!("goose.mcp.{}", server_name);
+        let store = KeyringSecureStore::new();
+        let secret_str = store
+            .get_secret(&service, secret_name)
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
+        let value: Value = serde_json::from_str(&secret_str).unwrap_or(Value::String(secret_str));
+        Ok(serde_json::from_value(value)?)
     }
 }
 
@@ -756,15 +711,6 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::NamedTempFile;
-
-    fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry = Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
-        match entry.delete_credential() {
-            Ok(_) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
-        }
-    }
 
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
@@ -878,9 +824,9 @@ mod tests {
     #[test]
     #[serial]
     fn test_secret_management() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(temp_file.path(), secrets_file.path())?;
 
         // Test setting and getting a simple secret
         config.set_secret("api_key", Value::String("secret123".to_string()))?;
@@ -898,16 +844,15 @@ mod tests {
         let result: Result<String, ConfigError> = config.get_secret("api_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
-        cleanup_keyring()?;
         Ok(())
     }
 
     #[test]
     #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(temp_file.path(), secrets_file.path())?;
 
         // Set multiple secrets
         config.set_secret("key1", Value::String("secret1".to_string()))?;
@@ -928,7 +873,6 @@ mod tests {
         assert!(matches!(result1, Err(ConfigError::NotFound(_))));
         assert_eq!(value2, "secret2");
 
-        cleanup_keyring()?;
         Ok(())
     }
 
