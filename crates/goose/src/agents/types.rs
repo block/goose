@@ -26,4 +26,6 @@ pub struct SessionConfig {
     pub schedule_id: Option<String>,
     /// Execution mode for scheduled jobs: "foreground" or "background"
     pub execution_mode: Option<String>,
+    /// Maximum number of turns (iterations) allowed without user input
+    pub max_turns: Option<u32>,
 }

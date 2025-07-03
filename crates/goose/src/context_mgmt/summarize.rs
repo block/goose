@@ -216,7 +216,7 @@ pub async fn summarize_messages_async(
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent};
-    use crate::model::{ModelConfig, GPT_4O_TOKENIZER};
+    use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
@@ -306,7 +306,7 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_messages_single_chunk() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 100; // Set a high enough limit to avoid chunking.
         let messages = create_test_messages();
 
@@ -342,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_messages_multiple_chunks() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 30;
         let messages = create_test_messages();
 
@@ -378,7 +378,7 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_messages_empty_input() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 100;
         let messages: Vec<Message> = Vec::new();
 

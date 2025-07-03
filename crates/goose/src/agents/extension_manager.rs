@@ -18,7 +18,7 @@ use crate::agents::extension::Envs;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, StdioTransport, Transport};
+use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
 use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
 use serde_json::Value;
 
@@ -195,6 +195,28 @@ impl ExtensionManager {
                     .await?,
                 )
             }
+            ExtensionConfig::StreamableHttp {
+                uri,
+                envs,
+                env_keys,
+                headers,
+                timeout,
+                ..
+            } => {
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport =
+                    StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
+                let handle = transport.start().await?;
+                Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
+            }
             ExtensionConfig::Stdio {
                 cmd,
                 args,
@@ -256,7 +278,7 @@ impl ExtensionManager {
         let init_result = client
             .initialize(info, capabilities)
             .await
-            .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
+            .map_err(|e| ExtensionError::Initialization(Box::new(config.clone()), e))?;
 
         if let Some(instructions) = init_result.instructions {
             self.instructions
@@ -752,10 +774,13 @@ impl ExtensionManager {
                     ExtensionConfig::Sse {
                         description, name, ..
                     }
+                    | ExtensionConfig::StreamableHttp {
+                        description, name, ..
+                    }
                     | ExtensionConfig::Stdio {
                         description, name, ..
                     } => {
-                        // For SSE/Stdio, use description if available
+                        // For SSE/StreamableHttp/Stdio, use description if available
                         description
                             .as_ref()
                             .map(|s| s.to_string())

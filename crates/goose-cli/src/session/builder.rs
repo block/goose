@@ -3,7 +3,7 @@ use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
-use goose::recipe::SubRecipe;
+use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -41,6 +41,8 @@ pub struct SessionBuilderConfig {
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
     pub max_tool_repetitions: Option<u32>,
+    /// Maximum number of turns (iterations) allowed without user input
+    pub max_turns: Option<u32>,
     /// ID of the scheduled job that triggered this session (if any)
     pub scheduled_job_id: Option<String>,
     /// Whether this session will be used interactively (affects debugging prompts)
@@ -49,6 +51,8 @@ pub struct SessionBuilderConfig {
     pub quiet: bool,
     /// Sub-recipes to add to the session
     pub sub_recipes: Option<Vec<SubRecipe>>,
+    /// Final output expected response
+    pub final_output_response: Option<Response>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -120,7 +124,13 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, temp_session_file.clone(), false, None, true);
+    let mut debug_session = Session::new(
+        debug_agent,
+        Some(temp_session_file.clone()),
+        false,
+        None,
+        None,
+    );
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -180,6 +190,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     if let Some(sub_recipes) = session_config.sub_recipes {
         agent.add_sub_recipes(sub_recipes).await;
     }
+
+    if let Some(final_output_response) = session_config.final_output_response {
+        agent.add_final_output_tool(final_output_response).await;
+    }
+
     let new_provider = match create(&provider_name, model_config) {
         Ok(provider) => provider,
         Err(e) => {
@@ -222,24 +237,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     }
 
     // Handle session file resolution and resuming
-    let session_file: std::path::PathBuf = if session_config.no_session {
-        // Use a temporary path that won't be written to
-        #[cfg(unix)]
-        {
-            std::path::PathBuf::from("/dev/null")
-        }
-        #[cfg(windows)]
-        {
-            std::path::PathBuf::from("NUL")
-        }
+    let session_file: Option<std::path::PathBuf> = if session_config.no_session {
+        None
     } else if session_config.resume {
         if let Some(identifier) = session_config.identifier {
             let session_file = match session::get_path(identifier) {
-                Ok(path) => path,
                 Err(e) => {
                     output::render_error(&format!("Invalid session identifier: {}", e));
                     process::exit(1);
                 }
+                Ok(path) => path,
             };
             if !session_file.exists() {
                 output::render_error(&format!(
@@ -249,11 +256,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 process::exit(1);
             }
 
-            session_file
+            Some(session_file)
         } else {
             // Try to resume most recent session
             match session::get_most_recent_session() {
-                Ok(file) => file,
+                Ok(file) => Some(file),
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
                     process::exit(1);
@@ -269,7 +276,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
         // Just get the path - file will be created when needed
         match session::get_path(id) {
-            Ok(path) => path,
+            Ok(path) => Some(path),
             Err(e) => {
                 output::render_error(&format!("Failed to create session path: {}", e));
                 process::exit(1);
@@ -277,32 +284,34 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     };
 
-    if session_config.resume && !session_config.no_session {
-        // Read the session metadata
-        let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to read session metadata: {}", e));
-            process::exit(1);
-        });
+    if session_config.resume {
+        if let Some(session_file) = session_file.as_ref() {
+            // Read the session metadata
+            let metadata = session::read_metadata(session_file).unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to read session metadata: {}", e));
+                process::exit(1);
+            });
 
-        let current_workdir =
-            std::env::current_dir().expect("Failed to get current working directory");
-        if current_workdir != metadata.working_dir {
-            // Ask user if they want to change the working directory
-            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
+            let current_workdir =
+                std::env::current_dir().expect("Failed to get current working directory");
+            if current_workdir != metadata.working_dir {
+                // Ask user if they want to change the working directory
+                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
             .initial_value(true)
             .interact().expect("Failed to get user input");
 
-            if change_workdir {
-                if !metadata.working_dir.exists() {
-                    output::render_error(&format!(
-                        "Cannot switch to original working directory - {} no longer exists",
-                        style(metadata.working_dir.display()).cyan()
-                    ));
-                } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
-                    output::render_error(&format!(
-                        "Failed to switch to original working directory: {}",
-                        e
-                    ));
+                if change_workdir {
+                    if !metadata.working_dir.exists() {
+                        output::render_error(&format!(
+                            "Cannot switch to original working directory - {} no longer exists",
+                            style(metadata.working_dir.display()).cyan()
+                        ));
+                    } else if let Err(e) = std::env::set_current_dir(&metadata.working_dir) {
+                        output::render_error(&format!(
+                            "Failed to switch to original working directory: {}",
+                            e
+                        ));
+                    }
                 }
             }
         }
@@ -366,7 +375,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_file.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
-        !session_config.no_session, // save_session is the inverse of no_session
+        session_config.max_turns,
     );
 
     // Add extensions if provided
@@ -516,10 +525,12 @@ mod tests {
             settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
+            max_turns: None,
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
             sub_recipes: None,
+            final_output_response: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -527,6 +538,7 @@ mod tests {
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
+        assert!(config.max_turns.is_none());
         assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
         assert!(!config.quiet);
@@ -546,9 +558,11 @@ mod tests {
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
+        assert!(config.max_turns.is_none());
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
+        assert!(config.final_output_response.is_none());
     }
 
     #[tokio::test]

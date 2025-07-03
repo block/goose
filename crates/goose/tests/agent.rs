@@ -531,3 +531,231 @@ mod schedule_tool_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod final_output_tool_tests {
+    use super::*;
+    use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
+    use goose::recipe::Response;
+
+    #[tokio::test]
+    async fn test_final_output_assistant_message_in_reply() -> Result<()> {
+        use async_trait::async_trait;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{Provider, ProviderUsage, Usage};
+        use goose::providers::errors::ProviderError;
+        use mcp_core::tool::Tool;
+
+        #[derive(Clone)]
+        struct MockProvider {
+            model_config: ModelConfig,
+        }
+
+        #[async_trait]
+        impl Provider for MockProvider {
+            fn metadata() -> goose::providers::base::ProviderMetadata {
+                goose::providers::base::ProviderMetadata::empty()
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                self.model_config.clone()
+            }
+
+            async fn complete(
+                &self,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                Ok((
+                    Message::assistant().with_text("Task completed."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            }
+        }
+
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockProvider { model_config });
+        agent.update_provider(mock_provider).await?;
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                },
+                "required": ["result"]
+            })),
+        };
+        agent.add_final_output_tool(response).await;
+
+        // Simulate a final output tool call occurring.
+        let tool_call = mcp_core::tool::ToolCall::new(
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({
+                "result": "Test output"
+            }),
+        );
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_id".to_string())
+            .await;
+
+        assert!(result.is_ok(), "Tool call should succeed");
+        let final_result = result.unwrap().result.await;
+        assert!(final_result.is_ok(), "Tool execution should succeed");
+
+        let content = final_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.contains("Final output successfully collected."),
+            "Tool result missing expected content: {}",
+            text
+        );
+
+        // Simulate the reply stream continuing after the final output tool call.
+        let reply_stream = agent.reply(&vec![], None).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+        let last_message = responses.last().unwrap();
+
+        // Check that the last message is an assistant message with our final output
+        assert_eq!(last_message.role, mcp_core::role::Role::Assistant);
+        let message_text = last_message.as_concat_text();
+        assert_eq!(message_text, r#"{"result":"Test output"}"#);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod max_turns_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use goose::message::MessageContent;
+    use goose::model::ModelConfig;
+    use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use goose::providers::errors::ProviderError;
+    use goose::session::storage::Identifier;
+    use mcp_core::tool::{Tool, ToolCall};
+    use std::path::PathBuf;
+
+    struct MockToolProvider {}
+
+    impl MockToolProvider {
+        fn new() -> Self {
+            Self {}
+        }
+    }
+
+    #[async_trait]
+    impl Provider for MockToolProvider {
+        async fn complete(
+            &self,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            let tool_call = ToolCall::new("test_tool", serde_json::json!({"param": "value"}));
+            let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
+
+            let usage = ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(10), Some(5), Some(15)),
+            );
+
+            Ok((message, usage))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new("mock-model".to_string())
+        }
+
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata {
+                name: "mock".to_string(),
+                display_name: "Mock Provider".to_string(),
+                description: "Mock provider for testing".to_string(),
+                default_model: "mock-model".to_string(),
+                known_models: vec![],
+                model_doc_link: "".to_string(),
+                config_keys: vec![],
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_max_turns_limit() -> Result<()> {
+        let agent = Agent::new();
+        let provider = Arc::new(MockToolProvider::new());
+        agent.update_provider(provider).await?;
+        // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
+
+        // Create session config with max_turns = 1
+        let session_config = goose::agents::SessionConfig {
+            id: Identifier::Name("test_session".to_string()),
+            working_dir: PathBuf::from("/tmp"),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: Some(1),
+        };
+        let messages = vec![Message::user().with_text("Hello")];
+
+        let reply_stream = agent.reply(&messages, Some(session_config)).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => {
+                    if let Some(MessageContent::ToolConfirmationRequest(ref req)) =
+                        response.content.first()
+                    {
+                        agent.handle_confirmation(
+                            req.id.clone(),
+                            goose::permission::PermissionConfirmation {
+                                principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
+                                permission: goose::permission::Permission::AllowOnce,
+                            }
+                        ).await;
+                    }
+                    responses.push(response);
+                }
+                Ok(AgentEvent::McpNotification(_)) => {}
+                Ok(AgentEvent::ModelChange { .. }) => {}
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+
+        assert!(
+            responses.len() >= 1,
+            "Expected at least 1 response, got {}",
+            responses.len()
+        );
+
+        // Look for the max turns message as the last response
+        let last_response = responses.last().unwrap();
+        let last_content = last_response.content.first().unwrap();
+        if let MessageContent::Text(text_content) = last_content {
+            assert!(text_content.text.contains(
+                "I've reached the maximum number of actions I can do without user input"
+            ));
+        } else {
+            panic!("Expected text content in last message");
+        }
+        Ok(())
+    }
+}

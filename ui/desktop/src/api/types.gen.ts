@@ -129,6 +129,21 @@ export type ExtensionConfig = {
      * Whether this extension is bundled with Goose
      */
     bundled?: boolean | null;
+    description?: string | null;
+    env_keys?: Array<string>;
+    envs?: Envs;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    timeout?: number | null;
+    type: 'streamable_http';
+    uri: string;
+} | {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     /**
      * Instructions for how to use these tools
      */

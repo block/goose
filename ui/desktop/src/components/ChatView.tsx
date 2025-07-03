@@ -26,6 +26,7 @@ import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import ParameterInputModal from './ParameterInputModal';
 import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
@@ -35,6 +36,7 @@ import { ContextHandler } from './context_management/ContextHandler';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { getCostForModel } from '../utils/costDatabase';
+import { updateSystemPromptWithParameters } from '../utils/providerUtils';
 import {
   Message,
   createUserMessage,
@@ -67,6 +69,17 @@ const isUserMessage = (message: Message): boolean => {
     return false;
   }
   return true;
+};
+
+const substituteParameters = (prompt: string, params: Record<string, string>): string => {
+  let substitutedPrompt = prompt;
+
+  for (const key in params) {
+    // Escape special characters in the key (parameter) and match optional whitespace
+    const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
+    substitutedPrompt = substitutedPrompt.replace(regex, params[key]);
+  }
+  return substitutedPrompt;
 };
 
 export default function ChatView({
@@ -114,6 +127,8 @@ function ChatContent({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
+  const [isParameterModalOpen, setIsParameterModalOpen] = useState(false);
+  const [recipeParameters, setRecipeParameters] = useState<Record<string, string> | null>(null);
   const [sessionCosts, setSessionCosts] = useState<{
     [key: string]: {
       inputTokens: number;
@@ -151,6 +166,16 @@ function ChatContent({
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
+
+  // Show parameter modal if recipe has parameters and they haven't been set yet
+  useEffect(() => {
+    if (recipeConfig?.parameters && recipeConfig.parameters.length > 0) {
+      // If we have parameters and they haven't been set yet, open the modal.
+      if (!recipeParameters) {
+        setIsParameterModalOpen(true);
+      }
+    }
+  }, [recipeConfig, recipeParameters]);
 
   // Store message in global history when it's added
   const storeMessageInHistory = useCallback((message: Message) => {
@@ -282,6 +307,7 @@ function ChatContent({
           name: response.recipe.title || 'Untitled Recipe', // Does not exist on recipe type
           title: response.recipe.title || 'Untitled Recipe',
           description: response.recipe.description || '',
+          parameters: response.recipe.parameters || [],
           instructions: response.recipe.instructions || '',
           activities: response.recipe.activities || [],
           prompt: response.recipe.prompt || '',
@@ -326,27 +352,48 @@ function ChatContent({
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
-    return recipeConfig?.prompt || '';
-  }, [recipeConfig?.prompt]);
+    if (!recipeConfig?.prompt) return '';
+
+    const hasRequiredParams = recipeConfig.parameters && recipeConfig.parameters.length > 0;
+
+    // If params are required and have been collected, substitute them into the prompt.
+    if (hasRequiredParams && recipeParameters) {
+      return substituteParameters(recipeConfig.prompt, recipeParameters);
+    }
+
+    // If there are no parameters, return the original prompt.
+    if (!hasRequiredParams) {
+      return recipeConfig.prompt;
+    }
+
+    // Otherwise, we are waiting for parameters, so the input should be empty.
+    return '';
+  }, [recipeConfig, recipeParameters]);
 
   // Auto-send the prompt for scheduled executions
   useEffect(() => {
+    const hasRequiredParams = recipeConfig?.parameters && recipeConfig.parameters.length > 0;
+
     if (
       recipeConfig?.isScheduledExecution &&
       recipeConfig?.prompt &&
+      (!hasRequiredParams || recipeParameters) &&
       messages.length === 0 &&
       !isLoading &&
       readyForAutoUserPrompt
     ) {
-      console.log('Auto-sending prompt for scheduled execution:', recipeConfig.prompt);
+      // Substitute parameters if they exist
+      const finalPrompt = recipeParameters
+        ? substituteParameters(recipeConfig.prompt, recipeParameters)
+        : recipeConfig.prompt;
 
-      // Create and send the user message
-      const userMessage = createUserMessage(recipeConfig.prompt);
+      console.log('Auto-sending substituted prompt for scheduled execution:', finalPrompt);
+
+      const userMessage = createUserMessage(finalPrompt);
       setLastInteractionTime(Date.now());
       window.electron.startPowerSaveBlocker();
       append(userMessage);
 
-      // Scroll to bottom after sending
       setTimeout(() => {
         if (scrollRef.current?.scrollToBottom) {
           scrollRef.current.scrollToBottom();
@@ -356,12 +403,26 @@ function ChatContent({
   }, [
     recipeConfig?.isScheduledExecution,
     recipeConfig?.prompt,
+    recipeConfig?.parameters,
+    recipeParameters,
     messages.length,
     isLoading,
     readyForAutoUserPrompt,
     append,
     setLastInteractionTime,
   ]);
+
+  const handleParameterSubmit = async (inputValues: Record<string, string>) => {
+    setRecipeParameters(inputValues);
+    setIsParameterModalOpen(false);
+
+    // Update the system prompt with parameter-substituted instructions
+    try {
+      await updateSystemPromptWithParameters(inputValues);
+    } catch (error) {
+      console.error('Failed to update system prompt with parameters:', error);
+    }
+  };
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -619,10 +680,22 @@ function ChatContent({
         }));
       }
 
-      // Reset token counters for the new model
-      setSessionTokenCount(0);
-      setSessionInputTokens(0);
-      setSessionOutputTokens(0);
+      // Restore token counters from session metadata instead of resetting to 0
+      // This preserves the accumulated session tokens when switching models
+      // and ensures cost tracking remains accurate across model changes
+      if (sessionMetadata) {
+        // Use Math.max to ensure non-negative values and handle potential data issues
+        setSessionTokenCount(Math.max(0, sessionMetadata.totalTokens || 0));
+        setSessionInputTokens(Math.max(0, sessionMetadata.accumulatedInputTokens || 0));
+        setSessionOutputTokens(Math.max(0, sessionMetadata.accumulatedOutputTokens || 0));
+      } else {
+        // Fallback: if no session metadata, preserve current session tokens instead of resetting
+        // This handles edge cases where metadata might not be available yet
+        console.warn(
+          'No session metadata available during model change, preserving current tokens'
+        );
+      }
+      // Only reset local token estimation counters since they're model-specific
       setLocalInputTokens(0);
       setLocalOutputTokens(0);
 
@@ -631,7 +704,7 @@ function ChatContent({
         `${prevProviderRef.current}/${prevModelRef.current}`,
         'to',
         `${currentProvider}/${currentModel}`,
-        '- saved costs and reset token counters'
+        '- saved costs and restored session token counters'
       );
     }
 
@@ -644,6 +717,7 @@ function ChatContent({
     sessionOutputTokens,
     localInputTokens,
     localOutputTokens,
+    sessionMetadata,
   ]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -818,6 +892,13 @@ function ChatContent({
           }}
           summaryContent={summaryContent}
         />
+        {isParameterModalOpen && recipeConfig?.parameters && (
+          <ParameterInputModal
+            parameters={recipeConfig.parameters}
+            onSubmit={handleParameterSubmit}
+            onClose={() => setIsParameterModalOpen(false)}
+          />
+        )}
       </div>
     </CurrentModelContext.Provider>
   );

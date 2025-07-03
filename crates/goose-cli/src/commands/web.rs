@@ -225,14 +225,15 @@ async fn list_sessions() -> Json<serde_json::Value> {
         Ok(sessions) => {
             let session_info: Vec<serde_json::Value> = sessions
                 .into_iter()
-                .map(|(name, path)| {
-                    let metadata = session::read_metadata(&path).unwrap_or_default();
-                    serde_json::json!({
-                        "name": name,
-                        "path": path,
-                        "description": metadata.description,
-                        "message_count": metadata.message_count,
-                        "working_dir": metadata.working_dir
+                .filter_map(|(name, path)| {
+                    session::read_metadata(&path).ok().map(|metadata| {
+                        serde_json::json!({
+                            "name": name,
+                            "path": path,
+                            "description": metadata.description,
+                            "message_count": metadata.message_count,
+                            "working_dir": metadata.working_dir
+                        })
                     })
                 })
                 .collect();
@@ -246,7 +247,6 @@ async fn list_sessions() -> Json<serde_json::Value> {
         })),
     }
 }
-
 async fn get_session(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
@@ -259,17 +259,21 @@ async fn get_session(
         }
     };
 
+    let error_response = |e: Box<dyn std::error::Error>| {
+        Json(serde_json::json!({
+            "error": e.to_string()
+        }))
+    };
+
     match session::read_messages(&session_file) {
-        Ok(messages) => {
-            let metadata = session::read_metadata(&session_file).unwrap_or_default();
-            Json(serde_json::json!({
+        Ok(messages) => match session::read_metadata(&session_file) {
+            Ok(metadata) => Json(serde_json::json!({
                 "metadata": metadata,
                 "messages": messages
-            }))
-        }
-        Err(e) => Json(serde_json::json!({
-            "error": e.to_string()
-        })),
+            })),
+            Err(e) => error_response(e.into()),
+        },
+        Err(e) => error_response(e.into()),
     }
 }
 
@@ -479,6 +483,7 @@ async fn process_message_streaming(
         working_dir: std::env::current_dir()?,
         schedule_id: None,
         execution_mode: None,
+        max_turns: None,
     };
 
     // Get response from agent

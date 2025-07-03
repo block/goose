@@ -1,7 +1,7 @@
 import { Input } from '../../../ui/input';
 
 interface ExtensionConfigFieldsProps {
-  type: 'stdio' | 'sse' | 'builtin';
+  type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';
   full_cmd: string;
   endpoint: string;
   onChange: (key: string, value: string) => void;

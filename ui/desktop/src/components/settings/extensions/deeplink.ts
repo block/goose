@@ -73,6 +73,26 @@ function getSseConfig(remoteUrl: string, name: string, description: string, time
 }
 
 /**
+ * Build an extension config for Streamable HTTP from the deeplink URL
+ */
+function getStreamableHttpConfig(
+  remoteUrl: string,
+  name: string,
+  description: string,
+  timeout: number
+) {
+  const config: ExtensionConfig = {
+    name,
+    type: 'streamable_http',
+    uri: remoteUrl,
+    description,
+    timeout: timeout,
+  };
+
+  return config;
+}
+
+/**
  * Handles adding an extension from a deeplink URL
  */
 export async function addExtensionFromDeepLink(
@@ -120,9 +140,12 @@ export async function addExtensionFromDeepLink(
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
+  const transportType = parsedUrl.searchParams.get('transport') || 'sse'; // Default to SSE for backward compatibility
 
   const config = remoteUrl
-    ? getSseConfig(remoteUrl, name, description || '', timeout)
+    ? transportType === 'streamable_http'
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout)
+      : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
   // Check if extension requires env vars and go to settings if so

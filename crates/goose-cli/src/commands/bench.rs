@@ -15,7 +15,7 @@ impl BenchBaseSession for Session {
     async fn headless(&mut self, message: String) -> anyhow::Result<()> {
         self.headless(message).await
     }
-    fn session_file(&self) -> PathBuf {
+    fn session_file(&self) -> Option<PathBuf> {
         self.session_file()
     }
     fn message_history(&self) -> Vec<Message> {
@@ -45,8 +45,10 @@ pub async fn agent_generator(
         max_tool_repetitions: None,
         interactive: false, // Benchmarking is non-interactive
         scheduled_job_id: None,
+        max_turns: None,
         quiet: false,
         sub_recipes: None,
+        final_output_response: None,
     })
     .await;
 

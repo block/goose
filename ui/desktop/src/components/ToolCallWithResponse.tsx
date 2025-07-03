@@ -285,6 +285,9 @@ function ToolCallView({
         }
         break;
 
+      case 'final_output':
+        return 'final output';
+
       case 'computer_control':
         return 'poking around...';
 

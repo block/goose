@@ -1203,6 +1203,7 @@ async fn run_scheduled_job_internal(
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
+            max_turns: None,
         };
 
         match agent
@@ -1248,7 +1249,6 @@ async fn run_scheduled_job_internal(
                             &session_file_path,
                             &updated_metadata,
                             &all_session_messages,
-                            true,
                         ) {
                             tracing::error!(
                                 "[Job {}] Failed to persist final messages: {}",
@@ -1279,7 +1279,6 @@ async fn run_scheduled_job_internal(
                             &session_file_path,
                             &fallback_metadata,
                             &all_session_messages,
-                            true,
                         ) {
                             tracing::error!("[Job {}] Failed to persist final messages with fallback metadata: {}", job.id, e_fb);
                         }
@@ -1306,12 +1305,9 @@ async fn run_scheduled_job_internal(
             message_count: 0,
             ..Default::default()
         };
-        if let Err(e) = crate::session::storage::save_messages_with_metadata(
-            &session_file_path,
-            &metadata,
-            &[],
-            true,
-        ) {
+        if let Err(e) =
+            crate::session::storage::save_messages_with_metadata(&session_file_path, &metadata, &[])
+        {
             tracing::error!(
                 "[Job {}] Failed to persist metadata for empty job: {}",
                 job.id,
@@ -1422,6 +1418,7 @@ mod tests {
             author: None,
             parameters: None,
             settings: None,
+            response: None,
             sub_recipes: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;

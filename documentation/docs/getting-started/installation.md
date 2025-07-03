@@ -145,10 +145,7 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        Install the Goose CLI directly from the browser using our download script, or use WSL for a Linux-like experience.
-
-        <h3 style={{ marginTop: '1rem' }}>Option 1: Native Windows CLI (Recommended)</h3>
-        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the latest version of Goose natively on Windows:
+        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
@@ -169,38 +166,42 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         The script requires `curl` and `unzip` to be available in your environment.
         :::
 
-        <h3>Option 2: Windows Subsystem for Linux (WSL)</h3>
-        If you prefer a Linux-like environment, you can run Goose using WSL:
+        <details>
+        <summary>Install via Windows Subsystem for Linux (WSL)</summary>
 
-        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
+          We recommend running the Goose CLI natively on Windows, but you can use WSL if you prefer a Linux-like environment.
 
-        ```bash
-        wsl --install
-        ```
-
-        2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
-
-        ```bash
-        wsl -d Ubuntu
-        ```
-
-        3. Run the Goose installation script:
-        ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-        ```
-        :::tip
-          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+          1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
 
           ```bash
-          sudo apt update && sudo apt install bzip2 -y
+          wsl --install
           ```
-        :::
 
-        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+          2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
 
-        ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-        ```  
+          ```bash
+          wsl -d Ubuntu
+          ```
+
+          3. Run the Goose installation script:
+          ```bash
+          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+          ```
+          :::tip
+            If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+
+            ```bash
+            sudo apt update && sudo apt install bzip2 -y
+            ```
+          :::
+
+          If you'd like to install without interactive configuration, disable `CONFIGURE`:
+
+          ```sh
+          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+          ```  
+
+        </details>
       </TabItem>
     </Tabs>
   </TabItem>

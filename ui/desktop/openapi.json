@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.30"
+    "version": "1.0.31"
   },
   "paths": {
     "/agent/tools": {
@@ -1312,6 +1312,54 @@
                 "enum": [
                   "builtin"
                 ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification",
+            "required": [
+              "name",
+              "uri",
+              "type"
+            ],
+            "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "env_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "envs": {
+                "$ref": "#/components/schemas/Envs"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "streamable_http"
+                ]
+              },
+              "uri": {
+                "type": "string"
               }
             }
           },
