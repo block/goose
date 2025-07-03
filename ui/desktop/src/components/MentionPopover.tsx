@@ -25,7 +25,7 @@ interface MentionPopoverProps {
   filteredFiles: FileItemWithMatch[];
 }
 
-// Simple fuzzy matching algorithm
+// Enhanced fuzzy matching algorithm
 const fuzzyMatch = (pattern: string, text: string): { score: number; matches: number[] } => {
   if (!pattern) return { score: 0, matches: [] };
   
@@ -44,11 +44,17 @@ const fuzzyMatch = (pattern: string, text: string): { score: number; matches: nu
       consecutiveMatches++;
       
       // Bonus for consecutive matches
-      score += consecutiveMatches * 2;
+      score += consecutiveMatches * 3;
       
-      // Bonus for matches at word boundaries
-      if (i === 0 || textLower[i - 1] === '/' || textLower[i - 1] === '_' || textLower[i - 1] === '-') {
-        score += 5;
+      // Bonus for matches at word boundaries or path separators
+      if (i === 0 || textLower[i - 1] === '/' || textLower[i - 1] === '_' || textLower[i - 1] === '-' || textLower[i - 1] === '.') {
+        score += 10;
+      }
+      
+      // Bonus for matching the start of the filename (after last /)
+      const lastSlash = textLower.lastIndexOf('/', i);
+      if (lastSlash !== -1 && i === lastSlash + 1) {
+        score += 15;
       }
     } else {
       consecutiveMatches = 0;
@@ -57,8 +63,20 @@ const fuzzyMatch = (pattern: string, text: string): { score: number; matches: nu
   
   // Only return a score if all pattern characters were matched
   if (patternIndex === patternLower.length) {
-    // Penalty for longer strings
-    score -= text.length * 0.1;
+    // Less penalty for longer strings to allow nested files to rank well
+    score -= text.length * 0.05;
+    
+    // Bonus for exact substring matches
+    if (textLower.includes(patternLower)) {
+      score += 20;
+    }
+    
+    // Bonus for matching the filename specifically (not just the path)
+    const fileName = text.split('/').pop()?.toLowerCase() || '';
+    if (fileName.includes(patternLower)) {
+      score += 25;
+    }
+    
     return { score, matches };
   }
   
@@ -126,20 +144,23 @@ export default function MentionPopover({
   };
 
   const scanDirectoryFromRoot = async (dirPath: string, relativePath = '', depth = 0): Promise<FileItem[]> => {
-    // Limit depth for performance when searching from root
-    if (depth > 3) return [];
+    // Increase depth limit for better file discovery
+    if (depth > 5) return [];
     
     try {
       const items = await window.electron.listFiles(dirPath);
       const results: FileItem[] = [];
       
       // Common directories to prioritize or skip
-      const priorityDirs = ['Desktop', 'Documents', 'Downloads', 'Projects', 'Development', 'Code'];
+      const priorityDirs = ['Desktop', 'Documents', 'Downloads', 'Projects', 'Development', 'Code', 'src', 'components', 'icons'];
       const skipDirs = [
         '.git', '.svn', '.hg', 'node_modules', '__pycache__', '.vscode', '.idea',
         'target', 'dist', 'build', '.cache', '.npm', '.yarn', 'Library', 
-        'System', 'Applications', '.Trash', 'Music', 'Movies', 'Pictures'
+        'System', 'Applications', '.Trash'
       ];
+      
+      // Don't skip as many directories at deeper levels to find more files
+      const skipDirsAtDepth = depth > 2 ? ['.git', '.svn', '.hg', 'node_modules', '__pycache__'] : skipDirs;
       
       // Sort items to prioritize certain directories
       const sortedItems = items.sort((a, b) => {
@@ -150,12 +171,15 @@ export default function MentionPopover({
         return a.localeCompare(b);
       });
       
-      for (const item of sortedItems.slice(0, 30)) { // Limit items per directory
+      // Increase item limit per directory for better coverage
+      const itemLimit = depth === 0 ? 50 : depth === 1 ? 40 : 30;
+      
+      for (const item of sortedItems.slice(0, itemLimit)) {
         const fullPath = `${dirPath}/${item}`;
         const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
         
         // Skip hidden files and common ignore patterns
-        if (item.startsWith('.') || skipDirs.includes(item)) {
+        if (item.startsWith('.') || skipDirsAtDepth.includes(item)) {
           continue;
         }
         
@@ -171,22 +195,38 @@ export default function MentionPopover({
             relativePath: itemRelativePath
           });
           
-          // Recursively scan important directories
-          if (depth < 2 && (priorityDirs.includes(item) || depth === 0)) {
+          // Recursively scan directories more aggressively
+          // Always scan priority directories and continue scanning to reasonable depth
+          if (depth < 4 || priorityDirs.includes(item)) {
             const subFiles = await scanDirectoryFromRoot(fullPath, itemRelativePath, depth + 1);
             results.push(...subFiles);
           }
         } catch {
-          // It's a file - only include common file types
+          // It's a file - include more file types
           const ext = item.split('.').pop()?.toLowerCase();
           const commonExtensions = [
+            // Code files
             'txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'h',
             'css', 'html', 'json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg',
             'sh', 'bat', 'ps1', 'rb', 'go', 'rs', 'php', 'sql', 'r', 'scala',
-            'swift', 'kt', 'dart', 'vue', 'svelte', 'astro'
+            'swift', 'kt', 'dart', 'vue', 'svelte', 'astro', 'scss', 'less',
+            // Documentation
+            'readme', 'license', 'changelog', 'contributing',
+            // Config files
+            'gitignore', 'dockerignore', 'editorconfig', 'prettierrc', 'eslintrc',
+            // Images and assets
+            'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp', 'tiff', 'tif',
+            // Vector and design files
+            'ai', 'eps', 'sketch', 'fig', 'xd', 'psd',
+            // Other common files
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'
           ];
           
-          if (ext && commonExtensions.includes(ext)) {
+          // Include files without extensions (like README, LICENSE, etc.)
+          const hasExtension = item.includes('.');
+          const shouldInclude = !hasExtension || (ext && commonExtensions.includes(ext));
+          
+          if (shouldInclude) {
             results.push({
               path: fullPath,
               name: item,
@@ -211,32 +251,53 @@ export default function MentionPopover({
     }
     
     if (!query.trim()) {
-      return files.slice(0, 10).map(file => ({
+      return files.slice(0, 15).map(file => ({
         ...file,
         matchScore: 0,
         matches: [],
         matchedText: file.name
-      })); // Show first 10 files when no query
+      })); // Show first 15 files when no query
     }
     
     const results = files
       .map(file => {
         const nameMatch = fuzzyMatch(query, file.name);
         const pathMatch = fuzzyMatch(query, file.relativePath);
+        const fullPathMatch = fuzzyMatch(query, file.path);
         
-        // Use the better of the two matches
-        const bestMatch = nameMatch.score > pathMatch.score ? nameMatch : pathMatch;
+        // Use the best match among name, relative path, and full path
+        let bestMatch = nameMatch;
+        let matchedText = file.name;
+        
+        if (pathMatch.score > bestMatch.score) {
+          bestMatch = pathMatch;
+          matchedText = file.relativePath;
+        }
+        
+        if (fullPathMatch.score > bestMatch.score) {
+          bestMatch = fullPathMatch;
+          matchedText = file.path;
+        }
         
         return {
           ...file,
           matchScore: bestMatch.score,
           matches: bestMatch.matches,
-          matchedText: nameMatch.score > pathMatch.score ? file.name : file.relativePath
+          matchedText
         };
       })
       .filter(file => file.matchScore > 0)
-      .sort((a, b) => b.matchScore - a.matchScore)
-      .slice(0, 10); // Limit to 10 results
+      .sort((a, b) => {
+        // Sort by score first, then prefer files over directories, then alphabetically
+        if (Math.abs(a.matchScore - b.matchScore) < 1) {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? 1 : -1; // Files first
+          }
+          return a.name.localeCompare(b.name);
+        }
+        return b.matchScore - a.matchScore;
+      })
+      .slice(0, 20); // Increase to 20 results
     
     return results;
   }, [files, query, filteredFiles]);
@@ -259,7 +320,7 @@ export default function MentionPopover({
 
   if (!isOpen) return null;
 
-  const displayedFiles = displayFiles.slice(0, 5);
+  const displayedFiles = displayFiles.slice(0, 8); // Show up to 8 files
   const remainingCount = displayFiles.length - displayedFiles.length;
 
   return (
