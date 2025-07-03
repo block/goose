@@ -7,6 +7,9 @@ interface FileIconProps {
 }
 
 export const FileIcon: React.FC<FileIconProps> = ({ fileName, isDirectory, className = "w-4 h-4" }) => {
+  // Debug logging
+  console.log('FileIcon:', { fileName, isDirectory, ext: fileName.split('.').pop()?.toLowerCase() });
+  
   if (isDirectory) {
     return (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

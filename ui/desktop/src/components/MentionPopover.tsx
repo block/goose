@@ -358,6 +358,11 @@ export default function MentionPopover({
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">
                       {file.name}
+                      {/* Debug info */}
+                      <span className="text-xs text-red-500 ml-2">
+                        {file.isDirectory ? '[DIR]' : '[FILE]'} 
+                        {file.name.includes('.') ? `[.${file.name.split('.').pop()}]` : '[NO-EXT]'}
+                      </span>
                     </div>
                     <div className="text-xs text-textSubtle truncate">
                       {file.path}
