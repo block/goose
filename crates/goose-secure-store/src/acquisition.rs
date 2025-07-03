@@ -1,4 +1,4 @@
-use crate::{Result, SecretError, SecureStore, KeyringSecureStore};
+use crate::{KeyringSecureStore, Result, SecretError, SecureStore};
 use console::Term;
 use std::io::Write;
 
@@ -21,7 +21,7 @@ impl SecretAcquisition {
     }
 
     /// Acquire a secret using the prompt method
-    /// 
+    ///
     /// # Arguments
     /// * `server_name` - The name of the MCP server
     /// * `secret_name` - The name of the secret
@@ -35,7 +35,7 @@ impl SecretAcquisition {
         prompt_message: Option<&str>,
     ) -> Result<String> {
         let service_name = KeyringSecureStore::create_service_name(server_name, Some(secret_name));
-        
+
         // Check if secret already exists
         if self.store.has_secret(&service_name, secret_name) {
             return self.store.get_secret(&service_name, secret_name);
@@ -48,15 +48,15 @@ impl SecretAcquisition {
 
         // Get the secret from user input
         let secret = self.prompt_for_secret(secret_name, description, prompt_message)?;
-        
+
         // Store the secret
         self.store.set_secret(&service_name, secret_name, &secret)?;
-        
+
         Ok(secret)
     }
 
     /// Get an existing secret from the store
-    /// 
+    ///
     /// # Arguments
     /// * `server_name` - The name of the MCP server
     /// * `secret_name` - The name of the secret
@@ -66,7 +66,7 @@ impl SecretAcquisition {
     }
 
     /// Check if a secret exists
-    /// 
+    ///
     /// # Arguments
     /// * `server_name` - The name of the MCP server
     /// * `secret_name` - The name of the secret
@@ -76,7 +76,7 @@ impl SecretAcquisition {
     }
 
     /// Delete a secret from the store
-    /// 
+    ///
     /// # Arguments
     /// * `server_name` - The name of the MCP server
     /// * `secret_name` - The name of the secret
@@ -93,7 +93,7 @@ impl SecretAcquisition {
         description: &str,
     ) -> Result<bool> {
         let term = Term::stdout();
-        
+
         // Check if we're in a TTY environment
         if !term.is_term() {
             // In non-TTY environments, we can't prompt, so we assume consent
@@ -107,14 +107,18 @@ impl SecretAcquisition {
         println!("Secret: {} ({})", secret_name, description);
         println!("\nGoose would like to securely store this secret in your system's keychain.");
         println!("This will allow automatic retrieval for future MCP server connections.");
-        
+
         loop {
             print!("\nDo you consent to storing this secret? [y/N]: ");
-            std::io::stdout().flush().map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
-            
-            let input = term.read_line().map_err(|e| SecretError::Other(format!("Failed to read input: {}", e)))?;
+            std::io::stdout()
+                .flush()
+                .map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
+
+            let input = term
+                .read_line()
+                .map_err(|e| SecretError::Other(format!("Failed to read input: {}", e)))?;
             let input = input.trim().to_lowercase();
-            
+
             match input.as_str() {
                 "y" | "yes" => return Ok(true),
                 "n" | "no" | "" => return Ok(false),
@@ -131,7 +135,7 @@ impl SecretAcquisition {
         prompt_message: Option<&str>,
     ) -> Result<String> {
         let term = Term::stdout();
-        
+
         // Check if we're in a TTY environment
         if !term.is_term() {
             return Err(SecretError::Other(
@@ -141,22 +145,26 @@ impl SecretAcquisition {
 
         println!("\n🔑 Secret Input Required");
         println!("─────────────────────────");
-        
+
         let default_message = format!("Please enter your {} ({})", secret_name, description);
         let message = prompt_message.unwrap_or(&default_message);
         println!("{}", message);
-        
+
         loop {
             print!("\n{}: ", secret_name);
-            std::io::stdout().flush().map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
-            
-            let secret = term.read_secure_line().map_err(|e| SecretError::Other(format!("Failed to read secret: {}", e)))?;
-            
+            std::io::stdout()
+                .flush()
+                .map_err(|e| SecretError::Other(format!("IO error: {}", e)))?;
+
+            let secret = term
+                .read_secure_line()
+                .map_err(|e| SecretError::Other(format!("Failed to read secret: {}", e)))?;
+
             if secret.trim().is_empty() {
                 println!("Secret cannot be empty. Please try again.");
                 continue;
             }
-            
+
             return Ok(secret);
         }
     }
@@ -228,11 +236,13 @@ mod tests {
     fn test_get_existing_secret() {
         let mock_store = TestMockStore::new();
         let service_name = KeyringSecureStore::create_service_name("test_server", Some("api_key"));
-        mock_store.set_secret(&service_name, "api_key", "test_secret").unwrap();
-        
+        mock_store
+            .set_secret(&service_name, "api_key", "test_secret")
+            .unwrap();
+
         let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
         let result = acquisition.get_secret("test_server", "api_key").unwrap();
-        
+
         assert_eq!(result, "test_secret");
     }
 
@@ -240,10 +250,12 @@ mod tests {
     fn test_has_secret() {
         let mock_store = TestMockStore::new();
         let service_name = KeyringSecureStore::create_service_name("test_server", Some("api_key"));
-        mock_store.set_secret(&service_name, "api_key", "test_secret").unwrap();
-        
+        mock_store
+            .set_secret(&service_name, "api_key", "test_secret")
+            .unwrap();
+
         let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
-        
+
         assert!(acquisition.has_secret("test_server", "api_key"));
         assert!(!acquisition.has_secret("test_server", "other_key"));
     }
@@ -252,10 +264,12 @@ mod tests {
     fn test_delete_secret() {
         let mock_store = TestMockStore::new();
         let service_name = KeyringSecureStore::create_service_name("test_server", Some("api_key"));
-        mock_store.set_secret(&service_name, "api_key", "test_secret").unwrap();
-        
+        mock_store
+            .set_secret(&service_name, "api_key", "test_secret")
+            .unwrap();
+
         let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
-        
+
         assert!(acquisition.has_secret("test_server", "api_key"));
         acquisition.delete_secret("test_server", "api_key").unwrap();
         assert!(!acquisition.has_secret("test_server", "api_key"));

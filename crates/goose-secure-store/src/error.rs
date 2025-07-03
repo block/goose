@@ -35,10 +35,16 @@ pub enum SecretError {
 impl From<keyring::Error> for SecretError {
     fn from(err: keyring::Error) -> Self {
         match err {
-            keyring::Error::NoEntry => SecretError::NotFound("Secret not found in keyring".to_string()),
+            keyring::Error::NoEntry => {
+                SecretError::NotFound("Secret not found in keyring".to_string())
+            }
             keyring::Error::Invalid(msg, _) => SecretError::InvalidParameters(msg),
-            keyring::Error::PlatformFailure(err) => SecretError::StorageFailure(format!("Platform error: {}", err)),
-            keyring::Error::Ambiguous(err) => SecretError::StorageFailure(format!("Ambiguous keyring error: {:?}", err)),
+            keyring::Error::PlatformFailure(err) => {
+                SecretError::StorageFailure(format!("Platform error: {}", err))
+            }
+            keyring::Error::Ambiguous(err) => {
+                SecretError::StorageFailure(format!("Ambiguous keyring error: {:?}", err))
+            }
             _ => SecretError::Other(format!("Keyring error: {}", err)),
         }
     }

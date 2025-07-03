@@ -1,4 +1,4 @@
-use goose_secure_store::{SecretAcquisition, KeyringSecureStore, SecureStore, SecretError, Result};
+use goose_secure_store::{KeyringSecureStore, Result, SecretAcquisition, SecretError, SecureStore};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -56,7 +56,7 @@ impl SecureStore for TestMockStore {
 fn test_secret_acquisition_basic() {
     let mock_store = TestMockStore::new();
     let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
-    
+
     // Test that we can check for non-existent secrets
     assert!(!acquisition.has_secret("test_server", "api_key"));
 }
@@ -67,7 +67,7 @@ fn test_service_name_creation() {
         KeyringSecureStore::create_service_name("github", Some("token")),
         "goose.mcp.github.token"
     );
-    
+
     assert_eq!(
         KeyringSecureStore::create_service_name("jira", None),
         "goose.mcp.jira"

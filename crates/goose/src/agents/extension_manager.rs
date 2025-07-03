@@ -12,7 +12,10 @@ use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{error, warn};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo, SecretConfig, SecretAcquisition as SecretAcquisitionConfig};
+use super::extension::{
+    ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult,
+    SecretAcquisition as SecretAcquisitionConfig, SecretConfig, ToolInfo,
+};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::Envs;
 use crate::config::{Config, ExtensionConfigManager};
@@ -176,16 +179,18 @@ impl ExtensionManager {
 
             // Handle new secrets configuration
             let secret_acquisition = SecretAcquisition::new();
-            
+
             // Validate secrets configuration against JSON schema
             let secrets_json = serde_json::to_value(secrets)?;
-            if let Err(validation_error) = goose_secure_store::validation::validate_secrets_config(&secrets_json) {
+            if let Err(validation_error) =
+                goose_secure_store::validation::validate_secrets_config(&secrets_json)
+            {
                 return Err(ExtensionError::SetupError(format!(
                     "Invalid secrets configuration for extension '{}': {}",
                     ext_name, validation_error
                 )));
             }
-            
+
             for secret_config in secrets {
                 // If the environment variable is already set, skip acquisition
                 if all_envs.contains_key(&secret_config.name) {

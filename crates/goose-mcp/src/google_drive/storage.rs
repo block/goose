@@ -1,7 +1,7 @@
-use goose_secure_store::{KeyringSecureStore, SecureStore, SecretError, FileBackedStore};
+use etcetera::AppStrategy;
+use goose_secure_store::{FileBackedStore, KeyringSecureStore, SecretError, SecureStore};
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
-use etcetera::AppStrategy;
 
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -22,10 +22,10 @@ pub struct CredentialsManager {
 
 impl CredentialsManager {
     pub fn new(
-        _credentials_path: String,    // Ignored - kept for API compatibility
+        _credentials_path: String, // Ignored - kept for API compatibility
         fallback_to_disk: bool,
-        _keychain_service: String,    // Ignored - use standard naming
-        _keychain_username: String,   // Ignored - use standard naming
+        _keychain_service: String,  // Ignored - use standard naming
+        _keychain_username: String, // Ignored - use standard naming
     ) -> Self {
         let store: Box<dyn SecureStore> = if fallback_to_disk {
             // Use file fallback - but store in standard location
@@ -34,7 +34,7 @@ impl CredentialsManager {
                 author: "Block".to_string(),
                 app_name: "goose".to_string(),
             })
-            .expect("Failed to get config dir")      
+            .expect("Failed to get config dir")
             .config_dir();
             let fallback_path = config_dir.join("google_drive_credentials.yaml");
             Box::new(FileBackedStore::new(fallback_path))
@@ -44,30 +44,30 @@ impl CredentialsManager {
 
         Self {
             store,
-            service: "goose.mcp.google_drive".to_string(),  // Use standard naming
+            service: "goose.mcp.google_drive".to_string(), // Use standard naming
             username: "oauth_credentials".to_string(),
         }
     }
 
     pub fn read_credentials<T: DeserializeOwned>(&self) -> Result<T, StorageError> {
-        let json_str = self.store.get_secret(&self.service, &self.username)
+        let json_str = self
+            .store
+            .get_secret(&self.service, &self.username)
             .map_err(|e| match e {
                 SecretError::NotFound(_) => StorageError::NotFound,
                 _ => StorageError::SecretError(e),
             })?;
-        
+
         serde_json::from_str(&json_str).map_err(StorageError::SerializationError)
     }
 
-
     pub fn write_credentials<T: Serialize>(&self, content: &T) -> Result<(), StorageError> {
         let json_str = serde_json::to_string(content)?;
-        self.store.set_secret(&self.service, &self.username, &json_str)
+        self.store
+            .set_secret(&self.service, &self.username, &json_str)
             .map_err(StorageError::SecretError)
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -178,7 +178,7 @@ mod tests {
 
         let read_result = manager.read_credentials::<TestCredentials>();
         assert!(read_result.is_ok(), "Read should succeed");
-        
+
         let read_creds = read_result.unwrap();
         assert_eq!(read_creds, creds, "Credentials should match");
     }

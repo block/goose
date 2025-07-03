@@ -1,7 +1,7 @@
-use goose_secure_store::{SecretAcquisition, SecretError, SecureStore, Result};
+use goose_secure_store::{Result, SecretAcquisition, SecretError, SecureStore};
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::env;
+use std::sync::Mutex;
 
 // Simple mock store for integration tests
 struct TestMockStore {
@@ -57,21 +57,21 @@ impl SecureStore for TestMockStore {
 fn test_environment_fallback_when_secret_not_found() {
     // Set up environment variable
     env::set_var("TEST_API_KEY", "env_secret_value");
-    
+
     let mock_store = TestMockStore::new();
     let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
-    
+
     // Verify secret doesn't exist in mock store
     let test_key = "TEST_FALLBACK_KEY";
     assert!(!acquisition.has_secret("test_server", test_key));
-    
+
     // Test that secret acquisition would fail from store
     let result = acquisition.get_secret("test_server", test_key);
     assert!(result.is_err()); // Should fail since secret doesn't exist in mock store
-    
+
     // Verify environment variable exists for fallback (this simulates the extension manager logic)
     assert_eq!(env::var("TEST_API_KEY").unwrap(), "env_secret_value");
-    
+
     // Clean up
     env::remove_var("TEST_API_KEY");
 }
@@ -80,17 +80,17 @@ fn test_environment_fallback_when_secret_not_found() {
 fn test_no_fallback_when_environment_not_set() {
     let mock_store = TestMockStore::new();
     let acquisition = SecretAcquisition::with_store(Box::new(mock_store));
-    
+
     // Use a test key
     let test_key = "NONEXISTENT_KEY";
-    
+
     // Ensure environment variable is not set
     env::remove_var(test_key);
-    
+
     // Should fail when neither store nor environment has the secret
     let result = acquisition.get_secret("test_server", test_key);
     assert!(matches!(result, Err(SecretError::NotFound(_))));
-    
+
     // Verify environment variable doesn't exist
     assert!(env::var(test_key).is_err());
 }
@@ -100,9 +100,10 @@ fn test_service_name_consistency() {
     // Test that service names are created consistently
     let server_name = "github-server";
     let secret_name = "api_token";
-    
+
     let expected_service_name = format!("goose.mcp.{}.{}", server_name, secret_name);
-    let actual_service_name = goose_secure_store::KeyringSecureStore::create_service_name(server_name, Some(secret_name));
-    
+    let actual_service_name =
+        goose_secure_store::KeyringSecureStore::create_service_name(server_name, Some(secret_name));
+
     assert_eq!(actual_service_name, expected_service_name);
 }

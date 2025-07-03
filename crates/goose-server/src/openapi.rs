@@ -1,4 +1,4 @@
-use goose::agents::extension::{Envs, ToolInfo, SecretConfig, SecretAcquisition};
+use goose::agents::extension::{Envs, SecretAcquisition, SecretConfig, ToolInfo};
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;

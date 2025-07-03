@@ -12,9 +12,9 @@ static SCHEMA_JSON: &str = include_str!("../mcp_secrets.schema.json");
 
 /// Compiled JSON schema validator, initialized once and reused.
 static SCHEMA_VALIDATOR: LazyLock<JSONSchema> = LazyLock::new(|| {
-    let schema: Value = serde_json::from_str(SCHEMA_JSON)
-        .expect("Embedded schema should be valid JSON");
-    
+    let schema: Value =
+        serde_json::from_str(SCHEMA_JSON).expect("Embedded schema should be valid JSON");
+
     JSONSchema::options()
         .with_draft(Draft::Draft7)
         .compile(&schema)
@@ -50,19 +50,14 @@ static SCHEMA_VALIDATOR: LazyLock<JSONSchema> = LazyLock::new(|| {
 /// ```
 pub fn validate_secrets_config(secrets_json: &Value) -> Result<(), SecretError> {
     let result = SCHEMA_VALIDATOR.validate(secrets_json);
-    
+
     match result {
         Ok(_) => Ok(()),
         Err(errors) => {
             let error_messages: Vec<String> = errors
-                .map(|error| {
-                    format!("Validation error at '{}': {}", 
-                        error.instance_path, 
-                        error
-                    )
-                })
+                .map(|error| format!("Validation error at '{}': {}", error.instance_path, error))
                 .collect();
-            
+
             Err(SecretError::InvalidParameters(format!(
                 "Schema validation failed:\n{}",
                 error_messages.join("\n")
@@ -97,7 +92,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         assert!(validate_secrets_config(&config).is_ok());
     }
 
@@ -112,7 +107,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         assert!(validate_secrets_config(&config).is_ok());
     }
 
@@ -127,12 +122,15 @@ mod tests {
                 }
             }
         ]);
-        
+
         let result = validate_secrets_config(&config);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         // Check that validation failed - the exact error message may vary
-        assert!(error_msg.contains("Schema validation failed") || error_msg.contains("Validation error"));
+        assert!(
+            error_msg.contains("Schema validation failed")
+                || error_msg.contains("Validation error")
+        );
     }
 
     #[test]
@@ -143,7 +141,7 @@ mod tests {
                 // Missing description and acquisition
             }
         ]);
-        
+
         let result = validate_secrets_config(&config);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
@@ -161,12 +159,15 @@ mod tests {
                 }
             }
         ]);
-        
+
         let result = validate_secrets_config(&config);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         // Check that validation failed - the exact error message may vary
-        assert!(error_msg.contains("Schema validation failed") || error_msg.contains("Validation error"));
+        assert!(
+            error_msg.contains("Schema validation failed")
+                || error_msg.contains("Validation error")
+        );
     }
 
     #[test]
@@ -184,7 +185,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         assert!(validate_secrets_config(&config).is_ok());
     }
 
@@ -200,7 +201,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         let result = validate_secrets_config(&config);
         assert!(result.is_err());
     }
@@ -217,7 +218,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         assert!(validate_secrets_config(&config).is_ok());
     }
 
@@ -230,7 +231,7 @@ mod tests {
                 "method": "prompt"
             }
         });
-        
+
         assert!(validate_single_secret(&secret).is_ok());
     }
 
@@ -261,7 +262,7 @@ mod tests {
                 }
             }
         ]);
-        
+
         assert!(validate_secrets_config(&config).is_ok());
     }
 }

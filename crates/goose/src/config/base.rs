@@ -1,6 +1,6 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use fs2::FileExt;
-use goose_secure_store::{LegacyConfigStore, KeyringSecureStore, SecureStore, SecretError};
+use goose_secure_store::{KeyringSecureStore, LegacyConfigStore, SecretError, SecureStore};
 use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
@@ -169,7 +169,9 @@ impl Config {
     ) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            secrets: LegacyConfigStore::with_file_fallback(Some(secrets_path.as_ref().to_path_buf())),
+            secrets: LegacyConfigStore::with_file_fallback(Some(
+                secrets_path.as_ref().to_path_buf(),
+            )),
         })
     }
 
@@ -612,7 +614,9 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
     pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        self.secrets.set_secret(key, value).map_err(ConfigError::from)
+        self.secrets
+            .set_secret(key, value)
+            .map_err(ConfigError::from)
     }
 
     /// Delete a secret from the system keyring.
@@ -633,13 +637,17 @@ impl Config {
     ///
     /// This method provides access to MCP server secrets using the same service
     /// naming pattern as the extension manager: `goose.mcp.{server_name}`
-    pub fn get_mcp_secret<T: for<'de> Deserialize<'de>>(&self, server_name: &str, secret_name: &str) -> Result<T, ConfigError> {
+    pub fn get_mcp_secret<T: for<'de> Deserialize<'de>>(
+        &self,
+        server_name: &str,
+        secret_name: &str,
+    ) -> Result<T, ConfigError> {
         let service = format!("goose.mcp.{}", server_name);
         let store = KeyringSecureStore::new();
-        let secret_str = store.get_secret(&service, secret_name)
+        let secret_str = store
+            .get_secret(&service, secret_name)
             .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
-        let value: Value = serde_json::from_str(&secret_str)
-            .unwrap_or(Value::String(secret_str));
+        let value: Value = serde_json::from_str(&secret_str).unwrap_or(Value::String(secret_str));
         Ok(serde_json::from_value(value)?)
     }
 }
@@ -703,7 +711,6 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::NamedTempFile;
-
 
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {

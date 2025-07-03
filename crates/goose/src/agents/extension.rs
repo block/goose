@@ -31,9 +31,7 @@ pub enum SecretAcquisition {
         refresh: bool,
     },
     #[serde(rename = "command")]
-    Command {
-        command: String,
-    },
+    Command { command: String },
 }
 
 fn default_refresh() -> bool {
