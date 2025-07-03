@@ -410,7 +410,7 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl Stream<Item = anyhow::Result<(Option<ProviderUsage>, Option<Message>)>> + 'static
+) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -441,7 +441,7 @@ where
             });
 
             if chunk.choices.is_empty() {
-                yield (usage, None)
+                yield (None, usage)
             } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                 let tool_call = &tool_calls[0];
                 let id = tool_call.id.clone().ok_or(anyhow!("No tool call ID"))?;
@@ -482,23 +482,23 @@ where
                 };
 
                 yield (
-                    usage,
                     Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![content],
                     }),
+                    usage,
                 )
             } else if let Some(text) = &chunk.choices[0].delta.content {
                 yield (
-                    usage,
                     Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
                     }),
+                    None,
                 )
             }
         }
