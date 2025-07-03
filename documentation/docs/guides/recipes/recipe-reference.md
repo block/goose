@@ -118,7 +118,7 @@ The `sub_recipes` field specifies the [subrecipes](/docs/guides/recipes/subrecip
 |-------|------|-------------|
 | `name` | String | Unique identifier for the subrecipe |
 | `path` | String | Relative or absolute path to the sub-recipe file |
-| `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
+| `values` | Object | (Optional) Pre-configured parameter values that are passed to the subrecipe |
 
 ### Example SubRecipe Configuration
 
