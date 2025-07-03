@@ -9,12 +9,13 @@ use std::process::Stdio;
 use tar::Archive;
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
+use crate::recipes::search_recipe::RecipeFile;
 
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
-) -> Result<(String, PathBuf)> {
+) -> Result<RecipeFile> {
     println!(
         "📦 Looking for recipe \"{}\" in github repo: {}",
         recipe_name, recipe_repo_full_name
@@ -26,7 +27,13 @@ pub fn retrieve_recipe_from_github(
     for attempt in 1..=max_attempts {
         match clone_and_download_recipe(recipe_name, recipe_repo_full_name) {
             Ok(download_dir) => match read_recipe_file(&download_dir) {
-                Ok(content) => return Ok((content, download_dir)),
+                Ok((content, recipe_file_local_path)) => {
+                    return Ok(RecipeFile {
+                        content,
+                        parent_dir: download_dir.clone(),
+                        file_path: recipe_file_local_path,
+                    })
+                }
                 Err(err) => return Err(err),
             },
             Err(err) => {
@@ -47,7 +54,7 @@ fn clean_cloned_dirs(recipe_repo_full_name: &str) -> anyhow::Result<()> {
     }
     Ok(())
 }
-fn read_recipe_file(download_dir: &Path) -> Result<String> {
+fn read_recipe_file(download_dir: &Path) -> Result<(String, PathBuf)> {
     for ext in RECIPE_FILE_EXTENSIONS {
         let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
         if candidate_file_path.exists() {
@@ -59,7 +66,7 @@ fn read_recipe_file(download_dir: &Path) -> Result<String> {
                     .unwrap()
                     .display()
             );
-            return Ok(content);
+            return Ok((content, candidate_file_path));
         }
     }
 

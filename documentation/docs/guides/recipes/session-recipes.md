@@ -91,8 +91,8 @@ You can turn your current Goose session into a reusable recipe that includes the
    version: 1.0.0
    title: "{{ project_name }} Code Review" # Wrap the value in quotes if it starts with template syntax to avoid YAML parsing errors
    description: Automated code review for {{ project_name }} with {{ language }} focus
-   instructions: |
-      You are a code reviewer specialized in {{ language }} development.
+   instructions: You are a code reviewer specialized in {{ language }} development.
+   prompt: |
       Apply the following standards:
       - Complexity threshold: {{ complexity_threshold }}
       - Required test coverage: {{ test_coverage }}%
@@ -103,7 +103,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    - "Verify {{ style_guide }} compliance"
    settings:                     
      goose_provider: "anthropic"   
-     goose_model: "claude-3-sonnet"          
+     goose_model: "claude-3-7-sonnet-latest"          
      temperature: 0.7 
    parameters:
    - key: project_name
@@ -391,7 +391,7 @@ You can turn your current Goose session into a reusable recipe that includes the
     Recipe validation is only available through the CLI.
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    Validate your recipe file to ensure it's properly configured. Validation ensures that:
+    Validate your recipe file to ensure it's properly configured. Validation verifies that:
     - All required fields are present
     - Parameters are properly formatted
     - Referenced extensions exist and are valid
@@ -402,7 +402,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
 
    :::info
-   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/managing-goose-sessions#exit-session) before running the `validate` subcommand.
+   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/managing-goose-sessions#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
    :::
 
    Recipe validation can be useful for:
@@ -421,7 +421,7 @@ You can turn your current Goose session into a reusable recipe that includes the
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    Share your recipe with CLI users by directly sending them the recipe file or converting it to a shareable deep link for Desktop users:
+    Share your recipe with CLI users by directly sending them the recipe file or converting it to a shareable [deep link](/docs/guides/goose-cli-commands#recipe) for Desktop users:
 
     ```sh
     goose recipe deeplink recipe.yaml

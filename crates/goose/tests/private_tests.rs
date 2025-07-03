@@ -788,7 +788,7 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
     ];
 
     // Save the session file
-    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages, true)
+    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
         .unwrap();
 
     // Test the session_content action

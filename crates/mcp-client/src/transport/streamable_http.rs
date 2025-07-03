@@ -1,3 +1,4 @@
+use crate::oauth::{authenticate_service, ServiceConfig};
 use crate::transport::Error;
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::time::Duration;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
 
 use super::{serialize_and_send, Transport, TransportHandle};
@@ -91,13 +92,46 @@ impl StreamableHttpActor {
             JsonRpcMessage::Request(JsonRpcRequest { id: Some(_), .. })
         );
 
+        // Try to send the request
+        match self.send_request(&message_str, expects_response).await {
+            Ok(()) => Ok(()),
+            Err(Error::HttpError { status, .. }) if status == 401 || status == 403 => {
+                // Authentication challenge - try to authenticate and retry
+                info!(
+                    "Received authentication challenge ({}), attempting OAuth flow...",
+                    status
+                );
+
+                if let Some(token) = self.attempt_authentication().await? {
+                    info!("Authentication successful, retrying request...");
+                    self.headers
+                        .insert("Authorization".to_string(), format!("Bearer {}", token));
+                    self.send_request(&message_str, expects_response).await
+                } else {
+                    Err(Error::StreamableHttpError(
+                        "Authentication failed - service not supported or OAuth flow failed"
+                            .to_string(),
+                    ))
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Send an HTTP request to the MCP endpoint
+    async fn send_request(
+        &mut self,
+        message_str: &str,
+        expects_response: bool,
+    ) -> Result<(), Error> {
         // Build the HTTP request
         let mut request = self
             .http_client
             .post(&self.mcp_endpoint)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
-            .body(message_str);
+            .header("MCP-Protocol-Version", "2025-06-18") // Required protocol version header
+            .body(message_str.to_string());
 
         // Add session ID header if we have one
         if let Some(session_id) = self.session_id.read().await.as_ref() {
@@ -171,6 +205,36 @@ impl StreamableHttpActor {
         // For notifications and responses, we get 202 Accepted with no body
 
         Ok(())
+    }
+
+    /// Attempt to authenticate with the service
+    async fn attempt_authentication(&self) -> Result<Option<String>, Error> {
+        info!("Attempting to authenticate with service...");
+
+        // Create a generic OAuth configuration from the MCP endpoint
+        match ServiceConfig::from_mcp_endpoint(&self.mcp_endpoint) {
+            Ok(config) => {
+                info!("Created OAuth config for endpoint: {}", self.mcp_endpoint);
+
+                match authenticate_service(config, &self.mcp_endpoint).await {
+                    Ok(token) => {
+                        info!("OAuth authentication successful!");
+                        Ok(Some(token))
+                    }
+                    Err(e) => {
+                        warn!("OAuth authentication failed: {}", e);
+                        Err(Error::StreamableHttpError(format!("OAuth failed: {}", e)))
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Could not create OAuth config from MCP endpoint {}: {}",
+                    self.mcp_endpoint, e
+                );
+                Ok(None)
+            }
+        }
     }
 
     /// Handle streaming HTTP response that uses Server-Sent Events format
@@ -263,7 +327,8 @@ impl StreamableHttpTransportHandle {
             let mut request = self
                 .http_client
                 .delete(&self.mcp_endpoint)
-                .header("Mcp-Session-Id", session_id);
+                .header("Mcp-Session-Id", session_id)
+                .header("MCP-Protocol-Version", "2025-06-18"); // Required protocol version header
 
             // Add custom headers
             for (key, value) in &self.headers {
@@ -290,7 +355,8 @@ impl StreamableHttpTransportHandle {
         let mut request = self
             .http_client
             .get(&self.mcp_endpoint)
-            .header("Accept", "text/event-stream");
+            .header("Accept", "text/event-stream")
+            .header("MCP-Protocol-Version", "2025-06-18"); // Required protocol version header
 
         // Add session ID header if we have one
         if let Some(session_id) = self.session_id.read().await.as_ref() {

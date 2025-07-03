@@ -312,6 +312,15 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -449,6 +458,15 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
         /// Identifier for this run session
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -522,9 +540,9 @@ enum Command {
         /// Additional sub-recipe file paths
         #[arg(
             long = "sub-recipe",
-            value_name = "FILE",
-            help = "Path to a sub-recipe YAML file (can be specified multiple times)",
-            long_help = "Specify paths to sub-recipe YAML files that contain additional recipe configuration or instructions to be used alongside the main recipe. Can be specified multiple times to include multiple sub-recipes.",
+            value_name = "RECIPE",
+            help = "Sub-recipe name or file path (can be specified multiple times)",
+            long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
             action = clap::ArgAction::Append
         )]
         additional_sub_recipes: Vec<String>,
@@ -635,6 +653,7 @@ pub async fn cli() -> Result<()> {
             history,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
@@ -683,6 +702,7 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
+                        max_turns,
                         scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
@@ -691,7 +711,11 @@ pub async fn cli() -> Result<()> {
                     })
                     .await;
                     setup_logging(
-                        session.session_file().file_stem().and_then(|s| s.to_str()),
+                        session
+                            .session_file()
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .and_then(|s| s.to_str()),
                         None,
                     )?;
 
@@ -727,6 +751,7 @@ pub async fn cli() -> Result<()> {
             no_session,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
@@ -822,6 +847,7 @@ pub async fn cli() -> Result<()> {
                 settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                max_turns,
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
@@ -831,7 +857,11 @@ pub async fn cli() -> Result<()> {
             .await;
 
             setup_logging(
-                session.session_file().file_stem().and_then(|s| s.to_str()),
+                session
+                    .session_file()
+                    .as_ref()
+                    .and_then(|p| p.file_stem())
+                    .and_then(|s| s.to_str()),
                 None,
             )?;
 
@@ -942,6 +972,7 @@ pub async fn cli() -> Result<()> {
                     settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    max_turns: None,
                     scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
@@ -950,7 +981,11 @@ pub async fn cli() -> Result<()> {
                 })
                 .await;
                 setup_logging(
-                    session.session_file().file_stem().and_then(|s| s.to_str()),
+                    session
+                        .session_file()
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                        .and_then(|s| s.to_str()),
                     None,
                 )?;
                 if let Err(e) = session.interactive(None).await {

@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react';
-import { listSavedRecipes, archiveRecipe, SavedRecipe } from '../recipe/recipeStorage';
-import { FileText, Trash2, Bot, Calendar, Globe, Folder } from 'lucide-react';
+import {
+  listSavedRecipes,
+  archiveRecipe,
+  SavedRecipe,
+  saveRecipe,
+  generateRecipeFilename,
+} from '../recipe/recipeStorage';
+import { FileText, Trash2, Bot, Calendar, Globe, Folder, Download } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import BackButton from './ui/BackButton';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
+import { Recipe } from '../recipe';
+import { Buffer } from 'buffer';
+import { toastSuccess, toastError } from '../toasts';
 
 interface RecipesViewProps {
   onBack: () => void;
@@ -15,6 +24,11 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importDeeplink, setImportDeeplink] = useState('');
+  const [importRecipeName, setImportRecipeName] = useState('');
+  const [importGlobal, setImportGlobal] = useState(true);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -81,6 +95,97 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
     setShowPreview(true);
   };
 
+  // Function to parse deeplink and extract recipe
+  const parseDeeplink = (deeplink: string): Recipe | null => {
+    try {
+      const cleanLink = deeplink.trim();
+
+      if (!cleanLink.startsWith('goose://recipe?config=')) {
+        throw new Error('Invalid deeplink format. Expected: goose://recipe?config=...');
+      }
+
+      // Extract and decode the base64 config
+      const configBase64 = cleanLink.replace('goose://recipe?config=', '');
+
+      if (!configBase64) {
+        throw new Error('No recipe configuration found in deeplink');
+      }
+      const configJson = Buffer.from(configBase64, 'base64').toString('utf-8');
+      const recipe = JSON.parse(configJson) as Recipe;
+
+      if (!recipe.title || !recipe.description || !recipe.instructions) {
+        throw new Error('Recipe is missing required fields (title, description, instructions)');
+      }
+
+      return recipe;
+    } catch (error) {
+      console.error('Failed to parse deeplink:', error);
+      return null;
+    }
+  };
+
+  const handleImportRecipe = async () => {
+    if (!importDeeplink.trim() || !importRecipeName.trim()) {
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const recipe = parseDeeplink(importDeeplink.trim());
+
+      if (!recipe) {
+        throw new Error('Invalid deeplink or recipe format');
+      }
+
+      await saveRecipe(recipe, {
+        name: importRecipeName.trim(),
+        global: importGlobal,
+      });
+
+      // Reset dialog state
+      setShowImportDialog(false);
+      setImportDeeplink('');
+      setImportRecipeName('');
+
+      await loadSavedRecipes();
+
+      toastSuccess({
+        title: importRecipeName.trim(),
+        msg: 'Recipe imported successfully',
+      });
+    } catch (error) {
+      console.error('Failed to import recipe:', error);
+
+      toastError({
+        title: 'Import Failed',
+        msg: `Failed to import recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportClick = () => {
+    setImportDeeplink('');
+    setImportRecipeName('');
+    setImportGlobal(true);
+    setShowImportDialog(true);
+  };
+
+  // Auto-generate recipe name when deeplink changes
+  const handleDeeplinkChange = (value: string) => {
+    setImportDeeplink(value);
+
+    if (value.trim()) {
+      const recipe = parseDeeplink(value.trim());
+      if (recipe && recipe.title) {
+        const suggestedName = generateRecipeFilename(recipe);
+        setImportRecipeName(suggestedName);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
@@ -101,7 +206,7 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
           <p className="text-red-500 mb-4">{error}</p>
           <button
             onClick={loadSavedRecipes}
-            className="px-4 py-2 bg-borderProminent text-white rounded-lg hover:bg-opacity-90"
+            className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90"
           >
             Retry
           </button>
@@ -118,7 +223,16 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">
             <BackButton onClick={onBack} />
-            <h1 className="text-3xl font-medium text-textStandard mt-1">Saved Recipes</h1>
+            <div className="flex items-center justify-between mt-1">
+              <h1 className="text-3xl font-medium text-textStandard">Saved Recipes</h1>
+              <button
+                onClick={handleImportClick}
+                className="flex items-center gap-2 px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Import Recipe
+              </button>
+            </div>
           </div>
 
           {/* Content Area */}
@@ -128,7 +242,10 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
                 <FileText className="w-16 h-16 text-textSubtle mb-4" />
                 <h3 className="text-lg font-medium text-textStandard mb-2">No saved recipes</h3>
                 <p className="text-textSubtle">
-                  Save a recipe from an active session to see it here.
+                  Create and save recipes from the Recipe Editor to see them here.
+                </p>
+                <p className="text-textSubtle text-sm mt-2">
+                  You can also save recipes from active recipe sessions using the Settings menu.
                 </p>
               </div>
             ) : (
@@ -168,7 +285,7 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
                       </button>
                       <button
                         onClick={() => handlePreviewRecipe(savedRecipe)}
-                        className="flex items-center gap-2 px-4 py-2 border border-borderSubtle rounded-lg hover:border-borderStandard transition-colors text-sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-bgStandard text-textStandard border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors text-sm"
                       >
                         <FileText className="w-4 h-4" />
                         Preview
@@ -270,6 +387,108 @@ export default function RecipesView({ onBack }: RecipesViewProps) {
                 className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-opacity-90 transition-colors font-medium"
               >
                 Load Recipe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Recipe Dialog */}
+      {showImportDialog && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-bgApp border border-borderSubtle rounded-lg p-6 w-[500px] max-w-[90vw]">
+            <h3 className="text-lg font-medium text-textProminent mb-4">Import Recipe</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="import-deeplink"
+                  className="block text-sm font-medium text-textStandard mb-2"
+                >
+                  Recipe Deeplink
+                </label>
+                <textarea
+                  id="import-deeplink"
+                  value={importDeeplink}
+                  onChange={(e) => handleDeeplinkChange(e.target.value)}
+                  className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent resize-none"
+                  placeholder="Paste your goose://recipe?config=... deeplink here"
+                  rows={3}
+                  autoFocus
+                />
+                <p className="text-xs text-textSubtle mt-1">
+                  Paste a recipe deeplink starting with "goose://recipe?config="
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="import-recipe-name"
+                  className="block text-sm font-medium text-textStandard mb-2"
+                >
+                  Recipe Name
+                </label>
+                <input
+                  id="import-recipe-name"
+                  type="text"
+                  value={importRecipeName}
+                  onChange={(e) => setImportRecipeName(e.target.value)}
+                  className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+                  placeholder="Enter a name for the imported recipe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-textStandard mb-2">
+                  Save Location
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="import-save-location"
+                      checked={importGlobal}
+                      onChange={() => setImportGlobal(true)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-textStandard">
+                      Global - Available across all Goose sessions
+                    </span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="import-save-location"
+                      checked={!importGlobal}
+                      onChange={() => setImportGlobal(false)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-textStandard">
+                      Directory - Available in the working directory
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowImportDialog(false);
+                  setImportDeeplink('');
+                  setImportRecipeName('');
+                }}
+                className="px-4 py-2 text-textSubtle hover:text-textStandard transition-colors"
+                disabled={importing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportRecipe}
+                disabled={!importDeeplink.trim() || !importRecipeName.trim() || importing}
+                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? 'Importing...' : 'Import Recipe'}
               </button>
             </div>
           </div>

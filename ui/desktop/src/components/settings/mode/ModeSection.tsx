@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { View, ViewOptions } from '../../../App';
 import { useConfig } from '../../ConfigContext';
+import { Input } from '../../ui/input';
 
 interface ModeSectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -9,6 +10,7 @@ interface ModeSectionProps {
 
 export const ModeSection = ({ setView }: ModeSectionProps) => {
   const [currentMode, setCurrentMode] = useState('auto');
+  const [maxTurns, setMaxTurns] = useState<number>(1000);
   const { read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
@@ -32,9 +34,30 @@ export const ModeSection = ({ setView }: ModeSectionProps) => {
     }
   }, [read]);
 
+  const fetchMaxTurns = useCallback(async () => {
+    try {
+      const turns = (await read('GOOSE_MAX_TURNS', false)) as number;
+      if (turns) {
+        setMaxTurns(turns);
+      }
+    } catch (error) {
+      console.error('Error fetching max turns:', error);
+    }
+  }, [read]);
+
+  const handleMaxTurnsChange = async (value: number) => {
+    try {
+      await upsert('GOOSE_MAX_TURNS', value, false);
+      setMaxTurns(value);
+    } catch (error) {
+      console.error('Error updating max turns:', error);
+    }
+  };
+
   useEffect(() => {
     fetchCurrentMode();
-  }, [fetchCurrentMode]);
+    fetchMaxTurns();
+  }, [fetchCurrentMode, fetchMaxTurns]);
 
   return (
     <section id="mode" className="px-8">
@@ -58,6 +81,24 @@ export const ModeSection = ({ setView }: ModeSectionProps) => {
               handleModeChange={handleModeChange}
             />
           ))}
+        </div>
+        <div className="mt-6 pt-6">
+          <h3 className="text-textStandard mb-4">Conversation Limits</h3>
+          <div className="flex items-center justify-between py-2 px-4">
+            <div>
+              <h4 className="text-textStandard">Max Turns</h4>
+              <p className="text-xs text-textSubtle mt-[2px]">
+                Maximum agent turns before Goose asks for user input
+              </p>
+            </div>
+            <Input
+              type="number"
+              min="1"
+              value={maxTurns}
+              onChange={(e) => handleMaxTurnsChange(Number(e.target.value))}
+              className="w-20"
+            />
+          </div>
         </div>
       </div>
     </section>

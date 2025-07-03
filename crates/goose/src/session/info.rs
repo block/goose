@@ -18,7 +18,7 @@ pub enum SortOrder {
     Descending,
 }
 
-pub fn get_session_info(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
+pub fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
     let sessions = match session::list_sessions() {
         Ok(sessions) => sessions,
         Err(e) => {
@@ -26,10 +26,9 @@ pub fn get_session_info(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
             return Err(anyhow::anyhow!("Failed to list sessions"));
         }
     };
-    let mut session_infos = sessions
+    let mut session_infos: Vec<SessionInfo> = sessions
         .into_iter()
-        .map(|(id, path)| {
-            // Get last modified time as string
+        .filter_map(|(id, path)| {
             let modified = path
                 .metadata()
                 .and_then(|m| m.modified())
@@ -38,19 +37,18 @@ pub fn get_session_info(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
                         .format("%Y-%m-%d %H:%M:%S UTC")
                         .to_string()
                 })
-                .unwrap_or_else(|_| "Unknown".to_string());
+                .ok()?;
 
-            // Get session description
-            let metadata = session::read_metadata(&path).expect("Failed to read session metadata");
+            let metadata = session::read_metadata(&path).ok()?;
 
-            SessionInfo {
+            Some(SessionInfo {
                 id,
                 path: path.to_string_lossy().to_string(),
                 modified,
                 metadata,
-            }
+            })
         })
-        .collect::<Vec<SessionInfo>>();
+        .collect();
 
     // Sort sessions by modified date
     // Since all dates are in ISO format (YYYY-MM-DD HH:MM:SS UTC), we can just use string comparison

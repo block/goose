@@ -55,6 +55,8 @@ use super::subagent_manager::SubAgentManager;
 use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
+const DEFAULT_MAX_TURNS: u32 = 1000;
+
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
@@ -707,7 +709,23 @@ impl Agent {
 
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
+            let mut turns_taken = 0u32;
+            let max_turns = session
+                .as_ref()
+                .and_then(|s| s.max_turns)
+                .unwrap_or_else(|| {
+                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
+                });
+
             loop {
+                turns_taken += 1;
+                if turns_taken > max_turns {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                    ));
+                    break;
+                }
+
                 // Check for MCP notifications from subagents
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
@@ -1336,7 +1354,9 @@ mod tests {
         agent.add_final_output_tool(response).await;
 
         let tools = agent.list_tools(None).await;
-        let final_output_tool = tools.iter().find(|tool| tool.name == "final_output");
+        let final_output_tool = tools
+            .iter()
+            .find(|tool| tool.name == FINAL_OUTPUT_TOOL_NAME);
 
         assert!(
             final_output_tool.is_some(),
