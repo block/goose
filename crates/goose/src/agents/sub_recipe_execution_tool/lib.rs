@@ -1,6 +1,6 @@
-use crate::agents::sub_agent_execution_tool::executor::execute_single_task;
-pub use crate::agents::sub_agent_execution_tool::executor::parallel_execute;
-pub use crate::agents::sub_agent_execution_tool::types::{
+use crate::agents::sub_recipe_execution_tool::executor::execute_single_task;
+pub use crate::agents::sub_recipe_execution_tool::executor::parallel_execute;
+pub use crate::agents::sub_recipe_execution_tool::types::{
     Config, ExecutionResponse, ExecutionStats, Task, TaskResult,
 };
 

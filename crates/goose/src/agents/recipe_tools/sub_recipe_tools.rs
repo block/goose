@@ -4,7 +4,7 @@ use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
-use crate::agents::sub_agent_execution_tool::lib::Task;
+use crate::agents::sub_recipe_execution_tool::lib::Task;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";

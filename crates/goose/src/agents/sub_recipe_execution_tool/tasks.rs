@@ -5,7 +5,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
 
-use crate::agents::sub_agent_execution_tool::types::{Task, TaskResult};
+use crate::agents::sub_recipe_execution_tool::types::{Task, TaskResult};
 
 // Process a single task based on its type
 pub async fn process_task(task: &Task, timeout_seconds: u64) -> TaskResult {
