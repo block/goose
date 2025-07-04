@@ -29,6 +29,7 @@ const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
 fn get_display_name(extension_id: &str) -> String {
     match extension_id {
+        "builder" => "Builder Tools".to_string(),
         "developer" => "Developer Tools".to_string(),
         "computercontroller" => "Computer Controller".to_string(),
         "googledrive" => "Google Drive".to_string(),
@@ -507,6 +508,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         // TODO we'll want a place to collect all these options, maybe just an enum in goose-mcp
         "built-in" => {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
+                .item(
+                    "builder",
+                    "Builder Tools",
+                    "Code editing and shell access with plan-based development support",
+                )
                 .item(
                     "computercontroller",
                     "Computer Controller",
