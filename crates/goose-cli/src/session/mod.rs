@@ -499,6 +499,28 @@ impl Session {
                     output::set_theme(new_theme);
                     continue;
                 }
+
+                input::InputResult::SelectTheme(theme_name) => {
+                    save_history(&mut editor);
+
+                    let new_theme = match theme_name.as_str() {
+                        "light" => {
+                            println!("Switching to Light theme");
+                            output::Theme::Light
+                        }
+                        "dark" => {
+                            println!("Switching to Dark theme");
+                            output::Theme::Dark
+                        }
+                        "ansi" => {
+                            println!("Switching to Ansi theme");
+                            output::Theme::Ansi
+                        }
+                        _ => output::Theme::Dark,
+                    };
+                    output::set_theme(new_theme);
+                    continue;
+                }
                 input::InputResult::Retry => continue,
                 input::InputResult::ListPrompts(extension) => {
                     save_history(&mut editor);
