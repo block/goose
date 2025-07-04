@@ -16,6 +16,7 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::tools::handle_tools;
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
@@ -586,6 +587,18 @@ enum Command {
         cmd: BenchCommand,
     },
 
+    /// List available extensions and their tools
+    #[command(about = "List available extensions and their tools")]
+    Tools {
+        /// The extension to display detailed tool info for (only this extension)
+        #[arg(
+            long,
+            help = "Show tools for one extension only",
+            value_name = "EXTENSION_NAME"
+        )]
+        extension: Option<String>,
+    },
+
     /// Start a web server with a chat interface
     #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
@@ -948,6 +961,10 @@ pub async fn cli() -> Result<()> {
                     handle_deeplink(&recipe_name)?;
                 }
             }
+            return Ok(());
+        }
+        Some(Command::Tools { extension }) => {
+            handle_tools(extension).await?;
             return Ok(());
         }
         Some(Command::Web { port, host, open }) => {
