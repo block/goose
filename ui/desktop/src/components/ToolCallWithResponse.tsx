@@ -166,6 +166,11 @@ function ToolCallView({
   // Only expand if there are actual results that need to be shown, not just for tool details
   const isShouldExpand = toolResults.some((v) => v.isExpandToolResults);
 
+  // Helper function to truncate long values
+  const truncate = (str: string, maxLength: number = 50): string => {
+    return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
+  };
+
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = () => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
@@ -174,11 +179,6 @@ function ToolCallView({
     // Helper function to get string value safely
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
-    };
-
-    // Helper function to truncate long values
-    const truncate = (str: string, maxLength: number = 50): string => {
-      return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
     };
 
     // Generate descriptive text based on tool type
@@ -313,8 +313,9 @@ function ToolCallView({
               if (description) {
                 return description;
               }
-              // Fallback to the original tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+              // Fallback to formatted and truncated tool name using shared truncate function
+              const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+              return truncate(snakeToTitleCase(toolName));
             })()}
           </span>
         </>
