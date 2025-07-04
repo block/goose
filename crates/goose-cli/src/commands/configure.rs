@@ -813,9 +813,12 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             let description = if add_desc {
                 let desc = cliclack::input("Enter a description for this extension:")
                     .placeholder("Description")
-                    .validate(|input: &String| match input.parse::<String>() {
-                        Ok(_) => Ok(()),
-                        Err(_) => Err("Please enter a valid description"),
+                    .validate(|input: &String| {
+                        if input.trim().is_empty() {
+                            Err("Please enter a valid description")
+                        } else {
+                            Ok(())
+                        }
                     })
                     .interact()?;
                 Some(desc)
