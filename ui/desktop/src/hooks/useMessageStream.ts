@@ -208,6 +208,11 @@ export function useMessageStream({
     messagesRef.current = messages || [];
   }, [messages]);
 
+  // Request queue to prevent overwhelming the server
+  const requestQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const minRequestInterval = 500; // Minimum 500ms between requests
+  const lastRequestTimeRef = useRef<number>(0);
+
   // We store loading state in another hook to sync loading states across hook invocations
   const { data: isLoading = false, mutate: mutateLoading } = useSWR<boolean>(
     [chatKey, 'loading'],
@@ -376,9 +381,12 @@ export function useMessageStream({
     [mutate, onFinish, onError]
   );
 
-  // Send a request to the server
-  const sendRequest = useCallback(
-    async (requestMessages: Message[]) => {
+  // Send a request to the server with retry logic for 529 errors
+  const sendRequestInternal = useCallback(
+    async (requestMessages: Message[], retryCount = 0) => {
+      const MAX_RETRIES = 3;
+      const BASE_DELAY = 1000; // 1 second
+
       try {
         mutateLoading(true);
         setError(undefined);
@@ -417,6 +425,26 @@ export function useMessageStream({
 
         if (!response.ok) {
           const text = await response.text();
+
+          // Handle 529 (Service Overloaded) with retry
+          if (response.status === 529 && retryCount < MAX_RETRIES) {
+            const delay = BASE_DELAY * Math.pow(2, retryCount); // Exponential backoff
+            console.log(
+              `Got 529 error, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`
+            );
+
+            // Wait before retrying
+            await new Promise((resolve) => setTimeout(resolve, delay));
+
+            // Check if request was aborted during wait
+            if (abortController.signal.aborted) {
+              throw new Error('Request aborted');
+            }
+
+            // Retry the request
+            return sendRequestInternal(requestMessages, retryCount + 1);
+          }
+
           throw new Error(text || `Error ${response.status}: ${response.statusText}`);
         }
 
@@ -462,6 +490,29 @@ export function useMessageStream({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [api, processMessageStream, mutateLoading, setError, onResponse, onError, maxSteps]
+  );
+
+  // Wrapper with rate limiting
+  const sendRequest = useCallback(
+    async (requestMessages: Message[]) => {
+      // Queue the request to ensure proper spacing
+      requestQueueRef.current = requestQueueRef.current.then(async () => {
+        const now = Date.now();
+        const timeSinceLastRequest = now - lastRequestTimeRef.current;
+
+        if (timeSinceLastRequest < minRequestInterval) {
+          const waitTime = minRequestInterval - timeSinceLastRequest;
+          console.log(`Rate limiting: waiting ${waitTime}ms before next request`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        }
+
+        lastRequestTimeRef.current = Date.now();
+        await sendRequestInternal(requestMessages);
+      });
+
+      return requestQueueRef.current;
+    },
+    [sendRequestInternal]
   );
 
   // Append a new message and send request
