@@ -11,6 +11,7 @@ pub enum InputResult {
     AddExtension(String),
     AddBuiltin(String),
     ToggleTheme,
+    SelectTheme(String),
     Retry,
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
@@ -103,6 +104,22 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
+        s if s.starts_with("/t ") => {
+            let t = s
+                .strip_prefix("/t ")
+                .unwrap_or_default()
+                .trim()
+                .to_lowercase();
+            if ["light", "dark", "ansi"].contains(&t.as_str()) {
+                Some(InputResult::SelectTheme(t))
+            } else {
+                println!(
+                    "Theme Unavailable: {} Available themes are: light, dark, ansi",
+                    t
+                );
+                Some(InputResult::Retry)
+            }
+        }
         "/prompts" => Some(InputResult::ListPrompts(None)),
         s if s.starts_with(CMD_PROMPTS) => {
             // Parse arguments for /prompts command
@@ -234,6 +251,7 @@ fn print_help() {
         "Available commands:
 /exit or /quit - Exit the session
 /t - Toggle Light/Dark/Ansi theme
+/t <name> - Set theme directly (light, dark, ansi)
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension

@@ -10,6 +10,7 @@ import { Message } from '../types/message';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
+import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 
 interface PastedImage {
   id: string;
@@ -65,6 +66,20 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [mentionPopover, setMentionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    query: string;
+    mentionStart: number;
+    selectedIndex: number;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    query: '',
+    mentionStart: -1,
+    selectedIndex: 0,
+  });
+  const mentionPopoverRef = useRef<{ getDisplayFiles: () => FileItemWithMatch[]; selectFile: (index: number) => void }>(null);
 
   // Whisper hook for voice dictation
   const {
@@ -219,8 +234,48 @@ export default function ChatInput({
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
+    const cursorPosition = evt.target.selectionStart;
+    
     setDisplayValue(val); // Update display immediately
     debouncedSetValue(val); // Debounce the actual state update
+    
+    // Check for @ mention
+    checkForMention(val, cursorPosition, evt.target);
+  };
+
+  const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
+    // Find the last @ before the cursor
+    const beforeCursor = text.slice(0, cursorPosition);
+    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    
+    if (lastAtIndex === -1) {
+      // No @ found, close mention popover
+      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+    
+    // Check if there's a space between @ and cursor (which would end the mention)
+    const afterAt = beforeCursor.slice(lastAtIndex + 1);
+    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+    
+    // Calculate position for the popover - position it above the chat input
+    const textAreaRect = textArea.getBoundingClientRect();
+    
+    setMentionPopover(prev => ({
+      ...prev,
+      isOpen: true,
+      position: {
+        x: textAreaRect.left,
+        y: textAreaRect.top, // Position at the top of the textarea
+      },
+      query: afterAt,
+      mentionStart: lastAtIndex,
+      selectedIndex: 0, // Reset selection when query changes
+      // filteredFiles will be populated by the MentionPopover component
+    }));
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -425,6 +480,38 @@ export default function ChatInput({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention popover is open, handle arrow keys and enter
+    if (mentionPopover.isOpen && mentionPopoverRef.current) {
+      if (evt.key === 'ArrowDown') {
+        evt.preventDefault();
+        const displayFiles = mentionPopoverRef.current.getDisplayFiles();
+        const maxIndex = Math.max(0, displayFiles.length - 1);
+        setMentionPopover(prev => ({
+          ...prev,
+          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex)
+        }));
+        return;
+      }
+      if (evt.key === 'ArrowUp') {
+        evt.preventDefault();
+        setMentionPopover(prev => ({
+          ...prev,
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0)
+        }));
+        return;
+      }
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        mentionPopoverRef.current.selectFile(mentionPopover.selectedIndex);
+        return;
+      }
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        setMentionPopover(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
     // Handle history navigation first
     handleHistoryNavigation(evt);
 
@@ -474,223 +561,256 @@ export default function ChatInput({
     }
   };
 
+  const handleMentionFileSelect = (filePath: string) => {
+    // Replace the @ mention with the file path
+    const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
+    const afterMention = displayValue.slice(mentionPopover.mentionStart + 1 + mentionPopover.query.length);
+    const newValue = `${beforeMention}${filePath}${afterMention}`;
+    
+    setDisplayValue(newValue);
+    setValue(newValue);
+    setMentionPopover(prev => ({ ...prev, isOpen: false }));
+    textAreaRef.current?.focus();
+    
+    // Set cursor position after the inserted file path
+    setTimeout(() => {
+      if (textAreaRef.current) {
+        const newCursorPosition = beforeMention.length + filePath.length;
+        textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+      }
+    }, 0);
+  };
+
   const hasSubmittableContent =
     displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
 
   return (
-    <div
-      className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
-        isFocused
-          ? 'border-borderProminent hover:border-borderProminent'
-          : 'border-borderSubtle hover:border-borderStandard'
-      } bg-bgApp z-10`}
-    >
-      <form onSubmit={onFormSubmit}>
-        <div className="relative">
-          <textarea
-            data-testid="chat-input"
-            autoFocus
-            id="dynamic-textarea"
-            placeholder={isRecording ? '' : 'What can goose help with?   ⌘↑/⌘↓'}
-            value={displayValue}
-            onChange={handleChange}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            ref={textAreaRef}
-            rows={1}
-            style={{
-              minHeight: `${minHeight}px`,
-              maxHeight: `${maxHeight}px`,
-              overflowY: 'auto',
-              opacity: isRecording ? 0 : 1,
-            }}
-            className="w-full pl-4 pr-[108px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-          />
-          {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-[108px] pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
+    <>
+      <div
+        className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
+          isFocused
+            ? 'border-borderProminent hover:border-borderProminent'
+            : 'border-borderSubtle hover:border-borderStandard'
+        } bg-bgApp z-10`}
+      >
+        <form onSubmit={onFormSubmit}>
+          <div className="relative">
+            <textarea
+              data-testid="chat-input"
+              autoFocus
+              id="dynamic-textarea"
+              placeholder={isRecording ? '' : 'What can goose help with?   @ files • ⌘↑/⌘↓'}
+              value={displayValue}
+              onChange={handleChange}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              ref={textAreaRef}
+              rows={1}
+              style={{
+                minHeight: `${minHeight}px`,
+                maxHeight: `${maxHeight}px`,
+                overflowY: 'auto',
+                opacity: isRecording ? 0 : 1,
+              }}
+              className="w-full pl-4 pr-[108px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            />
+            {isRecording && (
+              <div className="absolute inset-0 flex items-center pl-4 pr-[108px] pt-3 pb-1.5">
+                <WaveformVisualizer
+                  audioContext={audioContext}
+                  analyser={analyser}
+                  isRecording={isRecording}
+                />
+              </div>
+            )}
+          </div>
+
+          {pastedImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+              {pastedImages.map((img) => (
+                <div key={img.id} className="relative group w-20 h-20">
+                  {img.dataUrl && (
+                    <img
+                      src={img.dataUrl} // Use dataUrl for instant preview
+                      alt={`Pasted image ${img.id}`}
+                      className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                    />
+                  )}
+                  {img.isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                    </div>
+                  )}
+                  {img.error && !img.isLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                      <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                        {img.error.substring(0, 50)}
+                      </p>
+                      {img.dataUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetryImageSave(img.id)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded px-1 py-0.5 text-[8px] leading-none"
+                          title="Retry saving image"
+                        >
+                          Retry
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!img.isLoading && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePastedImage(img.id)}
+                      className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                      aria-label="Remove image"
+                    >
+                      <Close className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           )}
-        </div>
 
-        {pastedImages.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
-            {pastedImages.map((img) => (
-              <div key={img.id} className="relative group w-20 h-20">
-                {img.dataUrl && (
-                  <img
-                    src={img.dataUrl} // Use dataUrl for instant preview
-                    alt={`Pasted image ${img.id}`}
-                    className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                  />
-                )}
-                {img.isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                  </div>
-                )}
-                {img.error && !img.isLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                    <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
-                      {img.error.substring(0, 50)}
-                    </p>
-                    {img.dataUrl && (
-                      <button
-                        type="button"
-                        onClick={() => handleRetryImageSave(img.id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded px-1 py-0.5 text-[8px] leading-none"
-                        title="Retry saving image"
-                      >
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                )}
-                {!img.isLoading && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePastedImage(img.id)}
-                    className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                    aria-label="Remove image"
-                  >
-                    <Close className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {isLoading ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onStop?.();
-            }}
-            className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-          >
-            <Stop size={24} />
-          </Button>
-        ) : (
-          <>
-            {/* Microphone button - only show if dictation is enabled and configured */}
-            {canUseDictation && (
-              <>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    if (isRecording) {
-                      stopRecording();
-                    } else {
-                      startRecording();
-                    }
-                  }}
-                  disabled={isTranscribing}
-                  className={`absolute right-12 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-                    isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600'
-                      : isTranscribing
-                        ? 'text-textSubtle cursor-not-allowed animate-pulse'
-                        : 'text-textSubtle hover:text-textStandard'
-                  }`}
-                  title={
-                    isRecording
-                      ? `Stop recording (${Math.floor(recordingDuration)}s, ~${estimatedSize.toFixed(1)}MB)`
-                      : isTranscribing
-                        ? 'Transcribing...'
-                        : 'Start dictation'
-                  }
-                >
-                  <Microphone />
-                </Button>
-                {/* Recording/transcribing status indicator - positioned above the input */}
-                {(isRecording || isTranscribing) && (
-                  <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-                    {isTranscribing ? (
-                      <span className="text-blue-500 flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                        Transcribing...
-                      </span>
-                    ) : (
-                      <span
-                        className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                      >
-                        <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                        {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
+          {isLoading ? (
             <Button
-              type="submit"
+              type="button"
               size="icon"
               variant="ghost"
-              disabled={
-                !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
-              }
-              className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-                !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
-                  ? 'text-textSubtle cursor-not-allowed'
-                  : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
-              }`}
-              title={
-                isAnyImageLoading
-                  ? 'Waiting for images to save...'
-                  : isRecording
-                    ? 'Recording...'
-                    : isTranscribing
-                      ? 'Transcribing...'
-                      : 'Send'
-              }
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onStop?.();
+              }}
+              className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
             >
-              <Send />
+              <Stop size={24} />
             </Button>
-          </>
-        )}
-      </form>
+          ) : (
+            <>
+              {/* Microphone button - only show if dictation is enabled and configured */}
+              {canUseDictation && (
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      if (isRecording) {
+                        stopRecording();
+                      } else {
+                        startRecording();
+                      }
+                    }}
+                    disabled={isTranscribing}
+                    className={`absolute right-12 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
+                      isRecording
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : isTranscribing
+                          ? 'text-textSubtle cursor-not-allowed animate-pulse'
+                          : 'text-textSubtle hover:text-textStandard'
+                    }`}
+                    title={
+                      isRecording
+                        ? `Stop recording (${Math.floor(recordingDuration)}s, ~${estimatedSize.toFixed(1)}MB)`
+                        : isTranscribing
+                          ? 'Transcribing...'
+                          : 'Start dictation'
+                    }
+                  >
+                    <Microphone />
+                  </Button>
+                  {/* Recording/transcribing status indicator - positioned above the input */}
+                  {(isRecording || isTranscribing) && (
+                    <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+                      {isTranscribing ? (
+                        <span className="text-blue-500 flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                          Transcribing...
+                        </span>
+                      ) : (
+                        <span
+                          className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                        >
+                          <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                          {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                          {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              <Button
+                type="submit"
+                size="icon"
+                variant="ghost"
+                disabled={
+                  !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
+                }
+                className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
+                  !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
+                    ? 'text-textSubtle cursor-not-allowed'
+                    : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
+                }`}
+                title={
+                  isAnyImageLoading
+                    ? 'Waiting for images to save...'
+                    : isRecording
+                      ? 'Recording...'
+                      : isTranscribing
+                        ? 'Transcribing...'
+                        : 'Send'
+                }
+              >
+                <Send />
+              </Button>
+            </>
+          )}
+        </form>
 
-      <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
-        <div className="gap-1 flex items-center justify-between w-full">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={handleFileSelect}
-            className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-          >
-            <Attach />
-          </Button>
+        <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
+          <div className="gap-1 flex items-center justify-between w-full">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={handleFileSelect}
+              className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
+            >
+              <Attach />
+            </Button>
 
-          <BottomMenu
-            setView={setView}
-            numTokens={numTokens}
-            inputTokens={inputTokens}
-            outputTokens={outputTokens}
-            messages={messages}
-            isLoading={isLoading}
-            setMessages={setMessages}
-            sessionCosts={sessionCosts}
-          />
+            <BottomMenu
+              setView={setView}
+              numTokens={numTokens}
+              inputTokens={inputTokens}
+              outputTokens={outputTokens}
+              messages={messages}
+              isLoading={isLoading}
+              setMessages={setMessages}
+              sessionCosts={sessionCosts}
+            />
+          </div>
         </div>
       </div>
-    </div>
+
+      <MentionPopover
+        ref={mentionPopoverRef}
+        isOpen={mentionPopover.isOpen}
+        onClose={() => setMentionPopover(prev => ({ ...prev, isOpen: false }))}
+        onSelect={handleMentionFileSelect}
+        position={mentionPopover.position}
+        query={mentionPopover.query}
+        selectedIndex={mentionPopover.selectedIndex}
+        onSelectedIndexChange={(index) => setMentionPopover(prev => ({ ...prev, selectedIndex: index }))}
+      />
+    </>
   );
 }

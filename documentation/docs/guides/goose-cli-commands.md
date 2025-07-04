@@ -556,6 +556,14 @@ All commands support tab completion. Press `<Tab>` after a slash (/) to cycle th
 
 Goose CLI supports several shortcuts and built-in commands for easier navigation.
 
+### Keyboard Navigation
+
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
 - **`Cmd+Up/Down arrows`** - Navigate through command history
+
+### Slash Commands
+- **`/exit` or `/quit`** - Exit the session
+- **`/t`** - Toggle between Light/Dark/Ansi themes
+- **`/t <theme>`** - Set theme directly (`/t light`, `/t dark`, or `/t ansi`)
+- **`/?` or `/help`** - Display the help menu

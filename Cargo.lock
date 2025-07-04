@@ -3434,7 +3434,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3457,7 +3457,6 @@ dependencies = [
  "etcetera",
  "fs2",
  "futures",
- "futures-util",
  "include_dir",
  "indoc 2.0.6",
  "jsonschema",
@@ -3471,7 +3470,6 @@ dependencies = [
  "mockall",
  "nanoid",
  "once_cell",
- "paste",
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
@@ -3500,7 +3498,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3524,7 +3522,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3544,6 +3542,7 @@ dependencies = [
  "goose-mcp",
  "http 1.2.0",
  "indicatif",
+ "jsonschema",
  "mcp-client",
  "mcp-core",
  "mcp-server",
@@ -3575,7 +3574,7 @@ dependencies = [
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "cbindgen",
  "futures",
@@ -3589,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3618,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3669,7 +3668,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "anyhow",
  "async-trait",

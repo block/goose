@@ -88,6 +88,13 @@ pub fn load_recipe(recipe_name: &str) -> Result<Recipe> {
         recipe_dir_str.to_string(),
         &HashMap::new(),
     )?;
+
+    if let Some(response) = &recipe.response {
+        if let Some(json_schema) = &response.json_schema {
+            validate_json_schema(json_schema)?;
+        }
+    }
+
     Ok(recipe)
 }
 
@@ -220,6 +227,13 @@ fn apply_values_to_parameters(
         }
     }
     Ok((param_map, missing_params))
+}
+
+fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
+    match jsonschema::validator_for(schema) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(anyhow::anyhow!("JSON schema validation failed: {}", err)),
+    }
 }
 
 #[cfg(test)]

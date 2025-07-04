@@ -169,13 +169,21 @@ mod tests {
         assert!(sub_recipes[0].values.is_none());
         assert_eq!(
             sub_recipes[1].path,
-            sub_recipe1_path.to_string_lossy().to_string()
+            sub_recipe1_path
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
         );
         assert_eq!(sub_recipes[1].name, "sub_recipe1".to_string());
         assert!(sub_recipes[1].values.is_none());
         assert_eq!(
             sub_recipes[2].path,
-            sub_recipe2_path.to_string_lossy().to_string()
+            sub_recipe2_path
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
         );
         assert_eq!(sub_recipes[2].name, "sub_recipe2".to_string());
         assert!(sub_recipes[2].values.is_none());
@@ -221,6 +229,7 @@ response:
         let recipe_path: std::path::PathBuf = temp_dir.path().join("test_recipe.yaml");
 
         std::fs::write(&recipe_path, test_recipe_content).unwrap();
-        (temp_dir, recipe_path)
+        let canonical_recipe_path = recipe_path.canonicalize().unwrap();
+        (temp_dir, canonical_recipe_path)
     }
 }
