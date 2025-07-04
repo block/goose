@@ -709,6 +709,7 @@ mod max_turns_tests {
             schedule_id: None,
             execution_mode: None,
             max_turns: Some(1),
+            retry_config: None,
         };
         let messages = vec![Message::user().with_text("Hello")];
 

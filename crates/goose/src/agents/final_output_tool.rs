@@ -87,6 +87,10 @@ impl FinalOutputTool {
         "#, serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap()).unwrap()}
     }
 
+    pub fn reset(&mut self) {
+        self.final_output = None;
+    }
+
     async fn validate_json_output(&self, output: &Value) -> Result<Value, String> {
         let compiled_schema =
             match jsonschema::validator_for(self.response.json_schema.as_ref().unwrap()) {

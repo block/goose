@@ -16,6 +16,7 @@ pub fn extract_recipe_info_from_cli(
     Option<SessionSettings>,
     Option<Vec<SubRecipe>>,
     Option<Response>,
+    Option<goose::recipe::RetryConfig>,
 )> {
     let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
@@ -58,6 +59,7 @@ pub fn extract_recipe_info_from_cli(
         }),
         Some(all_sub_recipes),
         recipe.response,
+        recipe.retry,
     ))
 }
 
@@ -89,7 +91,7 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, settings, sub_recipes, response) =
+        let (input_config, settings, sub_recipes, response, retry_config) =
             extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
@@ -145,7 +147,7 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let (input_config, settings, sub_recipes, response) =
+        let (input_config, settings, sub_recipes, response, retry_config) =
             extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));

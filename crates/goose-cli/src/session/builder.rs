@@ -53,6 +53,8 @@ pub struct SessionBuilderConfig {
     pub sub_recipes: Option<Vec<SubRecipe>>,
     /// Final output expected response
     pub final_output_response: Option<Response>,
+    /// Retry configuration
+    pub retry_config: Option<goose::recipe::RetryConfig>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -128,6 +130,7 @@ async fn offer_extension_debugging_help(
         debug_agent,
         Some(temp_session_file.clone()),
         false,
+        None,
         None,
         None,
     );
@@ -376,6 +379,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.debug,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
+        session_config.retry_config.clone(),
     );
 
     // Add extensions if provided
@@ -531,6 +535,7 @@ mod tests {
             quiet: false,
             sub_recipes: None,
             final_output_response: None,
+            retry_config: None,
         };
 
         assert_eq!(config.extensions.len(), 1);

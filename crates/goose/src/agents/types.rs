@@ -28,4 +28,6 @@ pub struct SessionConfig {
     pub execution_mode: Option<String>,
     /// Maximum number of turns (iterations) allowed without user input
     pub max_turns: Option<u32>,
+    /// Retry configuration for the session (from recipe)
+    pub retry_config: Option<crate::recipe::RetryConfig>,
 }

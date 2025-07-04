@@ -53,6 +53,7 @@ pub struct Session {
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
+    retry_config: Option<goose::recipe::RetryConfig>,
 }
 
 // Cache structure for completion data
@@ -115,6 +116,7 @@ impl Session {
         debug: bool,
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
+        retry_config: Option<goose::recipe::RetryConfig>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
             match session::read_messages(session_file) {
@@ -138,6 +140,7 @@ impl Session {
             run_mode: RunMode::Normal,
             scheduled_job_id,
             max_turns,
+            retry_config,
         }
     }
 
@@ -783,6 +786,7 @@ impl Session {
                 schedule_id: self.scheduled_job_id.clone(),
                 execution_mode: None,
                 max_turns: self.max_turns,
+                retry_config: self.retry_config.clone(),
             }
         });
         let mut stream = self

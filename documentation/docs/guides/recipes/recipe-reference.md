@@ -37,6 +37,7 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
 | `response` | Object | Configuration for structured output validation |
+| `retry` | Object | Configuration for automatic retry functionality |
 
 ## Parameters
 
@@ -105,6 +106,25 @@ extensions:
     args:
       - 'mcp_presidio@latest'
     description: "For searching logs using Presidio"
+```
+
+## Retry Configuration
+
+The `retry` field lets recipes automatically retry execution when they don't meet success criteria. This is useful for handling non-deterministic LLM behavior.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_retries` | Number | Maximum number of retry attempts |
+| `success_check` | String | Shell command that verifies successful execution (exit code 0 = success) |
+| `on_failure` | String | (Optional) Shell command to run before each retry for cleanup |
+
+When used, the recipe runs to completion, executes the success_check command, and if it fails, cleans up with on_failure (if provided) and starts again with a fresh message history.
+
+```yaml
+retry:
+  max_retries: 3
+  success_check: "cargo test"
+  on_failure: "git clean -df"
 ```
 
 ## Structured Output with `response`
@@ -213,6 +233,11 @@ extensions:
     timeout: 300
     bundled: true
     description: "Query codesearch directly from goose"
+
+retry:
+  max_retries: 3
+  success_check: "cargo test"
+  on_failure: "git clean -df"
 
 response:
   json_schema:

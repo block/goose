@@ -708,6 +708,7 @@ pub async fn cli() -> Result<()> {
                         quiet: false,
                         sub_recipes: None,
                         final_output_response: None,
+                        retry_config: None,
                     })
                     .await;
                     setup_logging(
@@ -762,7 +763,7 @@ pub async fn cli() -> Result<()> {
             quiet,
             additional_sub_recipes,
         }) => {
-            let (input_config, session_settings, sub_recipes, final_output_response) = match (
+            let (input_config, session_settings, sub_recipes, final_output_response, retry_config) = match (
                 instructions,
                 input_text,
                 recipe,
@@ -779,6 +780,7 @@ pub async fn cli() -> Result<()> {
                             extensions_override: None,
                             additional_system_prompt: system,
                         },
+                        None,
                         None,
                         None,
                         None,
@@ -801,6 +803,7 @@ pub async fn cli() -> Result<()> {
                         None,
                         None,
                         None,
+                        None,
                     )
                 }
                 (_, Some(text), _) => (
@@ -809,6 +812,7 @@ pub async fn cli() -> Result<()> {
                         extensions_override: None,
                         additional_system_prompt: system,
                     },
+                    None,
                     None,
                     None,
                     None,
@@ -853,6 +857,7 @@ pub async fn cli() -> Result<()> {
                 quiet,
                 sub_recipes,
                 final_output_response,
+                retry_config,
             })
             .await;
 
@@ -978,6 +983,7 @@ pub async fn cli() -> Result<()> {
                     quiet: false,
                     sub_recipes: None,
                     final_output_response: None,
+                    retry_config: None,
                 })
                 .await;
                 setup_logging(

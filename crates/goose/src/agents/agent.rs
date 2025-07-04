@@ -670,8 +670,14 @@ impl Agent {
         messages: &[Message],
         session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<AgentEvent>>> {
+        let original_messages = messages.to_vec();
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
+
+        // Extract retry configuration from session if present
+        let retry_config = session.as_ref().and_then(|s| s.retry_config.clone());
+        let retry_count = 0;
+        let max_retries = retry_config.as_ref().map(|r| r.max_retries).unwrap_or(0);
 
         // Load settings from config
         let config = Config::global();
@@ -714,6 +720,7 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
+            let mut retry_count = retry_count;
             let max_turns = session
                 .as_ref()
                 .and_then(|s| s.max_turns)
@@ -823,10 +830,65 @@ impl Agent {
                                     tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
                                     yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
                                     continue;
-                                } else {
-                                    yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                                } // rendering of the final output occurs after we check for retry config success.
+                            }
+
+                            if let Some(ref retry_config) = retry_config {
+                                tracing::info!("Running success check: {}", retry_config.success_check);
+                                yield AgentEvent::Message(Message::assistant().with_text(format!("Running success check: {}", retry_config.success_check)));
+                                match Self::run_shell_command(&retry_config.success_check).await {
+                                    Ok(true) => {
+                                        tracing::info!("Success check passed");
+                                        yield AgentEvent::Message(Message::assistant().with_text("Success check passed"));
+                                        break;
+                                    }
+                                    Ok(false) => {
+                                        tracing::info!("Success check failed");
+                                        if retry_count < max_retries {
+                                            retry_count += 1;
+                                            tracing::info!("Retrying... attempt {}/{}", retry_count + 1, max_retries);
+                                            yield AgentEvent::Message(Message::assistant().with_text(format!("Success check '{}' failed. Retrying... attempt {}/{}", retry_config.success_check, retry_count, max_retries)));
+                                            
+                                            if let Some(ref on_failure) = retry_config.on_failure {
+                                                tracing::info!("Running failure cleanup: {}", on_failure);
+                                                yield AgentEvent::Message(Message::assistant().with_text(format!("Running failure cleanup before retry: {}", on_failure)));
+                                                if let Err(e) = Self::run_shell_command(on_failure).await {
+                                                    tracing::error!("Failure cleanup command failed: {}", e);
+                                                    yield AgentEvent::Message(Message::assistant().with_text(format!("Failure cleanup command failed: {}", e)));
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            messages = original_messages.clone();
+                                            if let Some(ref mut tool) = self.final_output_tool.lock().await.as_mut() {
+                                                tool.reset();
+                                            }
+                                            
+                                            // Restart the main loop
+                                            continue;
+                                        } else {
+                                            yield AgentEvent::Message(Message::assistant().with_text(
+                                                format!("Success check '{}' failed. Maximum retries ({}) exceeded. The recipe was not successful after {} attempts.", retry_config.success_check, max_retries, max_retries)
+                                            ));
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to run success check: {}", e);
+                                        yield AgentEvent::Message(Message::assistant().with_text(
+                                            format!("Failed to run success check: {}", e)
+                                        ));
+                                        break;
+                                    }
                                 }
                             }
+
+                            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                                if let Some(output) = &final_output_tool.final_output {
+                                    yield AgentEvent::Message(Message::assistant().with_text(output.clone()));
+                                }
+                            }
+
                             break;
                         }
 
@@ -1177,6 +1239,37 @@ impl Agent {
     pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             tracing::error!("Failed to send tool result: {}", e);
+        }
+    }
+
+    /// Helper function to run shell commands for retry functionality
+    /// TODO: Improve to be like other shell commands in the codebase, ideally reuse some logic if possible.
+    async fn run_shell_command(cmd: &str) -> Result<bool> {
+        use tokio::process::Command;
+        
+        let mut command = if cfg!(target_os = "windows") {
+            let mut cmd_builder = Command::new("cmd");
+            cmd_builder.arg("/C").arg(cmd);
+            cmd_builder
+        } else {
+            let mut cmd_builder = Command::new("sh");
+            cmd_builder.arg("-c").arg(cmd);
+            cmd_builder
+        };
+
+        match command.output().await {
+            Ok(output) => {
+                let success = output.status.success();
+                if !success {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    tracing::warn!("Shell command '{}' failed with output: {}", cmd, stderr);
+                }
+                Ok(success)
+            }
+            Err(e) => {
+                tracing::error!("Failed to execute shell command '{}': {}", cmd, e);
+                Err(anyhow!("Failed to execute shell command: {}", e))
+            }
         }
     }
 

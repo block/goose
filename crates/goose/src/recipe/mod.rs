@@ -102,6 +102,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryConfig>, // retry configuration for the recipe
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -129,6 +132,14 @@ pub struct Settings {
 pub struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_schema: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub success_check: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_failure: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -230,6 +241,7 @@ pub struct RecipeBuilder {
     parameters: Option<Vec<RecipeParameter>>,
     response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
+    retry: Option<RetryConfig>,
 }
 
 impl Recipe {
@@ -262,6 +274,7 @@ impl Recipe {
             parameters: None,
             response: None,
             sub_recipes: None,
+            retry: None,
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
@@ -352,6 +365,11 @@ impl RecipeBuilder {
         self
     }
 
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -377,6 +395,7 @@ impl RecipeBuilder {
             parameters: self.parameters,
             response: self.response,
             sub_recipes: self.sub_recipes,
+            retry: self.retry,
         })
     }
 }

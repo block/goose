@@ -65,6 +65,10 @@ You can turn your current Goose session into a reusable recipe that includes the
      goose_provider: $provider    # Provider to use for this recipe
      goose_model: $model          # Specific model to use for this recipe
      temperature: $temperature    # Model temperature setting for this recipe (0.0 to 1.0)
+   retry:                         # Optional retry configuration
+     max_retries: 3               # Maximum retry attempts
+     success_check: $cmd          # Shell command to validate success
+     on_failure: $cleanup_cmd     # Optional cleanup before retry
    ```
    </details>
 
