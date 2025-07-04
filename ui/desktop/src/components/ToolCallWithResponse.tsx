@@ -292,20 +292,8 @@ function ToolCallView({
         return 'poking around...';
 
       default: {
-        // Fallback to showing key parameters for unknown tools
-        const entries = Object.entries(args);
-        if (entries.length === 0) return null;
-
-        // For a single parameter, show key and truncated value
-        if (entries.length === 1) {
-          const [key, value] = entries[0];
-          const stringValue = getStringValue(value);
-          const truncatedValue = truncate(stringValue, 30);
-          return `${key}: ${truncatedValue}`;
-        }
-
-        // For multiple parameters, just show the keys
-        return entries.map(([key]) => key).join(', ');
+        // For unknown tools, always return null to fall back to tool name
+        return null;
       }
     }
 
