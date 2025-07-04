@@ -9,6 +9,9 @@ use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
+    self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
+};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -286,11 +289,12 @@ impl Agent {
 
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
                 .await
+        } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
+            sub_recipe_execute_task_tool::run_tasks(tool_call.arguments.clone()).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -574,6 +578,8 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
+            prefixed_tools
+                .push(sub_recipe_execute_task_tool::create_sub_recipe_execute_task_tool());
         }
 
         prefixed_tools
