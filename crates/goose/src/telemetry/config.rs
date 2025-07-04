@@ -7,6 +7,7 @@ pub enum TelemetryProvider {
     Datadog,
     Otlp,
     Console,
+    File,
 }
 
 impl Default for TelemetryProvider {
@@ -23,6 +24,7 @@ impl std::str::FromStr for TelemetryProvider {
             "datadog" => Ok(TelemetryProvider::Datadog),
             "otlp" => Ok(TelemetryProvider::Otlp),
             "console" => Ok(TelemetryProvider::Console),
+            "file" => Ok(TelemetryProvider::File),
             _ => Err(format!("Unknown telemetry provider: {}", s)),
         }
     }
@@ -130,6 +132,11 @@ impl TelemetryConfig {
                     return Err("OTLP provider requires GOOSE_TELEMETRY_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT".to_string());
                 }
             }
+            TelemetryProvider::File => {
+                if self.endpoint.is_none() {
+                    return Err("File provider requires GOOSE_TELEMETRY_ENDPOINT (file path)".to_string());
+                }
+            }
             TelemetryProvider::Console => {}
         }
 
@@ -143,6 +150,7 @@ impl TelemetryConfig {
                 .clone()
                 .or_else(|| Some("https://api.datadoghq.com".to_string())),
             TelemetryProvider::Otlp => self.endpoint.clone(),
+            TelemetryProvider::File => self.endpoint.clone(),
             TelemetryProvider::Console => None,
         }
     }
@@ -182,6 +190,10 @@ mod tests {
         assert_eq!(
             "console".parse::<TelemetryProvider>().unwrap(),
             TelemetryProvider::Console
+        );
+        assert_eq!(
+            "file".parse::<TelemetryProvider>().unwrap(),
+            TelemetryProvider::File
         );
         assert!("invalid".parse::<TelemetryProvider>().is_err());
     }
@@ -234,6 +246,13 @@ mod tests {
         assert!(config.validate().is_err());
 
         config.endpoint = Some("http://localhost:4317".to_string());
+        assert!(config.validate().is_ok());
+
+        config.provider = TelemetryProvider::File;
+        config.endpoint = None;
+        assert!(config.validate().is_err());
+
+        config.endpoint = Some("/tmp/telemetry.log".to_string());
         assert!(config.validate().is_ok());
 
         config.provider = TelemetryProvider::Console;
