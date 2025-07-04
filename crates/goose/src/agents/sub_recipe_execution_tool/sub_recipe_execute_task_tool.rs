@@ -9,7 +9,7 @@ pub const SUB_RECIPE_EXECUTE_TASK_TOOL_NAME: &str = "sub_recipe__execute_task";
 pub fn create_sub_recipe_execute_task_tool() -> Tool {
     Tool::new(
         SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
-        "Only use this tool when you want to execute sub recipe task. **DO NOT** use this tool when you want to execute sub agent task.   
+        "Only use this tool when you want to execute sub recipe task.
         If the tasks are not specified to be executed in parallel, you should use this tool to run each task immediately by passing a single task to the tool for each run.
         If you want to execute tasks in parallel, you should pass a list of tasks to the tool.",
         serde_json::json!({
