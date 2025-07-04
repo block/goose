@@ -188,6 +188,11 @@ impl RecipeExecutionBuilder {
         self
     }
 
+    pub fn with_environment(mut self, environment: &str) -> Self {
+        self.execution = self.execution.with_environment(environment);
+        self
+    }
+
     pub fn build(self) -> RecipeExecution {
         self.execution
     }

@@ -29,14 +29,150 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 
+use std::collections::HashMap;
+use goose::message::MessageContent;
+use goose::telemetry::{TokenUsage, ToolUsage};
+
+fn extract_telemetry_data_from_session(session: &crate::Session, params: &[(String, String)]) -> (Option<TokenUsage>, Vec<ToolUsage>, HashMap<String, String>, Option<String>) {
+    let token_usage = if let Ok(metadata) = session.get_metadata() {
+        let input_tokens = metadata.input_tokens.unwrap_or(0) as u64;
+        let output_tokens = metadata.output_tokens.unwrap_or(0) as u64;
+
+        if input_tokens > 0 || output_tokens > 0 {
+            Some(TokenUsage::new(input_tokens, output_tokens))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let messages = session.message_history();
+    let mut tool_usage_map: HashMap<String, ToolUsage> = HashMap::new();
+
+    for message in &messages {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(tool_request) => {
+                    if let Ok(tool_call) = &tool_request.tool_call {
+                        let tool_name = &tool_call.name;
+                        let entry = tool_usage_map.entry(tool_name.clone()).or_insert_with(|| ToolUsage::new(tool_name));
+                        entry.add_call(std::time::Duration::from_millis(0), true);
+                    }
+                }
+                MessageContent::ToolResponse(tool_response) => {
+                    if tool_response.tool_result.is_err() {
+                        for tool_usage in tool_usage_map.values_mut() {
+                            if tool_usage.error_count < tool_usage.call_count {
+                                tool_usage.error_count += 1;
+                                tool_usage.success_count = tool_usage.call_count - tool_usage.error_count;
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let tool_usage: Vec<ToolUsage> = tool_usage_map.into_values().collect();
+
+    let mut metadata = HashMap::new();
+    for (key, value) in params {
+        metadata.insert(key.clone(), value.clone());
+    }
+
+    if let Ok(session_metadata) = session.get_metadata() {
+        metadata.insert("working_dir".to_string(), session_metadata.working_dir.to_string_lossy().to_string());
+        metadata.insert("message_count".to_string(), session_metadata.message_count.to_string());
+        if let Some(schedule_id) = session_metadata.schedule_id {
+            metadata.insert("schedule_id".to_string(), schedule_id);
+        }
+    }
+
+    let environment = detect_environment();
+
+    (token_usage, tool_usage, metadata, environment)
+}
+
+fn detect_environment() -> Option<String> {
+    let mut env_indicators = Vec::new();
+
+    if std::env::var("CI").is_ok() {
+        env_indicators.push("ci");
+    }
+    if std::env::var("GITHUB_ACTIONS").is_ok() {
+        env_indicators.push("github-actions");
+    }
+    if std::env::var("JENKINS_URL").is_ok() {
+        env_indicators.push("jenkins");
+    }
+    if std::env::var("GITLAB_CI").is_ok() {
+        env_indicators.push("gitlab-ci");
+    }
+
+    if std::env::var("DOCKER_CONTAINER").is_ok() || std::path::Path::new("/.dockerenv").exists() {
+        env_indicators.push("docker");
+    }
+    if std::env::var("KUBERNETES_SERVICE_HOST").is_ok() {
+        env_indicators.push("kubernetes");
+    }
+
+    if std::env::var("AWS_LAMBDA_FUNCTION_NAME").is_ok() {
+        env_indicators.push("aws-lambda");
+    }
+    if std::env::var("GOOGLE_CLOUD_PROJECT").is_ok() {
+        env_indicators.push("gcp");
+    }
+    if std::env::var("AZURE_FUNCTIONS_ENVIRONMENT").is_ok() {
+        env_indicators.push("azure-functions");
+    }
+
+    if std::env::var("VSCODE_INJECTION").is_ok() {
+        env_indicators.push("vscode");
+    }
+    if std::env::var("TERM_PROGRAM").as_deref() == Ok("iTerm.app") {
+        env_indicators.push("iterm");
+    }
+    if std::env::var("TERM_PROGRAM").as_deref() == Ok("Apple_Terminal") {
+        env_indicators.push("terminal-app");
+    }
+
+    if std::env::var("GOOSE_JOB_ID").is_ok() {
+        env_indicators.push("scheduled");
+    }
+
+    #[cfg(target_os = "macos")]
+    env_indicators.push("macos");
+    #[cfg(target_os = "linux")]
+    env_indicators.push("linux");
+    #[cfg(target_os = "windows")]
+    env_indicators.push("windows");
+
+    #[cfg(target_arch = "x86_64")]
+    env_indicators.push("x86_64");
+    #[cfg(target_arch = "aarch64")]
+    env_indicators.push("aarch64");
+    #[cfg(target_arch = "arm")]
+    env_indicators.push("arm");
+
+    if env_indicators.is_empty() {
+        None
+    } else {
+        Some(env_indicators.join(","))
+    }
+}
+
 async fn track_recipe_execution<F, Fut, T>(
     recipe_name: &str,
     recipe_version: &str,
     execution_fn: F,
+    params: Vec<(String, String)>,
 ) -> Result<T>
 where
     F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
+    Fut: std::future::Future<Output = Result<(T, crate::Session)>>,
 {
     let start_time = std::time::Instant::now();
 
@@ -51,14 +187,43 @@ where
     if let Some(execution_builder) = telemetry_execution {
         let duration = start_time.elapsed();
         let execution = match &result {
-            Ok(_) => execution_builder
-                .with_result(goose::telemetry::RecipeResult::Success)
-                .with_duration(duration)
-                .build(),
-            Err(e) => execution_builder
-                .with_result(goose::telemetry::RecipeResult::Error(e.to_string()))
-                .with_duration(duration)
-                .build(),
+            Ok((_, session)) => {
+                let (token_usage, tool_usage, metadata, environment) = extract_telemetry_data_from_session(session, &params);
+
+                let mut builder = execution_builder
+                    .with_result(goose::telemetry::RecipeResult::Success)
+                    .with_duration(duration);
+
+                if let Some(tokens) = token_usage {
+                    builder = builder.with_token_usage(tokens);
+                }
+
+                for tool in tool_usage {
+                    builder = builder.add_tool_usage(tool);
+                }
+
+                for (key, value) in metadata {
+                    builder = builder.with_metadata(&key, &value);
+                }
+
+                if let Some(env) = environment {
+                    builder = builder.with_environment(&env);
+                }
+
+                builder.build()
+            }
+            Err(e) => {
+                let metadata: HashMap<String, String> = params.iter().cloned().collect();
+                let mut builder = execution_builder
+                    .with_result(goose::telemetry::RecipeResult::Error(e.to_string()))
+                    .with_duration(duration);
+
+                for (key, value) in metadata {
+                    builder = builder.with_metadata(&key, &value);
+                }
+
+                builder.build()
+            }
         };
 
         if let Some(manager) = goose::telemetry::global_telemetry() {
@@ -68,7 +233,7 @@ where
         }
     }
 
-    result
+    result.map(|(result, _)| result)
 }
 
 #[derive(Parser)]
@@ -940,8 +1105,7 @@ pub async fn cli() -> Result<()> {
                         return Ok(());
                     }
 
-                    // Extract recipe info and prepare for execution with telemetry tracking
-                    extract_recipe_info_from_cli(recipe_name.clone(), params, additional_sub_recipes)?
+                    extract_recipe_info_from_cli(recipe_name.clone(), params.clone(), additional_sub_recipes)?
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -984,14 +1148,16 @@ pub async fn cli() -> Result<()> {
                         None,
                     )?;
 
-                    if interactive {
+                    let result = if interactive {
                         session.interactive(input_config.contents).await
                     } else if let Some(contents) = input_config.contents {
                         session.headless(contents).await
                     } else {
                         Err(anyhow::anyhow!("Error: no text provided for prompt in headless mode"))
-                    }
-                }).await?;
+                    };
+
+                    result.map(|r| (r, session))
+                }, params).await?;
             } else {
                 let mut session = build_session(SessionBuilderConfig {
                     identifier: identifier.map(extract_identifier),

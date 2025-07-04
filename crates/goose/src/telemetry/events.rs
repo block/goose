@@ -88,6 +88,11 @@ impl RecipeExecution {
         self
     }
 
+    pub fn with_environment(mut self, environment: &str) -> Self {
+        self.environment = Some(environment.to_string());
+        self
+    }
+
     pub fn complete(&mut self) {
         if self.end_time.is_none() {
             let end_time = SystemTime::now()
@@ -269,6 +274,14 @@ mod tests {
 
         assert_eq!(execution.metadata.get("key1"), Some(&"value1".to_string()));
         assert_eq!(execution.metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_recipe_execution_environment() {
+        let execution = RecipeExecution::new("test-recipe", "1.0.0")
+            .with_environment("macos,x86_64,iterm");
+
+        assert_eq!(execution.environment, Some("macos,x86_64,iterm".to_string()));
     }
 
     #[test]
