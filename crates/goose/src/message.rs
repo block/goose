@@ -304,8 +304,13 @@ impl From<PromptMessage> for Message {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub role: Role,
+    #[serde(default = "default_created")]
     pub created: i64,
     pub content: Vec<MessageContent>,
+}
+
+fn default_created() -> i64 {
+    0 // old messages do not have timestamps.
 }
 
 impl Message {
