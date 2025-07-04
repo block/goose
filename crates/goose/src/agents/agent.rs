@@ -821,10 +821,14 @@ impl Agent {
                             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                                 if final_output_tool.final_output.is_none() {
                                     tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                    yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
+                                    let message = Message::assistant().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                                    messages.push(message.clone());
+                                    yield AgentEvent::Message(message);
                                     continue;
                                 } else {
-                                    yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                                    let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                                    messages.push(message.clone());
+                                    yield AgentEvent::Message(message);
                                 }
                             }
                             break;
