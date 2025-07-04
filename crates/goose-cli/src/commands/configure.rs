@@ -792,7 +792,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .validate(|input: &String| {
                     if input.is_empty() {
                         Err("Please enter a URI")
-                    } else if !input.starts_with("http") {
+                    } else if !(input.starts_with("http://") || input.starts_with("https://")) {
                         Err("URI should start with http:// or https://")
                     } else {
                         Ok(())
