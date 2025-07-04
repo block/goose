@@ -14,6 +14,7 @@ use opentelemetry_sdk::{
     trace::TracerProvider,
     Resource,
 };
+use opentelemetry_datadog::{new_pipeline, DatadogPropagator};
 use opentelemetry_semantic_conventions as semconv;
 use serde_json;
 use std::fs::OpenOptions;
@@ -44,6 +45,7 @@ pub struct OpenTelemetryProvider {
     recipe_duration: Option<Histogram<f64>>,
     token_counter: Option<Counter<u64>>,
     tool_counter: Option<Counter<u64>>,
+    datadog_metrics: Option<crate::telemetry::datadog_metrics::DatadogMetricsExporter>,
     initialized: bool,
 }
 
@@ -56,6 +58,7 @@ impl OpenTelemetryProvider {
             recipe_duration: None,
             token_counter: None,
             tool_counter: None,
+            datadog_metrics: None,
             initialized: false,
         }
     }
@@ -86,8 +89,14 @@ impl OpenTelemetryProvider {
             TelemetryProvider::Console => {
                 self.init_console(config, resource).await?;
             }
+            TelemetryProvider::Datadog => {
+                self.init_datadog(config, resource).await?;
+            }
+            TelemetryProvider::Otlp => {
+                self.init_otlp(config, resource).await?;
+            }
             _ => {
-                return Err("Only console provider is currently supported".into());
+                return Err(format!("Provider {:?} is not yet implemented", config.provider).into());
             }
         }
 
@@ -125,6 +134,102 @@ impl OpenTelemetryProvider {
 
         self.meter_provider = Some(meter_provider);
 
+        Ok(())
+    }
+
+    async fn init_datadog(
+        &mut self,
+        config: &TelemetryConfig,
+        resource: Resource,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let api_key = config.api_key.clone()
+            .or_else(|| std::env::var("DD_API_KEY").ok())
+            .ok_or("Datadog API key is required (set GOOSE_TELEMETRY_API_KEY or DD_API_KEY)")?;
+
+        let endpoint = config.get_endpoint()
+            .ok_or("Datadog provider requires GOOSE_TELEMETRY_ENDPOINT to be set")?;
+
+        opentelemetry::global::set_text_map_propagator(DatadogPropagator::new());
+
+        let datadog_exporter = new_pipeline()
+            .with_service_name(config.service_name.clone())
+            .with_version(config.service_version.clone())
+            .with_agent_endpoint(endpoint.clone())
+            .build_exporter()?;
+
+        use opentelemetry_sdk::trace::TracerProvider as SdkTracerProvider;
+        let tracer_provider = SdkTracerProvider::builder()
+            .with_resource(resource.clone())
+            .with_batch_exporter(datadog_exporter, runtime::Tokio)
+            .build();
+
+        self.tracer_provider = Some(tracer_provider);
+
+        let datadog_metrics_exporter = crate::telemetry::datadog_metrics::DatadogMetricsExporter::new(
+            api_key,
+            endpoint.clone(),
+        ).with_tags(vec![
+            format!("service:{}", config.service_name),
+            format!("version:{}", config.service_version),
+            format!("usage_type:{:?}", config.usage_type.as_ref().unwrap_or(&crate::telemetry::config::UsageType::Human)),
+        ]);
+
+        self.datadog_metrics = Some(datadog_metrics_exporter);
+
+        // For Datadog, we don't need OpenTelemetry metrics since we send directly via HTTP
+        // Set meter_provider to None to avoid duplicate stdout metrics
+        self.meter_provider = None;
+
+        tracing::info!("Datadog telemetry provider initialized with endpoint: {} (traces via agent, metrics via HTTP API)", endpoint);
+        Ok(())
+    }
+
+    async fn init_otlp(
+        &mut self,
+        config: &TelemetryConfig,
+        resource: Resource,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use opentelemetry_otlp::WithExportConfig;
+        use opentelemetry_sdk::trace::TracerProvider as SdkTracerProvider;
+
+        let endpoint = config.get_endpoint()
+            .ok_or("OTLP provider requires GOOSE_TELEMETRY_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT")?;
+
+        let otlp_exporter_builder = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint.clone());
+
+        // TODO: Add API key as header when we figure out the correct MetadataMap import
+        // For now, OTLP works without authentication for testing
+        let otlp_trace_exporter = otlp_exporter_builder.build()?;
+
+        let tracer_provider = SdkTracerProvider::builder()
+            .with_resource(resource.clone())
+            .with_batch_exporter(otlp_trace_exporter, runtime::Tokio)
+            .build();
+
+        self.tracer_provider = Some(tracer_provider);
+
+        let otlp_metrics_builder = opentelemetry_otlp::MetricExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint.clone());
+
+        // TODO: Add API key as header when we figure out the correct MetadataMap import
+        // For now, OTLP works without authentication for testing
+        let otlp_metrics_exporter = otlp_metrics_builder.build()?;
+
+        let meter_provider = SdkMeterProvider::builder()
+            .with_resource(resource)
+            .with_reader(
+                PeriodicReader::builder(otlp_metrics_exporter, runtime::Tokio)
+                    .with_interval(Duration::from_secs(30))
+                    .build(),
+            )
+            .build();
+
+        self.meter_provider = Some(meter_provider);
+
+        tracing::info!("OTLP telemetry provider initialized with endpoint: {}", endpoint);
         Ok(())
     }
 
@@ -243,6 +348,82 @@ impl OpenTelemetryProvider {
                 }
             }
         }
+
+        if let Some(datadog_metrics) = &self.datadog_metrics {
+            let execution_clone = execution.clone();
+            
+            let datadog_exporter = datadog_metrics.clone();
+            
+            tokio::spawn(async move {
+                if let Err(e) = Self::send_datadog_metrics(&datadog_exporter, &execution_clone).await {
+                    tracing::error!("Failed to send Datadog metrics: {}", e);
+                }
+            });
+        }
+    }
+
+    async fn send_datadog_metrics(
+        datadog_exporter: &crate::telemetry::datadog_metrics::DatadogMetricsExporter,
+        execution: &RecipeExecution,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let base_tags = vec![
+            format!("recipe_name:{}", execution.recipe_name),
+            format!("recipe_version:{}", execution.recipe_version),
+            format!("usage_type:{:?}", execution.usage_type),
+            format!("result:{:?}", execution.result.as_ref().unwrap_or(&crate::telemetry::events::RecipeResult::Success)),
+        ];
+
+        datadog_exporter.send_counter("recipe.executions", 1, base_tags.clone()).await?;
+
+        if let Some(duration_ms) = execution.duration_ms {
+            datadog_exporter.send_histogram(
+                "recipe.duration",
+                1,
+                duration_ms as f64 / 1000.0,
+                base_tags.clone(),
+            ).await?;
+        }
+
+        if let Some(token_usage) = &execution.token_usage {
+            let token_tags = [
+                base_tags.clone(),
+                vec![
+                    format!("model:{}", token_usage.model.as_ref().unwrap_or(&"unknown".to_string())),
+                    format!("provider:{}", token_usage.provider.as_ref().unwrap_or(&"unknown".to_string())),
+                ],
+            ].concat();
+
+            datadog_exporter.send_counter("tokens.input", token_usage.input_tokens, token_tags.clone()).await?;
+            datadog_exporter.send_counter("tokens.output", token_usage.output_tokens, token_tags.clone()).await?;
+            datadog_exporter.send_counter("tokens.total", token_usage.input_tokens + token_usage.output_tokens, token_tags).await?;
+        }
+
+        for tool_usage in &execution.tool_usage {
+            let tool_tags = [
+                base_tags.clone(),
+                vec![format!("tool_name:{}", tool_usage.tool_name)],
+            ].concat();
+
+            if tool_usage.success_count > 0 {
+                let success_tags = [tool_tags.clone(), vec!["result:success".to_string()]].concat();
+                datadog_exporter.send_counter("tool.calls", tool_usage.success_count, success_tags).await?;
+            }
+
+            if tool_usage.error_count > 0 {
+                let error_tags = [tool_tags.clone(), vec!["result:error".to_string()]].concat();
+                datadog_exporter.send_counter("tool.calls", tool_usage.error_count, error_tags).await?;
+            }
+
+            if tool_usage.avg_duration_ms > 0 {
+                datadog_exporter.send_gauge(
+                    "tool.duration.avg",
+                    tool_usage.avg_duration_ms as f64 / 1000.0,
+                    tool_tags,
+                ).await?;
+            }
+        }
+
+        Ok(())
     }
 
     fn create_recipe_span(&self, execution: &RecipeExecution) {

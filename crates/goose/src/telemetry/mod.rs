@@ -1,4 +1,5 @@
 mod config;
+mod datadog_metrics;
 mod events;
 mod manager;
 mod providers;

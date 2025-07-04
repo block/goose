@@ -145,10 +145,7 @@ impl TelemetryConfig {
 
     pub fn get_endpoint(&self) -> Option<String> {
         match self.provider {
-            TelemetryProvider::Datadog => self
-                .endpoint
-                .clone()
-                .or_else(|| Some("https://api.datadoghq.com".to_string())),
+            TelemetryProvider::Datadog => self.endpoint.clone(),
             TelemetryProvider::Otlp => self.endpoint.clone(),
             TelemetryProvider::File => self.endpoint.clone(),
             TelemetryProvider::Console => None,
