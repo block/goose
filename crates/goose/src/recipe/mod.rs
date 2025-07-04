@@ -265,10 +265,18 @@ impl Recipe {
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        if serde_json::from_str::<serde_json::Value>(content).is_ok() {
-            Ok(serde_json::from_str(content)?)
-        } else if serde_yaml::from_str::<serde_yaml::Value>(content).is_ok() {
-            Ok(serde_yaml::from_str(content)?)
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+            if let Some(nested_recipe) = json_value.get("recipe") {
+                Ok(serde_json::from_value(nested_recipe.clone())?)
+            } else {
+                Ok(serde_json::from_str(content)?)
+            }
+        } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+            if let Some(nested_recipe) = yaml_value.get("recipe") {
+                Ok(serde_yaml::from_value(nested_recipe.clone())?)
+            } else {
+                Ok(serde_yaml::from_str(content)?)
+            }
         } else {
             Err(anyhow::anyhow!(
                 "Unsupported format. Expected JSON or YAML."
