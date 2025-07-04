@@ -158,10 +158,7 @@ impl DeveloperRouter {
                 sourcing files do not persist between tool calls. So you may need to repeat them each time by
                 stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
 
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
+                Use this tool for building, testing, running programs, system operations, and general command execution.
             "#},
         };
 
@@ -176,6 +173,85 @@ impl DeveloperRouter {
                 }
             }),
             None,
+        );
+
+        let glob_tool = Tool::new(
+            "glob".to_string(),
+            indoc! {r#"
+                Search for files using glob patterns.
+                
+                This tool provides fast file pattern matching using glob syntax.
+                Returns matching file paths sorted by modification time.
+                Examples:
+                - `*.rs` - Find all Rust files in current directory
+                - `src/**/*.py` - Find all Python files recursively in src directory
+                - `**/test*.js` - Find all JavaScript test files recursively
+                
+                **Important**: Use this tool instead of shell commands like `find` or `ls -r` for file searching,
+                as it properly handles ignored files and is more efficient. This tool respects .gooseignore patterns.
+                
+                Use this tool when you need to locate files by name patterns rather than content.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "required": ["pattern"],
+                "properties": {
+                    "pattern": {"type": "string", "description": "The glob pattern to search for"},
+                    "path": {"type": "string", "description": "The directory to search in (defaults to current directory)"}
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Search files by pattern".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
+            }),
+        );
+
+        let grep_tool = Tool::new(
+            "grep".to_string(),
+            indoc! {r#"
+                Execute file content search commands using ripgrep, grep, or find.
+                
+                Use this tool to run search commands that look for content within files. The tool
+                executes your command directly and filters results to respect .gooseignore patterns.
+                
+                **Recommended tools and usage:**
+                
+                **ripgrep (rg)** - Fast, recommended for most searches:
+                - List files containing pattern: `rg -l "pattern"`
+                - Case-insensitive search: `rg -i "pattern"`
+                - Search specific file types: `rg "pattern" --glob "*.js"`
+                - Show matches with context: `rg "pattern" -C 3`
+                - Sort by modification time: `rg -l "pattern" --sort modified`
+                
+                **grep** - Traditional Unix tool:
+                - Recursive search: `grep -r "pattern" .`
+                - List files only: `grep -rl "pattern" .`
+                - Include specific files: `grep -r "pattern" --include="*.py"`
+                
+                **find + grep** - When you need complex file filtering:
+                - `find . -name "*.py" -exec grep -l "pattern" {} \;`
+                - `find . -type f -newer file.txt -exec grep "pattern" {} \;`
+                
+                **Important**: Use this tool instead of the shell tool for search commands, as it
+                properly filters results to respect ignored files.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                    "command": {"type": "string", "description": "The search command to execute (rg, grep, find, etc.)"}
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Search file contents".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
+            }),
         );
 
         // Create text editor tool with different descriptions based on editor API configuration
@@ -483,6 +559,8 @@ impl DeveloperRouter {
         Self {
             tools: vec![
                 bash_tool,
+                glob_tool,
+                grep_tool,
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
@@ -667,6 +745,159 @@ impl DeveloperRouter {
         Ok(vec![
             Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
             Content::text(output_str)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    // Glob search tool implementation
+    async fn glob(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let pattern = params
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The pattern string is required".to_string(),
+            ))?;
+
+        let search_path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or(".");
+
+        // Construct the full glob pattern
+        let full_pattern = if search_path == "." {
+            pattern.to_string()
+        } else {
+            format!("{}/{}", search_path.trim_end_matches('/'), pattern)
+        };
+
+        // Use the glob crate to find matching files
+        let glob_result = glob::glob(&full_pattern)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid glob pattern: {}", e)))?;
+
+        let mut file_paths_with_metadata = Vec::new();
+        
+        for entry in glob_result {
+            match entry {
+                Ok(path) => {
+                    // Check if the path should be ignored
+                    if !self.is_ignored(&path) {
+                        // Get file metadata for sorting by modification time
+                        if let Ok(metadata) = std::fs::metadata(&path) {
+                            if metadata.is_file() {
+                                let modified = metadata
+                                    .modified()
+                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                                file_paths_with_metadata.push((path, modified));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Error reading glob entry: {}", e);
+                }
+            }
+        }
+
+        // Sort by modification time (newest first)
+        file_paths_with_metadata.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Extract just the file paths
+        let file_paths: Vec<String> = file_paths_with_metadata
+            .into_iter()
+            .map(|(path, _)| path.to_string_lossy().to_string())
+            .collect();
+
+        let result = file_paths.join("\n");
+
+        Ok(vec![
+            Content::text(result.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(result)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    // Search command execution tool implementation
+    async fn grep(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let command = params
+            .get("command")
+            .and_then(|v| v.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The command string is required".to_string(),
+            ))?;
+
+        // Check if command might access ignored files and return early if it does
+        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+        for arg in &cmd_parts[1..] {
+            // Skip command flags
+            if arg.starts_with('-') {
+                continue;
+            }
+            // Skip invalid paths
+            let path = Path::new(arg);
+            if !path.exists() {
+                continue;
+            }
+
+            if self.is_ignored(path) {
+                return Err(ToolError::ExecutionError(format!(
+                    "The command attempts to access '{}' which is restricted by .gooseignore",
+                    arg
+                )));
+            }
+        }
+
+        // Get platform-specific shell configuration
+        let shell_config = get_shell_config();
+
+        // Execute the command using platform-specific shell
+        let mut child = Command::new(&shell_config.executable)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .args(&shell_config.args)
+            .arg(command)
+            .spawn()
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        let output = child.wait_with_output().await
+            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        // Parse and filter results for file paths
+        let mut filtered_lines = Vec::new();
+        for line in stdout.lines() {
+            let line = line.trim();
+            if !line.is_empty() {
+                // Try to extract file path from search tool output
+                let file_path = if line.contains(':') {
+                    // For grep/rg output like "file.txt:content", extract just the file path
+                    line.split(':').next().unwrap_or(line)
+                } else {
+                    // For commands like "rg -l", the whole line is the file path
+                    line
+                };
+                
+                let path = Path::new(file_path);
+                if !self.is_ignored(path) {
+                    filtered_lines.push(line);
+                }
+            }
+        }
+        
+        let mut result = filtered_lines.join("\n");
+        if !stderr.is_empty() {
+            result.push_str("\nErrors:\n");
+            result.push_str(&stderr);
+        }
+
+        Ok(vec![
+            Content::text(result.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(result)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -1438,6 +1669,8 @@ impl Router for DeveloperRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
+                "glob" => this.glob(arguments).await,
+                "grep" => this.grep(arguments).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
