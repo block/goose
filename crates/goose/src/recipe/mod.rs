@@ -629,4 +629,34 @@ sub_recipes:
         let activities = recipe.activities.unwrap();
         assert_eq!(activities, vec!["activity1", "activity2"]);
     }
+
+    #[test]
+    fn test_from_content_with_nested_recipe_yaml() {
+        let content = r#"name: test_recipe
+recipe:
+  title: Nested Recipe Test
+  description: A test recipe with nested structure
+  instructions: Test instructions for nested recipe
+  activities:
+    - Test activity 1
+    - Test activity 2
+  prompt: Test prompt
+  extensions: []
+isGlobal: true"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.title, "Nested Recipe Test");
+        assert_eq!(recipe.description, "A test recipe with nested structure");
+        assert_eq!(
+            recipe.instructions,
+            Some("Test instructions for nested recipe".to_string())
+        );
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+        assert!(recipe.activities.is_some());
+        let activities = recipe.activities.unwrap();
+        assert_eq!(activities, vec!["Test activity 1", "Test activity 2"]);
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 0);
+    }
 }
