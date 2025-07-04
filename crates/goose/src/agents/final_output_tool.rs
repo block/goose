@@ -9,7 +9,7 @@ use serde_json::Value;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
-    "You MUST call the `final_output` tool with your final output for the user.";
+    "I see I MUST call the `final_output` tool NOW with the final output for the user.";
 
 pub struct FinalOutputTool {
     pub response: Response,
@@ -76,7 +76,7 @@ impl FinalOutputTool {
 
     pub fn system_prompt(&self) -> String {
         formatdoc! {r#"
-            # Final Ouptut Instructions
+            # Final Output Instructions
 
             You MUST use the `final_output` tool to collect the final output for a user.
             The final output MUST be a valid JSON object that matches the following expected schema:
