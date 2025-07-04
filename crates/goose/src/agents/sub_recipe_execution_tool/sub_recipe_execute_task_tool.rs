@@ -9,12 +9,29 @@ pub const SUB_RECIPE_EXECUTE_TASK_TOOL_NAME: &str = "sub_recipe__execute_task";
 pub fn create_sub_recipe_execute_task_tool() -> Tool {
     Tool::new(
         SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
-        "Only use this tool when you want to execute sub recipe task.
-        If the tasks are not specified to be executed in parallel, you should use this tool to run each task immediately by passing a single task to the tool for each run.
-        If you want to execute tasks in parallel, you should pass a list of tasks to the tool.",
+        "Only use this tool when you execute sub recipe task.
+EXECUTION STRATEGY:
+- DEFAULT: Execute tasks sequentially (one at a time) unless user explicitly requests parallel execution
+- PARALLEL: Only when user explicitly uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'
+
+IMPLEMENTATION:
+- Sequential execution: Call this tool multiple times, passing exactly ONE task per call
+- Parallel execution: Call this tool once, passing an ARRAY of all tasks
+
+EXAMPLES:
+- User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)
+- User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)
+- User: 'run these simultaneously' → Parallel (1 tool call with task array)
+- User: 'do task A then task B' → Sequential (2 separate tool calls)",
         serde_json::json!({
             "type": "object",
             "properties": {
+                "execution_mode": {
+                    "type": "string",
+                    "enum": ["sequential", "parallel"],
+                    "default": "sequential",
+                    "description": "Execution strategy for multiple tasks. Use 'sequential' (default) unless user explicitly requests parallel execution with words like 'parallel', 'simultaneously', 'at the same time', or 'concurrently'."
+                },
                 "tasks": {
                     "type": "array",
                     "items": {
@@ -26,6 +43,8 @@ pub fn create_sub_recipe_execute_task_tool() -> Tool {
                             },
                             "task_type": {
                                 "type": "string",
+                                "enum": ["sub_recipe", "text_instruction"],
+                                "default": "sub_recipe",
                                 "description": "the type of task to execute, can be one of: sub_recipe, text_instruction"
                             },
                             "payload": {
@@ -88,7 +107,14 @@ pub fn create_sub_recipe_execute_task_tool() -> Tool {
 }
 
 pub async fn run_tasks(execute_data: Value) -> ToolCallResult {
-    match execute_tasks(execute_data).await {
+    let execute_data_clone = execute_data.clone();
+    let default_execution_mode_value = Value::String("sequential".to_string());
+    let execution_mode = execute_data_clone
+        .get("execution_mode")
+        .unwrap_or(&default_execution_mode_value)
+        .as_str()
+        .unwrap_or("sequential");
+    match execute_tasks(execute_data, execution_mode).await {
         Ok(result) => {
             let output = serde_json::to_string(&result).unwrap();
             ToolCallResult::from(Ok(vec![Content::text(output)]))
