@@ -221,6 +221,8 @@ export type MessageContent = (TextContent & {
     type: 'text';
 }) | (ImageContent & {
     type: 'image';
+}) | (EmbeddedResource & {
+    type: 'embeddedResource';
 }) | (ToolRequest & {
     type: 'toolRequest';
 }) | (ToolResponse & {

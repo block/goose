@@ -2,11 +2,40 @@ import React, { useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+} from '../types/message';
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    pendingDiffContent?: string;
+  }
+}
+
+// Helper function to extract diff content from tool response
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!toolResponse) return null;
+  
+  const result = toolResponse.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+  
+  return diffContent !== undefined ? diffContent : null;
+}
+
+// Helper function to check if tool response has diff content
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  return extractDiffContent(toolResponse) !== null;
+}
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -121,6 +150,9 @@ function ToolCallView({
         return true;
     }
   })();
+
+  //extract resource content if present - keeping for backward compatibility
+  // const diffContent = extractDiffContent(toolResponse);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
   const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
@@ -317,19 +349,21 @@ function ToolCallView({
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
-            {(() => {
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center">
+            <Dot size={2} loadingStatus={loadingStatus} />
+            <span className="ml-[10px]">
+              {(() => {
               const description = getToolDescription();
               if (description) {
                 return description;
               }
               // Fallback to the original tool name formatting
               return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
-        </>
+            })()}</span>
+
+          </div>
+        </div>
       }
     >
       {/* Tool Details */}

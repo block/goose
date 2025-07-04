@@ -490,8 +490,8 @@ const createChat = async (
   let working_dir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  if (viewType === 'recipeEditor') {
-    // For recipeEditor, get the port from existing windows' config
+  if (viewType === 'recipeEditor' || viewType === 'diffViewer') {
+    // For recipeEditor and diffViewer, get the port from existing windows' config
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       // Get the config from localStorage through an existing window
@@ -507,9 +507,14 @@ const createChat = async (
         console.error('Failed to get config from localStorage:', e);
       }
     }
-    if (port === 0) {
+    if (port === 0 && viewType === 'recipeEditor') {
       console.error('No existing Goose process found for recipeEditor');
       throw new Error('Cannot create recipeEditor window: No existing Goose process found');
+    }
+    // For diffViewer, we don't need a Goose process, so we can set dummy values
+    if (port === 0 && viewType === 'diffViewer') {
+      port = 1; // Dummy port
+      working_dir = process.cwd(); // Use current working directory
     }
   } else {
     // Apply current environment settings before creating chat
@@ -566,6 +571,10 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
           recipeConfig: recipeConfig,
+          // For diffViewer, extract diffContent from recipeConfig and add it as a separate field
+          ...(viewType === 'diffViewer' && recipeConfig && 'diffContent' in recipeConfig
+            ? { diffContent: recipeConfig.diffContent }
+            : {}),
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -620,6 +629,10 @@ const createChat = async (
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
     recipeConfig: recipeConfig,
+    // For diffViewer, extract diffContent from recipeConfig and add it as a separate field
+    ...(viewType === 'diffViewer' && recipeConfig && 'diffContent' in recipeConfig
+      ? { diffContent: recipeConfig.diffContent }
+      : {}),
   };
 
   // We need to wait for the window to load before we can access localStorage
@@ -1848,6 +1861,90 @@ app.whenReady().then(async () => {
       return true;
     }
     return false;
+  });
+
+  ipcMain.handle('resize-window', async (_event, widthPercentage: number) => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (!focusedWindow) {
+        console.error('No focused window found for resize operation');
+        return false;
+      }
+
+      // Add window state tracking
+      const windowWithState = focusedWindow as BrowserWindow & {
+        originalWidth?: number;
+        isResizing?: boolean;
+        resizePromise?: Promise<void>;
+      };
+
+      // Prevent concurrent resize operations on the same window
+      if (windowWithState.isResizing) {
+        console.log('Window resize already in progress, waiting...');
+        if (windowWithState.resizePromise) {
+          await windowWithState.resizePromise;
+        }
+        return true;
+      }
+
+      // Mark window as being resized
+      windowWithState.isResizing = true;
+
+      const resizePromise = new Promise<void>((resolve, reject) => {
+        try {
+          const [currentWidth, currentHeight] = focusedWindow.getSize();
+
+          if (widthPercentage === 0) {
+            // Reset to original size
+            const originalWidth = windowWithState.originalWidth || currentWidth;
+            console.log(`Resizing window from ${currentWidth}px to original ${originalWidth}px`);
+
+            focusedWindow.setSize(originalWidth, currentHeight, true); // animate = true
+
+            // Clear the stored original width since we're back to original
+            delete windowWithState.originalWidth;
+          } else {
+            // Store original width if not already stored
+            if (!windowWithState.originalWidth) {
+              windowWithState.originalWidth = currentWidth;
+              console.log(`Storing original window width: ${currentWidth}px`);
+            }
+
+            // Calculate new width
+            const newWidth = Math.floor(currentWidth * (1 + widthPercentage / 100));
+            console.log(
+              `Expanding window from ${currentWidth}px to ${newWidth}px (${widthPercentage}% increase)`
+            );
+
+            focusedWindow.setSize(newWidth, currentHeight, true); // animate = true
+          }
+
+          // Give the window time to resize before resolving
+          setTimeout(() => {
+            resolve();
+          }, 100);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      windowWithState.resizePromise = resizePromise;
+
+      try {
+        await resizePromise;
+        return true;
+      } catch (error) {
+        console.error('Error during window resize:', error);
+        return false;
+      } finally {
+        // Clean up resize state
+        windowWithState.isResizing = false;
+        delete windowWithState.resizePromise;
+      }
+    } catch (error) {
+      console.error('Error in resize-window handler:', error);
+      return false;
+    }
   });
 
   // Handle metadata fetching from main process

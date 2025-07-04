@@ -1616,6 +1616,27 @@
           {
             "allOf": [
               {
+                "$ref": "#/components/schemas/EmbeddedResource"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "embeddedResource"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
                 "$ref": "#/components/schemas/ToolRequest"
               },
               {

@@ -23,7 +23,9 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
+import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
+import { useWindowManager } from './hooks/useWindowManager';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
@@ -263,6 +265,8 @@ export default function App() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
+  const [isDiffSidePanelOpen, setIsDiffSidePanelOpen] = useState(false);
+  const [diffSidePanelContent, setDiffSidePanelContent] = useState<string>('');
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
@@ -471,6 +475,55 @@ export default function App() {
     };
   }, []);
 
+  // Handle window resizing when diff panel opens/closes with window manager
+  const { toggleWindow, windowState } = useWindowManager({
+    expandPercentage: 50,
+    maxWidthForExpansion: 900,
+  });
+
+  // Note: isComponentMounted and canExpand are available for future enhancements
+  // They can be used to conditionally render components or provide user feedback
+
+  useEffect(() => {
+    const handleToggleDiffViewer = async () => {
+      // Prevent action if window is already transitioning
+      if (windowState.isTransitioning) {
+        console.log('Window is already transitioning, ignoring diff viewer toggle');
+        return;
+      }
+
+      const currentDiffContent = window.pendingDiffContent;
+      const diffContentMatches = currentDiffContent === diffSidePanelContent;
+
+      setDiffSidePanelContent(currentDiffContent || '');
+
+      try {
+        if (!isDiffSidePanelOpen) {
+          // Always open when closed
+          setIsDiffSidePanelOpen(true);
+          await toggleWindow();
+        } else if (diffContentMatches) {
+          // Close when open and content matches - don't resize window
+          setIsDiffSidePanelOpen(false);
+          // Note: We don't call toggleWindow() here because the window should stay at its current size
+        }
+      } catch (error) {
+        console.error('Failed to toggle window for diff viewer:', error);
+        // Revert UI state on error
+        setIsDiffSidePanelOpen(!isDiffSidePanelOpen);
+      }
+
+      // Clear the pending diff content
+      window.pendingDiffContent = undefined;
+    };
+
+    window.addEventListener('toggle-diff-viewer', handleToggleDiffViewer);
+
+    return () => {
+      window.removeEventListener('toggle-diff-viewer', handleToggleDiffViewer);
+    };
+  }, [isDiffSidePanelOpen, diffSidePanelContent, toggleWindow, windowState.isTransitioning]);
+
   const handleConfirm = async () => {
     if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
@@ -535,9 +588,9 @@ export default function App() {
           onCancel={handleCancel}
         />
       )}
-      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex">
         <div className="titlebar-drag-region" />
-        <div>
+        <div className="flex-1">
           {view === 'loading' && <SuspenseLoader />}
           {view === 'welcome' && (
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
@@ -604,6 +657,24 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* Diff Side Panel */}
+        <DiffSidePanel
+          diffContent={diffSidePanelContent}
+          isOpen={isDiffSidePanelOpen}
+          onClose={async () => {
+            // Prevent action if window is already transitioning
+            if (windowState.isTransitioning) {
+              console.log('Window is transitioning, cannot close diff panel now');
+              return;
+            }
+
+            // Just close the panel - don't resize the window
+            setIsDiffSidePanelOpen(false);
+            // Note: We don't call toggleWindow() here because the window should stay at its current size
+          }}
+          enableActions={false}
+        />
       </div>
       {isGoosehintsModalOpen && (
         <GoosehintsModal

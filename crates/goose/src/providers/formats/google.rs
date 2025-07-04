@@ -111,6 +111,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
 
+                    MessageContent::EmbeddedResource(_) => {
+                        // Skip embedded resources - they are for UI purposes only
+                    }
+
                     _ => {}
                 }
             }
