@@ -7,6 +7,7 @@ import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -104,6 +105,17 @@ const logToString = (logMessage: NotificationEvent) => {
 
 const notificationToProgress = (notification: NotificationEvent): Progress =>
   notification.message.params as unknown as Progress;
+
+// Helper function to extract extension name for tooltip
+const getExtensionTooltip = (toolCallName: string): string | null => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return null;
+  
+  const extensionName = toolCallName.substring(0, lastIndex);
+  if (!extensionName) return null;
+  
+  return `${extensionName} extension`;
+};
 
 function ToolCallView({
   isCancelledMessage,
@@ -277,7 +289,7 @@ function ToolCallView({
         if (args.window_title) {
           return `capturing window "${truncate(getStringValue(args.window_title))}"`;
         }
-        return 'capturing screen';
+        return `capturing screen`;
 
       case 'automation_script':
         if (args.language) {
@@ -289,28 +301,37 @@ function ToolCallView({
         return 'final output';
 
       case 'computer_control':
-        return 'poking around...';
+        return `poking around...`;
 
       default: {
-        // Fallback to showing key parameters for unknown tools
+        // Generic fallback for unknown tools: ToolName + CompactArguments
+        // This ensures any MCP tool works without explicit handling
+        const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        if (entries.length === 0) return null;
+        
+        if (entries.length === 0) {
+          return `${toolDisplayName}`;
+        }
 
         // For a single parameter, show key and truncated value
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
           const truncatedValue = truncate(stringValue, 30);
-          return `${key}: ${truncatedValue}`;
+          return `${toolDisplayName} ${key}: ${truncatedValue}`;
         }
 
-        // For multiple parameters, just show the keys
-        return entries.map(([key]) => key).join(', ');
+        // For multiple parameters, show tool name and keys
+        const keys = entries.map(([key]) => key).join(', ');
+        return `${toolDisplayName} ${keys}`;
       }
     }
 
     return null;
   };
+
+  // Get extension tooltip for the current tool
+  const extensionTooltip = getExtensionTooltip(toolCall.name);
 
   return (
     <ToolCallExpandable
@@ -319,16 +340,31 @@ function ToolCallView({
       label={
         <>
           <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
-            {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback to the original tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
+          {extensionTooltip ? (
+            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+              <span className="ml-[10px] cursor-pointer hover:opacity-80">
+                {(() => {
+                  const description = getToolDescription();
+                  if (description) {
+                    return description;
+                  }
+                  // Fallback tool name formatting
+                  return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+                })()}
+              </span>
+            </TooltipWrapper>
+          ) : (
+            <span className="ml-[10px]">
+              {(() => {
+                const description = getToolDescription();
+                if (description) {
+                  return description;
+                }
+                // Fallback tool name formatting
+                return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+              })()}
+            </span>
+          )}
         </>
       }
     >
