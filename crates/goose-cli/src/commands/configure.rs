@@ -844,7 +844,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            let add_env = cliclack::confirm("Would you like to add environment variables?").interact()?;
+            let add_env = false; // No env prompt for Streaming HTTP
 
             let mut envs = HashMap::new();
             let mut env_keys = Vec::new();
