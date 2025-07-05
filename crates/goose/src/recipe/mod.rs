@@ -265,10 +265,18 @@ impl Recipe {
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        if serde_json::from_str::<serde_json::Value>(content).is_ok() {
-            Ok(serde_json::from_str(content)?)
-        } else if serde_yaml::from_str::<serde_yaml::Value>(content).is_ok() {
-            Ok(serde_yaml::from_str(content)?)
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+            if let Some(nested_recipe) = json_value.get("recipe") {
+                Ok(serde_json::from_value(nested_recipe.clone())?)
+            } else {
+                Ok(serde_json::from_str(content)?)
+            }
+        } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+            if let Some(nested_recipe) = yaml_value.get("recipe") {
+                Ok(serde_yaml::from_value(nested_recipe.clone())?)
+            } else {
+                Ok(serde_yaml::from_str(content)?)
+            }
         } else {
             Err(anyhow::anyhow!(
                 "Unsupported format. Expected JSON or YAML."
@@ -620,5 +628,35 @@ sub_recipes:
         assert!(recipe.activities.is_some());
         let activities = recipe.activities.unwrap();
         assert_eq!(activities, vec!["activity1", "activity2"]);
+    }
+
+    #[test]
+    fn test_from_content_with_nested_recipe_yaml() {
+        let content = r#"name: test_recipe
+recipe:
+  title: Nested Recipe Test
+  description: A test recipe with nested structure
+  instructions: Test instructions for nested recipe
+  activities:
+    - Test activity 1
+    - Test activity 2
+  prompt: Test prompt
+  extensions: []
+isGlobal: true"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.title, "Nested Recipe Test");
+        assert_eq!(recipe.description, "A test recipe with nested structure");
+        assert_eq!(
+            recipe.instructions,
+            Some("Test instructions for nested recipe".to_string())
+        );
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+        assert!(recipe.activities.is_some());
+        let activities = recipe.activities.unwrap();
+        assert_eq!(activities, vec!["Test activity 1", "Test activity 2"]);
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 0);
     }
 }
