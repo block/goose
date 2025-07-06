@@ -1,6 +1,6 @@
+use crate::keyring::{KeyringBackend, SystemKeyringBackend};
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use fs2::FileExt;
-use keyring::Entry;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
@@ -9,7 +9,9 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::runtime::Runtime;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
@@ -22,6 +24,11 @@ const KEYRING_USERNAME: &str = "secrets";
 
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
+
+// Shared runtime for sync wrapper operations
+static ASYNC_RUNTIME: Lazy<Runtime> = Lazy::new(|| {
+    Runtime::new().expect("Failed to create tokio runtime for config operations")
+});
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -106,6 +113,7 @@ impl From<keyring::Error> for ConfigError {
 pub struct Config {
     config_path: PathBuf,
     secrets: SecretStorage,
+    keyring: Arc<dyn KeyringBackend>,
 }
 
 enum SecretStorage {
@@ -118,6 +126,13 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
+        Self::with_keyring(Arc::new(SystemKeyringBackend))
+    }
+}
+
+impl Config {
+    /// Create a new configuration instance with a custom keyring backend
+    pub fn with_keyring(keyring: Arc<dyn KeyringBackend>) -> Self {
         // choose_app_strategy().config_dir()
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
@@ -137,14 +152,14 @@ impl Default for Config {
                 service: KEYRING_SERVICE.to_string(),
             },
         };
+
         Config {
             config_path,
             secrets,
+            keyring,
         }
     }
-}
 
-impl Config {
     /// Get the global configuration instance.
     ///
     /// This will initialize the configuration with the default path (~/.config/goose/config.yaml)
@@ -163,6 +178,7 @@ impl Config {
             secrets: SecretStorage::Keyring {
                 service: service.to_string(),
             },
+            keyring: Arc::new(SystemKeyringBackend),
         })
     }
 
@@ -179,6 +195,7 @@ impl Config {
             secrets: SecretStorage::File {
                 path: secrets_path.as_ref().to_path_buf(),
             },
+            keyring: Arc::new(SystemKeyringBackend),
         })
     }
 
@@ -476,19 +493,46 @@ impl Config {
         Ok(())
     }
 
+    // Helper function to execute async keyring operations in sync context
+    fn execute_async<F, T>(&self, future: F) -> Result<T, ConfigError>
+    where
+        F: std::future::Future<Output = Result<T, ConfigError>>,
+    {
+        // Try to use current runtime first (for better performance in async contexts)
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(future)
+        } else {
+            // Use shared runtime for sync contexts
+            ASYNC_RUNTIME.block_on(future)
+        }
+    }
+
     // Load current secrets from the keyring
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
+        self.execute_async(self.load_secrets_async())
+    }
+
+    // Load current secrets from the keyring (async version)
+    pub async fn load_secrets_async(&self) -> Result<HashMap<String, Value>, ConfigError> {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-
-                match entry.get_password() {
+                match self.keyring.get_password(service, KEYRING_USERNAME).await {
                     Ok(content) => {
                         let values: HashMap<String, Value> = serde_json::from_str(&content)?;
                         Ok(values)
                     }
-                    Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-                    Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+                    Err(e) => {
+                        // Check if it's a "not found" error
+                        if let Some(keyring_err) = e.downcast_ref::<crate::keyring::KeyringError>() {
+                            match keyring_err {
+                                crate::keyring::KeyringError::NotFound { .. } => Ok(HashMap::new()),
+                                _ => Err(ConfigError::KeyringError(e.to_string())),
+                            }
+                        } else {
+                            // For other error types, propagate them
+                            Err(ConfigError::KeyringError(e.to_string()))
+                        }
+                    }
                 }
             }
             SecretStorage::File { path } => {
@@ -651,14 +695,21 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
     pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets()?;
+        self.execute_async(self.set_secret_async(key, value))
+    }
+
+    /// Set a secret value in the system keyring (async version).
+    pub async fn set_secret_async(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+        let mut values = self.load_secrets_async().await?;
         values.insert(key.to_string(), value);
 
         match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let json_value = serde_json::to_string(&values)?;
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-                entry.set_password(&json_value)?;
+                self.keyring
+                    .set_password(service, KEYRING_USERNAME, &json_value)
+                    .await
+                    .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
@@ -679,14 +730,21 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the remaining values
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets()?;
+        self.execute_async(self.delete_secret_async(key))
+    }
+
+    /// Delete a secret from the system keyring (async version).
+    pub async fn delete_secret_async(&self, key: &str) -> Result<(), ConfigError> {
+        let mut values = self.load_secrets_async().await?;
         values.remove(key);
 
         match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let json_value = serde_json::to_string(&values)?;
-                let entry = Entry::new(service, KEYRING_USERNAME)?;
-                entry.set_password(&json_value)?;
+                self.keyring
+                    .set_password(service, KEYRING_USERNAME, &json_value)
+                    .await
+                    .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
             }
             SecretStorage::File { path } => {
                 let yaml_value = serde_yaml::to_string(&values)?;
@@ -758,7 +816,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry = Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
+        let entry = keyring::Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
         match entry.delete_credential() {
             Ok(_) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()),
@@ -903,6 +961,45 @@ mod tests {
     }
 
     #[test]
+    fn test_secret_management_with_mock() -> Result<(), ConfigError> {
+        use crate::keyring::MockKeyringBackend;
+
+        // Save and remove GOOSE_DISABLE_KEYRING to ensure we use the mock keyring
+        let saved_disable = env::var("GOOSE_DISABLE_KEYRING").ok();
+        env::remove_var("GOOSE_DISABLE_KEYRING");
+
+        let mock_keyring = Arc::new(MockKeyringBackend::new());
+        let config = Config::with_keyring(mock_keyring.clone());
+
+        // Test setting and getting a simple secret
+        config.set_secret("api_key", Value::String("secret123".to_string()))?;
+        let value: String = config.get_secret("api_key")?;
+        assert_eq!(value, "secret123");
+
+        // Verify it's in the mock keyring
+        assert!(mock_keyring.contains("goose", "secrets"));
+
+        // Test environment variable override
+        std::env::set_var("API_KEY", "env_secret");
+        let value: String = config.get_secret("api_key")?;
+        assert_eq!(value, "env_secret");
+        std::env::remove_var("API_KEY");
+
+        // Test deleting a secret
+        config.delete_secret("api_key")?;
+        let result: Result<String, ConfigError> = config.get_secret("api_key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        // Restore GOOSE_DISABLE_KEYRING
+        match saved_disable {
+            Some(val) => env::set_var("GOOSE_DISABLE_KEYRING", val),
+            None => env::remove_var("GOOSE_DISABLE_KEYRING"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
     #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
         cleanup_keyring()?;
@@ -929,6 +1026,131 @@ mod tests {
         assert_eq!(value2, "secret2");
 
         cleanup_keyring()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiple_secrets_with_mock() -> Result<(), ConfigError> {
+        use crate::keyring::MockKeyringBackend;
+
+        // Save and remove GOOSE_DISABLE_KEYRING to ensure we use the mock keyring
+        let saved_disable = env::var("GOOSE_DISABLE_KEYRING").ok();
+        env::remove_var("GOOSE_DISABLE_KEYRING");
+
+        let mock_keyring = Arc::new(MockKeyringBackend::new());
+        let config = Config::with_keyring(mock_keyring.clone());
+
+        // Set multiple secrets
+        config.set_secret("key1", Value::String("secret1".to_string()))?;
+        config.set_secret("key2", Value::String("secret2".to_string()))?;
+
+        // Verify both exist
+        let value1: String = config.get_secret("key1")?;
+        let value2: String = config.get_secret("key2")?;
+        assert_eq!(value1, "secret1");
+        assert_eq!(value2, "secret2");
+
+        // Delete one secret
+        config.delete_secret("key1")?;
+
+        // Verify key1 is gone but key2 remains
+        let result1: Result<String, ConfigError> = config.get_secret("key1");
+        let value2: String = config.get_secret("key2")?;
+        assert!(matches!(result1, Err(ConfigError::NotFound(_))));
+        assert_eq!(value2, "secret2");
+
+        // Restore GOOSE_DISABLE_KEYRING
+        match saved_disable {
+            Some(val) => env::set_var("GOOSE_DISABLE_KEYRING", val),
+            None => env::remove_var("GOOSE_DISABLE_KEYRING"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_keyring_error_propagation() -> Result<(), ConfigError> {
+        use crate::keyring::{KeyringBackend, KeyringError};
+        use async_trait::async_trait;
+
+        // Create a failing keyring that returns backend errors
+        struct FailingKeyring;
+        
+        #[async_trait]
+        impl KeyringBackend for FailingKeyring {
+            async fn get_password(&self, _: &str, _: &str) -> anyhow::Result<String> {
+                Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
+            }
+            async fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
+                Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
+            }
+            async fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
+                Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
+            }
+        }
+
+        // Save and remove GOOSE_DISABLE_KEYRING to ensure we use the failing keyring
+        let saved_disable = env::var("GOOSE_DISABLE_KEYRING").ok();
+        env::remove_var("GOOSE_DISABLE_KEYRING");
+
+        let failing_keyring = Arc::new(FailingKeyring);
+        let config = Config::with_keyring(failing_keyring);
+
+        // This should return an error, not an empty HashMap
+        let result = config.load_secrets();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Keyring service unavailable"));
+
+        // Restore GOOSE_DISABLE_KEYRING
+        match saved_disable {
+            Some(val) => env::set_var("GOOSE_DISABLE_KEYRING", val),
+            None => env::remove_var("GOOSE_DISABLE_KEYRING"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_keyring_not_found_returns_empty() -> Result<(), ConfigError> {
+        use crate::keyring::{KeyringBackend, KeyringError};
+        use async_trait::async_trait;
+
+        // Create a keyring that always returns NotFound
+        struct NotFoundKeyring;
+        
+        #[async_trait]
+        impl KeyringBackend for NotFoundKeyring {
+            async fn get_password(&self, service: &str, username: &str) -> anyhow::Result<String> {
+                Err(KeyringError::NotFound {
+                    service: service.to_string(),
+                    username: username.to_string(),
+                }.into())
+            }
+            async fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        // Save and remove GOOSE_DISABLE_KEYRING to ensure we use the not-found keyring
+        let saved_disable = env::var("GOOSE_DISABLE_KEYRING").ok();
+        env::remove_var("GOOSE_DISABLE_KEYRING");
+
+        let not_found_keyring = Arc::new(NotFoundKeyring);
+        let config = Config::with_keyring(not_found_keyring);
+
+        // This should return an empty HashMap, not an error
+        let result = config.load_secrets()?;
+        assert_eq!(result.len(), 0);
+
+        // Restore GOOSE_DISABLE_KEYRING
+        match saved_disable {
+            Some(val) => env::set_var("GOOSE_DISABLE_KEYRING", val),
+            None => env::remove_var("GOOSE_DISABLE_KEYRING"),
+        }
+
         Ok(())
     }
 
