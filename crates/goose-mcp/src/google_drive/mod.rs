@@ -161,12 +161,21 @@ impl GoogleDriveRouter {
             Err(_) => false,
         };
 
+        // Create the appropriate keyring backend based on environment
+        let keyring: Arc<dyn goose::keyring::KeyringBackend> =
+            if std::env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+                Arc::new(goose::keyring::MockKeyringBackend::new())
+            } else {
+                Arc::new(goose::keyring::SystemKeyringBackend)
+            };
+
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(
             credentials_path.clone(),
             fallback_to_disk,
             KEYCHAIN_SERVICE.to_string(),
             KEYCHAIN_USERNAME.to_string(),
+            keyring,
         ));
 
         // Read the OAuth credentials from the keyfile
