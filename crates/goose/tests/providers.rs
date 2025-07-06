@@ -254,11 +254,102 @@ impl ProviderTester {
         Ok(())
     }
 
+    async fn test_image_content_support(&self) -> Result<()> {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+        use mcp_core::content::ImageContent;
+        use std::fs;
+
+        // Try to read the test image
+        let image_path = "crates/goose/examples/test_assets/test_image.png";
+        let image_data = match fs::read(image_path) {
+            Ok(data) => data,
+            Err(_) => {
+                println!(
+                    "Test image not found at {}, skipping image test",
+                    image_path
+                );
+                return Ok(());
+            }
+        };
+
+        let base64_image = BASE64.encode(image_data);
+        let image_content = ImageContent {
+            data: base64_image,
+            mime_type: "image/png".to_string(),
+            annotations: None,
+        };
+
+        // Test 1: Direct image message
+        let message_with_image =
+            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());
+
+        let result = self
+            .provider
+            .complete(
+                "You are a helpful assistant. Describe what you see in the image briefly.",
+                &[message_with_image],
+                &[],
+            )
+            .await;
+
+        println!("=== {}::image_content_support ===", self.name);
+        let (response, _) = result?;
+        println!("Image response: {:?}", response);
+        // Verify we got a text response
+        assert!(
+            response
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::Text(_))),
+            "Expected text response for image"
+        );
+        println!("===================");
+
+        // Test 2: Tool response with image (this should be handled gracefully)
+        let screenshot_tool = Tool::new(
+            "get_screenshot",
+            "Get a screenshot of the current screen",
+            serde_json::json!({
+                "type": "object",
+                "properties": {}
+            }),
+            None,
+        );
+
+        let user_message = Message::user().with_text("Take a screenshot please");
+        let tool_request = Message::assistant().with_tool_request(
+            "test_id",
+            Ok(mcp_core::tool::ToolCall::new(
+                "get_screenshot",
+                serde_json::json!({}),
+            )),
+        );
+        let tool_response =
+            Message::user().with_tool_response("test_id", Ok(vec![Content::Image(image_content)]));
+
+        let result2 = self
+            .provider
+            .complete(
+                "You are a helpful assistant.",
+                &[user_message, tool_request, tool_response],
+                &[screenshot_tool],
+            )
+            .await;
+
+        println!("=== {}::tool_image_response ===", self.name);
+        let (response, _) = result2?;
+        println!("Tool image response: {:?}", response);
+        println!("===================");
+
+        Ok(())
+    }
+
     /// Run all provider tests
     async fn run_test_suite(&self) -> Result<()> {
         self.test_basic_response().await?;
         self.test_tool_usage().await?;
         self.test_context_length_exceeded_error().await?;
+        self.test_image_content_support().await?;
         Ok(())
     }
 }
