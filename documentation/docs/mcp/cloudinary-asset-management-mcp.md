@@ -6,7 +6,7 @@ description: Add Cloudinary Asset Management MCP Server as a Goose Extension for
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary-community/cloudinary-mcp) as a Goose extension for powerful media processing, transformation, and management capabilities.
+This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary-community/cloudinary-mcp) as a Goose extension for managing, processing, and transforming media.
 
 :::tip TLDR
 
@@ -17,13 +17,13 @@ This tutorial covers how to add the [Cloudinary Asset Management MCP Server](htt
   <TabItem value="cli" label="Goose CLI">
   **Command**
   ```sh
-  npx -y @cloudinary/mcp-server
+  npx -y --package @cloudinary/asset-management -- mcp start
   ```
   </TabItem>
 </Tabs>
   **Environment Variable**
   ```
-  CLOUDINARY_URL: <YOUR_CLOUDINARY_URL>
+  CLOUDINARY_URL: cloudinary://<api_key>:<api_secret>@<cloud_name>
   ```
 :::
 
