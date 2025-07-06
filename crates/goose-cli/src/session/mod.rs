@@ -15,6 +15,7 @@ use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
+use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
@@ -993,7 +994,7 @@ impl Session {
                                                                 // High/Medium verbosity: show truncated response
                                                                 if let Some(response_content) = msg.strip_prefix("Responded: ") {
                                                                     if response_content.len() > 100 {
-                                                                        format!("🤖 Responded: {}...", &response_content[..100])
+                                                                        format!("🤖 Responded: {}", safe_truncate(response_content, 100))
                                                                     } else {
                                                                         format!("🤖 {}", msg)
                                                                     }

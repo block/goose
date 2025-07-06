@@ -1,4 +1,5 @@
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::utils::safe_truncate;
 use mcp_core::content::Content as McpContent;
 use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
@@ -11,7 +12,7 @@ fn value_to_simple_markdown_string(value: &Value, export_full_strings: bool) -> 
     match value {
         Value::String(s) => {
             if !export_full_strings && s.len() > MAX_STRING_LENGTH_MD_EXPORT {
-                let prefix = &s[..REDACTED_PREFIX_LENGTH.min(s.len())];
+                let prefix = safe_truncate(s, REDACTED_PREFIX_LENGTH);
                 let trimmed_chars = s.len() - prefix.len();
                 format!("`{}[ ... trimmed : {} chars ... ]`", prefix, trimmed_chars)
             } else {

@@ -1,4 +1,3 @@
-/// Utility functions for safe string handling and other common operations
 /// Safely truncate a string at character boundaries, not byte boundaries
 ///
 /// This function ensures that multi-byte UTF-8 characters (like Japanese, emoji, etc.)
