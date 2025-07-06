@@ -180,6 +180,39 @@ mod tests {
     use mcp_core::{content::TextContent, Role};
     use std::env;
 
+    /// Helper to save and restore environment variables for testing
+    struct EnvVarGuard {
+        saved_vars: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn new(var_names: &[&'static str]) -> Self {
+            let saved_vars = var_names
+                .iter()
+                .map(|&name| (name, env::var(name).ok()))
+                .collect();
+            Self { saved_vars }
+        }
+
+        fn clear_all(&self) {
+            for (key, _) in &self.saved_vars {
+                env::remove_var(key);
+            }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            // Restore all env vars
+            for (key, value) in &self.saved_vars {
+                match value {
+                    Some(val) => env::set_var(key, val),
+                    None => env::remove_var(key),
+                }
+            }
+        }
+    }
+
     #[allow(dead_code)]
     #[derive(Clone)]
     struct MockTestProvider {
@@ -230,15 +263,13 @@ mod tests {
 
     #[test]
     fn test_create_lead_worker_provider() {
-        // Save current env vars
-        let saved_vars = [
-            ("GOOSE_LEAD_MODEL", env::var("GOOSE_LEAD_MODEL").ok()),
-            ("GOOSE_LEAD_PROVIDER", env::var("GOOSE_LEAD_PROVIDER").ok()),
-            ("GOOSE_LEAD_TURNS", env::var("GOOSE_LEAD_TURNS").ok()),
-            ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
-            ("ANTHROPIC_API_KEY", env::var("ANTHROPIC_API_KEY").ok()),
-        ];
-
+        let _guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ]);
 
         // Set fake API keys to avoid keychain access
         env::set_var("OPENAI_API_KEY", "fake-test-key");
@@ -275,37 +306,22 @@ mod tests {
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
         // Similar validation as above - confirms the logic path
 
-        // Restore all env vars
-        for (key, value) in saved_vars {
-            match value {
-                Some(val) => env::set_var(key, val),
-                None => env::remove_var(key),
-            }
-        }
+        // EnvVarGuard will automatically restore all env vars when dropped
     }
 
     #[test]
     fn test_lead_model_env_vars_with_defaults() {
-        // Save current env vars including API keys
-        let saved_vars = [
-            ("GOOSE_LEAD_MODEL", env::var("GOOSE_LEAD_MODEL").ok()),
-            ("GOOSE_LEAD_PROVIDER", env::var("GOOSE_LEAD_PROVIDER").ok()),
-            ("GOOSE_LEAD_TURNS", env::var("GOOSE_LEAD_TURNS").ok()),
-            (
-                "GOOSE_LEAD_FAILURE_THRESHOLD",
-                env::var("GOOSE_LEAD_FAILURE_THRESHOLD").ok(),
-            ),
-            (
-                "GOOSE_LEAD_FALLBACK_TURNS",
-                env::var("GOOSE_LEAD_FALLBACK_TURNS").ok(),
-            ),
-            ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
-        ];
+        let guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "GOOSE_LEAD_FAILURE_THRESHOLD",
+            "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
+        ]);
 
         // Clear all lead env vars
-        for (key, _) in &saved_vars {
-            env::remove_var(key);
-        }
+        guard.clear_all();
 
         // Set fake API key to avoid keychain access
         env::set_var("OPENAI_API_KEY", "fake-test-key");
@@ -342,39 +358,22 @@ mod tests {
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
         // Should still attempt to create lead/worker provider with custom settings
 
-        // Restore all env vars
-        for (key, value) in saved_vars {
-            match value {
-                Some(val) => env::set_var(key, val),
-                None => env::remove_var(key),
-            }
-        }
+        // EnvVarGuard will automatically restore all env vars when dropped
     }
 
     #[test]
     fn test_create_regular_provider_without_lead_config() {
-        // Save current env vars including API key
-        let saved_vars = [
-            ("GOOSE_LEAD_MODEL", env::var("GOOSE_LEAD_MODEL").ok()),
-            ("GOOSE_LEAD_PROVIDER", env::var("GOOSE_LEAD_PROVIDER").ok()),
-            ("GOOSE_LEAD_TURNS", env::var("GOOSE_LEAD_TURNS").ok()),
-            (
-                "GOOSE_LEAD_FAILURE_THRESHOLD",
-                env::var("GOOSE_LEAD_FAILURE_THRESHOLD").ok(),
-            ),
-            (
-                "GOOSE_LEAD_FALLBACK_TURNS",
-                env::var("GOOSE_LEAD_FALLBACK_TURNS").ok(),
-            ),
-            ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
-        ];
+        let guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "GOOSE_LEAD_FAILURE_THRESHOLD",
+            "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
+        ]);
 
         // Ensure all GOOSE_LEAD_* variables are not set
-        env::remove_var("GOOSE_LEAD_MODEL");
-        env::remove_var("GOOSE_LEAD_PROVIDER");
-        env::remove_var("GOOSE_LEAD_TURNS");
-        env::remove_var("GOOSE_LEAD_FAILURE_THRESHOLD");
-        env::remove_var("GOOSE_LEAD_FALLBACK_TURNS");
+        guard.clear_all();
 
         // Set fake API key to avoid keychain access
         env::set_var("OPENAI_API_KEY", "fake-test-key");
@@ -399,13 +398,7 @@ mod tests {
             }
         }
 
-        // Restore all env vars
-        for (key, value) in saved_vars {
-            match value {
-                Some(val) => env::set_var(key, val),
-                None => env::remove_var(key),
-            }
-        }
+        // EnvVarGuard will automatically restore all env vars when dropped
     }
 
     #[test]

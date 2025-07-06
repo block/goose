@@ -43,17 +43,18 @@ impl FileKeyringBackend {
         let mut json_map = serde_json::Map::new();
         for (key, value) in secrets {
             // Try to parse as JSON first, fall back to string
-            let json_value = serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.clone()));
+            let json_value =
+                serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.clone()));
             json_map.insert(key.clone(), json_value);
         }
-        
+
         let yaml_value = serde_yaml::to_string(&json_map)?;
-        
+
         // Ensure parent directory exists
         if let Some(parent) = self.secrets_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         std::fs::write(&self.secrets_path, yaml_value)?;
         Ok(())
     }
@@ -67,7 +68,7 @@ impl KeyringBackend for FileKeyringBackend {
     fn get_password(&self, service: &str, username: &str) -> Result<String> {
         let key = Self::make_key(service, username);
         let secrets = self.load_all_secrets()?;
-        
+
         secrets.get(&key).cloned().ok_or_else(|| {
             KeyringError::NotFound {
                 service: service.to_string(),
@@ -226,11 +227,12 @@ mod tests {
         let backend = FileKeyringBackend::new(temp_file.path().to_path_buf());
 
         // Test storing JSON content as password
-        let json_password = r#"{"access_token":"abc123","refresh_token":"def456","expires_in":3600}"#;
+        let json_password =
+            r#"{"access_token":"abc123","refresh_token":"def456","expires_in":3600}"#;
         backend.set_password("oauth_service", "user", json_password)?;
-        
+
         let retrieved = backend.get_password("oauth_service", "user")?;
-        
+
         // Parse both as JSON to compare content regardless of key order
         let original: serde_json::Value = serde_json::from_str(json_password).unwrap();
         let retrieved_parsed: serde_json::Value = serde_json::from_str(&retrieved).unwrap();

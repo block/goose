@@ -108,7 +108,9 @@ impl CredentialsManager {
     where
         T: DeserializeOwned,
     {
-        let json_str = self.keyring.get_password(&self.keychain_service, &self.keychain_username)
+        let json_str = self
+            .keyring
+            .get_password(&self.keychain_service, &self.keychain_username)
             .inspect(|_| {
                 debug!("Successfully read credentials from keychain");
             })
@@ -211,7 +213,8 @@ impl CredentialsManager {
     {
         let json_str = serde_json::to_string(content).map_err(StorageError::SerializationError)?;
 
-        self.keyring.set_password(&self.keychain_service, &self.keychain_username, &json_str)
+        self.keyring
+            .set_password(&self.keychain_service, &self.keychain_username, &json_str)
             .inspect(|_| {
                 debug!("Successfully wrote credentials to keychain");
             })

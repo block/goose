@@ -24,7 +24,6 @@ const KEYRING_USERNAME: &str = "secrets";
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
 
-
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Configuration value not found: {0}")]
@@ -119,7 +118,7 @@ impl Default for Config {
         let config_dir = choose_app_strategy(APP_STRATEGY.clone())
             .expect("goose requires a home dir")
             .config_dir();
-        
+
         let keyring: Arc<dyn KeyringBackend> = if env::var("GOOSE_DISABLE_KEYRING").is_ok() {
             Arc::new(FileKeyringBackend::new(config_dir.join("secrets.yaml")))
         } else {
@@ -480,7 +479,10 @@ impl Config {
     }
 
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        match self.keyring.get_password(&self.keyring_service, KEYRING_USERNAME) {
+        match self
+            .keyring
+            .get_password(&self.keyring_service, KEYRING_USERNAME)
+        {
             Ok(content) => {
                 let values: HashMap<String, Value> = serde_json::from_str(&content)?;
                 Ok(values)
@@ -497,8 +499,6 @@ impl Config {
             }
         }
     }
-    
-
 
     // check all possible places for a parameter
     pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
@@ -652,8 +652,6 @@ impl Config {
             .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
         Ok(())
     }
-    
-
 
     /// Delete a secret from the system keyring.
     ///
@@ -674,8 +672,6 @@ impl Config {
             .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
         Ok(())
     }
-    
-
 }
 
 /// Load init-config.yaml from workspace root if it exists.

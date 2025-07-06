@@ -6,7 +6,6 @@ pub trait KeyringBackend: Send + Sync {
     fn delete_password(&self, service: &str, username: &str) -> Result<()>;
 }
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum KeyringError {
     #[error("No entry found for service '{service}' user '{username}'")]
