@@ -89,7 +89,7 @@ impl CredentialsManager {
     /// }
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let keyring = Arc::new(SystemKeyringBackend::new());
+    /// let keyring = Arc::new(SystemKeyringBackend);
     /// let manager = CredentialsManager::new(
     ///     String::from("/path/to/credentials.json"),
     ///     true,  // fallback to disk if keychain fails
@@ -194,7 +194,7 @@ impl CredentialsManager {
     ///     expiry: 1672531200, // Unix timestamp
     /// };
     ///
-    /// let keyring = Arc::new(SystemKeyringBackend::new());
+    /// let keyring = Arc::new(SystemKeyringBackend);
     /// let manager = CredentialsManager::new(
     ///     String::from("/path/to/credentials.json"),
     ///     true,  // fallback to disk if keychain fails

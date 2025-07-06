@@ -497,13 +497,8 @@ impl Config {
     where
         F: std::future::Future<Output = Result<T, ConfigError>>,
     {
-        // Try to use current runtime first (for better performance in async contexts)
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.block_on(future)
-        } else {
-            // Use shared runtime for sync contexts
-            ASYNC_RUNTIME.block_on(future)
-        }
+        // Always use shared runtime to avoid nested runtime issues
+        ASYNC_RUNTIME.block_on(future)
     }
 
     // Load current secrets from the keyring
