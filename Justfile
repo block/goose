@@ -185,6 +185,11 @@ test:
 # Run linting checks across all crates
 lint:
     @echo "Running linting checks..."
+    cargo clippy --workspace --all-features -- -D warnings
+
+# Run comprehensive linting checks (includes tests, examples, benchmarks)
+lint-all:
+    @echo "Running comprehensive linting checks..."
     cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Format code across all crates
@@ -377,16 +382,16 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### Build the core code
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
-win-bld profile allparam: 
+win-bld profile allparam:
   cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug
-win-bld-dbg: 
+win-bld-dbg:
   just win-bld " " " "
 
 ### Build debug and test, examples,...
-win-bld-dbg-all: 
+win-bld-dbg-all:
   just win-bld " " "--workspace --all-targets --all-features"
 
 ### Build just release
@@ -449,8 +454,8 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-### Build and run the Kotlin example with 
-### auto-generated bindings for goose-llm 
+### Build and run the Kotlin example with
+### auto-generated bindings for goose-llm
 kotlin-example:
     # Build Rust dylib and generate Kotlin bindings
     cargo build -p goose-llm
