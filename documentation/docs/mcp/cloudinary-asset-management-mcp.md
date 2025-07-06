@@ -6,7 +6,7 @@ description: Add Cloudinary Asset Management MCP Server as a Goose Extension for
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary-community/cloudinary-mcp) as a Goose extension for managing, processing, and transforming media.
+This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary-community/cloudinary-mcp) as a Goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
 
 :::tip TLDR
 
@@ -23,14 +23,14 @@ This tutorial covers how to add the [Cloudinary Asset Management MCP Server](htt
 </Tabs>
   **Environment Variable**
   ```
-  CLOUDINARY_URL: cloudinary://<api_key>:<api_secret>@<cloud_name>
+  CLOUDINARY_URL: cloudinary://<your_api_key>:<your_api_secret>@<your_cloud_name>
   ```
 :::
 
 ## Configuration
 
 :::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`. You'll also need a [Cloudinary account](https://cloudinary.com/users/register/free) - the free tier includes generous limits for experimentation.
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`. You'll also need a [Cloudinary account](https://cloudinary.com/users/register/free).
 :::
 
 <Tabs groupId="interface">
@@ -95,7 +95,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y @cloudinary/mcp-server
+    │  npx -y --package @cloudinary/asset-management -- mcp start
     // highlight-end
     └ 
   ```  
@@ -114,7 +114,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  cloudinary
     │
     ◇  What command should be run?
-    │  npx -y @cloudinary/mcp-server
+    │  npx -y --package @cloudinary/asset-management -- mcp start
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -137,7 +137,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  cloudinary
     │
     ◇  What command should be run?
-    │  npx -y @cloudinary/mcp-server
+    │  npx -y --package @cloudinary/asset-management -- mcp start
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -165,7 +165,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  cloudinary
     │
     ◇  What command should be run?
-    │  npx -y @cloudinary/mcp-server
+    │  npx -y --package @cloudinary/asset-management -- mcp start
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300
@@ -181,7 +181,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  CLOUDINARY_URL
     │
     ◇  Environment variable value:
-    │  cloudinary://api_key:api_secret@cloud_name
+    │  cloudinary://<your_api_key>:<your_api_secret>@<your_cloud_name>
     │
     ◇  Add another environment variable?
     │  No 
@@ -202,7 +202,7 @@ Let's use the Cloudinary extension to find and transform product images with adv
 4. Create professional product imagery
 
 :::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
+Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 <Tabs groupId="interface">
@@ -282,47 +282,4 @@ The transformed image now has:
 You can click on the transformed URL to see the final result!
 ```
 
-### Key Features Demonstrated
 
-This example showcases several powerful Cloudinary capabilities:
-
-**Asset Discovery**
-- Search through media libraries using filename and public ID patterns
-- Filter by folders and asset types
-- Access comprehensive asset metadata
-
-**Advanced Transformations**
-- **AI-powered background removal** - Automatically isolate subjects from backgrounds
-- **Dynamic text overlays** - Add customizable text with precise positioning, fonts, and colors
-- **Background replacement** - Apply solid colors or gradient backgrounds
-- **Chained transformations** - Combine multiple effects in a single URL
-
-**Professional Results**
-- Generate production-ready images programmatically
-- Maintain image quality through optimized processing
-- Create consistent branding across asset libraries
-
-### Transformation Syntax
-
-The Cloudinary transformation URL follows this pattern:
-```
-https://res.cloudinary.com/{cloud_name}/image/upload/{transformations}/{public_id}
-```
-
-Common transformations include:
-- `e_background_removal` - AI background removal
-- `b_black` - Black background
-- `l_text:font_size:text,color,gravity,offset` - Text overlays
-- `w_400,h_300,c_fill` - Resize and crop
-- `q_auto,f_auto` - Automatic quality and format optimization
-
-### Use Cases
-
-The Cloudinary extension is perfect for:
-- **E-commerce product imagery** - Remove backgrounds, add branding, standardize formats
-- **Social media content** - Create consistent branded visuals at scale
-- **Marketing materials** - Generate variations of images for different campaigns
-- **Content management** - Organize and transform media assets programmatically
-- **Web optimization** - Automatically optimize images for different devices and browsers
-
-With Goose and Cloudinary, you can automate complex image processing workflows that would typically require specialized design software or manual editing.
