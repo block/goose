@@ -177,6 +177,28 @@ run-server:
     @echo "Running server..."
     cargo run -p goose-server
 
+# Run tests across all crates with keyring disabled
+test:
+    @echo "Running tests with keyring disabled..."
+    GOOSE_DISABLE_KEYRING=1 cargo test --workspace
+
+# Run linting checks across all crates
+lint:
+    @echo "Running linting checks..."
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# Format code across all crates
+format:
+    @echo "Formatting code..."
+    cargo fmt --all
+
+# Quality assurance: format, lint, and test everything
+qa:
+    @echo "Running quality assurance: format, lint, and test..."
+    @just format
+    @just lint
+    @just test
+
 # make GUI with latest binary
 lint-ui:
     cd ui/desktop && npm run lint:check
