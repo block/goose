@@ -1,4 +1,4 @@
-use crate::keyring::{KeyringBackend, SystemKeyringBackend};
+use crate::keyring::{FileKeyringBackend, KeyringBackend, SystemKeyringBackend};
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use fs2::FileExt;
 use once_cell::sync::{Lazy, OnceCell};
@@ -11,7 +11,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::runtime::Runtime;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
@@ -25,9 +24,6 @@ const KEYRING_USERNAME: &str = "secrets";
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
 
-// Shared runtime for sync wrapper operations
-static ASYNC_RUNTIME: Lazy<Runtime> =
-    Lazy::new(|| Runtime::new().expect("Failed to create tokio runtime for config operations"));
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -111,13 +107,8 @@ impl From<keyring::Error> for ConfigError {
 /// For Goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
 pub struct Config {
     config_path: PathBuf,
-    secrets: SecretStorage,
     keyring: Arc<dyn KeyringBackend>,
-}
-
-enum SecretStorage {
-    Keyring { service: String },
-    File { path: PathBuf },
+    keyring_service: String,
 }
 
 // Global instance
@@ -125,7 +116,16 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
-        Self::with_keyring(Arc::new(SystemKeyringBackend))
+        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .config_dir();
+        
+        let keyring: Arc<dyn KeyringBackend> = if env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+            Arc::new(FileKeyringBackend::new(config_dir.join("secrets.yaml")))
+        } else {
+            Arc::new(SystemKeyringBackend)
+        };
+        Self::with_keyring(keyring)
     }
 }
 
@@ -143,19 +143,10 @@ impl Config {
 
         let config_path = config_dir.join("config.yaml");
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
-                path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
-                service: KEYRING_SERVICE.to_string(),
-            },
-        };
-
         Config {
             config_path,
-            secrets,
             keyring,
+            keyring_service: KEYRING_SERVICE.to_string(),
         }
     }
 
@@ -174,10 +165,8 @@ impl Config {
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            secrets: SecretStorage::Keyring {
-                service: service.to_string(),
-            },
             keyring: Arc::new(SystemKeyringBackend),
+            keyring_service: service.to_string(),
         })
     }
 
@@ -191,10 +180,8 @@ impl Config {
     ) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            secrets: SecretStorage::File {
-                path: secrets_path.as_ref().to_path_buf(),
-            },
-            keyring: Arc::new(SystemKeyringBackend),
+            keyring: Arc::new(FileKeyringBackend::new(secrets_path.as_ref().to_path_buf())),
+            keyring_service: KEYRING_SERVICE.to_string(),
         })
     }
 
@@ -492,59 +479,26 @@ impl Config {
         Ok(())
     }
 
-    // Helper function to execute async keyring operations in sync context
-    fn execute_async<F, T>(&self, future: F) -> Result<T, ConfigError>
-    where
-        F: std::future::Future<Output = Result<T, ConfigError>>,
-    {
-        // Always use shared runtime to avoid nested runtime issues
-        ASYNC_RUNTIME.block_on(future)
-    }
-
-    // Load current secrets from the keyring
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        self.execute_async(self.load_secrets_async())
-    }
-
-    // Load current secrets from the keyring (async version)
-    pub async fn load_secrets_async(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                match self.keyring.get_password(service, KEYRING_USERNAME).await {
-                    Ok(content) => {
-                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                        Ok(values)
-                    }
-                    Err(e) => {
-                        // Check if it's a "not found" error
-                        if let Some(keyring_err) = e.downcast_ref::<crate::keyring::KeyringError>()
-                        {
-                            match keyring_err {
-                                crate::keyring::KeyringError::NotFound { .. } => Ok(HashMap::new()),
-                                _ => Err(ConfigError::KeyringError(e.to_string())),
-                            }
-                        } else {
-                            // For other error types, propagate them
-                            Err(ConfigError::KeyringError(e.to_string()))
-                        }
-                    }
-                }
+        match self.keyring.get_password(&self.keyring_service, KEYRING_USERNAME) {
+            Ok(content) => {
+                let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                Ok(values)
             }
-            SecretStorage::File { path } => {
-                if path.exists() {
-                    let file_content = std::fs::read_to_string(path)?;
-                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
-                    let json_value: Value = serde_json::to_value(yaml_value)?;
-                    match json_value {
-                        Value::Object(map) => Ok(map.into_iter().collect()),
-                        _ => Ok(HashMap::new()),
+            Err(e) => {
+                if let Some(keyring_err) = e.downcast_ref::<crate::keyring::KeyringError>() {
+                    match keyring_err {
+                        crate::keyring::KeyringError::NotFound { .. } => Ok(HashMap::new()),
+                        _ => Err(ConfigError::KeyringError(e.to_string())),
                     }
                 } else {
-                    Ok(HashMap::new())
+                    Err(ConfigError::KeyringError(e.to_string()))
                 }
             }
         }
     }
+    
+
 
     // check all possible places for a parameter
     pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
@@ -690,29 +644,16 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the value
     pub fn set_secret(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        self.execute_async(self.set_secret_async(key, value))
-    }
-
-    /// Set a secret value in the system keyring (async version).
-    pub async fn set_secret_async(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets_async().await?;
+        let mut values = self.load_secrets()?;
         values.insert(key.to_string(), value);
-
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let json_value = serde_json::to_string(&values)?;
-                self.keyring
-                    .set_password(service, KEYRING_USERNAME, &json_value)
-                    .await
-                    .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
-            }
-            SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-            }
-        };
+        let json_value = serde_json::to_string(&values)?;
+        self.keyring
+            .set_password(&self.keyring_service, KEYRING_USERNAME, &json_value)
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
         Ok(())
     }
+    
+
 
     /// Delete a secret from the system keyring.
     ///
@@ -725,29 +666,16 @@ impl Config {
     /// - There is an error accessing the keyring
     /// - There is an error serializing the remaining values
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
-        self.execute_async(self.delete_secret_async(key))
-    }
-
-    /// Delete a secret from the system keyring (async version).
-    pub async fn delete_secret_async(&self, key: &str) -> Result<(), ConfigError> {
-        let mut values = self.load_secrets_async().await?;
+        let mut values = self.load_secrets()?;
         values.remove(key);
-
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let json_value = serde_json::to_string(&values)?;
-                self.keyring
-                    .set_password(service, KEYRING_USERNAME, &json_value)
-                    .await
-                    .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
-            }
-            SecretStorage::File { path } => {
-                let yaml_value = serde_yaml::to_string(&values)?;
-                std::fs::write(path, yaml_value)?;
-            }
-        };
+        let json_value = serde_json::to_string(&values)?;
+        self.keyring
+            .set_password(&self.keyring_service, KEYRING_USERNAME, &json_value)
+            .map_err(|e| ConfigError::KeyringError(e.to_string()))?;
         Ok(())
     }
+    
+
 }
 
 /// Load init-config.yaml from workspace root if it exists.
@@ -1066,20 +994,18 @@ mod tests {
     #[test]
     fn test_keyring_error_propagation() -> Result<(), ConfigError> {
         use crate::keyring::{KeyringBackend, KeyringError};
-        use async_trait::async_trait;
 
         // Create a failing keyring that returns backend errors
         struct FailingKeyring;
 
-        #[async_trait]
         impl KeyringBackend for FailingKeyring {
-            async fn get_password(&self, _: &str, _: &str) -> anyhow::Result<String> {
+            fn get_password(&self, _: &str, _: &str) -> anyhow::Result<String> {
                 Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
             }
-            async fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
+            fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
                 Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
             }
-            async fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
+            fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
                 Err(KeyringError::Backend("Keyring service unavailable".to_string()).into())
             }
         }
@@ -1111,24 +1037,22 @@ mod tests {
     #[test]
     fn test_keyring_not_found_returns_empty() -> Result<(), ConfigError> {
         use crate::keyring::{KeyringBackend, KeyringError};
-        use async_trait::async_trait;
 
         // Create a keyring that always returns NotFound
         struct NotFoundKeyring;
 
-        #[async_trait]
         impl KeyringBackend for NotFoundKeyring {
-            async fn get_password(&self, service: &str, username: &str) -> anyhow::Result<String> {
+            fn get_password(&self, service: &str, username: &str) -> anyhow::Result<String> {
                 Err(KeyringError::NotFound {
                     service: service.to_string(),
                     username: username.to_string(),
                 }
                 .into())
             }
-            async fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
+            fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
                 Ok(())
             }
-            async fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
+            fn delete_password(&self, _: &str, _: &str) -> anyhow::Result<()> {
                 Ok(())
             }
         }

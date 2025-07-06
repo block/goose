@@ -1,6 +1,5 @@
 use super::{KeyringBackend, KeyringError};
 use anyhow::Result;
-use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -34,9 +33,8 @@ impl MockKeyringBackend {
     }
 }
 
-#[async_trait]
 impl KeyringBackend for MockKeyringBackend {
-    async fn get_password(&self, service: &str, username: &str) -> Result<String> {
+    fn get_password(&self, service: &str, username: &str) -> Result<String> {
         let key = Self::make_key(service, username);
         let storage = self
             .storage
@@ -53,7 +51,7 @@ impl KeyringBackend for MockKeyringBackend {
             .map_err(anyhow::Error::from)
     }
 
-    async fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
         let key = Self::make_key(service, username);
         self.storage
             .write()
@@ -62,7 +60,7 @@ impl KeyringBackend for MockKeyringBackend {
         Ok(())
     }
 
-    async fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
         let key = Self::make_key(service, username);
         self.storage
             .write()

@@ -88,7 +88,7 @@ impl CredentialsManager {
     ///     expiry: u64,
     /// }
     ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let keyring = Arc::new(SystemKeyringBackend);
     /// let manager = CredentialsManager::new(
     ///     String::from("/path/to/credentials.json"),
@@ -97,21 +97,18 @@ impl CredentialsManager {
     ///     String::from("test_user"),
     ///     keyring
     /// );
-    /// match manager.read_credentials::<OAuthToken>().await {
+    /// match manager.read_credentials::<OAuthToken>() {
     ///     Ok(token) => println!("Access token: {}", token.access_token),
     ///     Err(e) => eprintln!("Failed to read token: {}", e),
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn read_credentials<T>(&self) -> Result<T, StorageError>
+    pub fn read_credentials<T>(&self) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
     {
-        let json_str = self
-            .keyring
-            .get_password(&self.keychain_service, &self.keychain_username)
-            .await
+        let json_str = self.keyring.get_password(&self.keychain_service, &self.keychain_username)
             .inspect(|_| {
                 debug!("Successfully read credentials from keychain");
             })
@@ -187,7 +184,7 @@ impl CredentialsManager {
     ///     expiry: u64,
     /// }
     ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let token = OAuthToken {
     ///     access_token: String::from("access_token_value"),
     ///     refresh_token: String::from("refresh_token_value"),
@@ -202,21 +199,19 @@ impl CredentialsManager {
     ///     String::from("test_user"),
     ///     keyring
     /// );
-    /// if let Err(e) = manager.write_credentials(&token).await {
+    /// if let Err(e) = manager.write_credentials(&token) {
     ///     eprintln!("Failed to write token: {}", e);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_credentials<T>(&self, content: &T) -> Result<(), StorageError>
+    pub fn write_credentials<T>(&self, content: &T) -> Result<(), StorageError>
     where
         T: Serialize,
     {
         let json_str = serde_json::to_string(content).map_err(StorageError::SerializationError)?;
 
-        self.keyring
-            .set_password(&self.keychain_service, &self.keychain_username, &json_str)
-            .await
+        self.keyring.set_password(&self.keychain_service, &self.keychain_username, &json_str)
             .inspect(|_| {
                 debug!("Successfully wrote credentials to keychain");
             })
@@ -294,8 +289,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_read_write_from_keychain() {
+    #[test]
+    fn test_read_write_from_keychain() {
         // Create a temporary directory for test files
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let cred_path = temp_dir.path().join("test_credentials.json");
@@ -317,14 +312,14 @@ mod tests {
         let creds = TestCredentials::new();
 
         // Write should succeed with mock keyring
-        let write_result = manager.write_credentials(&creds).await;
+        let write_result = manager.write_credentials(&creds);
         assert!(
             write_result.is_ok(),
             "Write should succeed with mock keyring"
         );
 
         // Read should succeed with mock keyring
-        let read_result = manager.read_credentials::<TestCredentials>().await;
+        let read_result = manager.read_credentials::<TestCredentials>();
         assert!(read_result.is_ok(), "Read should succeed with mock keyring");
 
         // Verify the read credentials match what we wrote
@@ -335,8 +330,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_no_fallback_not_found() {
+    #[test]
+    fn test_no_fallback_not_found() {
         // Create a temporary directory for test files
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let cred_path = temp_dir.path().join("nonexistent_credentials.json");
@@ -355,7 +350,7 @@ mod tests {
         );
 
         // Read should fail with NotFound since mock keyring is empty and no fallback
-        let read_result = manager.read_credentials::<TestCredentials>().await;
+        let read_result = manager.read_credentials::<TestCredentials>();
         println!("{:?}", read_result);
         assert!(
             read_result.is_err(),
@@ -375,8 +370,8 @@ mod tests {
         assert!(matches!(storage_error, StorageError::SerializationError(_)));
     }
 
-    #[tokio::test]
-    async fn test_file_system_error_handling() {
+    #[test]
+    fn test_file_system_error_handling() {
         // Test handling of file system errors by using an invalid path
         let invalid_path = String::from("/nonexistent_directory/credentials.json");
         let keyring = Arc::new(MockKeyringBackend::new());

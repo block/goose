@@ -1,13 +1,11 @@
 use super::{KeyringBackend, KeyringError};
 use anyhow::Result;
-use async_trait::async_trait;
 use keyring::Entry;
 
 pub struct SystemKeyringBackend;
 
-#[async_trait]
 impl KeyringBackend for SystemKeyringBackend {
-    async fn get_password(&self, service: &str, username: &str) -> Result<String> {
+    fn get_password(&self, service: &str, username: &str) -> Result<String> {
         let entry =
             Entry::new(service, username).map_err(|e| KeyringError::Backend(e.to_string()))?;
 
@@ -23,7 +21,7 @@ impl KeyringBackend for SystemKeyringBackend {
             .map_err(anyhow::Error::from)
     }
 
-    async fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
         let entry =
             Entry::new(service, username).map_err(|e| KeyringError::Backend(e.to_string()))?;
 
@@ -33,7 +31,7 @@ impl KeyringBackend for SystemKeyringBackend {
             .map_err(anyhow::Error::from)
     }
 
-    async fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
         let entry =
             Entry::new(service, username).map_err(|e| KeyringError::Backend(e.to_string()))?;
 

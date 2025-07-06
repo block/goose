@@ -1,12 +1,11 @@
 use anyhow::Result;
-use async_trait::async_trait;
 
-#[async_trait]
 pub trait KeyringBackend: Send + Sync {
-    async fn get_password(&self, service: &str, username: &str) -> Result<String>;
-    async fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()>;
-    async fn delete_password(&self, service: &str, username: &str) -> Result<()>;
+    fn get_password(&self, service: &str, username: &str) -> Result<String>;
+    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()>;
+    fn delete_password(&self, service: &str, username: &str) -> Result<()>;
 }
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum KeyringError {
@@ -18,8 +17,10 @@ pub enum KeyringError {
     Backend(String),
 }
 
+pub mod file;
 pub mod mock;
 pub mod system;
 
+pub use file::FileKeyringBackend;
 pub use mock::MockKeyringBackend;
 pub use system::SystemKeyringBackend;

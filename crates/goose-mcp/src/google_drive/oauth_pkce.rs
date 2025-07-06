@@ -193,11 +193,7 @@ impl PkceOAuth2Client {
             };
 
             // Store updated token data
-            match self
-                .credentials_manager
-                .write_credentials(&token_data)
-                .await
-            {
+            match self.credentials_manager.write_credentials(&token_data) {
                 Ok(_) => debug!("Successfully stored token data"),
                 Err(e) => error!("Failed to store token data: {}", e),
             }
@@ -252,11 +248,7 @@ impl PkceOAuth2Client {
         };
 
         // Store updated token data
-        match self
-            .credentials_manager
-            .write_credentials(&token_data)
-            .await
-        {
+        match self.credentials_manager.write_credentials(&token_data) {
             Ok(_) => debug!("Successfully stored token data"),
             Err(e) => error!("Failed to store token data: {}", e),
         }
@@ -326,11 +318,7 @@ impl GetToken for PkceOAuth2Client {
     > {
         Box::pin(async move {
             // Try to read token data from storage to check if we have a valid token
-            if let Ok(token_data) = self
-                .credentials_manager
-                .read_credentials::<TokenData>()
-                .await
-            {
+            if let Ok(token_data) = self.credentials_manager.read_credentials::<TokenData>() {
                 // Verify the project_id matches
                 if token_data.project_id == self.project_id {
                     // Convert stored scopes to &str slices for comparison

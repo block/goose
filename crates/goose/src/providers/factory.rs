@@ -237,14 +237,8 @@ mod tests {
             ("GOOSE_LEAD_TURNS", env::var("GOOSE_LEAD_TURNS").ok()),
             ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
             ("ANTHROPIC_API_KEY", env::var("ANTHROPIC_API_KEY").ok()),
-            (
-                "GOOSE_DISABLE_KEYRING",
-                env::var("GOOSE_DISABLE_KEYRING").ok(),
-            ),
         ];
 
-        // Disable keyring to avoid keychain popups during tests
-        env::set_var("GOOSE_DISABLE_KEYRING", "1");
 
         // Set fake API keys to avoid keychain access
         env::set_var("OPENAI_API_KEY", "fake-test-key");
@@ -306,14 +300,7 @@ mod tests {
                 env::var("GOOSE_LEAD_FALLBACK_TURNS").ok(),
             ),
             ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
-            (
-                "GOOSE_DISABLE_KEYRING",
-                env::var("GOOSE_DISABLE_KEYRING").ok(),
-            ),
         ];
-
-        // Disable keyring to avoid keychain popups during tests
-        env::set_var("GOOSE_DISABLE_KEYRING", "1");
 
         // Clear all lead env vars
         for (key, _) in &saved_vars {
@@ -380,14 +367,7 @@ mod tests {
                 env::var("GOOSE_LEAD_FALLBACK_TURNS").ok(),
             ),
             ("OPENAI_API_KEY", env::var("OPENAI_API_KEY").ok()),
-            (
-                "GOOSE_DISABLE_KEYRING",
-                env::var("GOOSE_DISABLE_KEYRING").ok(),
-            ),
         ];
-
-        // Disable keyring to avoid keychain popups during tests
-        env::set_var("GOOSE_DISABLE_KEYRING", "1");
 
         // Ensure all GOOSE_LEAD_* variables are not set
         env::remove_var("GOOSE_LEAD_MODEL");
