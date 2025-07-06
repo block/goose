@@ -199,7 +199,6 @@ Let's use the Cloudinary extension to find and transform product images with adv
 1. Search for specific images in your media library
 2. Apply complex transformations including background removal
 3. Add text overlays with precise positioning
-4. Create professional product imagery
 
 :::info LLM
 Anthropic's Claude 4 Sonnet was used for this task.
