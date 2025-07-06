@@ -202,7 +202,7 @@ Let's use the Cloudinary extension to find and transform product images with adv
 4. Create professional product imagery
 
 :::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
+Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 ### Goose Prompt
@@ -235,9 +235,7 @@ Let me use the first result (`samples/shoe`) as requested and apply all the tran
 
 Here's the transformed image URL with all your requested modifications:
 
-```
 https://res.cloudinary.com/dd8qwbjtv/image/upload/e_background_removal/b_black/l_text:Arial_60:I%20love%20shoes,co_white,g_north,y_50/samples/shoe
-```
 
 Let me break down what each transformation does:
 
