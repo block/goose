@@ -38,7 +38,8 @@ impl MockKeyringBackend {
 impl KeyringBackend for MockKeyringBackend {
     async fn get_password(&self, service: &str, username: &str) -> Result<String> {
         let key = Self::make_key(service, username);
-        let storage = self.storage
+        let storage = self
+            .storage
             .read()
             .map_err(|e| KeyringError::Backend(format!("Mock keyring lock poisoned: {}", e)))?;
 

@@ -26,9 +26,8 @@ const KEYRING_USERNAME: &str = "secrets";
 const TEST_KEYRING_SERVICE: &str = "goose-test";
 
 // Shared runtime for sync wrapper operations
-static ASYNC_RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    Runtime::new().expect("Failed to create tokio runtime for config operations")
-});
+static ASYNC_RUNTIME: Lazy<Runtime> =
+    Lazy::new(|| Runtime::new().expect("Failed to create tokio runtime for config operations"));
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -523,7 +522,8 @@ impl Config {
                     }
                     Err(e) => {
                         // Check if it's a "not found" error
-                        if let Some(keyring_err) = e.downcast_ref::<crate::keyring::KeyringError>() {
+                        if let Some(keyring_err) = e.downcast_ref::<crate::keyring::KeyringError>()
+                        {
                             match keyring_err {
                                 crate::keyring::KeyringError::NotFound { .. } => Ok(HashMap::new()),
                                 _ => Err(ConfigError::KeyringError(e.to_string())),
@@ -1075,7 +1075,7 @@ mod tests {
 
         // Create a failing keyring that returns backend errors
         struct FailingKeyring;
-        
+
         #[async_trait]
         impl KeyringBackend for FailingKeyring {
             async fn get_password(&self, _: &str, _: &str) -> anyhow::Result<String> {
@@ -1099,7 +1099,10 @@ mod tests {
         // This should return an error, not an empty HashMap
         let result = config.load_secrets();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Keyring service unavailable"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Keyring service unavailable"));
 
         // Restore GOOSE_DISABLE_KEYRING
         match saved_disable {
@@ -1117,14 +1120,15 @@ mod tests {
 
         // Create a keyring that always returns NotFound
         struct NotFoundKeyring;
-        
+
         #[async_trait]
         impl KeyringBackend for NotFoundKeyring {
             async fn get_password(&self, service: &str, username: &str) -> anyhow::Result<String> {
                 Err(KeyringError::NotFound {
                     service: service.to_string(),
                     username: username.to_string(),
-                }.into())
+                }
+                .into())
             }
             async fn set_password(&self, _: &str, _: &str, _: &str) -> anyhow::Result<()> {
                 Ok(())
