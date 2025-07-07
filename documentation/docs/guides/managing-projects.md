@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: Managing Projects
-sidebar_label: Projects
+sidebar_label: Managing Projects
 ---
 
 Goose Projects automatically track your working directories and associated sessions, making it easy to resume work across multiple codebases with full context preservation.
