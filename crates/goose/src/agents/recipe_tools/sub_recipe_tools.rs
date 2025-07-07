@@ -3,25 +3,20 @@ use std::{collections::HashMap, fs};
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
+use crate::agents::sub_recipe_execution_tool::lib::Task;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
-pub const SUB_RECIPE_TOOL_NAME_PREFIX: &str = "subrecipe__run_";
+pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
 
-pub fn create_sub_recipe_tool(sub_recipe: &SubRecipe) -> Tool {
+pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();
     Tool::new(
-        format!("{}_{}", SUB_RECIPE_TOOL_NAME_PREFIX, sub_recipe.name),
-        "Run a sub recipe.
-        Use this tool when you need to run a sub-recipe.
-        The sub recipe will be run with the provided parameters 
-        and return the output of the sub recipe."
-            .to_string(),
+        format!("{}_{}", SUB_RECIPE_TASK_TOOL_NAME_PREFIX, sub_recipe.name),
+        "Before running this sub recipe, you should first create a task with this tool and then pass the task to the task executor".to_string(),
         input_schema,
         Some(ToolAnnotations {
-            title: Some(format!("run sub recipe {}", sub_recipe.name)),
+            title: Some(format!("create sub recipe task {}", sub_recipe.name)),
             read_only_hint: false,
             destructive_hint: true,
             idempotent_hint: false,
@@ -99,68 +94,23 @@ fn prepare_command_params(
     Ok(sub_recipe_params)
 }
 
-pub async fn run_sub_recipe(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
+pub async fn create_sub_recipe_task(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
     let command_params = prepare_command_params(sub_recipe, params)?;
-
-    let mut command = Command::new("goose");
-    command.arg("run").arg("--recipe").arg(&sub_recipe.path);
-
-    for (key, value) in command_params {
-        command.arg("--params").arg(format!("{}={}", key, value));
-    }
-
-    command.stdout(std::process::Stdio::piped());
-    command.stderr(std::process::Stdio::piped());
-
-    let mut child = command
-        .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to spawn: {}", e))?;
-
-    let stdout = child.stdout.take().expect("Failed to capture stdout");
-    let stderr = child.stderr.take().expect("Failed to capture stderr");
-
-    let mut stdout_reader = BufReader::new(stdout).lines();
-    let mut stderr_reader = BufReader::new(stderr).lines();
-    let stdout_sub_recipe_name = sub_recipe.name.clone();
-    let stderr_sub_recipe_name = sub_recipe.name.clone();
-
-    // Spawn background tasks to read from stdout and stderr
-    let stdout_task = tokio::spawn(async move {
-        let mut buffer = String::new();
-        while let Ok(Some(line)) = stdout_reader.next_line().await {
-            println!("[sub-recipe {}] {}", stdout_sub_recipe_name, line);
-            buffer.push_str(&line);
-            buffer.push('\n');
+    let payload = json!({
+        "sub_recipe": {
+            "name": sub_recipe.name.clone(),
+            "command_parameters": command_params,
+            "recipe_path": sub_recipe.path.clone(),
         }
-        buffer
     });
-
-    let stderr_task = tokio::spawn(async move {
-        let mut buffer = String::new();
-        while let Ok(Some(line)) = stderr_reader.next_line().await {
-            eprintln!(
-                "[stderr for sub-recipe {}] {}",
-                stderr_sub_recipe_name, line
-            );
-            buffer.push_str(&line);
-            buffer.push('\n');
-        }
-        buffer
-    });
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to wait for process: {}", e))?;
-
-    let stdout_output = stdout_task.await.unwrap();
-    let stderr_output = stderr_task.await.unwrap();
-
-    if status.success() {
-        Ok(stdout_output)
-    } else {
-        Err(anyhow::anyhow!("Command failed:\n{}", stderr_output))
-    }
+    let task = Task {
+        id: uuid::Uuid::new_v4().to_string(),
+        task_type: "sub_recipe".to_string(),
+        payload,
+    };
+    let task_json = serde_json::to_string(&task)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize Task: {}", e))?;
+    Ok(task_json)
 }
 
 #[cfg(test)]
