@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,7 +9,10 @@ use serde_json::{json, Value};
 use super::{
     errors::ProviderError,
     formats::openai::{create_request, get_usage, response_to_message},
-    utils::{emit_debug_trace, get_env, get_model, handle_response_openai_compat, ImageFormat},
+    utils::{
+        build_http_client, emit_debug_trace, get_env, get_model, handle_response_openai_compat,
+        ImageFormat, MutualTlsConfig,
+    },
 };
 use crate::{
     message::Message,
@@ -48,6 +51,8 @@ pub struct OpenAiProviderConfig {
     pub custom_headers: Option<HashMap<String, String>>,
     #[serde(default = "default_timeout")]
     pub timeout: u64, // timeout in seconds
+    #[serde(default)]
+    pub mtls: MutualTlsConfig,
 }
 
 impl OpenAiProviderConfig {
@@ -60,6 +65,7 @@ impl OpenAiProviderConfig {
             project: None,
             custom_headers: None,
             timeout: 600,
+            mtls: MutualTlsConfig::default(),
         }
     }
 
@@ -93,9 +99,7 @@ impl Default for OpenAiProvider {
 
 impl OpenAiProvider {
     pub fn from_config(config: OpenAiProviderConfig, model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(config.timeout))
-            .build()?;
+        let client = build_http_client(config.timeout, Some(&config.mtls))?;
 
         Ok(Self {
             config,
