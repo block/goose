@@ -224,23 +224,26 @@ mod tests {
     }
 
     async fn do_test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
-        // Create a unique test directory for each test
-        let test_name = session_name.unwrap_or("no_session");
-        let random_suffix = rand::random::<u32>() % 100000000;
-        let test_dir = PathBuf::from(format!(
-            "/tmp/goose_test_home_{}_{}",
-            test_name, random_suffix
-        ));
-        if test_dir.exists() {
-            fs::remove_dir_all(&test_dir).unwrap();
-        }
-        fs::create_dir_all(&test_dir).unwrap();
+        use tempfile::TempDir;
+
+        // Create a unique prefix to avoid test interference
+        let test_id = format!(
+            "{}_{}",
+            session_name.unwrap_or("no_session"),
+            rand::random::<u32>()
+        );
+
+        // Create a proper temporary directory that will be automatically cleaned up
+        let _temp_dir = TempDir::with_prefix(&format!("goose_test_{}_", test_id)).unwrap();
+        let test_dir = _temp_dir.path();
 
         // Set up environment
         if cfg!(windows) {
-            env::set_var("USERPROFILE", &test_dir);
+            env::set_var("USERPROFILE", test_dir);
         } else {
-            env::set_var("HOME", &test_dir);
+            env::set_var("HOME", test_dir);
+            // Also set TMPDIR to prevent temp directory sharing between tests
+            env::set_var("TMPDIR", test_dir);
         }
 
         // Create error capture if needed - but don't use it in tests to avoid tokio runtime issues
@@ -251,8 +254,10 @@ mod tests {
         println!("Before timestamp: {}", before_timestamp);
 
         // Get the log directory and clean any existing log files
+        let random_suffix = rand::random::<u32>() % 100000000;
         let log_dir = get_log_directory_with_date(Some(format!("test-{}", random_suffix))).unwrap();
         println!("Log directory: {}", log_dir.display());
+        println!("Test directory: {}", test_dir.display());
         if log_dir.exists() {
             for entry in fs::read_dir(&log_dir).unwrap() {
                 let entry = entry.unwrap();
@@ -429,10 +434,8 @@ mod tests {
         // Wait a moment to ensure all files are written
         std::thread::sleep(std::time::Duration::from_millis(100));
 
-        // Clean up test directory
-        fs::remove_dir_all(&test_dir).unwrap_or_else(|e| {
-            println!("Warning: Failed to clean up test directory: {}", e);
-        });
+        // Keep _temp_dir alive until the end so it doesn't get cleaned up prematurely
+        drop(_temp_dir);
     }
 
     #[tokio::test]
