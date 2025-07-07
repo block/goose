@@ -16,31 +16,26 @@ A **project** in Goose is a record of a working directory where you've used Goos
 
 Projects are stored in `~/.local/share/goose/projects.json`.
 
-## Benefits
-
-- **Eliminate context switching friction** - Jump between projects instantly without manual navigation
-- **Preserve work context** - Resume exactly where you left off with full conversation history
-- **Seamless session integration** - Maintain continuity across different codebases
-
-:::tip Time Savings
-Projects eliminate the typical 2-5 minutes lost when switching between codebases, especially valuable for developers working on multiple projects daily.
-:::
-
-## How to Use Projects
+## Basic Usage
 
 **Resume your most recent project:**
+
 ```bash
-goose project  # or goose p
+goose project  
 ```
 
 **Browse all your projects:**
+
 ```bash
-goose projects  # or goose ps
+goose projects  
 ```
-
+:::tip
 When resuming a project, you can continue the previous session or start fresh in that directory.
+:::
 
-## Example Use Case
+For complete command syntax and options, see the [CLI Commands Guide](/docs/guides/goose-cli-commands#project).
+
+## Workflow Example
 
 Let's follow Sarah, a developer working on multiple projects throughout her day:
 
@@ -104,6 +99,14 @@ Goose displays:
 
 Sarah can see her recent projects with timestamps and context, making it easy to choose where to continue working.
 
-## CLI Reference
+## Benefits
 
-For complete command syntax and options, see the [CLI Commands Guide](/docs/guides/goose-cli-commands#project).
+:::tip Time Savings
+Projects eliminate the typical 2-5 minutes lost when switching between codebases, especially valuable for developers working on multiple projects daily.
+:::
+
+
+- **Eliminate context switching friction** - Jump between projects instantly without manual navigation
+- **Preserve work context** - Resume exactly where you left off with full conversation history
+- **Seamless session integration** - Maintain continuity across different codebases
+
