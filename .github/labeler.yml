@@ -1,0 +1,58 @@
+# This file is used by GitHub Actions to automatically label pull requests based on the files changed.
+# See https://github.com/actions/labeler
+
+# Documentation changes
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: 
+          - '**/*.md'
+          - 'documentation/**/*'
+
+# CLI-related changes
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'crates/goose-cli/**/*'
+
+# Rust backend changes
+rust:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'crates/**/*'
+          - '**/*.rs'
+
+# UI/Desktop application changes
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'ui/desktop/**/*'
+          - '**/*.tsx'
+          - '**/*.ts'
+          - '**/*.js'
+          - '**/*.jsx'
+
+# Windows-specific changes
+windows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'ui/desktop/src/platform/windows/**/*'
+          - '**/*windows*'
+          - '**/*.bat'
+          - '**/*.ps1'
+
+# Dependency updates
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/Cargo.toml'
+          - '**/Cargo.lock'
+          - '**/package.json'
+          - '**/package-lock.json'
+          - '**/yarn.lock'
+          - '**/pnpm-lock.yaml'
+
+
+# Demonstration of labeler for initial Pull Request commit
+labeler:
+  - changed-files:
+      - any-glob-to-any-file: '.github/labeler.yml'

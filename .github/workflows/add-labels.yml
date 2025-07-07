@@ -1,0 +1,20 @@
+name: Add Labels
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  add_labels_on_opened:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Label PR (opened)
+        uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          sync-labels: false
