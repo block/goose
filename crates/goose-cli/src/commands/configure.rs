@@ -826,7 +826,8 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 None
             };
 
-            let add_headers = cliclack::confirm("Would you like to add custom headers?").interact()?;
+            let add_headers =
+                cliclack::confirm("Would you like to add custom headers?").interact()?;
 
             let mut headers = HashMap::new();
             if add_headers {
