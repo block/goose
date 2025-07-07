@@ -6,11 +6,17 @@ sidebar_label: Projects
 
 Goose Projects automatically track your working directories and associated sessions, making it easy to resume work across multiple codebases with full context preservation.
 
-## What Are Goose Projects?
 
-A **project** in Goose is a record of a working directory where you've used Goose. Every time you run Goose, it automatically tracks the current directory, storing your path, last access time, recent instruction, and session ID for context continuity.
+A **project** in Goose is a record of a working directory where you've used Goose. Every time you run Goose, it automatically tracks the current directory as a project, storing:
 
-## Key Benefits
+- **Path**: The absolute path to the project directory
+- **Last accessed**: When you last worked on this project  
+- **Last instruction**: The most recent command you gave to Goose
+- **Session ID**: The associated session for context continuity
+
+Projects are stored in `~/.local/share/goose/projects.json`.
+
+## Benefits
 
 - **Eliminate context switching friction** - Jump between projects instantly without manual navigation
 - **Preserve work context** - Resume exactly where you left off with full conversation history
@@ -34,7 +40,7 @@ goose projects  # or goose ps
 
 When resuming a project, you can continue the previous session or start fresh in that directory.
 
-## Real-World Workflow Example
+## Example Use Case
 
 Let's follow Sarah, a developer working on multiple projects throughout her day:
 
@@ -97,8 +103,6 @@ Goose displays:
 ```
 
 Sarah can see her recent projects with timestamps and context, making it easy to choose where to continue working.
-
-
 
 ## CLI Reference
 
