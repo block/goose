@@ -24,6 +24,19 @@ const KEYRING_USERNAME: &str = "secrets";
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
 
+/// Check if an environment variable is set to a truthy value
+/// Truthy values: "1", "true", "yes", "on" (case insensitive)
+/// Falsy values: "0", "false", "no", "off", "" or unset
+fn is_env_var_truthy(var_name: &str) -> bool {
+    match env::var(var_name) {
+        Ok(value) => {
+            let normalized = value.trim().to_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Configuration value not found: {0}")]
@@ -119,7 +132,7 @@ impl Default for Config {
             .expect("goose requires a home dir")
             .config_dir();
 
-        let keyring: Arc<dyn KeyringBackend> = if env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+        let keyring: Arc<dyn KeyringBackend> = if is_env_var_truthy("GOOSE_DISABLE_KEYRING") {
             Arc::new(FileKeyringBackend::new(config_dir.join("secrets.yaml")))
         } else {
             Arc::new(SystemKeyringBackend)
@@ -1071,6 +1084,28 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_env_var_truthy_values() {
+        // Test truthy values
+        for value in ["1", "true", "TRUE", "yes", "YES", "on", "ON", " true ", "True"] {
+            env::set_var("TEST_TRUTHY_VAR", value);
+            assert!(is_env_var_truthy("TEST_TRUTHY_VAR"), "Value '{}' should be truthy", value);
+        }
+
+        // Test falsy values
+        for value in ["0", "false", "FALSE", "no", "NO", "off", "OFF", "", " ", "random"] {
+            env::set_var("TEST_TRUTHY_VAR", value);
+            assert!(!is_env_var_truthy("TEST_TRUTHY_VAR"), "Value '{}' should be falsy", value);
+        }
+
+        // Test unset variable
+        env::remove_var("TEST_TRUTHY_VAR");
+        assert!(!is_env_var_truthy("TEST_TRUTHY_VAR"), "Unset variable should be falsy");
+
+        // Clean up
+        env::remove_var("TEST_TRUTHY_VAR");
     }
 
     #[test]
