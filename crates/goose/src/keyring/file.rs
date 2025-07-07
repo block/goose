@@ -21,14 +21,34 @@ impl FileKeyringBackend {
             match json_value {
                 Value::Object(map) => {
                     let mut result = HashMap::new();
-                    for (key, value) in map {
-                        if let Some(string_value) = value.as_str() {
-                            result.insert(key, string_value.to_string());
-                        } else {
-                            // Convert non-string values to JSON strings
-                            result.insert(key, serde_json::to_string(&value)?);
+                    
+                    // Check if this is the new format (has "goose:secrets" key)
+                    let service_key = Self::make_key("goose", "secrets");
+                    if let Some(service_value) = map.get(&service_key) {
+                        // New format: decode JSON from the service key
+                        if let Some(json_str) = service_value.as_str() {
+                            if let Ok(secrets_map) = serde_json::from_str::<HashMap<String, Value>>(json_str) {
+                                for (key, value) in secrets_map {
+                                    if let Some(string_value) = value.as_str() {
+                                        result.insert(key, string_value.to_string());
+                                    } else {
+                                        result.insert(key, serde_json::to_string(&value)?);
+                                    }
+                                }
+                                return Ok(result);
+                            }
                         }
                     }
+                    
+                    // Legacy format: direct key-value mapping (read-only)
+                    for (key, value) in &map {
+                        if let Some(string_value) = value.as_str() {
+                            result.insert(key.clone(), string_value.to_string());
+                        } else {
+                            result.insert(key.clone(), serde_json::to_string(&value)?);
+                        }
+                    }
+                    
                     Ok(result)
                 }
                 _ => Ok(HashMap::new()),
@@ -249,6 +269,36 @@ mod tests {
         // Deleting non-existent password should not error (idempotent)
         backend.delete_password("nonexistent_service", "nonexistent_user")?;
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_legacy_format_compatibility() -> Result<()> {
+        let temp_file = NamedTempFile::new().unwrap();
+        
+        // Write a legacy format secrets.yaml file
+        let legacy_content = r#"openai_api_key: sk-abc123
+anthropic_api_key: ant-def456
+complex_config:
+  nested: value
+  number: 42
+"#;
+        std::fs::write(temp_file.path(), legacy_content)?;
+        
+        // Load with FileKeyringBackend - should read legacy format
+        let backend = FileKeyringBackend::new(temp_file.path().to_path_buf());
+        
+        // Load secrets should work with legacy format (read-only)
+        let secrets = backend.load_all_secrets()?;
+        assert_eq!(secrets.get("openai_api_key").unwrap(), "sk-abc123");
+        assert_eq!(secrets.get("anthropic_api_key").unwrap(), "ant-def456");
+        assert!(secrets.get("complex_config").unwrap().contains("nested"));
+        
+        // Verify the original file format is preserved (no auto-migration)
+        let file_content = std::fs::read_to_string(temp_file.path())?;
+        assert!(file_content.contains("openai_api_key: sk-abc123"));
+        assert!(!file_content.contains("goose:secrets"));
+        
         Ok(())
     }
 }
