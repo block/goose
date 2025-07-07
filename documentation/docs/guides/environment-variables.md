@@ -117,6 +117,31 @@ export GOOSE_CONTEXT_STRATEGY=summarize
 export GOOSE_CONTEXT_STRATEGY=prompt
 ```
 
+### Context Limit Configuration
+
+These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match Goose's predefined model patterns.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
+| `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+
+**Examples**
+
+```bash
+# Set context limit for main model (useful for LiteLLM proxies)
+export GOOSE_CONTEXT_LIMIT=200000
+
+# Set different context limits for lead/worker models
+export GOOSE_LEAD_CONTEXT_LIMIT=500000   # Large context for planning
+export GOOSE_WORKER_CONTEXT_LIMIT=128000 # Smaller context for execution
+
+# Set context limit for planner
+export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
+```
+
 ## Tool Configuration
 
 These variables control how Goose handles [tool permissions](/docs/guides/tool-permissions) and their execution.
