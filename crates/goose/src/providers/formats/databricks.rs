@@ -415,7 +415,7 @@ where
     S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
     try_stream! {
-        use futures_util::StreamExt;
+        use futures::StreamExt;
 
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {

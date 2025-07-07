@@ -825,19 +825,21 @@ impl Agent {
 
                                 tokio::task::yield_now().await;
 
-                        let num_tool_requests = frontend_requests.len() + remaining_requests.len();
-                        if num_tool_requests == 0 {
-                            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                                if final_output_tool.final_output.is_none() {
-                                    tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                    let message = Message::assistant().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                                    messages.push(message.clone());
-                                    yield AgentEvent::Message(message);
-                                    continue;
-                                } else {
-                                    let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
-                                    messages.push(message.clone());
-                                    yield AgentEvent::Message(message);
+                                let num_tool_requests = frontend_requests.len() + remaining_requests.len();
+                                if num_tool_requests == 0 {
+                                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                                        if final_output_tool.final_output.is_none() {
+                                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                                            let message = Message::assistant().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                                            messages.push(message.clone());
+                                            yield AgentEvent::Message(message);
+                                            continue;
+                                        } else {
+                                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                                            messages.push(message.clone());
+                                            yield AgentEvent::Message(message);
+                                        }
+                                    }
                                 }
 
                                 // Process tool requests depending on frontend tools and then goose_mode
