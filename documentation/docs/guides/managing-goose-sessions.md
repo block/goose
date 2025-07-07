@@ -41,10 +41,6 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```sh
         goose web --open
         ```
-
-        :::tip
-        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
-        :::
     </TabItem>
 </Tabs>
 
@@ -115,10 +111,6 @@ Note that sessions are automatically saved when you exit.
 
         :::tip
         While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
-        :::
-
-        :::tip
-        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
         :::
     </TabItem>
 </Tabs>
@@ -233,6 +225,10 @@ You can resume a CLI session in Desktop and vice versa.
 
     </TabItem>
 </Tabs>
+
+## Project-Based Sessions
+
+You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
 
 ## Remove Sessions
 
