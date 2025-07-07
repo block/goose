@@ -1,11 +1,10 @@
 ---
 sidebar_position: 2
-title: Projects
+title: Managing Projects
 sidebar_label: Projects
 ---
 
 Goose Projects automatically track your working directories and associated sessions, making it easy to resume work across multiple codebases with full context preservation.
-
 
 A **project** in Goose is a record of a working directory where you've used Goose. Every time you run Goose, it automatically tracks the current directory as a project, storing:
 
@@ -15,6 +14,10 @@ A **project** in Goose is a record of a working directory where you've used Goos
 - **Session ID**: The associated session for context continuity
 
 Projects are stored in `~/.local/share/goose/projects.json`.
+
+:::info CLI Only Feature
+Projects are currently available only through the Goose CLI. Desktop support is planned for future releases.
+:::
 
 ## Basic Usage
 
@@ -104,7 +107,6 @@ Sarah can see her recent projects with timestamps and context, making it easy to
 :::tip Time Savings
 Projects eliminate the typical 2-5 minutes lost when switching between codebases, especially valuable for developers working on multiple projects daily.
 :::
-
 
 - **Eliminate context switching friction** - Jump between projects instantly without manual navigation
 - **Preserve work context** - Resume exactly where you left off with full conversation history
