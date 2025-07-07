@@ -275,6 +275,7 @@ export async function replaceWithShims(cmd: string) {
     jbang: await window.electron.getBinaryPath('jbang'),
     npx: await window.electron.getBinaryPath('npx'),
     uvx: await window.electron.getBinaryPath('uvx'),
+    'npx.cmd': await window.electron.getBinaryPath('npx.cmd'),
   };
 
   if (binaryPathMap[cmd]) {
