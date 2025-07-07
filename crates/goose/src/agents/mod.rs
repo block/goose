@@ -11,6 +11,7 @@ mod reply_parts;
 mod router_tool_selector;
 mod router_tools;
 mod schedule_tool;
+pub mod sub_recipe_execution_tool;
 pub mod sub_recipe_manager;
 pub mod subagent;
 pub mod subagent_handler;

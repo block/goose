@@ -132,6 +132,9 @@ export type ExtensionConfig = {
     description?: string | null;
     env_keys?: Array<string>;
     envs?: Envs;
+    headers?: {
+        [key: string]: string;
+    };
     /**
      * The name used to identify this extension
      */

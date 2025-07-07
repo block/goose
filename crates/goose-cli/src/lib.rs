@@ -7,6 +7,7 @@ pub mod project_tracker;
 pub mod recipes;
 pub mod session;
 pub mod signal;
+pub mod utils;
 // Re-export commonly used types
 pub use session::Session;
 

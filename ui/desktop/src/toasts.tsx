@@ -80,7 +80,7 @@ export const toastService = ToastService.getInstance();
 
 const commonToastOptions: ToastOptions = {
   position: 'top-right',
-  closeButton: false,
+  closeButton: true,
   hideProgressBar: true,
   closeOnClick: true,
   pauseOnHover: true,

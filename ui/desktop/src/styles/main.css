@@ -307,4 +307,35 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
+
+  /* Toast close button styling */
+  .Toastify__close-button {
+    color: var(--text-prominent-inverse) !important;
+    opacity: 0.7;
+    align-self: flex-start;
+    margin-top: 4px;
+    margin-right: 4px;
+    padding: 4px;
+    border-radius: 4px;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+  }
+
+  .Toastify__close-button:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .Toastify__close-button:focus {
+    outline: 2px solid var(--block-teal);
+    outline-offset: 2px;
+  }
+
+  /* Ensure close button is visible on all toast types */
+  .Toastify__toast--success .Toastify__close-button,
+  .Toastify__toast--error .Toastify__close-button,
+  .Toastify__toast--info .Toastify__close-button,
+  .Toastify__toast--warning .Toastify__close-button,
+  .Toastify__toast--default .Toastify__close-button {
+    color: var(--text-prominent-inverse) !important;
+  }
 }

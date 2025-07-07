@@ -41,6 +41,8 @@ pub struct SessionBuilderConfig {
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
     pub max_tool_repetitions: Option<u32>,
+    /// Maximum number of turns (iterations) allowed without user input
+    pub max_turns: Option<u32>,
     /// ID of the scheduled job that triggered this session (if any)
     pub scheduled_job_id: Option<String>,
     /// Whether this session will be used interactively (affects debugging prompts)
@@ -122,7 +124,13 @@ async fn offer_extension_debugging_help(
         std::env::temp_dir().join(format!("goose_debug_extension_{}.jsonl", extension_name));
 
     // Create the debugging session
-    let mut debug_session = Session::new(debug_agent, Some(temp_session_file.clone()), false, None);
+    let mut debug_session = Session::new(
+        debug_agent,
+        Some(temp_session_file.clone()),
+        false,
+        None,
+        None,
+    );
 
     // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
@@ -367,6 +375,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_file.clone(),
         session_config.debug,
         session_config.scheduled_job_id.clone(),
+        session_config.max_turns,
     );
 
     // Add extensions if provided
@@ -516,6 +525,7 @@ mod tests {
             settings: None,
             debug: true,
             max_tool_repetitions: Some(5),
+            max_turns: None,
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
@@ -528,6 +538,7 @@ mod tests {
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
+        assert!(config.max_turns.is_none());
         assert!(config.scheduled_job_id.is_none());
         assert!(config.interactive);
         assert!(!config.quiet);
@@ -547,6 +558,7 @@ mod tests {
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
+        assert!(config.max_turns.is_none());
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);

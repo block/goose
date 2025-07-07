@@ -191,6 +191,8 @@ export const initializeSystem = async (
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
+    const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -210,6 +212,25 @@ export const initializeSystem = async (
       console.log('Extended system prompt with desktop-specific information');
       if (botPrompt) {
         console.log('Added custom bot prompt to system prompt');
+      }
+    }
+
+    // Configure session with response config if present
+    if (responseConfig?.json_schema) {
+      const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        },
+        body: JSON.stringify({
+          response: responseConfig,
+        }),
+      });
+      if (!sessionConfigResponse.ok) {
+        console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
+      } else {
+        console.log('Configured session with response schema');
       }
     }
 

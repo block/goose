@@ -10,6 +10,7 @@ use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
+use goose::recipe::Response;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -60,6 +61,11 @@ struct ProviderList {
 struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SessionConfigRequest {
+    response: Option<Response>,
 }
 
 #[derive(Deserialize)]
@@ -262,6 +268,44 @@ async fn update_router_tool_selector(
     ))
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/session_config",
+    responses(
+        (status = 200, description = "Session config updated successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn update_session_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<SessionConfigRequest>,
+) -> Result<Json<String>, Json<ErrorResponse>> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        Json(ErrorResponse {
+            error: "Unauthorized - Invalid or missing API key".to_string(),
+        })
+    })?;
+
+    let agent = state.get_agent().await.map_err(|e| {
+        tracing::error!("Failed to get agent: {}", e);
+        Json(ErrorResponse {
+            error: format!("Failed to get agent: {}", e),
+        })
+    })?;
+
+    if let Some(response) = payload.response {
+        agent.add_final_output_tool(response).await;
+
+        tracing::info!("Added final output tool with response config");
+        Ok(Json(
+            "Session config updated with final output tool".to_string(),
+        ))
+    } else {
+        Ok(Json("Nothing provided to update.".to_string()))
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
@@ -273,5 +317,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/agent/update_router_tool_selector",
             post(update_router_tool_selector),
         )
+        .route("/agent/session_config", post(update_session_config))
         .with_state(state)
 }

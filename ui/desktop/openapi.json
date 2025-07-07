@@ -1342,6 +1342,12 @@
               "envs": {
                 "$ref": "#/components/schemas/Envs"
               },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
               "name": {
                 "type": "string",
                 "description": "The name used to identify this extension"

@@ -12,6 +12,7 @@ import SchedulerSection from './scheduler/SchedulerSection';
 import DictationSection from './dictation/DictationSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { useEffect } from 'react';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -28,6 +29,20 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <MoreMenuLayout showMenu={false} />

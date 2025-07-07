@@ -5,12 +5,13 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
-use futures::{FutureExt, Stream, TryStreamExt};
-use futures_util::stream;
-use futures_util::stream::StreamExt;
+use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
+    self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
+};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
@@ -54,6 +55,8 @@ use super::router_tools;
 use super::subagent_manager::SubAgentManager;
 use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+
+const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// The main goose Agent
 pub struct Agent {
@@ -286,11 +289,12 @@ impl Agent {
 
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
                 .await
+        } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
+            sub_recipe_execute_task_tool::run_tasks(tool_call.arguments.clone()).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -574,6 +578,8 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
+            prefixed_tools
+                .push(sub_recipe_execute_task_tool::create_sub_recipe_execute_task_tool());
         }
 
         prefixed_tools
@@ -707,7 +713,23 @@ impl Agent {
 
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
+            let mut turns_taken = 0u32;
+            let max_turns = session
+                .as_ref()
+                .and_then(|s| s.max_turns)
+                .unwrap_or_else(|| {
+                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
+                });
+
             loop {
+                turns_taken += 1;
+                if turns_taken > max_turns {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                    ));
+                    break;
+                }
+
                 // Check for MCP notifications from subagents
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
@@ -799,10 +821,14 @@ impl Agent {
                             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                                 if final_output_tool.final_output.is_none() {
                                     tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                    yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
+                                    let message = Message::assistant().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                                    messages.push(message.clone());
+                                    yield AgentEvent::Message(message);
                                     continue;
                                 } else {
-                                    yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                                    let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                                    messages.push(message.clone());
+                                    yield AgentEvent::Message(message);
                                 }
                             }
                             break;
@@ -1321,7 +1347,9 @@ mod tests {
         agent.add_final_output_tool(response).await;
 
         let tools = agent.list_tools(None).await;
-        let final_output_tool = tools.iter().find(|tool| tool.name == "final_output");
+        let final_output_tool = tools
+            .iter()
+            .find(|tool| tool.name == FINAL_OUTPUT_TOOL_NAME);
 
         assert!(
             final_output_tool.is_some(),

@@ -1203,6 +1203,7 @@ async fn run_scheduled_job_internal(
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
+            max_turns: None,
         };
 
         match agent

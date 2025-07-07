@@ -52,6 +52,7 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    max_turns: Option<u32>,
 }
 
 // Cache structure for completion data
@@ -113,6 +114,7 @@ impl Session {
         session_file: Option<PathBuf>,
         debug: bool,
         scheduled_job_id: Option<String>,
+        max_turns: Option<u32>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
             match session::read_messages(session_file) {
@@ -135,6 +137,7 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
+            max_turns,
         }
     }
 
@@ -496,6 +499,28 @@ impl Session {
                     output::set_theme(new_theme);
                     continue;
                 }
+
+                input::InputResult::SelectTheme(theme_name) => {
+                    save_history(&mut editor);
+
+                    let new_theme = match theme_name.as_str() {
+                        "light" => {
+                            println!("Switching to Light theme");
+                            output::Theme::Light
+                        }
+                        "dark" => {
+                            println!("Switching to Dark theme");
+                            output::Theme::Dark
+                        }
+                        "ansi" => {
+                            println!("Switching to Ansi theme");
+                            output::Theme::Ansi
+                        }
+                        _ => output::Theme::Dark,
+                    };
+                    output::set_theme(new_theme);
+                    continue;
+                }
                 input::InputResult::Retry => continue,
                 input::InputResult::ListPrompts(extension) => {
                     save_history(&mut editor);
@@ -757,6 +782,7 @@ impl Session {
                     .expect("failed to get current session working directory"),
                 schedule_id: self.scheduled_job_id.clone(),
                 execution_mode: None,
+                max_turns: self.max_turns,
             }
         });
         let mut stream = self

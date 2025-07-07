@@ -317,15 +317,16 @@ export function useMessageStream({
                       const lastMessage = currentMessages[currentMessages.length - 1];
                       onFinish(lastMessage, parsedEvent.reason);
                     }
-                    
+
                     // Fetch updated session metadata with token counts
-                    const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)?.session_id as string;
+                    const sessionId = (extraMetadataRef.current.body as Record<string, unknown>)
+                      ?.session_id as string;
                     if (sessionId) {
                       try {
                         const sessionResponse = await getSessionHistory({
                           path: { session_id: sessionId },
                         });
-                        
+
                         if (sessionResponse.data?.metadata) {
                           setSessionMetadata({
                             workingDir: sessionResponse.data.metadata.working_dir,
@@ -335,9 +336,12 @@ export function useMessageStream({
                             totalTokens: sessionResponse.data.metadata.total_tokens || null,
                             inputTokens: sessionResponse.data.metadata.input_tokens || null,
                             outputTokens: sessionResponse.data.metadata.output_tokens || null,
-                            accumulatedTotalTokens: sessionResponse.data.metadata.accumulated_total_tokens || null,
-                            accumulatedInputTokens: sessionResponse.data.metadata.accumulated_input_tokens || null,
-                            accumulatedOutputTokens: sessionResponse.data.metadata.accumulated_output_tokens || null,
+                            accumulatedTotalTokens:
+                              sessionResponse.data.metadata.accumulated_total_tokens || null,
+                            accumulatedInputTokens:
+                              sessionResponse.data.metadata.accumulated_input_tokens || null,
+                            accumulatedOutputTokens:
+                              sessionResponse.data.metadata.accumulated_output_tokens || null,
                           });
                         }
                       } catch (error) {
