@@ -20,6 +20,7 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
+const SECRETS_FILE_NAME: &str = "secrets.yaml";
 
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
@@ -133,7 +134,7 @@ impl Default for Config {
             .config_dir();
 
         let keyring: Arc<dyn KeyringBackend> = if is_env_var_truthy("GOOSE_DISABLE_KEYRING") {
-            Arc::new(FileKeyringBackend::new(config_dir.join("secrets.yaml")))
+            Arc::new(FileKeyringBackend::new(config_dir.join(SECRETS_FILE_NAME)))
         } else {
             Arc::new(SystemKeyringBackend)
         };
@@ -1089,20 +1090,35 @@ mod tests {
     #[test]
     fn test_env_var_truthy_values() {
         // Test truthy values
-        for value in ["1", "true", "TRUE", "yes", "YES", "on", "ON", " true ", "True"] {
+        for value in [
+            "1", "true", "TRUE", "yes", "YES", "on", "ON", " true ", "True",
+        ] {
             env::set_var("TEST_TRUTHY_VAR", value);
-            assert!(is_env_var_truthy("TEST_TRUTHY_VAR"), "Value '{}' should be truthy", value);
+            assert!(
+                is_env_var_truthy("TEST_TRUTHY_VAR"),
+                "Value '{}' should be truthy",
+                value
+            );
         }
 
         // Test falsy values
-        for value in ["0", "false", "FALSE", "no", "NO", "off", "OFF", "", " ", "random"] {
+        for value in [
+            "0", "false", "FALSE", "no", "NO", "off", "OFF", "", " ", "random",
+        ] {
             env::set_var("TEST_TRUTHY_VAR", value);
-            assert!(!is_env_var_truthy("TEST_TRUTHY_VAR"), "Value '{}' should be falsy", value);
+            assert!(
+                !is_env_var_truthy("TEST_TRUTHY_VAR"),
+                "Value '{}' should be falsy",
+                value
+            );
         }
 
         // Test unset variable
         env::remove_var("TEST_TRUTHY_VAR");
-        assert!(!is_env_var_truthy("TEST_TRUTHY_VAR"), "Unset variable should be falsy");
+        assert!(
+            !is_env_var_truthy("TEST_TRUTHY_VAR"),
+            "Unset variable should be falsy"
+        );
 
         // Clean up
         env::remove_var("TEST_TRUTHY_VAR");
