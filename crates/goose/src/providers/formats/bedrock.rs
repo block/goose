@@ -4,12 +4,14 @@ use std::path::Path;
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
+use base64::Engine;
 use chrono::Utc;
 use mcp_core::{Content, ResourceContents, Role, Tool, ToolCall, ToolError, ToolResult};
 use serde_json::Value;
 
 use super::super::base::Usage;
 use crate::message::{Message, MessageContent};
+use mcp_core::content::ImageContent;
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
@@ -31,9 +33,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::Image(_) => {
-            bail!("Image content is not supported by Bedrock provider yet")
-        }
+        MessageContent::Image(image) => bedrock::ContentBlock::Image(to_bedrock_image(image)?),
         MessageContent::Thinking(_) => {
             // Thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
@@ -108,13 +108,17 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
     })
 }
 
+/// Convert MCP Content to Bedrock ToolResultContentBlock
+///
+/// Supports text, images, and document resources. Images are supported
+/// by Bedrock for Anthropic Claude 3 models.
 pub fn to_bedrock_tool_result_content_block(
     tool_use_id: &str,
     content: &Content,
 ) -> Result<bedrock::ToolResultContentBlock> {
     Ok(match content {
         Content::Text(text) => bedrock::ToolResultContentBlock::Text(text.text.to_string()),
-        Content::Image(_) => bail!("Image content is not supported by Bedrock provider yet"),
+        Content::Image(image) => bedrock::ToolResultContentBlock::Image(to_bedrock_image(image)?),
         Content::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
@@ -134,6 +138,33 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
         Role::User => bedrock::ConversationRole::User,
         Role::Assistant => bedrock::ConversationRole::Assistant,
     }
+}
+
+pub fn to_bedrock_image(image: &ImageContent) -> Result<bedrock::ImageBlock> {
+    // Extract format from MIME type
+    let format = match image.mime_type.as_str() {
+        "image/png" => bedrock::ImageFormat::Png,
+        "image/jpeg" | "image/jpg" => bedrock::ImageFormat::Jpeg,
+        "image/gif" => bedrock::ImageFormat::Gif,
+        "image/webp" => bedrock::ImageFormat::Webp,
+        _ => bail!(
+            "Unsupported image format: {}. Bedrock supports png, jpeg, gif, webp",
+            image.mime_type
+        ),
+    };
+
+    // Create image source with base64 data
+    let source = bedrock::ImageSource::Bytes(aws_smithy_types::Blob::new(
+        base64::prelude::BASE64_STANDARD
+            .decode(&image.data)
+            .map_err(|e| anyhow!("Failed to decode base64 image data: {}", e))?,
+    ));
+
+    // Build the image block
+    Ok(bedrock::ImageBlock::builder()
+        .format(format)
+        .source(source)
+        .build()?)
 }
 
 pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfiguration> {
@@ -314,4 +345,101 @@ pub fn from_bedrock_json(document: &Document) -> Result<Value> {
                 .collect::<Result<_>>()?,
         ),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use mcp_core::content::ImageContent;
+
+    // Base64 encoded 1x1 PNG image for testing
+    const TEST_IMAGE_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
+    #[test]
+    fn test_to_bedrock_image_supported_formats() -> Result<()> {
+        let supported_formats = [
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/gif",
+            "image/webp",
+        ];
+
+        for mime_type in supported_formats {
+            let image = ImageContent {
+                data: TEST_IMAGE_BASE64.to_string(),
+                mime_type: mime_type.to_string(),
+                annotations: None,
+            };
+
+            let result = to_bedrock_image(&image);
+            assert!(result.is_ok(), "Failed to convert {} format", mime_type);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_image_unsupported_format() {
+        let image = ImageContent {
+            data: TEST_IMAGE_BASE64.to_string(),
+            mime_type: "image/bmp".to_string(),
+            annotations: None,
+        };
+
+        let result = to_bedrock_image(&image);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Unsupported image format: image/bmp"));
+        assert!(error_msg.contains("Bedrock supports png, jpeg, gif, webp"));
+    }
+
+    #[test]
+    fn test_to_bedrock_image_invalid_base64() {
+        let image = ImageContent {
+            data: "invalid_base64_data!!!".to_string(),
+            mime_type: "image/png".to_string(),
+            annotations: None,
+        };
+
+        let result = to_bedrock_image(&image);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Failed to decode base64 image data"));
+    }
+
+    #[test]
+    fn test_to_bedrock_message_content_image() -> Result<()> {
+        let image = ImageContent {
+            data: TEST_IMAGE_BASE64.to_string(),
+            mime_type: "image/png".to_string(),
+            annotations: None,
+        };
+
+        let message_content = MessageContent::Image(image);
+        let result = to_bedrock_message_content(&message_content)?;
+
+        // Verify we get an Image content block
+        assert!(matches!(result, bedrock::ContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_content_block_image() -> Result<()> {
+        let image = ImageContent {
+            data: TEST_IMAGE_BASE64.to_string(),
+            mime_type: "image/png".to_string(),
+            annotations: None,
+        };
+
+        let content = Content::Image(image);
+        let result = to_bedrock_tool_result_content_block("test_id", &content)?;
+
+        // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
+        assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
+
+        Ok(())
+    }
 }
