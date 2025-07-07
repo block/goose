@@ -1,3 +1,49 @@
+/**
+ * @module useWindowManager
+ * @description
+ * The `useWindowManager` hook provides functionality for dynamically resizing the application window 
+ * and managing component mounting states based on window expansion/collapse operations.
+ * 
+ * @example
+ * ```typescript
+ * import { useWindowManager } from '../hooks/useWindowManager';
+ * 
+ * function MyComponent() {
+ *   const { windowState, toggleWindow, isComponentMounted, canExpand } = useWindowManager({
+ *     expandPercentage: 50,
+ *     maxWidthForExpansion: 900,
+ *     transitionDuration: 300
+ *   });
+ * 
+ *   return (
+ *     <div>
+ *       <button onClick={toggleWindow} disabled={!canExpand}>
+ *         {windowState.isExpanded ? 'Collapse' : 'Expand'} Window
+ *       </button>
+ *       
+ *       {isComponentMounted && (
+ *         <div>Content that appears when window is expanded</div>
+ *       )}
+ *     </div>
+ *   );
+ * }
+ * ```
+ * 
+ * @property {object} windowState - Current window state information.
+ * @property {boolean} windowState.isExpanded - Whether window is currently expanded.
+ * @property {number} windowState.originalWidth - Original window width before expansion.
+ * @property {number} windowState.currentWidth - Current window width.
+ * @property {boolean} windowState.isTransitioning - Whether a resize operation is in progress.
+ * 
+ * @property {Function} toggleWindow - Async function to toggle window expansion/collapse.
+ * 
+ * @property {boolean} isComponentMounted - Boolean indicating if components should be rendered.
+ * `true` when window is expanded and transition is complete, `false` otherwise.
+ * 
+ * @property {boolean} canExpand - Boolean indicating if window can be expanded based on `maxWidthForExpansion`.
+ *
+ * @see useWindowManager
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface WindowState {
