@@ -43,7 +43,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
 
         :::tip
-        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
+        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Projects Guide](/docs/guides/projects).
         :::
     </TabItem>
 </Tabs>
@@ -118,7 +118,7 @@ Note that sessions are automatically saved when you exit.
         :::
 
         :::tip
-        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
+        You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Projects Guide](/docs/guides/projects).
         :::
     </TabItem>
 </Tabs>

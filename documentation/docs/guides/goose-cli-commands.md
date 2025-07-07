@@ -423,6 +423,8 @@ Start working on your last project or create a new one.
 
 A project is a record of a working directory and recent session metadata. Note that any directory where you run `goose project` becomes a tracked project, so you might want to run the command from the directory where you want to work.
 
+**For a complete guide to Goose Projects, including workflows and best practices, see [Projects Guide](/docs/guides/projects).**
+
 **Alias**: `p`
 
 **Usage:**
@@ -443,6 +445,8 @@ Goose stores your project history in `~/.local/share/goose/projects.json`.
 ### projects
 
 Choose one of your projects to start working on.
+
+**See [Projects Guide](/docs/guides/projects) for detailed usage examples and workflows.**
 
 **Alias**: `ps`
 
