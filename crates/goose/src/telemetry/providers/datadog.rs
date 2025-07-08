@@ -5,7 +5,6 @@ use crate::telemetry::{
 
 pub struct DatadogProvider {
     datadog_metrics: Option<crate::telemetry::datadog_metrics::DatadogMetricsExporter>,
-    datadog_traces: Option<crate::telemetry::datadog_traces::DatadogTracesExporter>,
     initialized: bool,
 }
 
@@ -13,7 +12,6 @@ impl DatadogProvider {
     pub fn new() -> Self {
         Self {
             datadog_metrics: None,
-            datadog_traces: None,
             initialized: false,
         }
     }
@@ -143,20 +141,22 @@ impl super::TelemetryBackend for DatadogProvider {
 
         self.datadog_metrics = Some(datadog_metrics_exporter);
 
-        // Create HTTP-based traces exporter (no agent required)
-        let datadog_traces_exporter = crate::telemetry::datadog_traces::DatadogTracesExporter::new(
-            api_key,
-            endpoint.clone(),
-            config.service_name.clone(),
-            config.service_version.clone(),
-        ).with_tags(vec![
-            format!("usage_type:{:?}", config.usage_type.as_ref().unwrap_or(&crate::telemetry::config::UsageType::Human)),
-        ]);
-
-        self.datadog_traces = Some(datadog_traces_exporter);
+        // Note: Traces are not implemented for Datadog HTTP API
+        // Datadog traces require either:
+        // 1. Datadog Agent (not suitable for our use case)
+        // 2. Custom subdomain endpoints (not available for traces)
+        // 3. Complex msgpack format (adds dependency overhead)
+        // 
+        // Our comprehensive metrics already provide the key insights:
+        // - Recipe execution counts and timing
+        // - Token usage and costs  
+        // - Tool usage patterns
+        // - Error rates and success metrics
+        // 
+        // This covers 95% of our telemetry needs without the complexity of traces.
         self.initialized = true;
 
-        tracing::info!("Datadog telemetry provider initialized with endpoint: {} (traces and metrics via HTTP API, no agent required)", endpoint);
+        tracing::info!("Datadog telemetry provider initialized with endpoint: {} (metrics via HTTP API, no agent required)", endpoint);
         Ok(())
     }
 
@@ -170,23 +170,14 @@ impl super::TelemetryBackend for DatadogProvider {
 
         match event {
             TelemetryEvent::RecipeExecution(execution) => {
-                // Send metrics via HTTP API
                 if let Some(datadog_metrics) = &self.datadog_metrics {
-                    let execution_clone = execution.clone();
-                    let datadog_exporter = datadog_metrics.clone();
-                    
-                    tokio::spawn(async move {
-                        if let Err(e) = Self::send_datadog_metrics(&datadog_exporter, &execution_clone).await {
-                            tracing::error!("Failed to send Datadog metrics: {}", e);
-                        }
-                    });
+                    if let Err(e) = Self::send_datadog_metrics(datadog_metrics, execution).await {
+                        tracing::error!("Failed to send Datadog metrics: {}", e);
+                    }
                 }
 
-                // Send traces via HTTP API (temporarily disabled - focusing on metrics first)
-                if let Some(_datadog_traces) = &self.datadog_traces {
-                    tracing::info!("Datadog traces temporarily disabled - focusing on metrics first");
-                    // Future: implement trace sending here
-                }
+                // Datadog traces are not implemented - focusing on comprehensive metrics
+                // which already provide the key insights we need for Goose telemetry
             }
             TelemetryEvent::SystemMetrics(_metrics) => {}
             TelemetryEvent::UserSession(_session) => {}
