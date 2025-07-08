@@ -97,7 +97,9 @@ impl TelemetryConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or_default();
 
-        config.endpoint = env::var("GOOSE_TELEMETRY_ENDPOINT").ok();
+        config.endpoint = env::var("GOOSE_TELEMETRY_ENDPOINT")
+            .ok()
+            .or_else(|| env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok());
         config.api_key = env::var("GOOSE_TELEMETRY_API_KEY")
             .ok()
             .or_else(|| env::var("DD_API_KEY").ok());

@@ -320,6 +320,7 @@ impl super::TelemetryBackend for OtlpProvider {
         self.initialized = true;
 
         let auth_status = if config.api_key.is_some() { "with authentication" } else { "without authentication" };
+        eprintln!("🔧 OTLP telemetry provider initialized with endpoint: {} ({})", endpoint, auth_status);
         tracing::info!("OTLP telemetry provider initialized with endpoint: {} ({})", endpoint, auth_status);
         Ok(())
     }
@@ -334,8 +335,10 @@ impl super::TelemetryBackend for OtlpProvider {
 
         match event {
             TelemetryEvent::RecipeExecution(execution) => {
+                eprintln!("📊 OTLP: Recording recipe execution: {}", execution.recipe_name);
                 self.record_recipe_execution(execution);
                 self.create_recipe_span(execution);
+                eprintln!("✅ OTLP: Recipe span created and recorded");
             }
             TelemetryEvent::SystemMetrics(_metrics) => {}
             TelemetryEvent::UserSession(_session) => {}
@@ -346,7 +349,28 @@ impl super::TelemetryBackend for OtlpProvider {
 
     async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if self.initialized {
+            eprintln!("🛑 OTLP: Shutting down and flushing spans...");
+            
+            // Force flush any pending spans before shutdown
+            if let Some(tracer_provider) = &self.tracer_provider {
+                let flush_results = tracer_provider.force_flush();
+                let mut flush_errors = Vec::new();
+                
+                for result in flush_results {
+                    if let Err(e) = result {
+                        flush_errors.push(e);
+                    }
+                }
+                
+                if flush_errors.is_empty() {
+                    eprintln!("✅ OTLP: Spans flushed successfully");
+                } else {
+                    eprintln!("⚠️ OTLP: Failed to flush some spans: {:?}", flush_errors);
+                }
+            }
+            
             global::shutdown_tracer_provider();
+            eprintln!("✅ OTLP: Shutdown complete");
             tracing::info!("OTLP telemetry provider shutdown successfully");
         }
         Ok(())

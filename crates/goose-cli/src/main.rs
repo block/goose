@@ -8,9 +8,13 @@ async fn main() -> Result<()> {
     let is_mcp_process = args.len() >= 2 && args[1] == "mcp";
 
     if !is_mcp_process {
-        if let Err(e) = goose::telemetry::init_global_telemetry().await {
-            // Don't fail the application if telemetry fails to initialize
-            tracing::warn!("Failed to initialize telemetry: {}", e);
+
+        let telemetry_init_result = goose::telemetry::init_global_telemetry().await;
+
+        if let Err(e) = &telemetry_init_result {
+            eprintln!("⚠️ Telemetry initialization failed: {}", e);
+            eprintln!("   This may be due to configuration issues or connectivity problems.");
+            eprintln!("   The application will continue without telemetry.");
         }
     }
 
@@ -18,7 +22,7 @@ async fn main() -> Result<()> {
 
     if !is_mcp_process {
         if let Err(e) = goose::telemetry::shutdown_global_telemetry().await {
-            tracing::warn!("Failed to shutdown telemetry: {}", e);
+            eprintln!("⚠️ Failed to shutdown telemetry: {}", e);
         }
     }
 
