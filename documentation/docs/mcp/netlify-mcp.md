@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/izoQatKtJ2I" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iSUNmxOf6gw" />
 
 This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a Goose extension to build, deploy, and manage Netlify sites.
 
@@ -201,7 +201,7 @@ In this example, I’ll show you how to use Goose with the Netlify Extension to 
 :::note CLI
 
 <details>
-<summary>Tool Calls</summary>
+    <summary>Tool Calls</summary>
     I'll help you deploy your tic-tac-toe app to Netlify from your GitHub repository. Let me first check your Netlify account and then set up the deployment.
 
     ─── netlify-user-services | netlify ──────────────────────────
