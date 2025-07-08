@@ -65,6 +65,10 @@ const config: Config = {
             "./src/css/tailwind.css",
           ],
         },
+        gtag: {
+          trackingID: 'G-ZS5D6SB4ZJ',
+          anonymizeIP: true,
+        },
       } satisfies Preset.Options,
     ],
   ],
