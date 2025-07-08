@@ -114,6 +114,7 @@
   --background-muted: var(--color-neutral-800);
   --background-medium: var(--color-neutral-700);
   --background-strong: var(--color-neutral-600);
+  --background-inverse: var(--color-neutral-200);
   --background-danger: var(--color-red-100);
   --background-success: var(--color-green-100);
   --background-info: var(--color-blue-100);

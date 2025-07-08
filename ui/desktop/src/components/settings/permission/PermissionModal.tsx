@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
 import { getTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../../ui/dropdown-menu';
 
 function getFirstSentence(text: string): string {
   const match = text.match(/^([^.?!]+[.?!])/);
@@ -24,6 +29,13 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [updatedPermissions, setUpdatedPermissions] = useState<Record<string, string>>({});
+
+  const hasChanges = useMemo(() => {
+    return Object.keys(updatedPermissions).some(
+      (toolName) =>
+        updatedPermissions[toolName] !== tools.find((tool) => tool.name === toolName)?.permission
+    );
+  }, [updatedPermissions, tools]);
 
   useEffect(() => {
     const fetchTools = async () => {
@@ -51,6 +63,10 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
       ...prev,
       [toolName]: newPermission,
     }));
+  };
+
+  const handleClose = () => {
+    onClose();
   };
 
   const handleSave = async () => {
@@ -82,7 +98,14 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   };
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -127,32 +150,29 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                       {getFirstSentence(tool.description)}
                     </p>
                   </div>
-                  <DropdownMenu.Root>
-                    <DropdownMenu.Trigger className="flex col-span-4 items-center justify-center bg-bgSubtle text-textStandard rounded-full px-3 py-2">
-                      <span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="col-span-4">
+                      <Button className="w-full" variant="secondary" size="lg">
                         {permissionOptions.find(
                           (option) =>
                             option.value === (updatedPermissions[tool.name] || tool.permission)
                         )?.label || 'Ask Before'}
-                      </span>
-                      <ChevronDownIcon className="ml-2 h-4 w-4" />
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content className="bg-white dark:bg-bgProminent rounded-lg shadow-md">
-                        {permissionOptions.map((option) => (
-                          <DropdownMenu.Item
-                            key={option.value}
-                            className="px-8 py-2 rounded-lg hover:cursor-pointer hover:bg-bgSubtle text-textStandard"
-                            onSelect={() =>
-                              handleSettingChange(tool.name, option.value as PermissionLevel)
-                            }
-                          >
-                            {option.label}
-                          </DropdownMenu.Item>
-                        ))}
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu.Root>
+                        <ChevronDownIcon className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {permissionOptions.map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onSelect={() =>
+                            handleSettingChange(tool.name, option.value as PermissionLevel)
+                          }
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
@@ -160,10 +180,12 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+          <Button disabled={!hasChanges} onClick={handleSave}>
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
