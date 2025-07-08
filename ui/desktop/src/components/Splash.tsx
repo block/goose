@@ -40,7 +40,6 @@ export default function Splash({ append, activities, title }: SplashProps) {
       <div className="flex flex-col px-6 mb-0">
         <Greeting className="text-text-prominent text-4xl font-light mb-2" />
       </div>
-
       <div className="flex flex-col">
         {messagePill && (
           <div className="mb-4 p-3 rounded-lg border animate-[fadein_500ms_ease-in_forwards]">

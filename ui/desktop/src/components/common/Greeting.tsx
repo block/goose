@@ -48,11 +48,9 @@ export function Greeting({
   const messageRef = useTextAnimator({ text: greeting.message });
 
   return (
-    <div className="px-8 pb-12 pt-16 bg-background-default">
-      <h1 className={className} key={forceRefresh ? Date.now() : undefined}>
-        {/* <span>{greeting.prefix}</span> */}
-        <span ref={messageRef}>{greeting.message}</span>
-      </h1>
-    </div>
+    <h1 className={className} key={forceRefresh ? Date.now() : undefined}>
+      {/* <span>{greeting.prefix}</span> */}
+      <span ref={messageRef}>{greeting.message}</span>
+    </h1>
   );
 }

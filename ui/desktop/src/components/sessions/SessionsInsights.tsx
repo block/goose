@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Goose } from '../icons/Goose';
 
 interface SessionInsightsType {
   totalSessions: number;
@@ -106,7 +107,17 @@ export function SessionInsights() {
 
   return (
     <div className="bg-background-muted">
-      <Greeting />
+      <div className="px-8 pb-12 pt-19 bg-background-default space-y-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.25, x: -5, y: 5, rotate: -20 }}
+          animate={{ opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="origin-bottom-left"
+        >
+          <Goose className="size-8" />
+        </motion.div>
+        <Greeting />
+      </div>
 
       <div className="grid gap-[2px] mt-0.5">
         {/* Top row with three equal columns */}

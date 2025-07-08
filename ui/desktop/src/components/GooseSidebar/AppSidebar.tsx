@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Clock, Home, Puzzle, History, FolderKanban } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   SidebarContent,
   SidebarFooter,
@@ -10,7 +10,6 @@ import {
   SidebarMenuButton,
   SidebarGroup,
   SidebarGroupContent,
-  useSidebar,
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
@@ -18,7 +17,6 @@ import { ViewOptions, View } from '../../App';
 import { Recipe } from '../../recipe';
 import { saveRecipe } from '../../recipe/recipeStorage';
 import { useChatContext } from '../../contexts/ChatContext';
-import { Goose } from '../icons/Goose';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -38,7 +36,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [saveGlobal, setSaveGlobal] = useState(true);
   const [saving, setSaving] = useState(false);
   const { resetChat } = useChatContext();
-  const { state } = useSidebar();
 
   useEffect(() => {
     // Trigger animation after a small delay
@@ -282,33 +279,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="mb-2">
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25, delay: 0.5 }}
-          className="flex flex-col gap-2 w-full"
-        >
-          <div className="flex items-center gap-2">
-            <Goose className="w-6 h-6" />
-            <AnimatePresence mode="wait">
-              {state === 'expanded' && (
-                <motion.span
-                  key="logo-text"
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: 'auto' }}
-                  exit={{ opacity: 0, width: 0 }}
-                  transition={{ duration: 0.2, ease: 'easeInOut' }}
-                  className="text-base overflow-hidden whitespace-nowrap leading-tight"
-                >
-                  codename
-                  <br /> goose
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      </SidebarFooter>
+      <SidebarFooter />
 
       {/* Save Recipe Dialog */}
       {showSaveDialog && (
