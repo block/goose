@@ -42,6 +42,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Learn how to create and use Goose recipes with prompts, parameters, MCP servers, and more."
       link="/docs/tutorials/recipes-tutorial"
     />
+    <Card 
+      title="Sub-Recipes"
+      description="Learn how a recipe can use sub-recipes to do specific tasks."
+      link="/docs/guides/recipes/sub-recipes"
+    />
   </div>
 </div>
 
