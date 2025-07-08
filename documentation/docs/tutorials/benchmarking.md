@@ -1,5 +1,4 @@
 ---
-sidebar_position: 12
 title: Benchmarking with Goose
 sidebar_label: Benchmark with Goose
 ---

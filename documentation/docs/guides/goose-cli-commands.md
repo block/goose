@@ -341,7 +341,7 @@ goose run --max-turns 25 -i plan.md
 
 ### bench
 
-Used to evaluate system-configuration across a range of practical tasks. See the [detailed guide](/docs/guides/benchmarking) for more information.
+Used to evaluate system-configuration across a range of practical tasks. See the [detailed guide](/docs/tutorials/benchmarking) for more information.
 
 **Usage:**
 
