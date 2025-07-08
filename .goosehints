@@ -1,8 +1,10 @@
-This is a rust project with crates in crate dir. 
+This is a rust project with crates in the crates/ dir. 
 
 ui/desktop has an electron app in typescript. 
 
-tips: 
-- can look at unstaged changes for what is being worked on if starting
-- always check rust compiles, cargo fmt etc and cargo clippy -- -D warnings (as well as run tests in files you are working on)
+Pro tips: 
+- Review the `CONTRIBUTING.md` file in the root of the project for dev workflows.
+- We want short iteration loops with one or two clear tasks between giving me back control to verify progress is on the right track.
+- Use `git status` and `git diff` to review any current changes
+- Use `cargo fmt` and `cargo clippy -- -D warnings` to make sure any rust code changes are valid
 - in ui/desktop, look at how you can run lint checks and if other tests can run
