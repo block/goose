@@ -1,5 +1,4 @@
 ---
-sidebar_position: 12
 title: Benchmarking with Goose
 sidebar_label: Benchmark with Goose
 ---
@@ -195,5 +194,6 @@ RUST_LOG=debug goose bench bench-config.json
 ### Tool Shimming
 
 Tool shimming allows you to use a non-tool-capable models with Goose, provided Ollama is installed on the
-system.<br></br>
-See this guide for important details on [tool shimming](experimental-features).
+system.
+
+See this guide for important details on [tool shimming](/docs/guides/experimental-features).

@@ -212,7 +212,7 @@ export async function replaceWithShims(cmd: string) {
 
 export function removeShims(cmd: string) {
   // Only remove shims if the path matches our known shim patterns
-  const shimPatterns = [/goosed$/, /docker$/, /jbang$/, /npx$/, /uvx$/];
+  const shimPatterns = [/cu$/, /goosed$/, /docker$/, /jbang$/, /npx$/, /uvx$/, /npx.cmd$/];
 
   // Check if the command matches any shim pattern
   const isShim = shimPatterns.some((pattern) => pattern.test(cmd));
