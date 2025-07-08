@@ -86,3 +86,31 @@ pub fn generate_schema<T: JsonSchema>() -> ToolResult<Value> {
     let schema = schemars::schema_for!(T);
     serde_json::to_value(schema).map_err(|e| ToolError::SchemaError(e.to_string()))
 }
+
+/// Helper function to require a string, returning a ToolError
+pub fn require_str_parameter<'a>(
+    v: &'a serde_json::Value,
+    name: &str,
+) -> Result<&'a str, ToolError> {
+    let v = v
+        .get(name)
+        .ok_or_else(|| ToolError::InvalidParameters(format!("The parameter {name} is required")))?;
+    match v.as_str() {
+        Some(r) => Ok(r),
+        None => Err(ToolError::InvalidParameters(format!(
+            "The parameter {name} must be a string"
+        ))),
+    }
+}
+/// Helper function to require a u64, returning a ToolError
+pub fn require_u64_parameter(v: &serde_json::Value, name: &str) -> Result<u64, ToolError> {
+    let v = v
+        .get(name)
+        .ok_or_else(|| ToolError::InvalidParameters(format!("The parameter {name} is required")))?;
+    match v.as_u64() {
+        Some(r) => Ok(r),
+        None => Err(ToolError::InvalidParameters(format!(
+            "The parameter {name} must be a number"
+        ))),
+    }
+}
