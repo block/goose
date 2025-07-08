@@ -1,7 +1,4 @@
-use crate::telemetry::{
-    config::TelemetryConfig,
-    events::TelemetryEvent,
-};
+use crate::telemetry::{config::TelemetryConfig, events::TelemetryEvent};
 use serde_json;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -24,15 +21,22 @@ impl FileProvider {
         }
     }
 
-    fn write_event_to_file(&self, event: &TelemetryEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn write_event_to_file(
+        &self,
+        event: &TelemetryEvent,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(file_handle) = &self.file_handle {
-            let mut file = file_handle.lock().map_err(|e| format!("Failed to lock file: {}", e))?;
+            let mut file = file_handle
+                .lock()
+                .map_err(|e| format!("Failed to lock file: {}", e))?;
 
             let event_record = serde_json::json!({
                 "timestamp": chrono::Utc::now().to_rfc3339(),
                 "event_type": match event {
                     TelemetryEvent::RecipeExecution(_) => "recipe_execution",
-                    TelemetryEvent::SystemMetrics(_) => "system_metrics", 
+                    TelemetryEvent::SessionExecution(_) => "session_execution",
+                    TelemetryEvent::CommandExecution(_) => "command_execution",
+                    TelemetryEvent::SystemMetrics(_) => "system_metrics",
                     TelemetryEvent::UserSession(_) => "user_session",
                 },
                 "data": event
@@ -41,7 +45,7 @@ impl FileProvider {
             writeln!(file, "{}", serde_json::to_string(&event_record)?)?;
             file.flush()?;
         }
-        
+
         Ok(())
     }
 }
@@ -56,7 +60,8 @@ impl super::TelemetryBackend for FileProvider {
             return Ok(());
         }
 
-        let file_path = config.get_endpoint()
+        let file_path = config
+            .get_endpoint()
             .ok_or("File provider requires a file path in GOOSE_TELEMETRY_ENDPOINT")?;
 
         if let Some(parent) = Path::new(&file_path).parent() {
@@ -84,7 +89,9 @@ impl super::TelemetryBackend for FileProvider {
         });
 
         if let Some(file_handle) = &self.file_handle {
-            let mut file = file_handle.lock().map_err(|e| format!("Failed to lock file: {}", e))?;
+            let mut file = file_handle
+                .lock()
+                .map_err(|e| format!("Failed to lock file: {}", e))?;
             writeln!(file, "{}", serde_json::to_string(&init_record)?)?;
             file.flush()?;
         }
@@ -114,7 +121,9 @@ impl super::TelemetryBackend for FileProvider {
             });
 
             if let Some(file_handle) = &self.file_handle {
-                let mut file = file_handle.lock().map_err(|e| format!("Failed to lock file: {}", e))?;
+                let mut file = file_handle
+                    .lock()
+                    .map_err(|e| format!("Failed to lock file: {}", e))?;
                 writeln!(file, "{}", serde_json::to_string(&shutdown_record)?)?;
                 file.flush()?;
             }

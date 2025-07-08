@@ -7,7 +7,13 @@ mod user;
 
 pub use {
     config::{TelemetryConfig, TelemetryProvider, UsageType},
-    events::{RecipeExecution, RecipeResult, TelemetryEvent, TokenUsage, ToolUsage},
-    manager::{TelemetryManager, RecipeExecutionBuilder, init_global_telemetry, global_telemetry, shutdown_global_telemetry},
+    events::{
+        CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution, RecipeResult,
+        SessionExecution, SessionResult, SessionType, TelemetryEvent, TokenUsage, ToolUsage,
+    },
+    manager::{
+        global_telemetry, init_global_telemetry, shutdown_global_telemetry, RecipeExecutionBuilder,
+        TelemetryManager,
+    },
     user::{detect_usage_type, UserIdentity},
 };

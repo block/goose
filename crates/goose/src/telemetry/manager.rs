@@ -1,6 +1,6 @@
 use crate::telemetry::{
     config::TelemetryConfig,
-    events::{RecipeExecution, TelemetryEvent},
+    events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent},
     providers::{create_backend, TelemetryBackend},
     user::UserIdentity,
 };
@@ -109,6 +109,68 @@ impl TelemetryManager {
 
         for execution in executions {
             self.track_recipe_execution(execution).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn track_session_execution(
+        &self,
+        mut execution: SessionExecution,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        if let Some(user_identity) = &self.user_identity {
+            execution.user_id = user_identity.user_id.clone();
+            execution.usage_type = user_identity.usage_type.clone();
+        }
+
+        if let Some(environment) = &self.config.environment {
+            execution.environment = Some(environment.clone());
+        }
+
+        execution.complete();
+
+        if let Some(backend) = &self.backend {
+            let backend_guard = backend.lock().await;
+            let event = TelemetryEvent::SessionExecution(execution);
+
+            if let Err(e) = backend_guard.send_event(&event).await {
+                tracing::warn!("Failed to send telemetry event: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn track_command_execution(
+        &self,
+        mut execution: CommandExecution,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        if let Some(user_identity) = &self.user_identity {
+            execution.user_id = user_identity.user_id.clone();
+            execution.usage_type = user_identity.usage_type.clone();
+        }
+
+        if let Some(environment) = &self.config.environment {
+            execution.environment = Some(environment.clone());
+        }
+
+        execution.complete();
+
+        if let Some(backend) = &self.backend {
+            let backend_guard = backend.lock().await;
+            let event = TelemetryEvent::CommandExecution(execution);
+
+            if let Err(e) = backend_guard.send_event(&event).await {
+                tracing::warn!("Failed to send telemetry event: {}", e);
+            }
         }
 
         Ok(())
@@ -356,8 +418,8 @@ mod tests {
             enabled: true,
         };
 
-        let execution = RecipeExecution::new("test-recipe", "1.0.0")
-            .with_result(RecipeResult::Success);
+        let execution =
+            RecipeExecution::new("test-recipe", "1.0.0").with_result(RecipeResult::Success);
 
         let result = manager.track_recipe_execution(execution).await;
         assert!(result.is_ok());
@@ -367,7 +429,7 @@ mod tests {
     async fn test_batch_tracking_with_mock() {
         let mock_backend = MockTelemetryBackend::new();
         let events_ref = mock_backend.events.clone();
-        
+
         let config = TelemetryConfig {
             enabled: true,
             provider: TelemetryProvider::Console,

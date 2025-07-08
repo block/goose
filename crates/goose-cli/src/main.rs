@@ -8,7 +8,6 @@ async fn main() -> Result<()> {
     let is_mcp_process = args.len() >= 2 && args[1] == "mcp";
 
     if !is_mcp_process {
-
         let telemetry_init_result = goose::telemetry::init_global_telemetry().await;
 
         if let Err(e) = &telemetry_init_result {

@@ -20,12 +20,18 @@ impl DatadogMetricsExporter {
             .tcp_keepalive(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_else(|e| {
-                tracing::warn!("Failed to create custom reqwest client: {}, using default", e);
+                tracing::warn!(
+                    "Failed to create custom reqwest client: {}, using default",
+                    e
+                );
                 reqwest::Client::new()
             });
-            
-        tracing::info!("Created Datadog metrics exporter for endpoint: {} with enhanced HTTP client", endpoint);
-            
+
+        tracing::info!(
+            "Created Datadog metrics exporter for endpoint: {} with enhanced HTTP client",
+            endpoint
+        );
+
         Self {
             client,
             api_key,
@@ -51,9 +57,7 @@ impl DatadogMetricsExporter {
         let mut all_tags = self.tags.clone();
         all_tags.extend(tags);
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs() as i64;
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
 
         let metric = json!({
             "metric": format!("goose.{}", metric_name),
@@ -75,9 +79,7 @@ impl DatadogMetricsExporter {
         let mut all_tags = self.tags.clone();
         all_tags.extend(tags);
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs() as i64;
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
 
         let mut metrics = vec![
             json!({
@@ -116,9 +118,7 @@ impl DatadogMetricsExporter {
         let mut all_tags = self.tags.clone();
         all_tags.extend(tags);
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs() as i64;
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
 
         let metric = json!({
             "metric": format!("goose.{}", metric_name),
@@ -130,7 +130,10 @@ impl DatadogMetricsExporter {
         self.send_metrics_to_datadog(vec![metric]).await
     }
 
-    async fn send_metrics_to_datadog(&self, metrics: Vec<Value>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn send_metrics_to_datadog(
+        &self,
+        metrics: Vec<Value>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if metrics.is_empty() {
             return Ok(());
         }
@@ -140,9 +143,12 @@ impl DatadogMetricsExporter {
         });
 
         let url = format!("{}/api/v1/series", self.endpoint);
-        
+
         tracing::debug!("Sending {} metrics to Datadog URL: {}", metrics.len(), url);
-        tracing::debug!("Payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        tracing::debug!(
+            "Payload: {}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
 
         let response_result = self
             .client
@@ -172,10 +178,7 @@ impl DatadogMetricsExporter {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(format!(
-                "Datadog metrics API error {}: {}",
-                status, body
-            ).into());
+            return Err(format!("Datadog metrics API error {}: {}", status, body).into());
         }
 
         tracing::debug!("Successfully sent {} metrics to Datadog", metrics.len());
@@ -193,7 +196,7 @@ mod tests {
             "test-key".to_string(),
             "https://app.datadoghq.com".to_string(),
         );
-        
+
         assert_eq!(exporter.api_key, "test-key");
         assert_eq!(exporter.endpoint, "https://app.datadoghq.com");
         assert!(exporter.tags.contains(&"service:goose".to_string()));
@@ -204,8 +207,9 @@ mod tests {
         let exporter = DatadogMetricsExporter::new(
             "test-key".to_string(),
             "https://app.datadoghq.com".to_string(),
-        ).with_tags(vec!["env:test".to_string(), "version:1.0".to_string()]);
-        
+        )
+        .with_tags(vec!["env:test".to_string(), "version:1.0".to_string()]);
+
         assert!(exporter.tags.contains(&"service:goose".to_string()));
         assert!(exporter.tags.contains(&"env:test".to_string()));
         assert!(exporter.tags.contains(&"version:1.0".to_string()));
@@ -217,10 +221,12 @@ mod tests {
             "test-key".to_string(),
             "https://httpbin.org/post".to_string(),
         );
-        
+
         // This would normally fail with authentication error, but we're testing the structure
-        let result = exporter.send_counter("test.counter", 42, vec!["test:true".to_string()]).await;
-        
+        let result = exporter
+            .send_counter("test.counter", 42, vec!["test:true".to_string()])
+            .await;
+
         // We expect this to fail with HTTP error, but not with a panic or compilation error
         assert!(result.is_err());
     }
@@ -231,10 +237,12 @@ mod tests {
             "test-key".to_string(),
             "https://httpbin.org/post".to_string(), // Use httpbin for testing
         );
-        
+
         // This would normally fail with authentication error, but we're testing the structure
-        let result = exporter.send_histogram("test.histogram", 10, 45.5, vec!["test:true".to_string()]).await;
-        
+        let result = exporter
+            .send_histogram("test.histogram", 10, 45.5, vec!["test:true".to_string()])
+            .await;
+
         // We expect this to fail with HTTP error, but not with a panic or compilation error
         assert!(result.is_err());
     }
@@ -245,10 +253,12 @@ mod tests {
             "test-key".to_string(),
             "https://httpbin.org/post".to_string(), // Use httpbin for testing
         );
-        
+
         // This would normally fail with authentication error, but we're testing the structure
-        let result = exporter.send_gauge("test.gauge", 3.14, vec!["test:true".to_string()]).await;
-        
+        let result = exporter
+            .send_gauge("test.gauge", 3.14, vec!["test:true".to_string()])
+            .await;
+
         // We expect this to fail with HTTP error, but not with a panic or compilation error
         assert!(result.is_err());
     }

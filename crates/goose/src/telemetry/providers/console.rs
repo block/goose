@@ -1,6 +1,6 @@
 use crate::telemetry::{
     config::TelemetryConfig,
-    events::{RecipeExecution, TelemetryEvent},
+    events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent},
 };
 use opentelemetry::{
     global,
@@ -268,6 +268,12 @@ impl super::TelemetryBackend for ConsoleProvider {
             TelemetryEvent::RecipeExecution(execution) => {
                 self.record_recipe_execution(execution);
                 self.create_recipe_span(execution);
+            }
+            TelemetryEvent::SessionExecution(_execution) => {
+                println!("📊 Session execution telemetry event received");
+            }
+            TelemetryEvent::CommandExecution(_execution) => {
+                println!("📊 Command execution telemetry event received");
             }
             TelemetryEvent::SystemMetrics(_metrics) => {}
             TelemetryEvent::UserSession(_session) => {}

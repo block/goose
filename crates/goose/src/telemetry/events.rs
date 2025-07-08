@@ -216,8 +216,256 @@ impl ErrorDetails {
 #[serde(tag = "event_type", rename_all = "snake_case")]
 pub enum TelemetryEvent {
     RecipeExecution(RecipeExecution),
+    SessionExecution(SessionExecution),
+    CommandExecution(CommandExecution),
     SystemMetrics(SystemMetrics),
     UserSession(UserSession),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionExecution {
+    pub session_id: String,
+    pub session_type: SessionType,
+    pub start_time: u64,
+    pub end_time: Option<u64>,
+    pub duration_ms: Option<u64>,
+    pub result: Option<SessionResult>,
+    pub user_id: String,
+    pub usage_type: UsageType,
+    pub environment: Option<String>,
+    pub metadata: HashMap<String, String>,
+    pub token_usage: Option<TokenUsage>,
+    pub tool_usage: Vec<ToolUsage>,
+    pub message_count: u64,
+    pub turn_count: u64,
+    pub error_details: Option<ErrorDetails>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionType {
+    Interactive,
+    Headless,
+    Scheduled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionResult {
+    Success,
+    Error(String),
+    Interrupted,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandExecution {
+    pub command_name: String,
+    pub command_type: CommandType,
+    pub start_time: u64,
+    pub end_time: Option<u64>,
+    pub duration_ms: Option<u64>,
+    pub result: Option<CommandResult>,
+    pub user_id: String,
+    pub usage_type: UsageType,
+    pub environment: Option<String>,
+    pub metadata: HashMap<String, String>,
+    pub arguments: HashMap<String, String>,
+    pub error_details: Option<ErrorDetails>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommandType {
+    Configure,
+    Info,
+    SessionList,
+    SessionRemove,
+    SessionExport,
+    ProjectOpen,
+    ProjectsList,
+    RecipeValidate,
+    RecipeDeeplink,
+    ScheduleAdd,
+    ScheduleList,
+    ScheduleRemove,
+    ScheduleRunNow,
+    ScheduleSessions,
+    Update,
+    Bench,
+    Web,
+    Mcp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandResult {
+    Success,
+    Error(String),
+    Cancelled,
+}
+
+impl SessionExecution {
+    pub fn new(session_id: &str, session_type: SessionType) -> Self {
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        Self {
+            session_id: session_id.to_string(),
+            session_type,
+            start_time,
+            end_time: None,
+            duration_ms: None,
+            result: None,
+            user_id: String::new(),
+            usage_type: UsageType::Human,
+            environment: None,
+            metadata: HashMap::new(),
+            token_usage: None,
+            tool_usage: Vec::new(),
+            message_count: 0,
+            turn_count: 0,
+            error_details: None,
+        }
+    }
+
+    pub fn with_result(mut self, result: SessionResult) -> Self {
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.end_time = Some(end_time);
+        self.duration_ms = Some((end_time - self.start_time) * 1000);
+        self.result = Some(result);
+        self
+    }
+
+    pub fn with_duration(mut self, duration: Duration) -> Self {
+        self.duration_ms = Some(duration.as_millis() as u64);
+        self
+    }
+
+    pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
+        self.metadata.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn with_token_usage(mut self, token_usage: TokenUsage) -> Self {
+        self.token_usage = Some(token_usage);
+        self
+    }
+
+    pub fn add_tool_usage(&mut self, tool_usage: ToolUsage) {
+        self.tool_usage.push(tool_usage);
+    }
+
+    pub fn with_error_details(mut self, error_details: ErrorDetails) -> Self {
+        self.error_details = Some(error_details);
+        self
+    }
+
+    pub fn with_environment(mut self, environment: &str) -> Self {
+        self.environment = Some(environment.to_string());
+        self
+    }
+
+    pub fn with_message_count(mut self, count: u64) -> Self {
+        self.message_count = count;
+        self
+    }
+
+    pub fn with_turn_count(mut self, count: u64) -> Self {
+        self.turn_count = count;
+        self
+    }
+
+    pub fn complete(&mut self) {
+        if self.end_time.is_none() {
+            let end_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            self.end_time = Some(end_time);
+            self.duration_ms = Some((end_time - self.start_time) * 1000);
+        }
+    }
+}
+
+impl CommandExecution {
+    pub fn new(command_name: &str, command_type: CommandType) -> Self {
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        Self {
+            command_name: command_name.to_string(),
+            command_type,
+            start_time,
+            end_time: None,
+            duration_ms: None,
+            result: None,
+            user_id: String::new(),
+            usage_type: UsageType::Human,
+            environment: None,
+            metadata: HashMap::new(),
+            arguments: HashMap::new(),
+            error_details: None,
+        }
+    }
+
+    pub fn with_result(mut self, result: CommandResult) -> Self {
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.end_time = Some(end_time);
+        self.duration_ms = Some((end_time - self.start_time) * 1000);
+        self.result = Some(result);
+        self
+    }
+
+    pub fn with_duration(mut self, duration: Duration) -> Self {
+        self.duration_ms = Some(duration.as_millis() as u64);
+        self
+    }
+
+    pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
+        self.metadata.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn with_argument(mut self, key: &str, value: &str) -> Self {
+        self.arguments.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn with_error_details(mut self, error_details: ErrorDetails) -> Self {
+        self.error_details = Some(error_details);
+        self
+    }
+
+    pub fn with_environment(mut self, environment: &str) -> Self {
+        self.environment = Some(environment.to_string());
+        self
+    }
+
+    pub fn complete(&mut self) {
+        if self.end_time.is_none() {
+            let end_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            self.end_time = Some(end_time);
+            self.duration_ms = Some((end_time - self.start_time) * 1000);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,10 +526,13 @@ mod tests {
 
     #[test]
     fn test_recipe_execution_environment() {
-        let execution = RecipeExecution::new("test-recipe", "1.0.0")
-            .with_environment("macos,x86_64,iterm");
+        let execution =
+            RecipeExecution::new("test-recipe", "1.0.0").with_environment("macos,x86_64,iterm");
 
-        assert_eq!(execution.environment, Some("macos,x86_64,iterm".to_string()));
+        assert_eq!(
+            execution.environment,
+            Some("macos,x86_64,iterm".to_string())
+        );
     }
 
     #[test]

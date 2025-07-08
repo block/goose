@@ -143,7 +143,7 @@ mod tests {
             "GOOSE_USAGE_TYPE",
             "CI",
             "CONTINUOUS_INTEGRATION",
-            "BUILD_NUMBER", 
+            "BUILD_NUMBER",
             "GITHUB_ACTIONS",
             "GITLAB_CI",
             "JENKINS_URL",
@@ -170,7 +170,7 @@ mod tests {
         let vars_to_clear = [
             "GOOSE_USAGE_TYPE",
             "CI",
-            "GITHUB_ACTIONS", 
+            "GITHUB_ACTIONS",
             "AWS_LAMBDA_FUNCTION_NAME",
             "GOOSE_JOB_ID",
         ];
@@ -181,7 +181,7 @@ mod tests {
         // Set temporal service job ID
         env::set_var("GOOSE_JOB_ID", "scheduled-job-abc123");
         assert_eq!(detect_usage_type(), UsageType::Automation);
-        
+
         // Clean up
         env::remove_var("GOOSE_JOB_ID");
     }

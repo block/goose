@@ -138,7 +138,9 @@ impl TelemetryConfig {
             }
             TelemetryProvider::File => {
                 if self.endpoint.is_none() {
-                    return Err("File provider requires GOOSE_TELEMETRY_ENDPOINT (file path)".to_string());
+                    return Err(
+                        "File provider requires GOOSE_TELEMETRY_ENDPOINT (file path)".to_string(),
+                    );
                 }
             }
             TelemetryProvider::Console => {}
