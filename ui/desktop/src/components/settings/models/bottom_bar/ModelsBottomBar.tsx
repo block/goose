@@ -1,5 +1,5 @@
 import { Sliders } from 'lucide-react';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
@@ -30,6 +30,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   // eslint-disable-next-line no-undef
   const modelRef = useRef<HTMLSpanElement>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Check if lead/worker mode is active
   useEffect(() => {
@@ -66,11 +67,29 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     setIsTooltipOpen(false);
   }, [isModelTruncated]);
 
+  const handleTooltipOpenChange = useCallback(
+    (open: boolean) => {
+      // Only allow tooltip to open if dropdown is closed
+      if (!isDropdownOpen) {
+        setIsTooltipOpen(open);
+      }
+    },
+    [isDropdownOpen]
+  );
+
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    setIsDropdownOpen(open);
+    // Close tooltip when dropdown opens
+    if (open) {
+      setIsTooltipOpen(false);
+    }
+  }, []);
+
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
-      <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+      <Tooltip open={isTooltipOpen && !isDropdownOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger>
-          <DropdownMenu>
+          <DropdownMenu open={isDropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>
               <div className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 group hover:text-textStandard transition-colors">
                 <span
