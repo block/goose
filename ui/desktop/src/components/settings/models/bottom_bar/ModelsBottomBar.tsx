@@ -23,9 +23,11 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
 }
 export default function ModelsBottomBar({ dropdownRef, setView, alerts }: ModelsBottomBarProps) {
-  const { currentModel } = useModelAndProvider();
+  const { currentModel, currentProvider, getCurrentModelAndProviderForDisplay } =
+    useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read } = useConfig();
+  const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
@@ -54,6 +56,16 @@ export default function ModelsBottomBar({ dropdownRef, setView, alerts }: Models
       ? currentModelInfo.model
       : currentModel || 'Select Model';
   const modelMode = currentModelInfo?.mode;
+
+  // Update display provider when current provider changes
+  useEffect(() => {
+    if (currentProvider) {
+      (async () => {
+        const modelProvider = await getCurrentModelAndProviderForDisplay();
+        setDisplayProvider(modelProvider.provider);
+      })();
+    }
+  }, [currentProvider, getCurrentModelAndProviderForDisplay]);
 
   useEffect(() => {
     const checkTruncation = () => {
@@ -110,6 +122,10 @@ export default function ModelsBottomBar({ dropdownRef, setView, alerts }: Models
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
+              <div className="text-sm text-textProminent mt-2 ml-2">Current:</div>
+              <div className="flex items-center justify-between text-sm ml-2 pb-2 border-b border-borderSubtle mb-2">
+                {currentModel} -- {displayProvider}
+              </div>
               <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>
                 <span>Change Model</span>
                 <Sliders className="ml-auto h-4 w-4 rotate-90" />
