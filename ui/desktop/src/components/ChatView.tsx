@@ -37,6 +37,7 @@ import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { getCostForModel } from '../utils/costDatabase';
 import { updateSystemPromptWithParameters } from '../utils/providerUtils';
+import { toastError } from '../toasts';
 import {
   Message,
   createUserMessage,
@@ -137,6 +138,7 @@ function ChatContent({
     };
   }>({});
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const { currentModel, currentProvider } = useModelAndProvider();
@@ -191,6 +193,7 @@ function ChatContent({
     messages,
     append: originalAppend,
     stop,
+    reload,
     isLoading,
     error,
     setMessages,
@@ -736,6 +739,36 @@ function ChatContent({
     e.preventDefault();
   };
 
+  const startEditingMessage = (id: string) => {
+    setEditingMessageId(id);
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+  };
+
+  const saveEditedMessage = async (id: string, newText: string) => {
+    const index = messages.findIndex((m) => m.id === id);
+    if (index === -1) return;
+
+    const updated: Message = {
+      ...messages[index],
+      content: [{ type: 'text', text: newText }],
+    };
+
+    const updatedMessages = [...messages.slice(0, index), updated];
+
+    setMessages(updatedMessages);
+
+    try {
+      await reload();
+    } catch (err) {
+      toastError({ title: 'Edit failed', msg: 'Edit failed — please retry.' });
+    }
+
+    setEditingMessageId(null);
+  };
+
   const toolCallNotifications = notifications.reduce((map, item) => {
     const key = item.request_id;
     if (!map.has(key)) {
@@ -801,7 +834,15 @@ function ChatContent({
                             contextType={getContextHandlerType(message)}
                           />
                         ) : (
-                          <UserMessage message={message} />
+                          <UserMessage
+                            message={message}
+                            isEditing={editingMessageId === message.id}
+                            onEdit={() => startEditingMessage(message.id!)}
+                            onSave={(newText) =>
+                              saveEditedMessage(message.id!, newText)
+                            }
+                            onCancel={cancelEditingMessage}
+                          />
                         )}
                       </>
                     ) : (
