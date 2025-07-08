@@ -164,6 +164,38 @@ export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
 ```
+
+### Enhanced Code Editing
+
+These variables configure [AI-powered code editing](/docs/guides/enhanced-code-editing) for the Developer extension's `str_replace` tool. All three variables must be set and non-empty for the feature to activate.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_EDITOR_API_KEY` | API key for the code editing model | API key string | None |
+| `GOOSE_EDITOR_HOST` | API endpoint for the code editing model | URL (e.g., "https://api.openai.com/v1") | None |
+| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-3-5-sonnet") | None |
+
+**Examples**
+
+This feature works with any OpenAI-compatible API endpoint, for example:
+
+```bash
+# OpenAI configuration
+export GOOSE_EDITOR_API_KEY="sk-..."
+export GOOSE_EDITOR_HOST="https://api.openai.com/v1"
+export GOOSE_EDITOR_MODEL="gpt-4o"
+
+# Anthropic configuration (via OpenAI-compatible proxy)
+export GOOSE_EDITOR_API_KEY="sk-ant-..."
+export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
+export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+
+# Local model configuration
+export GOOSE_EDITOR_API_KEY="your-key"
+export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
+export GOOSE_EDITOR_MODEL="your-model"
+```
+
 ## Security Configuration
 
 These variables control security related features.
