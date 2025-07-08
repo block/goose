@@ -1380,9 +1380,9 @@ mod tests {
             println!(
                 "[TEST] Input: {}",
                 if corrupt_json.len() > 100 {
-                    &safe_truncate(corrupt_json, 100)
+                    safe_truncate(corrupt_json, 100)
                 } else {
-                    corrupt_json
+                    corrupt_json.to_string()
                 }
             );
 
