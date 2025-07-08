@@ -98,7 +98,9 @@ impl TelemetryConfig {
             .unwrap_or_default();
 
         config.endpoint = env::var("GOOSE_TELEMETRY_ENDPOINT").ok();
-        config.api_key = env::var("GOOSE_TELEMETRY_API_KEY").ok();
+        config.api_key = env::var("GOOSE_TELEMETRY_API_KEY")
+            .ok()
+            .or_else(|| env::var("DD_API_KEY").ok());
 
         config.usage_type = env::var("GOOSE_USAGE_TYPE")
             .ok()
@@ -153,21 +155,7 @@ impl TelemetryConfig {
     }
 }
 
-fn extract_api_key_from_headers(headers: &str) -> Option<String> {
-    for header in headers.split(',') {
-        let parts: Vec<&str> = header.split('=').collect();
-        if parts.len() == 2 {
-            let key = parts[0].trim().to_lowercase();
-            if key.contains("api") && key.contains("key") {
-                return Some(parts[1].trim().to_string());
-            }
-            if key == "authorization" {
-                return Some(parts[1].trim().to_string());
-            }
-        }
-    }
-    None
-}
+// Removed unused function - API key extraction is handled elsewhere
 
 #[cfg(test)]
 mod tests {
@@ -257,16 +245,5 @@ mod tests {
         assert!(config.validate().is_ok());
     }
 
-    #[test]
-    fn test_extract_api_key_from_headers() {
-        assert_eq!(
-            extract_api_key_from_headers("api-key=test123,other=value"),
-            Some("test123".to_string())
-        );
-        assert_eq!(
-            extract_api_key_from_headers("authorization=Bearer token123"),
-            Some("Bearer token123".to_string())
-        );
-        assert_eq!(extract_api_key_from_headers("other=value"), None);
-    }
+    // Removed test for extract_api_key_from_headers function
 }

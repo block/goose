@@ -12,8 +12,22 @@ pub struct DatadogMetricsExporter {
 
 impl DatadogMetricsExporter {
     pub fn new(api_key: String, endpoint: String) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent("goose-telemetry/1.0")
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .tcp_keepalive(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|e| {
+                tracing::warn!("Failed to create custom reqwest client: {}, using default", e);
+                reqwest::Client::new()
+            });
+            
+        tracing::info!("Created Datadog metrics exporter for endpoint: {} with enhanced HTTP client", endpoint);
+            
         Self {
-            client: reqwest::Client::new(),
+            client,
             api_key,
             endpoint,
             tags: vec![
@@ -126,15 +140,34 @@ impl DatadogMetricsExporter {
         });
 
         let url = format!("{}/api/v1/series", self.endpoint);
+        
+        tracing::debug!("Sending {} metrics to Datadog URL: {}", metrics.len(), url);
+        tracing::debug!("Payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
 
-        let response = self
+        let response_result = self
             .client
             .post(&url)
             .header("Content-Type", "application/json")
             .header("DD-API-KEY", &self.api_key)
             .json(&payload)
             .send()
-            .await?;
+            .await;
+
+        let response = match response_result {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!("HTTP request failed: {}", e);
+                if e.is_timeout() {
+                    return Err("Request timeout - check network connectivity".into());
+                } else if e.is_connect() {
+                    return Err(format!("Connection failed to {}: {}", url, e).into());
+                } else if e.is_request() {
+                    return Err(format!("Request error: {}", e).into());
+                } else {
+                    return Err(format!("HTTP client error: {}", e).into());
+                }
+            }
+        };
 
         if !response.status().is_success() {
             let status = response.status();
