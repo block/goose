@@ -335,6 +335,26 @@ pub fn emit_debug_trace(
     );
 }
 
+/// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.
+/// This function first attempts to parse the input string as-is. If that fails,
+/// it applies control character escaping and tries again.
+///
+/// This approach preserves valid JSON like `{"key1": "value1",\n"key2": "value"}`
+/// (which contains a literal \n but is perfectly valid JSON) while still fixing
+/// broken JSON like `{"key1": "value1\n","key2": "value"}` (which contains an
+/// unescaped newline character).
+pub fn safely_parse_json(s: &str) -> Result<serde_json::Value, serde_json::Error> {
+    // First, try parsing the string as-is
+    match serde_json::from_str(s) {
+        Ok(value) => Ok(value),
+        Err(_) => {
+            // If that fails, try with control character escaping
+            let escaped = json_escape_control_chars_in_string(s);
+            serde_json::from_str(&escaped)
+        }
+    }
+}
+
 /// Helper to escape control characters in a string that is supposed to be a JSON document.
 /// This function iterates through the input string `s` and replaces any literal
 /// control characters (U+0000 to U+001F) with their JSON-escaped equivalents
@@ -605,6 +625,40 @@ mod tests {
             let result = get_google_final_status(status.unwrap_or(StatusCode::OK), Some(&payload));
             assert_eq!(result, expected_status);
         }
+    }
+
+    #[test]
+    fn test_safely_parse_json() {
+        // Test valid JSON that should parse without escaping (contains proper escape sequence)
+        let valid_json = r#"{"key1": "value1","key2": "value2"}"#;
+        let result = safely_parse_json(valid_json).unwrap();
+        assert_eq!(result["key1"], "value1");
+        assert_eq!(result["key2"], "value2");
+
+        // Test JSON with actual unescaped newlines that needs escaping
+        let invalid_json = "{\"key1\": \"value1\n\",\"key2\": \"value2\"}";
+        let result = safely_parse_json(invalid_json).unwrap();
+        assert_eq!(result["key1"], "value1\n");
+        assert_eq!(result["key2"], "value2");
+
+        // Test already valid JSON - should parse on first try
+        let good_json = r#"{"test": "value"}"#;
+        let result = safely_parse_json(good_json).unwrap();
+        assert_eq!(result["test"], "value");
+
+        // Test completely invalid JSON that can't be fixed
+        let broken_json = r#"{"key": "unclosed_string"#;
+        assert!(safely_parse_json(broken_json).is_err());
+
+        // Test empty object
+        let empty_json = "{}";
+        let result = safely_parse_json(empty_json).unwrap();
+        assert!(result.as_object().unwrap().is_empty());
+
+        // Test JSON with escaped newlines (valid JSON) - should parse on first try
+        let escaped_json = r#"{"key": "value with\nnewline"}"#;
+        let result = safely_parse_json(escaped_json).unwrap();
+        assert_eq!(result["key"], "value with\nnewline");
     }
 
     #[test]
