@@ -18,6 +18,8 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import { COST_TRACKING_ENABLED } from '../updates';
+import { CostTracker } from './bottom_menu/CostTracker';
 
 interface PastedImage {
   id: string;
@@ -50,17 +52,17 @@ interface ChatInputProps {
   droppedFiles?: string[];
   setView: (view: View) => void;
   numTokens?: number;
-  // inputTokens?: number;
-  // outputTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
-  // sessionCosts?: {
-  //   [key: string]: {
-  //     inputTokens: number;
-  //     outputTokens: number;
-  //     totalCost: number;
-  //   };
-  // };
+  sessionCosts?: {
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  };
   disableAnimation?: boolean;
 }
 
@@ -73,12 +75,12 @@ export default function ChatInput({
   droppedFiles = [],
   setView,
   numTokens,
-  // inputTokens,
-  // outputTokens,
+  inputTokens,
+  outputTokens,
   messages = [],
   setMessages,
   disableAnimation = false,
-  // sessionCosts,
+  sessionCosts,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -963,6 +965,18 @@ export default function ChatInput({
 
           {/* Model selector, mode selector, alerts, summarize button */}
           <div className="flex flex-row items-center ml-2">
+            {/* Cost Tracker - no separator before it */}
+            {COST_TRACKING_ENABLED && (
+              <>
+                <div className="flex items-center h-full ml-1 mr-1">
+                  <CostTracker
+                    inputTokens={inputTokens}
+                    outputTokens={outputTokens}
+                    sessionCosts={sessionCosts}
+                  />
+                </div>
+              </>
+            )}
             <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} alerts={alerts} />
             <div className="w-px h-4 bg-border-default mx-2"></div>
             <BottomMenuModeSelection setView={setView} />

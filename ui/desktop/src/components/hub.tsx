@@ -14,6 +14,8 @@ import { fetchSessionDetails, generateSessionId } from '../sessions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import { useModelAndProvider } from './ModelAndProviderContext';
+import { getCostForModel } from '../utils/costDatabase';
 import { Recipe } from '../recipe';
 import {
   ChatContextManagerProvider,
@@ -30,6 +32,7 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   TextContent,
+  getTextContent,
 } from '../types/message';
 import { SessionInsights } from './sessions/SessionsInsights';
 import { Button } from './ui/button';
@@ -130,6 +133,21 @@ function HubContentWithSidebar({
   const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
   const [isInPairMode, setIsInPairMode] = useState(false);
+  const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
+  const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
+  const [localInputTokens, setLocalInputTokens] = useState<number>(0);
+  const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
+  const [sessionCosts, setSessionCosts] = useState<{
+    [key: string]: {
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+    };
+  }>({});
+  const { currentModel, currentProvider } = useModelAndProvider();
+  const prevModelRef = useRef<string | undefined>();
+  const prevProviderRef = useRef<string | undefined>();
+
   // New state to force showing insights when navigating to hub
   const [forceShowInsights, setForceShowInsights] = useState(true);
 
@@ -186,6 +204,7 @@ function HubContentWithSidebar({
     handleSubmit: _submitMessage,
     updateMessageStreamBody,
     notifications,
+    sessionMetadata,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.id,
@@ -315,6 +334,32 @@ function HubContentWithSidebar({
     return () => {
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
+  }, [messages]);
+
+  // Simple token estimation function (roughly 4 characters per token)
+  const estimateTokens = (text: string): number => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Calculate token counts from messages
+  useEffect(() => {
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    messages.forEach((message) => {
+      const textContent = getTextContent(message);
+      if (textContent) {
+        const tokens = estimateTokens(textContent);
+        if (message.role === 'user') {
+          inputTokens += tokens;
+        } else if (message.role === 'assistant') {
+          outputTokens += tokens;
+        }
+      }
+    });
+
+    setLocalInputTokens(inputTokens);
+    setLocalOutputTokens(outputTokens);
   }, [messages]);
 
   // Update chat messages when they change and save to sessionStorage
@@ -533,6 +578,8 @@ function HubContentWithSidebar({
       try {
         const sessionDetails = await fetchSessionDetails(chat.id);
         setSessionTokenCount(sessionDetails.metadata.total_tokens || 0);
+        setSessionInputTokens(sessionDetails.metadata.accumulated_input_tokens || 0);
+        setSessionOutputTokens(sessionDetails.metadata.accumulated_output_tokens || 0);
       } catch (err) {
         console.error('Error fetching session token count:', err);
       }
@@ -541,6 +588,87 @@ function HubContentWithSidebar({
       fetchSessionTokens();
     }
   }, [chat.id, messages]);
+
+  // Update token counts when sessionMetadata changes from the message stream
+  useEffect(() => {
+    console.log('Session metadata received:', sessionMetadata);
+    if (sessionMetadata) {
+      setSessionTokenCount(sessionMetadata.totalTokens || 0);
+      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
+      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
+    }
+  }, [sessionMetadata]);
+
+  // Handle model changes and accumulate costs
+  useEffect(() => {
+    if (
+      prevModelRef.current !== undefined &&
+      prevProviderRef.current !== undefined &&
+      (prevModelRef.current !== currentModel || prevProviderRef.current !== currentProvider)
+    ) {
+      // Model/provider has changed, save the costs for the previous model
+      const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
+
+      // Get pricing info for the previous model
+      const prevCostInfo = getCostForModel(prevProviderRef.current, prevModelRef.current);
+
+      if (prevCostInfo) {
+        const prevInputCost =
+          (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
+        const prevOutputCost =
+          (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
+        const prevTotalCost = prevInputCost + prevOutputCost;
+
+        // Save the accumulated costs for this model
+        setSessionCosts((prev) => ({
+          ...prev,
+          [prevKey]: {
+            inputTokens: sessionInputTokens || localInputTokens,
+            outputTokens: sessionOutputTokens || localOutputTokens,
+            totalCost: prevTotalCost,
+          },
+        }));
+      }
+
+      // Restore token counters from session metadata instead of resetting to 0
+      // This preserves the accumulated session tokens when switching models
+      // and ensures cost tracking remains accurate across model changes
+      if (sessionMetadata) {
+        // Use Math.max to ensure non-negative values and handle potential data issues
+        setSessionTokenCount(Math.max(0, sessionMetadata.totalTokens || 0));
+        setSessionInputTokens(Math.max(0, sessionMetadata.accumulatedInputTokens || 0));
+        setSessionOutputTokens(Math.max(0, sessionMetadata.accumulatedOutputTokens || 0));
+      } else {
+        // Fallback: if no session metadata, preserve current session tokens instead of resetting
+        // This handles edge cases where metadata might not be available yet
+        console.warn(
+          'No session metadata available during model change, preserving current tokens'
+        );
+      }
+      // Only reset local token estimation counters since they're model-specific
+      setLocalInputTokens(0);
+      setLocalOutputTokens(0);
+
+      console.log(
+        'Model changed from',
+        `${prevProviderRef.current}/${prevModelRef.current}`,
+        'to',
+        `${currentProvider}/${currentModel}`,
+        '- saved costs and restored session token counters'
+      );
+    }
+
+    prevModelRef.current = currentModel || undefined;
+    prevProviderRef.current = currentProvider || undefined;
+  }, [
+    currentModel,
+    currentProvider,
+    sessionInputTokens,
+    sessionOutputTokens,
+    localInputTokens,
+    localOutputTokens,
+    sessionMetadata,
+  ]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -837,10 +965,13 @@ function HubContentWithSidebar({
               initialValue={_input || initialPrompt}
               setView={setView}
               numTokens={sessionTokenCount}
+              inputTokens={sessionInputTokens || localInputTokens}
+              outputTokens={sessionOutputTokens || localOutputTokens}
               droppedFiles={droppedFiles}
               messages={forceShowInsights ? [] : messages}
               setMessages={setMessages}
               disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
             />
           )}
         </div>
