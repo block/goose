@@ -48,6 +48,7 @@ import {
   getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
+import { startWebServer, stopWebServer, isWebServerRunning } from './webServer';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -528,6 +529,15 @@ const createChat = async (
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
+
+    // Start web server for this Goose instance
+    try {
+      const webPort = await startWebServer(port, working_dir, appConfig.secretKey);
+      log.info(`Web server started for Goose instance on port ${webPort}`);
+    } catch (error) {
+      log.error('Failed to start web server:', error);
+      // Continue without web server - it's not critical for Electron functionality
+    }
   }
 
   // Load and manage window state
@@ -692,6 +702,12 @@ const createChat = async (
     windowMap.delete(windowId);
     if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
+    }
+    // Stop web server when window is closed
+    if (isWebServerRunning()) {
+      stopWebServer().catch((error) => {
+        log.error('Error stopping web server:', error);
+      });
     }
   });
   return mainWindow;
@@ -1985,6 +2001,16 @@ async function getAllowList(): Promise<string[]> {
 app.on('will-quit', async () => {
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
+
+  // Stop web server when app is quitting
+  if (isWebServerRunning()) {
+    try {
+      await stopWebServer();
+      log.info('Web server stopped during app quit');
+    } catch (error) {
+      log.error('Error stopping web server during app quit:', error);
+    }
+  }
 
   // Clean up the temp directory on app quit
   console.log('[Main] App "will-quit". Cleaning up temporary image directory...');

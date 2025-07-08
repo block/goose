@@ -412,6 +412,56 @@ function ChatContent({
     setLastInteractionTime,
   ]);
 
+  // Auto-send search query from /search endpoint
+  useEffect(() => {
+    // Check for auto-start query from search endpoint
+    const getAutoStartQuery = () => {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        return window.sessionStorage.getItem('autoStartQuery');
+      }
+      return null;
+    };
+
+    const clearAutoStartQuery = () => {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        window.sessionStorage.removeItem('autoStartQuery');
+      }
+    };
+
+    const autoStartQuery = getAutoStartQuery();
+
+    if (
+      autoStartQuery &&
+      messages.length === 0 &&
+      !isLoading &&
+      readyForAutoUserPrompt &&
+      !recipeConfig?.isScheduledExecution // Don't interfere with scheduled executions
+    ) {
+      console.log('Auto-sending search query:', autoStartQuery);
+
+      // Clear the query from sessionStorage so it doesn't auto-send again
+      clearAutoStartQuery();
+
+      const userMessage = createUserMessage(autoStartQuery);
+      setLastInteractionTime(Date.now());
+      window.electron.startPowerSaveBlocker();
+      append(userMessage);
+
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
+    }
+  }, [
+    messages.length,
+    isLoading,
+    readyForAutoUserPrompt,
+    recipeConfig?.isScheduledExecution,
+    append,
+    setLastInteractionTime,
+  ]);
+
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
     setRecipeParameters(inputValues);
     setIsParameterModalOpen(false);
