@@ -58,9 +58,9 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
           {getValueByKey(gooseMode).toLowerCase()}
         </span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[240px] px-2" side="top" align="end">
+      <DropdownMenuContent className="w-64" side="top" align="center">
         {all_goose_modes.map((mode) => (
-          <DropdownMenuItem key={mode.key} className="p-0">
+          <DropdownMenuItem key={mode.key} asChild>
             <ModeSelectionItem
               mode={mode}
               currentMode={gooseMode}

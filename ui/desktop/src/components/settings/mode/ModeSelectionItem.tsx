@@ -59,17 +59,15 @@ export function ModeSelectionItem({
   }, [currentMode, mode.key]);
 
   return (
-    <div className="group hover:cursor-pointer">
+    <div className="group hover:cursor-pointer text-sm">
       <div
         className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
         onClick={() => handleModeChange(mode.key)}
       >
         <div className="flex">
           <div>
-            <h3 className="text-text-default text-xs">{mode.label}</h3>
-            {showDescription && (
-              <p className="text-xs text-text-muted mt-[2px]">{mode.description}</p>
-            )}
+            <h3 className="text-text-default">{mode.label}</h3>
+            {showDescription && <p className="text-text-muted mt-[2px]">{mode.description}</p>}
           </div>
         </div>
 

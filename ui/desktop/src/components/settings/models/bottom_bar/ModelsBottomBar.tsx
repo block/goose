@@ -4,8 +4,14 @@ import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import { View } from '../../../../App';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../ui/Tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../../ui/Tooltip';
 import { Dialog, DialogContent } from '../../../ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../ui/dropdown-menu';
 import { useCurrentModelInfo } from '../../../ChatView';
 import { useConfig } from '../../../ConfigContext';
 
@@ -17,11 +23,9 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const { currentModel } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read } = useConfig();
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [isModelTruncated, setIsModelTruncated] = useState(false);
   // eslint-disable-next-line no-undef
   const modelRef = useRef<HTMLSpanElement>(null);
@@ -62,35 +66,13 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     setIsTooltipOpen(false);
   }, [isModelTruncated]);
 
-  // Add click outside handler
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsModelMenuOpen(false);
-      }
-    }
-
-    // Add the event listener when the menu is open
-    if (isModelMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    // Clean up the event listener
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isModelMenuOpen]);
-
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
-      <div ref={menuRef} className="relative">
-        <div
-          className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 group hover:text-textStandard transition-colors"
-          onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-        >
-          <TooltipProvider>
-            <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
-              <TooltipTrigger asChild>
+      <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+        <TooltipTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 group hover:text-textStandard transition-colors">
                 <span
                   ref={modelRef}
                   className="truncate text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block"
@@ -100,49 +82,29 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                     <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
                   )}
                 </span>
-              </TooltipTrigger>
-              {isModelTruncated && (
-                <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-                  {displayModel}
-                  {isLeadWorkerActive && modelMode && (
-                    <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
-                  )}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        {/* Dropdown Menu */}
-        {isModelMenuOpen && (
-          <div className="absolute bottom-[24px] right-[-55px] w-[300px] z-50 bg-background-default rounded-lg border">
-            <div className="">
-              <div
-                className="flex items-center justify-between text-textStandard p-2 cursor-pointer transition-colors hover:bg-bgStandard
-                    border-t border-borderSubtle mt-2"
-                onClick={() => {
-                  setIsModelMenuOpen(false);
-                  setIsAddModelModalOpen(true);
-                }}
-              >
-                <span className="text-sm">Change Model</span>
-                <Sliders className="w-4 h-4 ml-2 rotate-90" />
               </div>
-              <div
-                className="flex items-center justify-between text-textStandard p-2 cursor-pointer transition-colors hover:bg-bgStandard
-                    border-t border-borderSubtle"
-                onClick={() => {
-                  setIsModelMenuOpen(false);
-                  setIsLeadWorkerModalOpen(true);
-                }}
-              >
-                <span className="text-sm">Lead/Worker Settings</span>
-                <Sliders className="w-4 h-4 ml-2" />
-              </div>
-            </div>
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
+              <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>
+                <span>Change Model</span>
+                <Sliders className="ml-auto h-4 w-4 rotate-90" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsLeadWorkerModalOpen(true)}>
+                <span>Lead/Worker Settings</span>
+                <Sliders className="ml-auto h-4 w-4" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TooltipTrigger>
+        {isModelTruncated && (
+          <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+            {displayModel}
+            {isLeadWorkerActive && modelMode && (
+              <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
+            )}
+          </TooltipContent>
         )}
-      </div>
+      </Tooltip>
 
       {isAddModelModalOpen ? (
         <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
