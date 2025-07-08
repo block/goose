@@ -270,7 +270,6 @@ export async function loadAndAddStoredExtensions() {
 // Update the path to the binary based on the command
 export async function replaceWithShims(cmd: string) {
   const binaryPathMap: Record<string, string> = {
-    cu: await window.electron.getBinaryPath('cu'),
     goosed: await window.electron.getBinaryPath('goosed'),
     jbang: await window.electron.getBinaryPath('jbang'),
     npx: await window.electron.getBinaryPath('npx'),
