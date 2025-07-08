@@ -14,12 +14,15 @@ import {
 } from '../../../ui/dropdown-menu';
 import { useCurrentModelInfo } from '../../../ChatView';
 import { useConfig } from '../../../ConfigContext';
+import { Alert } from '../../../alerts';
+import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 
 interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
+  alerts: Alert[];
 }
-export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBarProps) {
+export default function ModelsBottomBar({ dropdownRef, setView, alerts }: ModelsBottomBarProps) {
   const { currentModel } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read } = useConfig();
@@ -92,6 +95,9 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
           <DropdownMenu open={isDropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>
               <div className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 group hover:text-textStandard transition-colors">
+                <div className="mr-1 mt-0.5">
+                  <BottomMenuAlertPopover alerts={alerts} />
+                </div>
                 <span
                   ref={modelRef}
                   className="truncate text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block"
@@ -116,7 +122,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
           </DropdownMenu>
         </TooltipTrigger>
         {isModelTruncated && (
-          <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+          <TooltipContent className="max-w-96 overflow-auto scrollbar-thin text-left" side="top">
             {displayModel}
             {isLeadWorkerActive && modelMode && (
               <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>

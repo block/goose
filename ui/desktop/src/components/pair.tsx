@@ -115,7 +115,6 @@ function PairContentWithSidebar({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const location = useLocation();
-  const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
@@ -329,12 +328,6 @@ function PairContentWithSidebar({
     // @ts-expect-error - TypeScript being overly strict about the return type
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setHasMessages(true);
-    }
-  }, [messages]);
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
@@ -695,7 +688,6 @@ function PairContentWithSidebar({
             commandHistory={commandHistory}
             initialValue={_input || initialPrompt}
             setView={setView}
-            hasMessages={hasMessages}
             numTokens={sessionTokenCount}
             droppedFiles={droppedFiles}
             messages={messages}

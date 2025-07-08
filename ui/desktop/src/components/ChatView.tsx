@@ -152,7 +152,6 @@ function ChatContentWithSidebar({
   // Calculate padding based on sidebar state and macOS
   const headerPadding = !isSidebarOpen ? (safeIsMacOS ? 'pl-20' : 'pl-12') : 'pl-4';
 
-  const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
@@ -389,12 +388,6 @@ function ChatContentWithSidebar({
     // @ts-expect-error - TypeScript being overly strict about the return type
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setHasMessages(true);
-    }
-  }, [messages]);
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
@@ -1057,7 +1050,6 @@ function ChatContentWithSidebar({
             commandHistory={commandHistory}
             initialValue={_input || initialPrompt}
             setView={setView}
-            hasMessages={hasMessages}
             numTokens={sessionTokenCount}
             // inputTokens={sessionInputTokens || localInputTokens}
             // outputTokens={sessionOutputTokens || localOutputTokens}

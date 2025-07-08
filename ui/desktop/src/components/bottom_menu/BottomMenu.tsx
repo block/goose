@@ -244,7 +244,7 @@ export default function BottomMenu({
 
         {/* Model Selector Dropdown */}
         <div className="flex items-center h-full">
-          <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
+          <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} alerts={alerts} />
         </div>
 
         {/* Separator */}

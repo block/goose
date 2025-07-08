@@ -123,7 +123,6 @@ function HubContentWithSidebar({
   const location = useLocation();
   const { resetChat } = useChatContext();
 
-  const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
@@ -323,12 +322,6 @@ function HubContentWithSidebar({
     // @ts-expect-error - TypeScript being overly strict about the return type
     setChat((prevChat: ChatType) => ({ ...prevChat, messages }));
   }, [messages, setChat]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setHasMessages(true);
-    }
-  }, [messages]);
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
@@ -843,7 +836,6 @@ function HubContentWithSidebar({
               commandHistory={commandHistory}
               initialValue={_input || initialPrompt}
               setView={setView}
-              hasMessages={hasMessages}
               numTokens={sessionTokenCount}
               droppedFiles={droppedFiles}
               messages={forceShowInsights ? [] : messages}
