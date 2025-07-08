@@ -76,11 +76,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
     for content in &mut new_message.content {
         match content {
             MessageContent::Text(text_content) => {
-                if text_content.text.len() > max_content_size {
+                if text_content.text.chars().count() > max_content_size {
                     let truncated = format!(
                         "{}\n\n[... content truncated from {} to {} characters ...]",
                         safe_truncate(&text_content.text, max_content_size),
-                        text_content.text.len(),
+                        text_content.text.chars().count(),
                         max_content_size
                     );
                     text_content.text = truncated;
@@ -90,11 +90,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
                         if let Content::Text(ref mut text_content) = content_item {
-                            if text_content.text.len() > max_content_size {
+                            if text_content.text.chars().count() > max_content_size {
                                 let truncated = format!(
                                     "{}\n\n[... tool response truncated from {} to {} characters ...]",
                                     safe_truncate(&text_content.text, max_content_size),
-                                    text_content.text.len(),
+                                    text_content.text.chars().count(),
                                     max_content_size
                                 );
                                 text_content.text = truncated;
@@ -105,11 +105,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                             if let ResourceContents::TextResourceContents { text, .. } =
                                 &mut resource_content.resource
                             {
-                                if text.len() > max_content_size {
+                                if text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... resource content truncated from {} to {} characters ...]",
                                         safe_truncate(text, max_content_size),
-                                        text.len(),
+                                        text.chars().count(),
                                         max_content_size
                                     );
                                     *text = truncated;

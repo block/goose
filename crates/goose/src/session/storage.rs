@@ -679,11 +679,11 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
     for content in &mut message.content {
         match content {
             MessageContent::Text(text_content) => {
-                if text_content.text.len() > max_content_size {
+                if text_content.text.chars().count() > max_content_size {
                     let truncated = format!(
                         "{}\n\n[... content truncated during session loading from {} to {} characters ...]",
                         safe_truncate(&text_content.text, max_content_size),
-                        text_content.text.len(),
+                        text_content.text.chars().count(),
                         max_content_size
                     );
                     text_content.text = truncated;
@@ -694,11 +694,11 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                     for content_item in result {
                         match content_item {
                             Content::Text(ref mut text_content) => {
-                                if text_content.text.len() > max_content_size {
+                                if text_content.text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
                                         safe_truncate(&text_content.text, max_content_size),
-                                        text_content.text.len(),
+                                        text_content.text.chars().count(),
                                         max_content_size
                                     );
                                     text_content.text = truncated;
@@ -708,11 +708,11 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                 if let ResourceContents::TextResourceContents { text, .. } =
                                     &mut resource_content.resource
                                 {
-                                    if text.len() > max_content_size {
+                                    if text.chars().count() > max_content_size {
                                         let truncated = format!(
                                             "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
                                             safe_truncate(text, max_content_size),
-                                            text.len(),
+                                            text.chars().count(),
                                             max_content_size
                                         );
                                         *text = truncated;
@@ -1270,11 +1270,7 @@ pub async fn generate_description_with_schedule_id(
         .take(3) // Use up to first 3 user messages for context
         .map(|m| {
             let text = m.as_concat_text();
-            if text.len() > 300 {
-                format!("{}...", safe_truncate(&text, 300))
-            } else {
-                text
-            }
+            safe_truncate(&text, 300)
         })
         .collect();
 
@@ -1303,9 +1299,9 @@ pub async fn generate_description_with_schedule_id(
     let description = result.0.as_concat_text();
 
     // Validate description length for security
-    let sanitized_description = if description.len() > 100 {
+    let sanitized_description = if description.chars().count() > 100 {
         tracing::warn!("Generated description too long, truncating");
-        format!("{}...", safe_truncate(&description, 97))
+        safe_truncate(&description, 100)
     } else {
         description
     };
