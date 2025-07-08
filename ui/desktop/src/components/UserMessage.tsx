@@ -31,7 +31,7 @@ export default function UserMessage({ message }: UserMessageProps) {
   const urls = extractUrls(displayText, []);
 
   return (
-    <div className="message flex justify-start mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="message flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex-col max-w-[85%] w-fit">
         <div className="flex flex-col group">
           <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
@@ -52,11 +52,11 @@ export default function UserMessage({ message }: UserMessageProps) {
             </div>
           )}
 
-          <div className="relative h-[22px] flex justify-end">
-            <div className="absolute font-mono left-0 w-40 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+          <div className="relative h-[22px] flex justify-end text-right overflow-hidden">
+            <div className="absolute font-mono right-4 w-40 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
-            <div className="absolute left-0 pt-1">
+            <div className="absolute right-4 pt-1">
               <MessageCopyLink text={displayText} contentRef={contentRef} />
             </div>
           </div>
