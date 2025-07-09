@@ -1326,44 +1326,60 @@ pub async fn cli() -> Result<()> {
                 )
                 .await?;
             } else {
-                let mut session = build_session(SessionBuilderConfig {
-                    identifier: identifier.map(extract_identifier),
-                    resume,
-                    no_session,
-                    extensions,
-                    remote_extensions,
-                    builtins,
-                    extensions_override: input_config.extensions_override,
-                    additional_system_prompt: input_config.additional_system_prompt,
-                    settings: session_settings,
-                    debug,
-                    max_tool_repetitions,
-                    max_turns,
-                    scheduled_job_id,
-                    interactive,
-                    quiet,
-                    sub_recipes,
-                    final_output_response,
+                // Use session tracking for non-recipe runs (--text, --instructions, stdin)
+                let session_id = format!(
+                    "run_{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                );
+                let session_type = if interactive { SessionType::Interactive } else { SessionType::Headless };
+
+                track_session_execution(&session_id, session_type, || async {
+                    let mut session = build_session(SessionBuilderConfig {
+                        identifier: identifier.map(extract_identifier),
+                        resume,
+                        no_session,
+                        extensions,
+                        remote_extensions,
+                        builtins,
+                        extensions_override: input_config.extensions_override,
+                        additional_system_prompt: input_config.additional_system_prompt,
+                        settings: session_settings,
+                        debug,
+                        max_tool_repetitions,
+                        max_turns,
+                        scheduled_job_id,
+                        interactive,
+                        quiet,
+                        sub_recipes,
+                        final_output_response,
+                    })
+                    .await;
+
+                    setup_logging(
+                        session
+                            .session_file()
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .and_then(|s| s.to_str()),
+                        None,
+                    )?;
+
+                    let result = if interactive {
+                        session.interactive(input_config.contents).await
+                    } else if let Some(contents) = input_config.contents {
+                        session.headless(contents).await
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Error: no text provided for prompt in headless mode"
+                        ))
+                    };
+
+                    result.map(|r| (r, session))
                 })
-                .await;
-
-                setup_logging(
-                    session
-                        .session_file()
-                        .as_ref()
-                        .and_then(|p| p.file_stem())
-                        .and_then(|s| s.to_str()),
-                    None,
-                )?;
-
-                if interactive {
-                    let _ = session.interactive(input_config.contents).await;
-                } else if let Some(contents) = input_config.contents {
-                    let _ = session.headless(contents).await;
-                } else {
-                    eprintln!("Error: no text provided for prompt in headless mode");
-                    std::process::exit(1);
-                }
+                .await?;
             }
 
             return Ok(());
