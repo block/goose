@@ -13,6 +13,31 @@ description = "An AI agent"
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
 
+# Optimize build profiles for memory usage and CI performance
+[profile.dev]
+# Reduce memory usage during compilation
+debug = 1  # Reduced debug info
+opt-level = 0
+lto = false
+codegen-units = 256  # More codegen units = less memory per unit
+incremental = true
+
+[profile.test]
+# Optimize test builds for memory usage
+debug = 1  # Reduced debug info
+opt-level = 0
+lto = false
+codegen-units = 256  # More codegen units = less memory per unit
+incremental = true
+
+[profile.release]
+# Keep release optimized but manage memory
+debug = false
+opt-level = 3
+lto = "thin"  # Use thin LTO instead of fat LTO to reduce memory
+codegen-units = 16
+panic = "abort"
+
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]
 crunchy = { git = "https://github.com/nmathewson/crunchy", branch = "cross-compilation-fix" }

@@ -66,7 +66,12 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev lld clang
+          # Check available memory
+          echo "Available memory:"
+          free -h
+          echo "Memory limits:"
+          ulimit -a
 
       - name: Cache Cargo Registry
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
@@ -93,6 +98,13 @@ jobs:
             ${{ runner.os }}-cargo-build-
 
       - name: Build and Test
+        env:
+          # Limit memory usage for cargo and linker
+          CARGO_BUILD_JOBS: 2  # Reduce parallel build jobs
+          CARGO_NET_RETRY: 10
+          CARGO_NET_TIMEOUT: 60
+          # Rust compiler memory optimizations
+          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory -C link-arg=-Wl,--reduce-memory-overheads"
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           source ../bin/activate-hermit
@@ -131,7 +143,7 @@ jobs:
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
           cargo clippy --jobs 2 -- -D warnings
-          
+
   desktop-lint:
     name: Lint Electron Desktop App
     runs-on: macos-latest
