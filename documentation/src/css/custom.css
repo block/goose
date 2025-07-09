@@ -337,8 +337,8 @@ html[data-theme="light"] .hide-in-light {
   margin-left: 8px !important;
 }
 
-/* Force hamburger menu to appear earlier to prevent navbar overlap with smooth transitions */
-@media (max-width: 1450px) {
+/* Force hamburger menu to appear at standard mobile breakpoint */
+@media (max-width: 996px) {
   .navbar__item {
     opacity: 0;
     transform: translateX(-10px);
@@ -359,7 +359,7 @@ html[data-theme="light"] .hide-in-light {
 }
 
 /* Ensure navbar items are visible above the breakpoint */
-@media (min-width: 1451px) {
+@media (min-width: 997px) {
   .navbar__item {
     opacity: 1;
     transform: translateX(0);
