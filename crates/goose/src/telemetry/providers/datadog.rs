@@ -149,16 +149,21 @@ impl DatadogProvider {
                 }
             }
 
+            // Send tool duration as histogram (count + sum) instead of just average
             if tool_usage.avg_duration_ms > 0 {
+                let total_calls = tool_usage.success_count + tool_usage.error_count;
+                let total_duration_seconds = (tool_usage.avg_duration_ms as f64 * total_calls as f64) / 1000.0;
+                
                 if let Err(e) = datadog_exporter
-                    .send_gauge(
-                        "goose.tool.duration.avg",
-                        tool_usage.avg_duration_ms as f64 / 1000.0,
+                    .send_histogram(
+                        "goose.tool.duration",
+                        total_calls,
+                        total_duration_seconds,
                         tool_tags,
                     )
                     .await
                 {
-                    tracing::error!("Failed to send goose.tool.duration.avg metric: {}", e);
+                    tracing::error!("Failed to send goose.tool.duration metric: {}", e);
                     return Err(e);
                 }
             }
@@ -330,16 +335,21 @@ impl DatadogProvider {
                 }
             }
 
+            // Send tool duration as histogram (count + sum) instead of just average
             if tool_usage.avg_duration_ms > 0 {
+                let total_calls = tool_usage.success_count + tool_usage.error_count;
+                let total_duration_seconds = (tool_usage.avg_duration_ms as f64 * total_calls as f64) / 1000.0;
+                
                 if let Err(e) = datadog_exporter
-                    .send_gauge(
-                        "goose.tool.duration.avg",
-                        tool_usage.avg_duration_ms as f64 / 1000.0,
+                    .send_histogram(
+                        "goose.tool.duration",
+                        total_calls,
+                        total_duration_seconds,
                         tool_tags,
                     )
                     .await
                 {
-                    tracing::error!("Failed to send goose.tool.duration.avg metric: {}", e);
+                    tracing::error!("Failed to send goose.tool.duration metric: {}", e);
                     return Err(e);
                 }
             }
