@@ -49,7 +49,7 @@ Before saving recipes, it's important to understand where they can be stored and
 
 If you're already using a recipe and want to save a modified version:
 1. Click the **"⚙️"** (settings) button in the top right
-2. Click **"Save recipe"**
+2. Click **Save recipe**
 3. Enter a name for the recipe
 4. [Choose to save globally or locally](#recipe-storage-locations) to your current project
 5. Click **"Save Recipe"**
