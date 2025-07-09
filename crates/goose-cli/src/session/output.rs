@@ -709,9 +709,7 @@ async fn estimate_cost_usd(
             let output_cost = pricing.output_cost * output_tokens as f64;
             Some(input_cost + output_cost)
         }
-        None => {
-            None
-        },
+        None => None,
     }
 }
 
