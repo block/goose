@@ -23,11 +23,23 @@ Choosing an intelligent tool selection strategy helps avoid this problem. Instea
 - Better context management
 - More accurate and efficient tool selection
 
-## Intelligent Tool Selection Strategies
+## Tool Selection Strategies
 
+| Strategy | Speed | Best For | Example Query |
+|----------|-------|----------|---------------|
+| **Default** | Fastest | Few extensions, simple setups | Any query (loads all tools) |
+| **Vector** | Fast | Keyword-based matching | "read pdf file" |
+| **LLM-based** | Slower | Complex, ambiguous queries | "analyze document contents" |
+
+### Default Strategy
 The default strategy loads all tools from enabled extensions into context, which works well if you only have a few extensions enabled. When you have more than a few extensions enabled, you should use the vector or LLM-based strategy for intelligent tool selection.
 
-### Vector Strategy: Fast, Keyword-Based Tool Matching
+**Best for:**
+- Simple setups with few extensions
+- When you want all tools available at all times
+- Maximum tool availability without selection logic
+
+### Vector Strategy
 The vector strategy uses mathematical similarity between embeddings to find relevant tools, providing efficient matching based on vector similarity between your query and available tools.
 
 **Best for:**
@@ -42,7 +54,7 @@ The vector strategy uses mathematical similarity between embeddings to find rele
 The default embedding model is `text-embedding-3-small`. You can change it using [environment variables](/docs/guides/environment-variables#tool-selection-strategy).
 :::
 
-### LLM-based Strategy: Context-Aware Tool Selection
+### LLM-based Strategy
 The LLM-based strategy leverages natural language understanding to analyze tools and queries semantically, making selections based on the full meaning of your request.
 
 **Best for:**
