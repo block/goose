@@ -306,6 +306,8 @@ html[data-theme="light"] .hide-in-light {
   display: flex;
   align-items: center;
   transition: opacity 0.3s ease, transform 0.3s ease;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .navbar__toggle {
@@ -382,8 +384,6 @@ html[data-theme="light"] .hide-in-light {
 @media (min-width: 997px) {
   .navbar__item {
     opacity: 1;
-    padding-left: 16px;
-    padding-right: 16px;
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
