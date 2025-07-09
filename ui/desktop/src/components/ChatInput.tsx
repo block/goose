@@ -133,6 +133,7 @@ export default function ChatInput({
     // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
+    setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
@@ -140,6 +141,7 @@ export default function ChatInput({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
+  const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
 
@@ -238,6 +240,9 @@ export default function ChatInput({
     
     setDisplayValue(val); // Update display immediately
     debouncedSetValue(val); // Debounce the actual state update
+
+    // Mark that the user has typed something
+    setHasUserTyped(true);
     
     // Check for @ mention
     checkForMention(val, cursorPosition, evt.target);
@@ -387,6 +392,13 @@ export default function ChatInput({
       return;
     }
 
+    // Only prevent history navigation if the user has actively typed something
+    // This allows history navigation when text is populated from history or other sources
+    // but prevents it when the user is actively editing text
+    if (hasUserTyped && displayValue.trim() !== '') {
+      return;
+    }
+
     evt.preventDefault();
 
     // Get global history once to avoid multiple calls
@@ -444,6 +456,8 @@ export default function ChatInput({
         setDisplayValue(newValue || '');
         setValue(newValue || '');
       }
+      // Reset hasUserTyped when we populate from history
+      setHasUserTyped(false);
     }
   };
 
@@ -476,6 +490,7 @@ export default function ChatInput({
       setHistoryIndex(-1);
       setSavedInput('');
       setIsInGlobalHistory(false);
+      setHasUserTyped(false);
     }
   };
 

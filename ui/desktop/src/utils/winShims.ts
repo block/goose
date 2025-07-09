@@ -66,36 +66,48 @@ export async function ensureWinShims(): Promise<void> {
 }
 
 /**
- * Optionally persist the Goose bin directory to the user's PATH environment variable
- * This allows users to run uvx, npx, goosed from external PowerShell/CMD sessions
+ * Persist the Goose bin directory to the user's PATH environment variable.
+ * Uses only user PATH to avoid overwriting with system PATH and respects setx 1024 char limit.
  */
 async function persistPathForUser(binDir: string): Promise<void> {
   try {
     const psScript = `
       $bin = "${binDir.replace(/\\/g, '\\\\')}"
-      if (-not ($Env:Path -split ';' | Where-Object { $_ -ieq $bin })) {
-        # Add to beginning of PATH for priority
-        setx PATH "$bin;$Env:Path" >$null
-        Write-Host "Added Goose bin directory to beginning of user PATH"
-      } else {
-        # If already in PATH, ensure it's at the beginning
-        $pathParts = $Env:Path -split ';'
-        $binIndex = 0
-        for ($i = 0; $i -lt $pathParts.Count; $i++) {
-          if ($pathParts[$i] -ieq $bin) {
-            $binIndex = $i
-            break
-          }
+      
+      $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+      if ($userPath -eq $null) { $userPath = "" }
+      
+      $pathParts = $userPath -split ';' | Where-Object { $_.Trim() -ne "" }
+      $binExists = $pathParts | Where-Object { $_ -ieq $bin }
+      
+      if (-not $binExists) {
+        $newUserPath = if ($userPath -eq "") { $bin } else { "$bin;$userPath" }
+        
+        if ($newUserPath.Length -gt 1024) {
+          Write-Warning "Cannot add to PATH: would exceed 1024 character limit for setx ($($newUserPath.Length) chars)"
+          Write-Host "Current user PATH length: $($userPath.Length) chars"
+          Write-Host "Consider using system PATH or cleaning up existing PATH entries"
+          return
         }
         
-        if ($binIndex -gt 0) {
-          # Remove from current position and add to beginning
-          $pathParts = @($pathParts[$binIndex]) + @($pathParts | Where-Object { $_ -ine $bin })
-          $newPath = $pathParts -join ';'
-          setx PATH $newPath >$null
-          Write-Host "Moved Goose bin directory to beginning of user PATH"
-        } else {
+        setx PATH $newUserPath >$null
+        Write-Host "Added Goose bin directory to beginning of user PATH"
+        Write-Host "New user PATH length: $($newUserPath.Length) chars"
+      } else {
+        if ($pathParts[0] -ieq $bin) {
           Write-Host "Goose bin directory already at beginning of user PATH"
+        } else {
+          $filteredParts = $pathParts | Where-Object { $_ -ine $bin }
+          $newUserPath = @($bin) + $filteredParts -join ';'
+          
+          if ($newUserPath.Length -gt 1024) {
+            Write-Warning "Cannot reorder PATH: would exceed 1024 character limit for setx ($($newUserPath.Length) chars)"
+            return
+          }
+          
+          setx PATH $newUserPath >$null
+          Write-Host "Moved Goose bin directory to beginning of user PATH"
+          Write-Host "New user PATH length: $($newUserPath.Length) chars"
         }
       }
     `;

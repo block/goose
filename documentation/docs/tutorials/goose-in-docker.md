@@ -1,7 +1,6 @@
 ---
 title: Building Goose in Docker
 sidebar_label: Goose in Docker
-sidebar_position: 15
 ---
 
 :::info Tell Us What You Need

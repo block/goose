@@ -1304,7 +1304,7 @@ impl Session {
     pub async fn display_context_usage(&self) -> Result<()> {
         let provider = self.agent.provider().await?;
         let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit.unwrap_or(32000);
+        let context_limit = model_config.context_limit();
 
         match self.get_metadata() {
             Ok(metadata) => {
@@ -1455,7 +1455,8 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let model_config = ModelConfig::new(model);
+    let model_config =
+        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"));
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
