@@ -1,4 +1,6 @@
-use crate::keyring::{FileKeyringBackend, KeyringBackend, SystemKeyringBackend};
+use crate::keyring::{
+    create_default_keyring, create_keyring_with_file_path, FileKeyringBackend, KeyringBackend,
+};
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use fs2::FileExt;
 use once_cell::sync::{Lazy, OnceCell};
@@ -24,19 +26,6 @@ const SECRETS_FILE_NAME: &str = "secrets.yaml";
 
 #[cfg(test)]
 const TEST_KEYRING_SERVICE: &str = "goose-test";
-
-/// Check if an environment variable is set to a truthy value
-/// Truthy values: "1", "true", "yes", "on" (case insensitive)
-/// Falsy values: "0", "false", "no", "off", "" or unset
-fn is_env_var_truthy(var_name: &str) -> bool {
-    match env::var(var_name) {
-        Ok(value) => {
-            let normalized = value.trim().to_lowercase();
-            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
-        }
-        Err(_) => false,
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -133,11 +122,8 @@ impl Default for Config {
             .expect("goose requires a home dir")
             .config_dir();
 
-        let keyring: Arc<dyn KeyringBackend> = if is_env_var_truthy("GOOSE_DISABLE_KEYRING") {
-            Arc::new(FileKeyringBackend::new(config_dir.join(SECRETS_FILE_NAME)))
-        } else {
-            Arc::new(SystemKeyringBackend)
-        };
+        // Use factory with custom file path to maintain same behavior
+        let keyring = create_keyring_with_file_path(config_dir.join(SECRETS_FILE_NAME));
         Self::with_keyring(keyring)
     }
 }
@@ -178,7 +164,7 @@ impl Config {
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            keyring: Arc::new(SystemKeyringBackend),
+            keyring: create_default_keyring(),
             keyring_service: service.to_string(),
         })
     }
@@ -745,17 +731,7 @@ pub fn load_init_config_from_workspace() -> Result<HashMap<String, Value>, Confi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use tempfile::NamedTempFile;
-
-    fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry = keyring::Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
-        match entry.delete_credential() {
-            Ok(_) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
-        }
-    }
 
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
@@ -867,11 +843,12 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_secret_management() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        use crate::keyring::MockKeyringBackend;
+
+        let _temp_file = NamedTempFile::new().unwrap();
+        let mock_keyring = Arc::new(MockKeyringBackend::new());
+        let config = Config::with_keyring(mock_keyring);
 
         // Test setting and getting a simple secret
         config.set_secret("api_key", Value::String("secret123".to_string()))?;
@@ -889,7 +866,6 @@ mod tests {
         let result: Result<String, ConfigError> = config.get_secret("api_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
-        cleanup_keyring()?;
         Ok(())
     }
 
@@ -933,11 +909,12 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        use crate::keyring::MockKeyringBackend;
+
+        let _temp_file = NamedTempFile::new().unwrap();
+        let mock_keyring = Arc::new(MockKeyringBackend::new());
+        let config = Config::with_keyring(mock_keyring);
 
         // Set multiple secrets
         config.set_secret("key1", Value::String("secret1".to_string()))?;
@@ -958,7 +935,6 @@ mod tests {
         assert!(matches!(result1, Err(ConfigError::NotFound(_))));
         assert_eq!(value2, "secret2");
 
-        cleanup_keyring()?;
         Ok(())
     }
 
@@ -1085,43 +1061,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[test]
-    fn test_env_var_truthy_values() {
-        // Test truthy values
-        for value in [
-            "1", "true", "TRUE", "yes", "YES", "on", "ON", " true ", "True",
-        ] {
-            env::set_var("TEST_TRUTHY_VAR", value);
-            assert!(
-                is_env_var_truthy("TEST_TRUTHY_VAR"),
-                "Value '{}' should be truthy",
-                value
-            );
-        }
-
-        // Test falsy values
-        for value in [
-            "0", "false", "FALSE", "no", "NO", "off", "OFF", "", " ", "random",
-        ] {
-            env::set_var("TEST_TRUTHY_VAR", value);
-            assert!(
-                !is_env_var_truthy("TEST_TRUTHY_VAR"),
-                "Value '{}' should be falsy",
-                value
-            );
-        }
-
-        // Test unset variable
-        env::remove_var("TEST_TRUTHY_VAR");
-        assert!(
-            !is_env_var_truthy("TEST_TRUTHY_VAR"),
-            "Unset variable should be falsy"
-        );
-
-        // Clean up
-        env::remove_var("TEST_TRUTHY_VAR");
     }
 
     #[test]
