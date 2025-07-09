@@ -1,7 +1,7 @@
 ---
-title: Recipe Library
+title: Saving Recipes
 sidebar_position: 15
-sidebar_label: Recipe Library
+sidebar_label: Saving Recipes
 ---
 
 import Tabs from '@theme/Tabs';
@@ -117,22 +117,3 @@ Goose searches for recipes in this order:
 |------|----------|-------------|----------|
 | **Global Recipes** | `~/.config/goose/recipes/` | All projects and sessions | Personal workflows, general-purpose recipes |
 | **Local Recipes** | `.goose/recipes/` (in project directory) | Only when working in that project | Project-specific workflows, team recipes |
-
-## Common Issues
-
-### Recipe Not Found (CLI)
-```bash
-# Check your recipe path
-echo $GOOSE_RECIPE_PATH
-
-# Verify the recipe file exists
-ls -la ~/.config/goose/recipes/my-recipe.md
-
-# Try running from the recipe directory
-cd ~/.config/goose/recipes && goose run --recipe my-recipe
-```
-
-### Can't See Recipe in Desktop Library
-- Check if you saved it globally or locally
-- Use the filter options to switch between global and local recipes
-- Try refreshing the library view
