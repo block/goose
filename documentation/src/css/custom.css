@@ -362,6 +362,8 @@ html[data-theme="light"] .hide-in-light {
 @media (min-width: 1451px) {
   .navbar__item {
     opacity: 1;
+    padding-left: 16px;
+    padding-right: 16px;
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
