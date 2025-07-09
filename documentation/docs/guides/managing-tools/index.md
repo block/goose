@@ -30,6 +30,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Customize how tool interactions are displayed, from detailed verbose output to clean concise summaries."
       link="/docs/guides/managing-tools/adjust-tool-output"
     />
+    <Card 
+      title="Ollama Tool Shim"
+      description="Enable tool calling for models that don't natively support it using an experimental local interpreter model setup."
+      link="/docs/guides/experimental-features#ollama-tool-shim"
+    />
   </div>
 </div>
 
@@ -45,6 +50,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       title="A Visual Guide To MCP Ecosystem"
       description="Visual breakdown of MCP: How your AI agent, tools, and models work together, explained with diagrams and analogies."
       link="/blog/2025/04/10/visual-guide-mcp"
+    />
+    <Card
+      title="Finetuning Toolshim Models for Tool Calling"
+      description="Technical deep-dive into the challenges of tool calling with open-source models and the research behind toolshim solutions."
+      link="/blog/2025/04/11/finetuning-toolshim"
     />
   </div>
 </div>
