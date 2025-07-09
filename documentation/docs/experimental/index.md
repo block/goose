@@ -12,8 +12,6 @@ Goose is an open source project that is constantly being improved and expanded u
 The list of experimental features may change as Goose development progresses. Some features may be promoted to stable features, while others might be modified or removed.This section will be updated with specific experimental features as they become available
 :::
 
-
-
 ## Feedback
 
 If you encounter any issues with these features, check if the issue is already reported in the [GitHub issues](https://github.com/goose/goose/issues) or join the [Discord community](https://discord.gg/block-opensource) to share.
