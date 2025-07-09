@@ -64,6 +64,8 @@ Each parameter in the `parameters` array has the following structure:
 - `optional`: Can be omitted if a default value is specified
 - `user_prompt`: Will interactively prompt the user for input if not provided
 
+The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
+
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
