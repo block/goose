@@ -52,7 +52,7 @@ If you're already using a recipe and want to save a modified version:
 2. Click **Save recipe**
 3. Enter a name for the recipe
 4. [Choose to save globally or locally](#recipe-storage-locations) to your current project
-5. Click **"Save Recipe"**
+5. Click **Save Recipe**
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
