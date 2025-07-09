@@ -195,11 +195,8 @@ where
 {
     let start_time = std::time::Instant::now();
 
-    let telemetry_execution = if let Some(_manager) = goose::telemetry::global_telemetry() {
-        Some(SessionExecution::new(session_id, session_type))
-    } else {
-        None
-    };
+    let telemetry_execution = goose::telemetry::global_telemetry()
+        .map(|_manager| SessionExecution::new(session_id, session_type));
 
     let result = execution_fn().await;
 
@@ -265,11 +262,8 @@ where
 {
     let start_time = std::time::Instant::now();
 
-    let telemetry_execution = if let Some(_manager) = goose::telemetry::global_telemetry() {
-        Some(CommandExecution::new(command_name, command_type))
-    } else {
-        None
-    };
+    let telemetry_execution = goose::telemetry::global_telemetry()
+        .map(|_manager| CommandExecution::new(command_name, command_type));
 
     let result = execution_fn().await;
 
@@ -315,11 +309,8 @@ where
 {
     let start_time = std::time::Instant::now();
 
-    let telemetry_execution = if let Some(manager) = goose::telemetry::global_telemetry() {
-        Some(manager.recipe_execution(recipe_name, recipe_version))
-    } else {
-        None
-    };
+    let telemetry_execution = goose::telemetry::global_telemetry()
+        .map(|manager| manager.recipe_execution(recipe_name, recipe_version));
 
     let result = execution_fn().await;
 
@@ -1334,7 +1325,11 @@ pub async fn cli() -> Result<()> {
                         .unwrap_or_default()
                         .as_secs()
                 );
-                let session_type = if interactive { SessionType::Interactive } else { SessionType::Headless };
+                let session_type = if interactive {
+                    SessionType::Interactive
+                } else {
+                    SessionType::Headless
+                };
 
                 track_session_execution(&session_id, session_type, || async {
                     let mut session = build_session(SessionBuilderConfig {

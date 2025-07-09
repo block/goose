@@ -1,19 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::env;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TelemetryProvider {
     Datadog,
     Otlp,
+    #[default]
     Console,
     File,
-}
-
-impl Default for TelemetryProvider {
-    fn default() -> Self {
-        TelemetryProvider::Console
-    }
 }
 
 impl std::str::FromStr for TelemetryProvider {
@@ -30,18 +25,13 @@ impl std::str::FromStr for TelemetryProvider {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum UsageType {
+    #[default]
     Human,
     Automation,
     Ci,
-}
-
-impl Default for UsageType {
-    fn default() -> Self {
-        UsageType::Human
-    }
 }
 
 impl std::str::FromStr for UsageType {
@@ -86,35 +76,41 @@ impl Default for TelemetryConfig {
 
 impl TelemetryConfig {
     pub fn from_env() -> Self {
-        let mut config = Self::default();
-
-        config.enabled = env::var("GOOSE_TELEMETRY_ENABLED")
+        let enabled = env::var("GOOSE_TELEMETRY_ENABLED")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(false);
 
-        config.provider = env::var("GOOSE_TELEMETRY_PROVIDER")
+        let provider = env::var("GOOSE_TELEMETRY_PROVIDER")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or_default();
 
-        config.endpoint = env::var("GOOSE_TELEMETRY_ENDPOINT")
+        let endpoint = env::var("GOOSE_TELEMETRY_ENDPOINT")
             .ok()
             .or_else(|| env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok());
-        config.api_key = env::var("GOOSE_TELEMETRY_API_KEY")
+
+        let api_key = env::var("GOOSE_TELEMETRY_API_KEY")
             .ok()
             .or_else(|| env::var("DD_API_KEY").ok());
 
-        config.usage_type = env::var("GOOSE_USAGE_TYPE")
+        let usage_type = env::var("GOOSE_USAGE_TYPE")
             .ok()
             .and_then(|v| v.parse().ok());
 
-        config.environment = env::var("GOOSE_ENVIRONMENT").ok();
+        let environment = env::var("GOOSE_ENVIRONMENT").ok();
 
-        if let Ok(service_name) = env::var("OTEL_SERVICE_NAME") {
-            config.service_name = service_name;
+        let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or_else(|_| "goose".to_string());
+
+        Self {
+            enabled,
+            provider,
+            endpoint,
+            api_key,
+            usage_type,
+            environment,
+            service_name,
+            service_version: env!("CARGO_PKG_VERSION").to_string(),
         }
-
-        config
     }
 
     pub fn validate(&self) -> Result<(), String> {

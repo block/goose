@@ -1,6 +1,6 @@
 use crate::telemetry::{
     config::TelemetryConfig,
-    events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent},
+    events::{RecipeExecution, TelemetryEvent},
 };
 use opentelemetry::{
     global,
