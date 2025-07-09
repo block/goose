@@ -1329,7 +1329,7 @@ impl Session {
 
                 output::display_context_usage(total_tokens, context_limit);
 
-                if true {
+                if show_cost {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
                     let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
                     output::display_cost_usage(
