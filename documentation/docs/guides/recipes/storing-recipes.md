@@ -42,7 +42,7 @@ Before saving recipes, it's important to understand where they can be stored and
   <TabItem value="desktop" label="Goose Desktop" default>
 
 **Save New Recipe:**
-1. To create a recipe from your chat session, see: [Create Recipe from Session](/docs/guides/recipes/session-recipes#create-recipe)
+1. To create a recipe from your chat session, see: [Create Recipe](/docs/guides/recipes/session-recipes#create-recipe)
 2. Once in the Recipe Editor, click **"Save Recipe"** to save it to your Recipe Library
 
 **Save Modified Recipe:**
