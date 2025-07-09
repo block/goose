@@ -36,7 +36,7 @@ Before saving recipes, it's important to understand where they can be stored and
 - The recipe depends on project-specific files or configurations
 
 
-## Saving Recipes
+## Storing Recipes
 
 <Tabs groupId="interface">
   <TabItem value="desktop" label="Goose Desktop" default>
