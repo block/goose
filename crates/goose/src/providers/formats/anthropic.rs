@@ -9,6 +9,26 @@ use mcp_core::tool::{Tool, ToolCall};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
+// Constants for frequently used strings in Anthropic API format
+const TYPE_FIELD: &str = "type";
+const CONTENT_FIELD: &str = "content";
+const TEXT_TYPE: &str = "text";
+const ROLE_FIELD: &str = "role";
+const USER_ROLE: &str = "user";
+const ASSISTANT_ROLE: &str = "assistant";
+const TOOL_USE_TYPE: &str = "tool_use";
+const TOOL_RESULT_TYPE: &str = "tool_result";
+const THINKING_TYPE: &str = "thinking";
+const REDACTED_THINKING_TYPE: &str = "redacted_thinking";
+const CACHE_CONTROL_FIELD: &str = "cache_control";
+const ID_FIELD: &str = "id";
+const NAME_FIELD: &str = "name";
+const INPUT_FIELD: &str = "input";
+const TOOL_USE_ID_FIELD: &str = "tool_use_id";
+const IS_ERROR_FIELD: &str = "is_error";
+const SIGNATURE_FIELD: &str = "signature";
+const DATA_FIELD: &str = "data";
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
@@ -16,8 +36,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     // Convert messages to Anthropic format
     for message in messages {
         let role = match message.role {
-            Role::User => "user",
-            Role::Assistant => "assistant",
+            Role::User => USER_ROLE,
+            Role::Assistant => ASSISTANT_ROLE,
         };
 
         let mut content = Vec::new();
@@ -25,18 +45,18 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             match msg_content {
                 MessageContent::Text(text) => {
                     content.push(json!({
-                        "type": "text",
-                        "text": text.text
+                        TYPE_FIELD: TEXT_TYPE,
+                        TEXT_TYPE: text.text
                     }));
                 }
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {
                             content.push(json!({
-                                "type": "tool_use",
-                                "id": tool_request.id,
-                                "name": tool_call.name,
-                                "input": tool_call.arguments
+                                TYPE_FIELD: TOOL_USE_TYPE,
+                                ID_FIELD: tool_request.id,
+                                NAME_FIELD: tool_call.name,
+                                INPUT_FIELD: tool_call.arguments
                             }));
                         }
                         Err(_tool_error) => {
@@ -45,36 +65,32 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => {
-                    match &tool_response.tool_result {
-                        Ok(result) => {
-                            let text = result
-                                .iter()
-                                .filter_map(|c| match c {
-                                    Content::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
+                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
+                    Ok(result) => {
+                        let text = result
+                            .iter()
+                            .filter_map(|c| match c {
+                                Content::Text(t) => Some(t.text.clone()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
 
-                            content.push(json!({
-                                "type": "tool_result",
-                                "tool_use_id": tool_response.id,
-                                "content": text
-                            }));
-                        }
-                        Err(tool_error) => {
-                            // Always include tool_result blocks, even for errors, to maintain
-                            // tool_use/tool_result pairing required by Anthropic's API
-                            content.push(json!({
-                                "type": "tool_result",
-                                "tool_use_id": tool_response.id,
-                                "content": format!("Error: {}", tool_error),
-                                "is_error": true
-                            }));
-                        }
+                        content.push(json!({
+                            TYPE_FIELD: TOOL_RESULT_TYPE,
+                            TOOL_USE_ID_FIELD: tool_response.id,
+                            CONTENT_FIELD: text
+                        }));
                     }
-                }
+                    Err(tool_error) => {
+                        content.push(json!({
+                            TYPE_FIELD: TOOL_RESULT_TYPE,
+                            TOOL_USE_ID_FIELD: tool_response.id,
+                            CONTENT_FIELD: format!("Error: {}", tool_error),
+                            IS_ERROR_FIELD: true
+                        }));
+                    }
+                },
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
@@ -86,25 +102,25 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 }
                 MessageContent::Thinking(thinking) => {
                     content.push(json!({
-                        "type": "thinking",
-                        "thinking": thinking.thinking,
-                        "signature": thinking.signature
+                        TYPE_FIELD: THINKING_TYPE,
+                        THINKING_TYPE: thinking.thinking,
+                        SIGNATURE_FIELD: thinking.signature
                     }));
                 }
                 MessageContent::RedactedThinking(redacted) => {
                     content.push(json!({
-                        "type": "redacted_thinking",
-                        "data": redacted.data
+                        TYPE_FIELD: REDACTED_THINKING_TYPE,
+                        DATA_FIELD: redacted.data
                     }));
                 }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
                 MessageContent::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({
-                            "type": "tool_use",
-                            "id": tool_request.id,
-                            "name": tool_call.name,
-                            "input": tool_call.arguments
+                            TYPE_FIELD: TOOL_USE_TYPE,
+                            ID_FIELD: tool_request.id,
+                            NAME_FIELD: tool_call.name,
+                            INPUT_FIELD: tool_call.arguments
                         }));
                     }
                 }
@@ -114,8 +130,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         // Skip messages with empty content
         if !content.is_empty() {
             anthropic_messages.push(json!({
-                "role": role,
-                "content": content
+                ROLE_FIELD: role,
+                CONTENT_FIELD: content
             }));
         }
     }
@@ -123,10 +139,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     // If no messages, add a default one
     if anthropic_messages.is_empty() {
         anthropic_messages.push(json!({
-            "role": "user",
-            "content": [{
-                "type": "text",
-                "text": "Ignore"
+            ROLE_FIELD: USER_ROLE,
+            CONTENT_FIELD: [{
+                TYPE_FIELD: TEXT_TYPE,
+                TEXT_TYPE: "Ignore"
             }]
         }));
     }
@@ -137,14 +153,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     // cache_control parameter, so that this checkpoint can read from the previous cache.
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
-        if message.get("role") == Some(&json!("user")) {
-            if let Some(content) = message.get_mut("content") {
+        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
+            if let Some(content) = message.get_mut(CONTENT_FIELD) {
                 if let Some(content_array) = content.as_array_mut() {
                     if let Some(last_content) = content_array.last_mut() {
-                        last_content
-                            .as_object_mut()
-                            .unwrap()
-                            .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+                        last_content.as_object_mut().unwrap().insert(
+                            CACHE_CONTROL_FIELD.to_string(),
+                            json!({ TYPE_FIELD: "ephemeral" }),
+                        );
                     }
                 }
             }
@@ -166,7 +182,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     for tool in tools {
         if unique_tools.insert(tool.name.clone()) {
             tool_specs.push(json!({
-                "name": tool.name,
+                NAME_FIELD: tool.name,
                 "description": tool.description,
                 "input_schema": tool.input_schema
             }));
@@ -176,10 +192,10 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
     // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
     // will be cached as a single prefix.
     if let Some(last_tool) = tool_specs.last_mut() {
-        last_tool
-            .as_object_mut()
-            .unwrap()
-            .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+        last_tool.as_object_mut().unwrap().insert(
+            CACHE_CONTROL_FIELD.to_string(),
+            json!({ TYPE_FIELD: "ephemeral" }),
+        );
     }
 
     tool_specs
@@ -188,58 +204,58 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 /// Convert system message to Anthropic's API system specification
 pub fn format_system(system: &str) -> Value {
     json!([{
-        "type": "text",
-        "text": system,
-        "cache_control": { "type": "ephemeral" }
+        TYPE_FIELD: TEXT_TYPE,
+        TEXT_TYPE: system,
+        CACHE_CONTROL_FIELD: { TYPE_FIELD: "ephemeral" }
     }])
 }
 
 /// Convert Anthropic's API response to internal Message format
 pub fn response_to_message(response: Value) -> Result<Message> {
     let content_blocks = response
-        .get("content")
+        .get(CONTENT_FIELD)
         .and_then(|c| c.as_array())
         .ok_or_else(|| anyhow!("Invalid response format: missing content array"))?;
 
     let mut message = Message::assistant();
 
     for block in content_blocks {
-        match block.get("type").and_then(|t| t.as_str()) {
-            Some("text") => {
-                if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
+        match block.get(TYPE_FIELD).and_then(|t| t.as_str()) {
+            Some(TEXT_TYPE) => {
+                if let Some(text) = block.get(TEXT_TYPE).and_then(|t| t.as_str()) {
                     message = message.with_text(text.to_string());
                 }
             }
-            Some("tool_use") => {
+            Some(TOOL_USE_TYPE) => {
                 let id = block
-                    .get("id")
+                    .get(ID_FIELD)
                     .and_then(|i| i.as_str())
                     .ok_or_else(|| anyhow!("Missing tool_use id"))?;
                 let name = block
-                    .get("name")
+                    .get(NAME_FIELD)
                     .and_then(|n| n.as_str())
                     .ok_or_else(|| anyhow!("Missing tool_use name"))?;
                 let input = block
-                    .get("input")
+                    .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
                 let tool_call = ToolCall::new(name, input.clone());
                 message = message.with_tool_request(id, Ok(tool_call));
             }
-            Some("thinking") => {
+            Some(THINKING_TYPE) => {
                 let thinking = block
-                    .get("thinking")
+                    .get(THINKING_TYPE)
                     .and_then(|t| t.as_str())
                     .ok_or_else(|| anyhow!("Missing thinking content"))?;
                 let signature = block
-                    .get("signature")
+                    .get(SIGNATURE_FIELD)
                     .and_then(|s| s.as_str())
                     .ok_or_else(|| anyhow!("Missing thinking signature"))?;
                 message = message.with_thinking(thinking, signature);
             }
-            Some("redacted_thinking") => {
+            Some(REDACTED_THINKING_TYPE) => {
                 let data = block
-                    .get("data")
+                    .get(DATA_FIELD)
                     .and_then(|d| d.as_str())
                     .ok_or_else(|| anyhow!("Missing redacted_thinking data"))?;
                 message = message.with_redacted_thinking(data);
@@ -715,7 +731,6 @@ mod tests {
     fn test_tool_error_handling_maintains_pairing() {
         use mcp_core::handler::ToolError;
 
-        // Test that tool errors are included as tool_result blocks to maintain pairing
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
@@ -731,13 +746,11 @@ mod tests {
 
         assert_eq!(spec.len(), 2);
 
-        // First message should have tool_use
         assert_eq!(spec[0]["role"], "assistant");
         assert_eq!(spec[0]["content"][0]["type"], "tool_use");
         assert_eq!(spec[0]["content"][0]["id"], "tool_1");
         assert_eq!(spec[0]["content"][0]["name"], "calculator");
 
-        // Second message should have tool_result even for error
         assert_eq!(spec[1]["role"], "user");
         assert_eq!(spec[1]["content"][0]["type"], "tool_result");
         assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
