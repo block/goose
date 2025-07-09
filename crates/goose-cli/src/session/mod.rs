@@ -1329,10 +1329,16 @@ impl Session {
 
                 output::display_context_usage(total_tokens, context_limit);
 
-                if show_cost {
+                if true {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
                     let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
-                    output::display_cost_usage(&provider_name, &model_config.model_name, input_tokens, output_tokens).await;
+                    output::display_cost_usage(
+                        &provider_name,
+                        &model_config.model_name,
+                        input_tokens,
+                        output_tokens,
+                    )
+                    .await;
                 }
             }
             Err(_) => {

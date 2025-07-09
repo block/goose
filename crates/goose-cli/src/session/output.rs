@@ -2,9 +2,11 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::providers::pricing::get_model_pricing;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
+use regex::Regex;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -12,8 +14,6 @@ use std::io::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use goose::providers::pricing::{get_model_pricing};
-use regex::Regex;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -672,7 +672,7 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
 
 fn normalize_model_name(model: &str) -> String {
     let mut result = model.to_string();
-    
+
     // Remove "-latest" suffix
     if result.ends_with("-latest") {
         result = result.strip_suffix("-latest").unwrap().to_string();
@@ -709,7 +709,9 @@ async fn estimate_cost_usd(
             let output_cost = pricing.output_cost * output_tokens as f64;
             Some(input_cost + output_cost)
         }
-        None => None
+        None => {
+            None
+        },
     }
 }
 
