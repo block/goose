@@ -21,7 +21,7 @@ import styles from '@site/src/components/Card/styles.module.css';
       link="/docs/guides/managing-tools/tool-permissions"
     />
     <Card 
-      title="Tool Router"
+      title="Tool Selection Strategy"
       description="Optimize tool selection with dynamic routing that loads only the tools you need, reducing context overhead and improving performance."
       link="/docs/guides/managing-tools/tool-router"
     />
