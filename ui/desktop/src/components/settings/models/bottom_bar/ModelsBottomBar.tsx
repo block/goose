@@ -1,4 +1,4 @@
-import { Sliders } from 'lucide-react';
+import { Sliders, ChefHat } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
@@ -86,6 +86,10 @@ export default function ModelsBottomBar({ dropdownRef, setView, alerts }: Models
           <DropdownMenuItem onClick={() => setIsLeadWorkerModalOpen(true)}>
             <span>Lead/Worker Settings</span>
             <Sliders className="ml-auto h-4 w-4" />
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setView('recipeEditor')}>
+            <span>Create a recipe</span>
+            <ChefHat className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Recipe } from '../recipe';
 import { Parameter } from '../recipe/index';
 
@@ -31,6 +32,7 @@ function generateDeepLink(recipe: Recipe): string {
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
   const { getExtensions } = useConfig();
+  const navigate = useNavigate();
   const [recipeConfig] = useState<Recipe | undefined>(config);
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
@@ -322,7 +324,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   }
 
   return (
-    <div className="flex flex-col w-full h-screen bg-background-default max-w-3xl mx-auto">
+    <div className="flex flex-col w-full h-screen bg-background-default">
       {activeSection === 'none' && (
         <div className="flex flex-col items-center mb-2 px-6 pt-10">
           <div className="w-16 h-16 bg-background-default rounded-full flex items-center justify-center mb-4">
@@ -482,7 +484,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             <Button
               onClick={() => {
                 localStorage.removeItem('recipe_editor_extensions');
-                window.close();
+                navigate(-1);
               }}
               variant="ghost"
               className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle transition-colors"
