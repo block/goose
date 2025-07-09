@@ -13,7 +13,7 @@ use goose::{
     agents::{AgentEvent, SessionConfig},
     message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
-    telemetry::{global_telemetry, SessionExecution, SessionResult, SessionType, RecipeResult},
+    telemetry::{global_telemetry, RecipeResult, SessionExecution, SessionResult, SessionType},
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},
@@ -187,15 +187,21 @@ async fn handler(
                             let _ = manager.track_session_execution(failed_execution).await;
 
                             // Also track as failed recipe execution if this is a recipe session
-                            if let (Some(recipe_name), Some(recipe_version)) = (&request.recipe_name, &request.recipe_version) {
+                            if let (Some(recipe_name), Some(recipe_version)) =
+                                (&request.recipe_name, &request.recipe_version)
+                            {
                                 let recipe_execution = manager
                                     .recipe_execution(recipe_name, recipe_version)
-                                    .with_result(RecipeResult::Error("No provider configured".to_string()))
+                                    .with_result(RecipeResult::Error(
+                                        "No provider configured".to_string(),
+                                    ))
                                     .with_duration(start_time.elapsed())
                                     .with_metadata("interface", "ui")
                                     .with_metadata("execution_mode", "server")
                                     .with_metadata("session_type", "streaming");
-                                let _ = manager.track_recipe_execution(recipe_execution.build()).await;
+                                let _ = manager
+                                    .track_recipe_execution(recipe_execution.build())
+                                    .await;
                             }
                         }
                         return;
@@ -419,7 +425,9 @@ async fn handler(
             let _ = manager.track_session_execution(successful_execution).await;
 
             // Also track as recipe execution if this is a recipe session
-            if let (Some(recipe_name), Some(recipe_version)) = (&request.recipe_name, &request.recipe_version) {
+            if let (Some(recipe_name), Some(recipe_version)) =
+                (&request.recipe_name, &request.recipe_version)
+            {
                 let recipe_execution = manager
                     .recipe_execution(recipe_name, recipe_version)
                     .with_result(RecipeResult::Success)
@@ -432,7 +440,9 @@ async fn handler(
                 // Note: For UI recipe sessions, we track the session but recipe metrics
                 // focus on the recipe completion rather than individual tool calls
 
-                let _ = manager.track_recipe_execution(recipe_execution.build()).await;
+                let _ = manager
+                    .track_recipe_execution(recipe_execution.build())
+                    .await;
             }
         }
     });
