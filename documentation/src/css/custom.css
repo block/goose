@@ -314,6 +314,19 @@ html[data-theme="light"] .hide-in-light {
   transform: scale(0.8);
 }
 
+/*
+ * No margin is needed for the branding right now,
+ * since there is padding on the items and no brand text.
+ * If those things change, you may want to revert this.
+*/
+.navbar__brand {
+  margin-right: 0px;
+}
+
+.navbar__logo {
+  margin-right: 0px;
+}
+
 /* Dropdown styles */
 .navbar__link--active {
   color: var(--text-prominent);
