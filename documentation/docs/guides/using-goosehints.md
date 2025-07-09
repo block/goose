@@ -23,6 +23,8 @@ Goose supports two types of hint files:
 - **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory.
 - **Local hints file** -  These hints will only apply when working in a specific directory.
 
+In addition to `.goosehints`, Goose also supports `GOOSE.md` files which work in exactly the same way. You can use either or both formats - the content from both files will be combined if they exist.
+
 :::tip
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 :::
@@ -48,21 +50,21 @@ You can use both global and local hints at the same time. When both exist, Goose
     </TabItem>
     <TabItem value="manual" label="Manual">
     
-    - **Global hints file** - Create a `.goosehints` file in `~/.config/goose`.
-    - **Local hints file** -  Create a `.goosehints` file at the root of the directory you'd like it applied to.
+    - **Global hints file** - Create a `.goosehints` or `GOOSE.md` file in `~/.config/goose`.
+    - **Local hints file** -  Create a `.goosehints` or `GOOSE.md` file at the root of the directory you'd like it applied to.
 
     </TabItem>
 </Tabs>
 
 
 
-The `.goosehints` file can include any instructions or contextual details relevant to your projects.
+The `.goosehints` and `GOOSE.md` files can include any instructions or contextual details relevant to your projects.
 
-A good time to consider adding a `.goosehints` file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times. It's also a great way to provide a lot of context which might be better suited in a file.
+A good time to consider adding a hints file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times. It's also a great way to provide a lot of context which might be better suited in a file. The `GOOSE.md` format is particularly useful when you want to use Markdown formatting for better organization.
 
 ## Setting up hints
 
-The `.goosehints` file supports natural language.
+Both `.goosehints` and `GOOSE.md` files support natural language. The `.goosehints` file is plain text, while `GOOSE.md` supports Markdown formatting for better structure and readability.
 
 ### Example global `.goosehints` file
 
@@ -88,6 +90,33 @@ Make sure to confirm all changes with me before applying.
 Run tests with `npm run test` ideally after each change.
 ```
 
+### Example `GOOSE.md` file
+
+```markdown
+# Project Guidelines for Goose
+
+## Development Standards
+- Use TypeScript for all new components
+- Follow the established component structure in `/components`
+- All API calls should use the custom hooks in `/hooks`
+
+## Testing Requirements
+- Write unit tests for all utility functions
+- Integration tests for API endpoints
+- Run `npm test` before committing
+
+## Project Structure
+- `/src/components` - Reusable UI components
+- `/src/hooks` - Custom React hooks
+- `/src/utils` - Utility functions and helpers
+- `/src/types` - TypeScript type definitions
+
+## Important Notes
+- The database schema is defined in `schema.sql`
+- Environment variables are documented in `.env.example`
+- Deployment process is automated via GitHub Actions
+```
+
 ## Common use cases
 Here are some ways people have used hints to provide additional context to Goose:
 
@@ -99,11 +128,12 @@ Here are some ways people have used hints to provide additional context to Goose
 
 - **Point to more detailed documentation**: Indicate important files like `README.md`, `CONTRIBUTING.md`, or others that Goose should consult for detailed explanations.
 
-Like prompts, this is not an extensive list to shape your `.goosehints` file. You can include as much context as you need.
+Like prompts, this is not an extensive list to shape your hints files. You can include as much context as you need.
 
 ## Best practices
 
-- **Keep file updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
+- **Keep file updated**: Regularly update your hints files to reflect any changes in project protocols or priorities.
 - **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
 - **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
+- **Choose the right format**: Use `.goosehints` for simple text instructions, or `GOOSE.md` when you need structured documentation with headings, lists, and formatting.
 
