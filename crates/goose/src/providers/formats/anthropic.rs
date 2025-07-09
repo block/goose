@@ -30,31 +30,49 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }));
                 }
                 MessageContent::ToolRequest(tool_request) => {
-                    if let Ok(tool_call) = &tool_request.tool_call {
-                        content.push(json!({
-                            "type": "tool_use",
-                            "id": tool_request.id,
-                            "name": tool_call.name,
-                            "input": tool_call.arguments
-                        }));
+                    match &tool_request.tool_call {
+                        Ok(tool_call) => {
+                            content.push(json!({
+                                "type": "tool_use",
+                                "id": tool_request.id,
+                                "name": tool_call.name,
+                                "input": tool_call.arguments
+                            }));
+                        }
+                        Err(_tool_error) => {
+                            // Skip malformed tool requests - they shouldn't be sent to Anthropic
+                            // This maintains the existing behavior for ToolRequest errors
+                        }
                     }
                 }
                 MessageContent::ToolResponse(tool_response) => {
-                    if let Ok(result) = &tool_response.tool_result {
-                        let text = result
-                            .iter()
-                            .filter_map(|c| match c {
-                                Content::Text(t) => Some(t.text.clone()),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n");
+                    match &tool_response.tool_result {
+                        Ok(result) => {
+                            let text = result
+                                .iter()
+                                .filter_map(|c| match c {
+                                    Content::Text(t) => Some(t.text.clone()),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
 
-                        content.push(json!({
-                            "type": "tool_result",
-                            "tool_use_id": tool_response.id,
-                            "content": text
-                        }));
+                            content.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": tool_response.id,
+                                "content": text
+                            }));
+                        }
+                        Err(tool_error) => {
+                            // Always include tool_result blocks, even for errors, to maintain
+                            // tool_use/tool_result pairing required by Anthropic's API
+                            content.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": tool_response.id,
+                                "content": format!("Error: {}", tool_error),
+                                "is_error": true
+                            }));
+                        }
                     }
                 }
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
@@ -691,5 +709,42 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(13057)); // 13007 + 50
 
         Ok(())
+    }
+
+    #[test]
+    fn test_tool_error_handling_maintains_pairing() {
+        use mcp_core::handler::ToolError;
+
+        // Test that tool errors are included as tool_result blocks to maintain pairing
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(ToolCall::new("calculator", json!({"expression": "2 + 2"}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Err(ToolError::ExecutionError("Tool failed".to_string())),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 2);
+
+        // First message should have tool_use
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"][0]["type"], "tool_use");
+        assert_eq!(spec[0]["content"][0]["id"], "tool_1");
+        assert_eq!(spec[0]["content"][0]["name"], "calculator");
+
+        // Second message should have tool_result even for error
+        assert_eq!(spec[1]["role"], "user");
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
+        assert_eq!(
+            spec[1]["content"][0]["content"],
+            "Error: Execution failed: Tool failed"
+        );
+        assert_eq!(spec[1]["content"][0]["is_error"], true);
     }
 }
