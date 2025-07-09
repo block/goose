@@ -223,10 +223,7 @@ impl OtlpProvider {
                     "error.message",
                     error_details.error_message.clone(),
                 ));
-                span.record_error(&std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_details.error_message.clone(),
-                ));
+                span.record_error(&std::io::Error::other(error_details.error_message.clone()));
             }
 
             span.end();
@@ -347,10 +344,7 @@ impl OtlpProvider {
                     "error.message",
                     error_details.error_message.clone(),
                 ));
-                span.record_error(&std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_details.error_message.clone(),
-                ));
+                span.record_error(&std::io::Error::other(error_details.error_message.clone()));
             }
 
             span.end();
@@ -416,10 +410,7 @@ impl OtlpProvider {
                     "error.message",
                     error_details.error_message.clone(),
                 ));
-                span.record_error(&std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_details.error_message.clone(),
-                ));
+                span.record_error(&std::io::Error::other(error_details.error_message.clone()));
             }
 
             span.end();
