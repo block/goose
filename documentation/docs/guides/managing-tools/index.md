@@ -30,11 +30,6 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Customize how tool interactions are displayed, from detailed verbose output to clean concise summaries."
       link="/docs/guides/managing-tools/adjust-tool-output"
     />
-    <Card 
-      title="Goose Permissions"
-      description="Configure the overall permission system that governs how Goose and its tools interact with your system and data."
-      link="/docs/guides/goose-permissions"
-    />
   </div>
 </div>
 

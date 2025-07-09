@@ -35,9 +35,7 @@ Each tool can be set to one of three permission levels:
 | **Ask Before** | Requires confirmation | State-changing operations | • File writing/editing<br></br>• System commands<br></br>• Resource creation |
 | **Never Allow** | Tool cannot be used | Sensitive operations | • Credential access<br></br>• System-critical files<br></br>• Resource deletion |
 
-:::info
-Tool permissions work alongside [Goose Permission Modes](/docs/guides/goose-permissions). The mode sets default behavior, while tool permissions let you override specific tools.
-:::
+
 
 ## Configuring Tool Permissions
 
