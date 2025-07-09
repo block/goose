@@ -337,8 +337,8 @@ html[data-theme="light"] .hide-in-light {
   margin-left: 8px !important;
 }
 
-/* Force hamburger menu to appear at standard mobile breakpoint */
-@media (max-width: 996px) {
+/* Force hamburger menu to appear earlier to prevent navbar overlap with smooth transitions */
+@media (max-width: 1450px) {
   .navbar__item {
     opacity: 0;
     transform: translateX(-10px);
@@ -346,27 +346,27 @@ html[data-theme="light"] .hide-in-light {
     /* Use visibility instead of display for smoother transitions */
     visibility: hidden;
   }
-  
+
   .navbar__toggle {
     opacity: 1 !important;
     transform: scale(1) !important;
     display: inherit !important;
   }
-  
+
   .navbar-sidebar {
     display: block;
   }
 }
 
 /* Ensure navbar items are visible above the breakpoint */
-@media (min-width: 997px) {
+@media (min-width: 1451px) {
   .navbar__item {
     opacity: 1;
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
   }
-  
+
   .navbar__toggle {
     opacity: 0;
     transform: scale(0.8);
@@ -378,4 +378,3 @@ html[data-theme="light"] .hide-in-light {
   object-fit: cover; /* Ensure the image covers the area while maintaining aspect ratio */
   border-radius: 8px; /* Optional: rounded corners */
 }
-
