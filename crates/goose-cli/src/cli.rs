@@ -195,8 +195,9 @@ where
 {
     let start_time = std::time::Instant::now();
 
-    let telemetry_execution = goose::telemetry::global_telemetry()
-        .map(|_manager| SessionExecution::new(session_id, session_type));
+    let telemetry_execution = goose::telemetry::global_telemetry().map(|_manager| {
+        SessionExecution::new(session_id, session_type).with_metadata("interface", "cli")
+    });
 
     let result = execution_fn().await;
 
