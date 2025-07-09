@@ -1,7 +1,7 @@
 ---
-title: Storing Recipes
+title: Saving Recipes
 sidebar_position: 4
-sidebar_label: Storing Recipes
+sidebar_label: Saving Recipes
 ---
 
 import Tabs from '@theme/Tabs';
@@ -48,7 +48,7 @@ Before saving recipes, it's important to understand where they can be stored and
 **Save Modified Recipe:**
 
 If you're already using a recipe and want to save a modified version:
-1. Click the **"⚙️"** (settings) button in the top right
+1. Click the gear icon ⚙️ in the top right corner
 2. Click **Save recipe**
 3. Enter a name for the recipe
 4. [Choose to save globally or locally](#recipe-storage-locations) to your current project
@@ -73,7 +73,7 @@ If you're already using a recipe and want to save a modified version:
   <TabItem value="desktop" label="Goose Desktop" default>
 
 **Access Recipe Library:**
-1. Click the `⚙️` (settings) button in the top right
+1. Click the gear icon ⚙️ in the top right corner
 2. Click **Recipe Library**
 3. Browse your saved recipes in a list view
 4. Each recipe shows its title, description, and whether it's global or local
@@ -110,7 +110,7 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
 <Tabs groupId="interface">
   <TabItem value="desktop" label="Goose Desktop" default>
 
-1. Click the `⚙️` (settings) button in the top right
+1. Click the gear icon ⚙️ in the top right corner
 2. Click **Recipe Library**
 3. Find your recipe in the Recipe Library
 4. Choose one of the following:
