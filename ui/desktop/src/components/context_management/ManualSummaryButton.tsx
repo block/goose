@@ -59,8 +59,7 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
           disabled={isLoadingSummary || isLoading}
           title="Summarize conversation context"
         >
-          {/* <ScrollText size={16} /> */}
-          summarize
+          <ScrollText size={16} />
         </button>
       </div>
 

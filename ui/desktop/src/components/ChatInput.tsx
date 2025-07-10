@@ -1,4 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { FolderKey } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
@@ -65,6 +67,7 @@ interface ChatInputProps {
       totalCost: number;
     };
   };
+  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
 }
 
@@ -84,6 +87,7 @@ export default function ChatInput({
   setMessages,
   disableAnimation = false,
   sessionCosts,
+  setIsGoosehintsModalOpen,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1110,6 +1114,20 @@ export default function ChatInput({
                 setMessages={setMessages}
               />
             )}
+            <div className="w-px h-4 bg-border-default mx-2" />
+            <div className="flex items-center h-full">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                    onClick={() => setIsGoosehintsModalOpen?.(true)}
+                  >
+                    <FolderKey size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Configure goosehints</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
           <MentionPopover

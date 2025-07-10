@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { FolderKey } from 'lucide-react';
 import { AlertType, useAlerts } from '../alerts';
 import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
@@ -268,6 +269,17 @@ export default function BottomMenu({
             </div>
           </>
         )}
+
+        {/* Configure Goosehints Button */}
+        <div className="w-1 h-1 rounded-full bg-background-accent/50 mx-1.5" />
+        <div className="flex items-center h-full">
+          <button
+            className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+            title="Configure goosehints"
+          >
+            <FolderKey size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
