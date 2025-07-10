@@ -838,8 +838,14 @@ impl Agent {
                                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
                                             messages.push(message.clone());
                                             yield AgentEvent::Message(message);
+                                            // Set added_message to true and continue to end the current iteration
+                                            added_message = true;
+                                            push_message(&mut messages, response);
+                                            continue;
                                         }
                                     }
+                                    // If there's no final output tool and no tool requests, continue the loop
+                                    continue;
                                 }
 
                                 // Process tool requests depending on frontend tools and then goose_mode
