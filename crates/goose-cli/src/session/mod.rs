@@ -23,6 +23,7 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
+use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
@@ -1328,7 +1329,7 @@ impl Session {
 
                 output::display_context_usage(total_tokens, context_limit);
 
-                if show_cost {
+                if true {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
                     let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
                     output::display_cost_usage(
