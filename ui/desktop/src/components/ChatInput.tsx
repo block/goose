@@ -834,9 +834,6 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      <div className="p-2 pb-0">
-        <DirSwitcher hasMessages={messages.length > 0} />
-      </div>
       <form onSubmit={onFormSubmit} className="flex flex-col">
         {/* Input row with inline action buttons */}
         <div className="relative flex items-center">
@@ -1121,20 +1118,23 @@ export default function ChatInput({
 
         {/* Secondary actions and controls row below input */}
         <div className="flex flex-row items-center gap-1 p-2 relative">
-          {/* Attach button moved to bottom row */}
-          <Button
+          {/* Directory path */}
+          <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
+          <div className="w-px h-4 bg-border-default mx-2" />
+
+          {/* Attach button */}
+          <button
             type="button"
-            size="xs"
-            variant="outline"
-            className="text-text-muted"
+            className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
             onClick={handleFileSelect}
           >
-            <Attach />
-          </Button>
+            <Attach className="w-4 h-4" />
+          </button>
+          <div className="w-px h-4 bg-border-default mx-2" />
 
           {/* Model selector, mode selector, alerts, summarize button */}
-          <div className="flex flex-row items-center ml-2">
-            {/* Cost Tracker - no separator before it */}
+          <div className="flex flex-row items-center">
+            {/* Cost Tracker */}
             {COST_TRACKING_ENABLED && (
               <>
                 <div className="flex items-center h-full ml-1 mr-1">

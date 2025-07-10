@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Document } from '../icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
-import { Button } from '../ui/button';
 
 interface DirSwitcherProps {
   hasMessages?: boolean;
@@ -26,17 +25,15 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     <TooltipProvider>
       <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
         <TooltipTrigger asChild>
-          <Button
+          <button
             className={`z-[100] hover:cursor-pointer text-text-default/70 hover:text-text-default text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
             onClick={handleDirectoryChange}
-            variant="outline"
-            size="xs"
           >
             <Document className="mr-1" />
             <div className="max-w-[200px] truncate [direction:rtl]">
               {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
             </div>
-          </Button>
+          </button>
         </TooltipTrigger>
         <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
           {window.appConfig.get('GOOSE_WORKING_DIR') as string}
