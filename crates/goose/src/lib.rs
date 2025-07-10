@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
+pub mod keyring;
 pub mod message;
 pub mod model;
 pub mod permission;
