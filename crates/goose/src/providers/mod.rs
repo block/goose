@@ -29,4 +29,4 @@ pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{create, providers};
+pub use factory::{create, create_by_type, providers, ProviderType};

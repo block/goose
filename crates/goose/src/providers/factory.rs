@@ -60,6 +60,37 @@ pub fn providers() -> Vec<ProviderMetadata> {
     ]
 }
 
+pub enum ProviderType {
+    Default {
+        provider_name: String,
+        model_config: ModelConfig,
+    },
+    LeadWorker {
+        lead_model_name: String,
+        default_model_config: ModelConfig,
+    },
+}
+
+pub fn create_by_type(provider_type: ProviderType) -> Result<Arc<dyn Provider>> {
+    match provider_type {
+        ProviderType::Default {
+            provider_name,
+            model_config,} => {
+            create_provider(&provider_name, model_config)
+        }
+        ProviderType::LeadWorker {
+            lead_model_name,
+            default_model_config,
+        } => {
+            create_lead_worker_from_env(
+                &lead_model_name,
+                &default_model_config,
+                &lead_model_name,
+            )
+        }
+    }
+}
+
 pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
