@@ -38,7 +38,7 @@ export default function UserMessage({ message }: UserMessageProps) {
             <div ref={contentRef}>
               <MarkdownContent
                 content={displayText}
-                className="text-white prose-a:text-white prose-headings:text-white prose-strong:text-white prose-em:text-white user-message"
+                className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
               />
             </div>
           </div>
