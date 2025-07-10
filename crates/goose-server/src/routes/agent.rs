@@ -9,7 +9,11 @@ use axum::{
 use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
-use goose::providers::create;
+use goose::providers::{
+    create,
+    create_by_type,
+    ProviderType
+};
 use goose::recipe::Response;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -73,6 +77,7 @@ struct SessionConfigRequest {
 struct SessionSettings {
     goose_provider: Option<String>,
     goose_model: Option<String>,
+    goose_lead_model: Option<String>,
     temperature: Option<f32>,
 }
 
@@ -105,12 +110,8 @@ async fn authenticate_and_get_agent(
 }
 
 fn create_model_config_from_settings(
-    settings: Option<SessionSettings>,
+    settings: &SessionSettings,
 ) -> Result<Option<(String, ModelConfig)>, Json<ErrorResponse>> {
-    let Some(settings) = settings else {
-        return Ok(None);
-    };
-
     let has_model = settings.goose_model.is_some();
     let has_provider = settings.goose_provider.is_some();
     if has_model != has_provider {
@@ -119,7 +120,6 @@ fn create_model_config_from_settings(
                 .to_string(),
         }));
     }
-
     if settings.goose_provider.is_some()
         || settings.goose_model.is_some()
         || settings.temperature.is_some()
@@ -128,6 +128,8 @@ fn create_model_config_from_settings(
 
         let provider_name = settings
             .goose_provider
+            .as_ref()
+            .cloned()
             .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
             .ok_or_else(|| {
                 Json(ErrorResponse {
@@ -137,6 +139,8 @@ fn create_model_config_from_settings(
 
         let model_name = settings
             .goose_model
+            .as_ref()
+            .cloned()
             .or_else(|| config.get_param("GOOSE_MODEL").ok())
             .ok_or_else(|| {
                 Json(ErrorResponse {
@@ -349,10 +353,10 @@ async fn update_session_config(
         agent.add_final_output_tool(response).await;
     }
 
-    if let Some((provider_name, model_config)) =
-        create_model_config_from_settings(payload.settings)?
+    if let Some(provider_type) =
+        get_session_provider_type_from_settings(payload.settings)?
     {
-        let new_provider = create(&provider_name, model_config).map_err(|e| {
+        let new_provider = create_by_type(provider_type).map_err(|e| {
             Json(ErrorResponse {
                 error: format!("Failed to create provider: {}", e),
             })
@@ -366,6 +370,29 @@ async fn update_session_config(
     }
     let message = "Session config updated successfully".to_string();
     Ok(Json(message))
+}
+
+fn get_session_provider_type_from_settings(
+    settings: Option<SessionSettings>,
+) -> Result<Option<ProviderType>, Json<ErrorResponse>> {
+    let Some(settings) = settings else {
+        return Ok(None)
+    };
+    let Ok(Some((provider_name, default_model_config))) = create_model_config_from_settings(&settings) else {
+        return Ok(None)
+    };
+
+    if let Some(lead_model_name_ref) = settings.goose_lead_model.as_ref() {
+        Ok(Some(ProviderType::LeadWorker {
+            lead_model_name: lead_model_name_ref.clone(),
+            default_model_config,
+        }))
+    } else {
+        Ok(Some(ProviderType::Default {
+            provider_name,
+            model_config: default_model_config,
+        }))
+    }
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -388,21 +415,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_model_config_from_settings_none() {
-        let result = create_model_config_from_settings(None);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
-    }
-
-    #[test]
     fn test_create_model_config_from_settings_model_without_provider() {
-        let settings = Some(SessionSettings {
+        let settings = SessionSettings {
             goose_provider: None,
             goose_model: Some("gpt-4".to_string()),
+            goose_lead_model: None,
             temperature: None,
-        });
+        };
 
-        let result = create_model_config_from_settings(settings);
+        let result = create_model_config_from_settings(&settings);
         assert!(result.is_err());
 
         if let Err(Json(error)) = result {
@@ -414,13 +435,14 @@ mod tests {
 
     #[test]
     fn test_create_model_config_from_settings_both_specified() {
-        let settings = Some(SessionSettings {
+        let settings = SessionSettings {
             goose_provider: Some("openai".to_string()),
             goose_model: Some("gpt-4".to_string()),
+            goose_lead_model: None,
             temperature: Some(0.7),
-        });
+        };
 
-        let result = create_model_config_from_settings(settings);
+        let result = create_model_config_from_settings(&settings);
         assert!(result.is_ok());
 
         if let Ok(Some((provider_name, model_config))) = result {
@@ -451,13 +473,14 @@ mod tests {
         std::env::set_var("GOOSE_PROVIDER", "test_provider");
         std::env::set_var("GOOSE_MODEL", "test_model");
 
-        let settings = Some(SessionSettings {
+        let settings = SessionSettings {
             goose_provider: None,
             goose_model: None,
+            goose_lead_model: None,
             temperature: Some(0.8),
-        });
+        };
 
-        let result = create_model_config_from_settings(settings);
+        let result = create_model_config_from_settings(&settings);
 
         assert!(result.is_ok());
         if let Ok(Some((provider_name, model_config))) = result {
