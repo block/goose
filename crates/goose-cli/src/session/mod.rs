@@ -1305,6 +1305,15 @@ impl Session {
         let model_config = provider.get_model_config();
         let context_limit = model_config.context_limit();
 
+        let config = Config::global();
+        let show_cost = config
+            .get_param::<bool>("GOOSE_CLI_SHOW_COST")
+            .unwrap_or(false);
+
+        let provider_name = config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .unwrap_or_else(|_| "unknown".to_string());
+
         // Initialize pricing cache on startup
         tracing::info!("Initializing pricing cache...");
         if let Err(e) = initialize_pricing_cache().await {
