@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { useChatContextManager } from './ChatContextManager';
 import { Message } from '../../types/message';
 
@@ -50,25 +51,25 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
     <>
       <div className="w-px h-4 bg-border-default mx-2" />
       <div className="relative flex items-center">
-        <button
-          type="button"
-          className={cn(
-            'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
-            (isLoadingSummary || isLoading) &&
-              'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
-          )}
-          onClick={handleClick}
-          disabled={isLoadingSummary || isLoading}
-          title={
-            isLoadingSummary
-              ? 'Summarizing conversation...'
-              : isLoading
-                ? 'Goose is working...'
-                : 'Summarize conversation context'
-          }
-        >
-          <ScrollText size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
+                (isLoadingSummary || isLoading) &&
+                  'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
+              )}
+              onClick={handleClick}
+              disabled={isLoadingSummary || isLoading}
+            >
+              <ScrollText size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isLoadingSummary ? 'Summarizing conversation...' : 'Summarize conversation context'}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Confirmation Modal */}

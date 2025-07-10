@@ -1123,13 +1123,18 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
 
           {/* Attach button */}
-          <button
-            type="button"
-            className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
-            onClick={handleFileSelect}
-          >
-            <Attach className="w-4 h-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                onClick={handleFileSelect}
+              >
+                <Attach className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Attach file or directory</TooltipContent>
+          </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
 
           {/* Model selector, mode selector, alerts, summarize button */}
