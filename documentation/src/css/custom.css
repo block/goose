@@ -306,12 +306,27 @@ html[data-theme="light"] .hide-in-light {
   display: flex;
   align-items: center;
   transition: opacity 0.3s ease, transform 0.3s ease;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .navbar__toggle {
   transition: opacity 0.3s ease, transform 0.3s ease;
   opacity: 0;
   transform: scale(0.8);
+}
+
+/*
+ * No margin is needed for the branding right now,
+ * since there is padding on the items and no brand text.
+ * If those things change, you may want to revert this.
+*/
+.navbar__brand {
+  margin-right: 0px;
+}
+
+.navbar__logo {
+  margin-right: 0px;
 }
 
 /* Dropdown styles */
@@ -338,7 +353,7 @@ html[data-theme="light"] .hide-in-light {
 }
 
 /* Force hamburger menu to appear earlier to prevent navbar overlap with smooth transitions */
-@media (max-width: 1450px) {
+@media (max-width: 996px) {
   .navbar__item {
     opacity: 0;
     transform: translateX(-10px);
@@ -346,27 +361,34 @@ html[data-theme="light"] .hide-in-light {
     /* Use visibility instead of display for smoother transitions */
     visibility: hidden;
   }
-  
+
   .navbar__toggle {
     opacity: 1 !important;
     transform: scale(1) !important;
     display: inherit !important;
   }
-  
+
   .navbar-sidebar {
     display: block;
   }
 }
 
+/* Shrink inkeep search box some on smaller screens */
+@media (max-width: 1450px) {
+  #inkeep {
+    max-width: 180px;
+  }
+}
+
 /* Ensure navbar items are visible above the breakpoint */
-@media (min-width: 1451px) {
+@media (min-width: 997px) {
   .navbar__item {
     opacity: 1;
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
   }
-  
+
   .navbar__toggle {
     opacity: 0;
     transform: scale(0.8);
@@ -378,4 +400,3 @@ html[data-theme="light"] .hide-in-light {
   object-fit: cover; /* Ensure the image covers the area while maintaining aspect ratio */
   border-radius: 8px; /* Optional: rounded corners */
 }
-
