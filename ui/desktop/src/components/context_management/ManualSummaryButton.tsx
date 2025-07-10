@@ -51,6 +51,7 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
       <div className="w-px h-4 bg-border-default mx-2" />
       <div className="relative flex items-center">
         <button
+          type="button"
           className={cn(
             'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
             (isLoadingSummary || isLoading) &&
