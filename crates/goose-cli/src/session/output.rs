@@ -729,6 +729,7 @@ pub async fn display_cost_usage(
         );
     }
 }
+
 pub struct McpSpinners {
     bars: HashMap<String, ProgressBar>,
     log_spinner: Option<ProgressBar>,
