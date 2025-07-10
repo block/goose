@@ -185,25 +185,25 @@ mod tests {
         // should match prompts based on contained normalized keys
         assert_eq!(
             PromptManager::model_prompt_map("gpt-4.1"),
-            "system_gpt_4_1.md"
+            "system_gpt_4.1.md"
         );
 
         assert_eq!(
             PromptManager::model_prompt_map("gpt-4.1-2025-04-14"),
-            "system_gpt_4_1.md"
+            "system_gpt_4.1.md"
         );
 
         assert_eq!(
             PromptManager::model_prompt_map("openai/gpt-4.1"),
-            "system_gpt_4_1.md"
+            "system_gpt_4.1.md"
         );
         assert_eq!(
             PromptManager::model_prompt_map("goose-gpt-4-1"),
-            "system_gpt_4_1.md"
+            "system_gpt_4.1.md"
         );
         assert_eq!(
             PromptManager::model_prompt_map("gpt-4-1-huge"),
-            "system_gpt_4_1.md"
+            "system_gpt_4.1.md"
         );
     }
 
