@@ -2,6 +2,9 @@
 description: Enable multi-modal functionality by pairing LLMs to complete your tasks
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Lead/Worker Multi-Model Setup
 
 Goose supports a lead/worker model configuration that lets you pair two different AI models - one that's great at thinking and another that's fast at doing. This setup tackles a major pain point: premium models are powerful but expensive, while cheaper models are faster but can struggle with complex tasks. With lead/worker mode, you get the best of both worlds.
@@ -38,24 +41,32 @@ Goose will start with `gpt-4o` for the first three turns, then hand off to `gpt-
 Ensure you have [added the LLMs to Goose](/docs/getting-started/providers)
 :::
 
-The only required setting is:
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+   1. Click the model name at the bottom of the Goose Desktop window
+   2. Click **Lead/Worker Settings**
+   3. Check the box to **Enable lead/worker mode**
+   4. Select your **Lead Model** and **Worker Model** from the dropdown menus
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+    The only required setting is:
 
-```bash
-export GOOSE_LEAD_MODEL="gpt-4o"
-```
+    ```bash
+    export GOOSE_LEAD_MODEL="gpt-4o"
+    ```
+    That's it. Goose treats your regular `GOOSE_MODEL` as the worker model by default.
 
-That's it. Goose treats your regular `GOOSE_MODEL` as the worker model by default.
+    If you want more control, here are the optional knobs:
 
-If you want more control, here are the optional knobs:
-
-```bash
-export GOOSE_LEAD_PROVIDER="anthropic"         # If different from the main provider
-export GOOSE_LEAD_TURNS=5                      # Use lead model for first 5 turns
-export GOOSE_LEAD_FAILURE_THRESHOLD=3          # Switch back to lead after 3 failures
-export GOOSE_LEAD_FALLBACK_TURNS=2             # Use lead model for 2 turns before retrying worker
-```
-
-After making these configurations, the lead/worker models will be used in new CLI and Desktop sessions.
+    ```bash
+    export GOOSE_LEAD_PROVIDER="anthropic"         # If different from the main provider
+    export GOOSE_LEAD_TURNS=5                      # Use lead model for first 5 turns
+    export GOOSE_LEAD_FAILURE_THRESHOLD=3          # Switch back to lead after 3 failures
+    export GOOSE_LEAD_FALLBACK_TURNS=2             # Use lead model for 2 turns before retrying worker
+    ```
+    After making these configurations, the lead/worker models will be used in new CLI and Desktop sessions.
+    </TabItem>
+</Tabs>  
 
 ## What Counts as a Failure?
 
