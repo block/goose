@@ -838,39 +838,175 @@ export default function ChatInput({
         <DirSwitcher hasMessages={messages.length > 0} />
       </div>
       <form onSubmit={onFormSubmit} className="flex flex-col">
-        <div className="relative">
-          <textarea
-            data-testid="chat-input"
-            autoFocus
-            id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
-            value={displayValue}
-            onChange={handleChange}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            ref={textAreaRef}
-            rows={1}
-            style={{
-              minHeight: `${minHeight}px`,
-              maxHeight: `${maxHeight}px`,
-              overflowY: 'auto',
-              opacity: isRecording ? 0 : 1,
-            }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-          />
-          {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-[108px] pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
-            </div>
-          )}
+        {/* Input row with inline action buttons */}
+        <div className="relative flex items-center">
+          <div className="relative flex-1">
+            <textarea
+              data-testid="chat-input"
+              autoFocus
+              id="dynamic-textarea"
+              placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+              value={displayValue}
+              onChange={handleChange}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              ref={textAreaRef}
+              rows={1}
+              style={{
+                minHeight: `${minHeight}px`,
+                maxHeight: `${maxHeight}px`,
+                overflowY: 'auto',
+                opacity: isRecording ? 0 : 1,
+              }}
+              className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            />
+            {isRecording && (
+              <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
+                <WaveformVisualizer
+                  audioContext={audioContext}
+                  analyser={analyser}
+                  isRecording={isRecording}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Inline action buttons on the right */}
+          <div className="flex items-center gap-1 px-2 relative">
+            {/* Microphone button - show if dictation is enabled, disable if not configured */}
+            {dictationSettings?.enabled && (
+              <>
+                {!canUseDictation ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button
+                          type="button"
+                          size="sm"
+                          shape="round"
+                          variant="outline"
+                          onClick={() => {}}
+                          disabled={true}
+                          className="text-textSubtle cursor-not-allowed opacity-50"
+                        >
+                          <Microphone />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {dictationSettings.provider === 'openai'
+                        ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
+                        : dictationSettings.provider === 'elevenlabs'
+                          ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
+                          : 'Dictation provider is not properly configured.'}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
+                    onClick={() => {
+                      if (isRecording) {
+                        stopRecording();
+                      } else {
+                        startRecording();
+                      }
+                    }}
+                    disabled={isTranscribing}
+                    className={`${
+                      isRecording
+                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                        : isTranscribing
+                          ? 'text-textSubtle cursor-not-allowed animate-pulse'
+                          : 'text-text-muted'
+                    }`}
+                  >
+                    <Microphone />
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* Send/Stop button */}
+            {isLoading ? (
+              <Button
+                type="button"
+                onClick={onStop}
+                size="sm"
+                shape="round"
+                variant="outline"
+                className="text-text-muted"
+              >
+                <Stop />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="sm"
+                shape="round"
+                variant="outline"
+                disabled={
+                  !hasSubmittableContent ||
+                  isAnyImageLoading ||
+                  isAnyDroppedFileLoading ||
+                  isRecording ||
+                  isTranscribing ||
+                  isLoadingSummary
+                }
+                className={`text-text-muted ${
+                  !hasSubmittableContent ||
+                  isAnyImageLoading ||
+                  isAnyDroppedFileLoading ||
+                  isRecording ||
+                  isTranscribing ||
+                  isLoadingSummary
+                    ? 'text-textSubtle cursor-not-allowed'
+                    : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
+                }`}
+                title={
+                  isLoadingSummary
+                    ? 'Summarizing conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : 'Send'
+                }
+              >
+                <Send />
+              </Button>
+            )}
+
+            {/* Recording/transcribing status indicator - positioned above the button row */}
+            {(isRecording || isTranscribing) && (
+              <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+                {isTranscribing ? (
+                  <span className="text-blue-500 flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    Transcribing...
+                  </span>
+                ) : (
+                  <span
+                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                  >
+                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Combined files and images preview */}
@@ -983,9 +1119,9 @@ export default function ChatInput({
           </div>
         )}
 
-        {/* Actions and model/mode/alerts row below input */}
+        {/* Secondary actions and controls row below input */}
         <div className="flex flex-row items-center gap-1 p-2 relative">
-          {/* Send/Attach/Stop actions */}
+          {/* Attach button moved to bottom row */}
           <Button
             type="button"
             size="xs"
@@ -995,131 +1131,6 @@ export default function ChatInput({
           >
             <Attach />
           </Button>
-
-          {/* Microphone button - show if dictation is enabled, disable if not configured */}
-          {dictationSettings?.enabled && (
-            <>
-              {!canUseDictation ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        onClick={() => {}}
-                        disabled={true}
-                        className="text-textSubtle cursor-not-allowed opacity-50"
-                      >
-                        <Microphone />
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {dictationSettings.provider === 'openai'
-                      ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
-                      : dictationSettings.provider === 'elevenlabs'
-                        ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
-                        : 'Dictation provider is not properly configured.'}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  onClick={() => {
-                    if (isRecording) {
-                      stopRecording();
-                    } else {
-                      startRecording();
-                    }
-                  }}
-                  disabled={isTranscribing}
-                  className={`${
-                    isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                      : isTranscribing
-                        ? 'text-textSubtle cursor-not-allowed animate-pulse'
-                        : 'text-text-muted'
-                  }`}
-                >
-                  <Microphone />
-                </Button>
-              )}
-            </>
-          )}
-
-          {isLoading ? (
-            <Button
-              type="button"
-              onClick={onStop}
-              size="xs"
-              variant="outline"
-              className="text-text-muted"
-            >
-              <Stop />
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              size="xs"
-              variant="outline"
-              disabled={
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingSummary
-              }
-              className={`text-text-muted ${
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingSummary
-                  ? 'text-textSubtle cursor-not-allowed'
-                  : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
-              }`}
-              title={
-                isLoadingSummary
-                  ? 'Summarizing conversation...'
-                  : isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isAnyDroppedFileLoading
-                      ? 'Processing dropped files...'
-                      : isRecording
-                        ? 'Recording...'
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Send'
-              }
-            >
-              <Send />
-            </Button>
-          )}
-
-          {/* Recording/transcribing status indicator - positioned above the button row */}
-          {(isRecording || isTranscribing) && (
-            <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-              {isTranscribing ? (
-                <span className="text-blue-500 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  Transcribing...
-                </span>
-              ) : (
-                <span
-                  className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                >
-                  <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                  {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Model selector, mode selector, alerts, summarize button */}
           <div className="flex flex-row items-center ml-2">
