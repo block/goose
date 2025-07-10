@@ -888,7 +888,7 @@ export default function ChatInput({
                           variant="outline"
                           onClick={() => {}}
                           disabled={true}
-                          className="text-textSubtle cursor-not-allowed opacity-50"
+                          className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
                         >
                           <Microphone />
                         </Button>
@@ -916,12 +916,12 @@ export default function ChatInput({
                       }
                     }}
                     disabled={isTranscribing}
-                    className={`${
+                    className={`rounded-full px-6 py-2 ${
                       isRecording
                         ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                         : isTranscribing
-                          ? 'text-textSubtle cursor-not-allowed animate-pulse'
-                          : 'text-text-muted'
+                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
                     }`}
                   >
                     <Microphone />
@@ -938,7 +938,7 @@ export default function ChatInput({
                 size="sm"
                 shape="round"
                 variant="outline"
-                className="text-text-muted"
+                className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
               >
                 <Stop />
               </Button>
@@ -956,15 +956,15 @@ export default function ChatInput({
                   isTranscribing ||
                   isLoadingSummary
                 }
-                className={`text-text-muted ${
+                className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                   !hasSubmittableContent ||
                   isAnyImageLoading ||
                   isAnyDroppedFileLoading ||
                   isRecording ||
                   isTranscribing ||
                   isLoadingSummary
-                    ? 'text-textSubtle cursor-not-allowed'
-                    : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
+                    ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                    : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                 }`}
                 title={
                   isLoadingSummary
@@ -980,7 +980,8 @@ export default function ChatInput({
                             : 'Send'
                 }
               >
-                <Send />
+                <Send className="w-4 h-4" />
+                <span className="text-sm">Send</span>
               </Button>
             )}
 
