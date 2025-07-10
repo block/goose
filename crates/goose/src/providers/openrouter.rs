@@ -278,4 +278,44 @@ impl Provider for OpenRouterProvider {
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
+
+    /// Fetch supported models from OpenRouter API
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("api/v1/models").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct models URL: {e}"))
+        })?;
+
+        let response = self
+            .client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("HTTP-Referer", "https://block.github.io/goose")
+            .header("X-Title", "Goose")
+            .send()
+            .await?;
+
+        let json: serde_json::Value = response.json().await?;
+
+        // Check for error in response
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+
+        let mut models: Vec<String> = data
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(Some(models))
+    }
 }
