@@ -1305,14 +1305,31 @@ impl Session {
         let model_config = provider.get_model_config();
         let context_limit = model_config.context_limit();
 
+        let config = Config::global();
+        let show_cost = config
+            .get_param::<bool>("GOOSE_CLI_SHOW_COST")
+            .unwrap_or(false);
+
+        let provider_name = config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .unwrap_or_else(|_| "unknown".to_string());
+
         match self.get_metadata() {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
-
                 output::display_context_usage(total_tokens, context_limit);
+
+                if show_cost {
+                    let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
+                    let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
+                    output::display_cost_usage(&provider_name, &model_config.model_name, input_tokens, output_tokens);
+                }
             }
             Err(_) => {
                 output::display_context_usage(0, context_limit);
+                if show_cost {
+                    // Unable to compute cost without metadata
+                }
             }
         }
 
