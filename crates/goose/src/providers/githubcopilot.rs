@@ -427,42 +427,4 @@ impl Provider for GithubCopilotProvider {
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
-
-    /// Fetch supported models from GitHub Copilot API
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let (endpoint, token) = self.get_api_info().await?;
-        let url = url::Url::parse(&format!("{}/models", endpoint))
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid models URL: {e}")))?;
-
-        let response = self
-            .client
-            .get(url)
-            .headers(self.get_github_headers())
-            .header("Authorization", format!("Bearer {}", token))
-            .send()
-            .await?;
-
-        let json: serde_json::Value = response.json().await?;
-
-        // Check for error in response
-        if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
-        }
-
-        // GitHub Copilot API returns models in a "data" array, similar to OpenAI
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(Some(models))
-    }
 }
