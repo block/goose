@@ -722,6 +722,16 @@ impl Agent {
                 });
 
             loop {
+                // Check for final output before incrementing turns or checking max_turns
+                // This ensures that if we have a final output ready, we return it immediately
+                // without being blocked by the max_turns limit
+                if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                    if final_output_tool.final_output.is_some() {
+                        yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                        break;
+                    }
+                }
+
                 turns_taken += 1;
                 if turns_taken > max_turns {
                     yield AgentEvent::Message(Message::assistant().with_text(
