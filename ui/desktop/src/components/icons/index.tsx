@@ -8,6 +8,7 @@ import ChevronDown from './ChevronDown';
 import ChevronUp from './ChevronUp';
 import { ChevronRight } from './ChevronRight';
 import Close from './Close';
+import CoinIcon from './CoinIcon';
 import Copy from './Copy';
 import Discord from './Discord';
 import Document from './Document';
@@ -36,6 +37,7 @@ export {
   ChevronRight,
   ChevronUp,
   Close,
+  CoinIcon,
   Copy,
   Discord,
   Document,

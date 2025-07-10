@@ -1151,9 +1151,23 @@ export default function ChatInput({
                 </div>
               </>
             )}
-            <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} alerts={alerts} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} alerts={alerts} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Current model and provider settings</TooltipContent>
+            </Tooltip>
             <div className="w-px h-4 bg-border-default mx-2" />
-            <BottomMenuModeSelection setView={setView} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <BottomMenuModeSelection setView={setView} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Current Goose mode configuration</TooltipContent>
+            </Tooltip>
             {messages.length > 0 && (
               <ManualSummarizeButton
                 messages={messages}
