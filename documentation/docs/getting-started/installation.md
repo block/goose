@@ -150,7 +150,7 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
         ```
-        This script will fetch the latest version of Goose and set it up on your system.
+        This script will fetch the latest version of Goose and set it up on your system. 
 
         If you'd like to install without interactive configuration, disable `CONFIGURE`:
 
@@ -163,7 +163,7 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         - **MSYS2**: Available from [msys2.org](https://www.msys2.org/)
         - **PowerShell**: Available on Windows 10/11 by default
         
-        The script requires `curl` and `unzip` to be available in your environment.
+        The script requires `curl` and `unzip` to be available in your environment. It is common for windows machines to have `curl` set up as an alias for `Invoke-WebRequest`. `Invoke-WebRequest` does not support `-fsSL`. You can remove the alias by running `Remove-item alias:curl`.
         :::
 
         <details>
