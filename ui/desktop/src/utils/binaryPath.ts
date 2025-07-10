@@ -22,15 +22,28 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
     throw new Error(`Invalid binary name: ${binaryName}`);
   }
 
-  const isWindows = process.platform === 'win32';
+  // On Windows, rely on PATH we just patched in ensureWinShims for command-line tools
+  // but use explicit resources/bin path for goosed.exe
+  if (process.platform === 'win32') {
+    // For goosed.exe, always use the explicit resources/bin path
+    if (binaryName === 'goosed') {
+      return path.join(process.resourcesPath, 'bin', 'goosed.exe');
+    }
 
-  const possiblePaths: string[] = [];
-  if (isWindows) {
-    addPaths(isWindows, possiblePaths, `${binaryName}.exe`, app);
-    addPaths(isWindows, possiblePaths, `${binaryName}.cmd`, app);
-  } else {
-    addPaths(isWindows, possiblePaths, binaryName, app);
+    // Map binary names to their Windows equivalents
+    const windowsBinaryMap: Record<string, string> = {
+      npx: 'npx.cmd',
+      uvx: 'uvx.exe',
+    };
+
+    // For other binaries, use Windows-specific extensions if available
+    const windowsBinary = windowsBinaryMap[binaryName] || binaryName;
+    return windowsBinary;
   }
+
+  // For non-Windows platforms, use the original logic
+  const possiblePaths: string[] = [];
+  addPaths(false, possiblePaths, binaryName, app);
 
   for (const binPath of possiblePaths) {
     try {

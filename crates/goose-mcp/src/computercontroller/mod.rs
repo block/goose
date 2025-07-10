@@ -736,10 +736,7 @@ impl ComputerControllerRouter {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
 
-                format!(
-                    "powershell -NoProfile -NonInteractive -File {}",
-                    script_path.display()
-                )
+                script_path.display().to_string()
             }
             _ => {
                 return Err( ToolError::InvalidParameters(
@@ -749,12 +746,27 @@ impl ComputerControllerRouter {
         };
 
         // Run the script
-        let output = Command::new(shell)
-            .arg(shell_arg)
-            .arg(&command)
-            .output()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to run script: {}", e)))?;
+        let output = match language {
+            "powershell" => {
+                // For PowerShell, we need to use -File instead of -Command
+                Command::new("powershell")
+                    .arg("-NoProfile")
+                    .arg("-NonInteractive")
+                    .arg("-File")
+                    .arg(&command)
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        ToolError::ExecutionError(format!("Failed to run script: {}", e))
+                    })?
+            }
+            _ => Command::new(shell)
+                .arg(shell_arg)
+                .arg(&command)
+                .output()
+                .await
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to run script: {}", e)))?,
+        };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
         let error_str = String::from_utf8_lossy(&output.stderr).into_owned();

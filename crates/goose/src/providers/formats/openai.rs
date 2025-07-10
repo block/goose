@@ -716,7 +716,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data)?;
+        std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
         // Create message with image path
@@ -853,7 +853,6 @@ mod tests {
         // Test default medium reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
-            tokenizer_name: "gpt-4o".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
@@ -885,7 +884,6 @@ mod tests {
         // Test default medium reasoning effort for O1 model
         let model_config = ModelConfig {
             model_name: "o1".to_string(),
-            tokenizer_name: "o1".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
@@ -918,7 +916,6 @@ mod tests {
         // Test custom reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
-            tokenizer_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),

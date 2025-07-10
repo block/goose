@@ -30,7 +30,7 @@ Sidenote: I met an AI enthusiast at a meetup who said he sometimes gets coding i
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/speech-mcp)   
+1. Follow [this tutorial](/docs/mcp/speech-mcp)   
 2. Enable the [`Speech`](https://github.com/Kvadratni/speech-mcp) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
     > I'd like to speak instead of typing.
@@ -49,7 +49,7 @@ I want guests to feel like I actually know their work, even if I don't have hour
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/youtube-transcript)
+1. Follow [this tutorial](/docs/mcp/youtube-transcript-mcp)
 2. Enable the [`YouTube Transcript`](https://github.com/jkawamoto/mcp-youtube-transcript) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
    > Generate a transcript for this video https://www.youtube.com/watch?v=dQw4w9WgXcQ, then create relevant interview questions based on the content
@@ -86,7 +86,7 @@ I'm not currently looking for a job, but I like to stay prepared. My strategy in
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/pdf-mcp)
+1. Follow [this tutorial](/docs/mcp/pdf-mcp)
 2. Enable the [`PDF Reader`](https://github.com/michaelneale/mcp-read-pdf) extension
 3. Prompt Goose:
    > Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate aligns with the following role requirements:
@@ -131,7 +131,7 @@ SQL can get complex with joins, stored procedures, and subqueries. Goose helps m
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/postgres-mcp)
+1. Follow [this tutorial](/docs/mcp/postgres-mcp)
 2. Enable the [`PostgreSQL`](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/postgres) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
    > Find my top 3 blog posts by average weekly views over the past 90 days. Include title, URL, average weekly views, and whether they were promoted on social.
@@ -151,7 +151,7 @@ I tend to overbook myself or get anxious that I won't get accepted, so I apply t
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/agentql-mcp)
+1. Follow [this tutorial](/docs/mcp/agentql-mcp)
 2. Enable the [`AgentQL`](https://github.com/tinyfish-io/agentql-mcp) extension
 3. Prompt Goose:
    > I'm a tech conference speaker planning my 2025-2026 submissions. 
@@ -201,7 +201,7 @@ In addition to generating code, AI agents can help you learn how to code. Goose 
 
 ### How to Try It
 
-1. Follow [this tutorial](/docs/tutorials/tutorial-extension)
+1. Follow [this tutorial](/docs/mcp/tutorial-mcp)
 3. Prompt Goose:
    > I'd like to learn how to build an extension or MCP server for Goose
 

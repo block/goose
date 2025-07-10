@@ -681,7 +681,7 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(ToolCall::new("example", json!({"param1": "value1"})).into()),
+                Ok(ToolCall::new("example", json!({"param1": "value1"}))),
             ),
         ];
 
@@ -801,7 +801,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data)?;
+        std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
         // Create message with image path

@@ -110,7 +110,7 @@ This starts up a local web server (the command line output will tell you which p
 
 ## Goose learns how to drive!
 
-Following our [mbot MCP tutorial](/docs/tutorials/mbot-mcp/) we can set up our MCP extension just like we ran our Java JAR file with the environment variables.
+Following our [mbot MCP tutorial](/docs/mcp/mbot-mcp/) we can set up our MCP extension just like we ran our Java JAR file with the environment variables.
 
 Now we can give Goose commands like "drive in a square pattern by making left turns and moving forward, and beeping before you turn" and it will send the commands to the mbot2 rover via MQTT.
 

@@ -3,21 +3,65 @@ use std::env;
 #[derive(Debug, Clone)]
 pub struct ShellConfig {
     pub executable: String,
-    pub arg: String,
+    pub args: Vec<String>,
 }
 
 impl Default for ShellConfig {
     fn default() -> Self {
         if cfg!(windows) {
-            // Execute PowerShell commands directly
-            Self {
-                executable: "powershell.exe".to_string(),
-                arg: "-NoProfile -NonInteractive -Command".to_string(),
+            // Detect the default shell on Windows
+            #[cfg(windows)]
+            {
+                Self::detect_windows_shell()
+            }
+            #[cfg(not(windows))]
+            {
+                // This branch should never be taken on non-Windows
+                // but we need it for compilation
+                Self {
+                    executable: "cmd".to_string(),
+                    args: vec!["/c".to_string()],
+                }
             }
         } else {
+            // Use bash on Unix/macOS (keep existing behavior)
             Self {
                 executable: "bash".to_string(),
-                arg: "-c".to_string(),
+                args: vec!["-c".to_string()],
+            }
+        }
+    }
+}
+
+impl ShellConfig {
+    #[cfg(windows)]
+    fn detect_windows_shell() -> Self {
+        // Check for PowerShell first (more modern)
+        if let Ok(ps_path) = which::which("pwsh") {
+            // PowerShell 7+ (cross-platform PowerShell)
+            Self {
+                executable: ps_path.to_string_lossy().to_string(),
+                args: vec![
+                    "-NoProfile".to_string(),
+                    "-NonInteractive".to_string(),
+                    "-Command".to_string(),
+                ],
+            }
+        } else if let Ok(ps_path) = which::which("powershell") {
+            // Windows PowerShell 5.1
+            Self {
+                executable: ps_path.to_string_lossy().to_string(),
+                args: vec![
+                    "-NoProfile".to_string(),
+                    "-NonInteractive".to_string(),
+                    "-Command".to_string(),
+                ],
+            }
+        } else {
+            // Fall back to cmd.exe
+            Self {
+                executable: "cmd".to_string(),
+                args: vec!["/c".to_string()],
             }
         }
     }
@@ -25,16 +69,6 @@ impl Default for ShellConfig {
 
 pub fn get_shell_config() -> ShellConfig {
     ShellConfig::default()
-}
-
-pub fn format_command_for_platform(command: &str) -> String {
-    if cfg!(windows) {
-        // For PowerShell, wrap the command in braces to handle special characters
-        format!("{{ {} }}", command)
-    } else {
-        // For other shells, no braces needed
-        command.to_string()
-    }
 }
 
 pub fn expand_path(path_str: &str) -> String {

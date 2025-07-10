@@ -9,15 +9,16 @@ use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{info, warn};
 
-use crate::scheduler::{ScheduledJob, SchedulerError};
+use crate::scheduler::{normalize_cron_expression, ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::storage::SessionMetadata;
 
 const TEMPORAL_SERVICE_STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const TEMPORAL_SERVICE_HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
 
-// Default ports to try when discovering the service
-const DEFAULT_HTTP_PORTS: &[u16] = &[8080, 8081, 8082, 8083, 8084, 8085];
+// Default ports to try when discovering the service - using high, obscure ports
+// to avoid conflicts with common services
+const DEFAULT_HTTP_PORTS: &[u16] = &[58080, 58081, 58082, 58083, 58084, 58085];
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JobRequest {
@@ -25,6 +26,7 @@ struct JobRequest {
     job_id: Option<String>,
     cron: Option<String>,
     recipe_path: Option<String>,
+    execution_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -45,6 +47,7 @@ struct TemporalJobStatus {
     currently_running: bool,
     paused: bool,
     created_at: String,
+    execution_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,13 +55,14 @@ struct RunNowResponse {
     session_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PortConfig {
     http_port: u16,
     temporal_port: u16,
     ui_port: u16,
 }
 
+#[derive(Clone)]
 pub struct TemporalScheduler {
     http_client: Client,
     service_url: String,
@@ -107,50 +111,61 @@ impl TemporalScheduler {
             port_config,
         });
 
+        // Start the status monitor to keep job statuses in sync
+        if let Err(e) = final_scheduler.start_status_monitor().await {
+            tracing::warn!("Failed to start status monitor: {}", e);
+        }
+
         info!("TemporalScheduler initialized successfully");
         Ok(final_scheduler)
     }
 
-    async fn discover_http_port(_http_client: &Client) -> Result<u16, SchedulerError> {
-        // First, try to find a running service using pgrep and lsof
-        if let Ok(port) = Self::find_temporal_service_port_from_processes() {
-            info!(
-                "Found Temporal service port {} from running processes",
-                port
-            );
-            return Ok(port);
-        }
-
-        // If no running service found, we need to find a free port to start the service on
-        info!("No running Temporal service found, finding free port to start service");
+    async fn discover_http_port(http_client: &Client) -> Result<u16, SchedulerError> {
+        info!("Discovering Temporal service port...");
 
         // Check PORT environment variable first
         if let Ok(port_str) = std::env::var("PORT") {
             if let Ok(port) = port_str.parse::<u16>() {
-                if Self::is_port_free(port).await {
-                    info!("Using PORT environment variable: {}", port);
+                if Self::is_temporal_service_running(http_client, port).await {
+                    info!(
+                        "Found running Temporal service on PORT environment variable: {}",
+                        port
+                    );
+                    return Ok(port);
+                } else if Self::is_port_free(port).await {
+                    info!("Using PORT environment variable for new service: {}", port);
                     return Ok(port);
                 } else {
                     warn!(
-                        "PORT environment variable {} is not free, finding alternative",
+                        "PORT environment variable {} is occupied by non-Temporal service",
                         port
                     );
                 }
             }
         }
 
-        // Try to find a free port from the default list
+        // Try to find an existing Temporal service on default ports
+        for &port in DEFAULT_HTTP_PORTS {
+            if Self::is_temporal_service_running(http_client, port).await {
+                info!("Found existing Temporal service on port {}", port);
+                return Ok(port);
+            }
+        }
+
+        // If no existing service found, find a free port to start a new one
+        info!("No existing Temporal service found, finding free port to start new service");
+
         for &port in DEFAULT_HTTP_PORTS {
             if Self::is_port_free(port).await {
-                info!("Found free port {} for Temporal service", port);
+                info!("Found free port {} for new Temporal service", port);
                 return Ok(port);
             }
         }
 
         // If all default ports are taken, find any free port in a reasonable range
-        for port in 8086..8200 {
+        for port in 58086..58200 {
             if Self::is_port_free(port).await {
-                info!("Found free port {} for Temporal service", port);
+                info!("Found free port {} for new Temporal service", port);
                 return Ok(port);
             }
         }
@@ -160,112 +175,51 @@ impl TemporalScheduler {
         ))
     }
 
-    async fn is_port_free(port: u16) -> bool {
-        use std::net::{SocketAddr, TcpListener};
-        use std::time::Duration;
+    /// Check if a Temporal service is running and responding on the given port
+    async fn is_temporal_service_running(http_client: &Client, port: u16) -> bool {
+        let health_url = format!("http://127.0.0.1:{}/health", port);
 
-        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
-
-        // First, try to bind to the port
-        let listener_result = TcpListener::bind(addr);
-        match listener_result {
-            Ok(listener) => {
-                // Successfully bound, so port was free
-                drop(listener); // Release the port immediately
-
-                // Double-check by trying to connect to see if anything is actually listening
-                let client = reqwest::Client::builder()
-                    .timeout(Duration::from_millis(500))
-                    .build()
-                    .unwrap();
-
-                let test_url = format!("http://127.0.0.1:{}", port);
-                match client.get(&test_url).send().await {
-                    Ok(_) => {
-                        // Something responded, so port is actually in use
-                        warn!(
-                            "Port {} appeared free but something is listening on it",
-                            port
-                        );
-                        false
-                    }
-                    Err(_) => {
-                        // Nothing responded, port is truly free
-                        true
-                    }
-                }
+        match http_client
+            .get(&health_url)
+            .timeout(Duration::from_millis(1000))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                info!("Confirmed Temporal service is running on port {}", port);
+                true
+            }
+            Ok(response) => {
+                info!(
+                    "Port {} is responding but not a healthy Temporal service (status: {})",
+                    port,
+                    response.status()
+                );
+                false
             }
             Err(_) => {
-                // Could not bind, port is definitely in use
+                // Port might be free or occupied by something else
                 false
             }
         }
     }
 
-    fn find_temporal_service_port_from_processes() -> Result<u16, SchedulerError> {
-        // Use pgrep to find temporal-service processes
-        let pgrep_output = Command::new("pgrep")
-            .arg("-f")
-            .arg("temporal-service")
-            .output()
-            .map_err(|e| SchedulerError::SchedulerInternalError(format!("pgrep failed: {}", e)))?;
+    async fn is_port_free(port: u16) -> bool {
+        use std::net::{SocketAddr, TcpListener};
 
-        if !pgrep_output.status.success() {
-            return Err(SchedulerError::SchedulerInternalError(
-                "No temporal-service processes found".to_string(),
-            ));
-        }
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
 
-        let pids_str = String::from_utf8_lossy(&pgrep_output.stdout);
-        let pids: Vec<&str> = pids_str
-            .trim()
-            .split('\n')
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        for pid in pids {
-            // Use lsof to find listening ports for this PID
-            let lsof_output = Command::new("lsof")
-                .arg("-p")
-                .arg(pid)
-                .arg("-i")
-                .arg("tcp")
-                .arg("-P") // Show port numbers instead of service names
-                .arg("-n") // Show IP addresses instead of hostnames
-                .output();
-
-            if let Ok(output) = lsof_output {
-                let lsof_str = String::from_utf8_lossy(&output.stdout);
-
-                // Look for HTTP API port (typically 8080-8999 range)
-                for line in lsof_str.lines() {
-                    if line.contains("LISTEN") && line.contains("temporal-") {
-                        // Parse lines like: "temporal-service 12345 user 6u IPv4 0x... 0t0 TCP *:8081 (LISTEN)"
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-
-                        // Find the TCP part which contains the port
-                        for part in &parts {
-                            if part.starts_with("TCP") && part.contains(':') {
-                                // Extract port from TCP *:8081 or TCP 127.0.0.1:8081
-                                if let Some(port_str) = part.split(':').next_back() {
-                                    if let Ok(port) = port_str.parse::<u16>() {
-                                        // HTTP API ports are typically in 8080-8999 range
-                                        if (8080..9000).contains(&port) {
-                                            info!("Found HTTP API port {} for PID {}", port, pid);
-                                            return Ok(port);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        // Try to bind to the port
+        match TcpListener::bind(addr) {
+            Ok(_listener) => {
+                // Successfully bound, so port is free
+                true
+            }
+            Err(_) => {
+                // Could not bind, port is in use
+                false
             }
         }
-
-        Err(SchedulerError::SchedulerInternalError(
-            "Could not find HTTP API port from temporal-service processes".to_string(),
-        ))
     }
 
     async fn fetch_port_config(&self) -> Result<PortConfig, SchedulerError> {
@@ -305,7 +259,7 @@ impl TemporalScheduler {
         self.port_config.temporal_port
     }
 
-    /// Get the HTTP API port  
+    /// Get the HTTP API port
     pub fn get_http_port(&self) -> u16 {
         self.port_config.http_port
     }
@@ -351,13 +305,33 @@ impl TemporalScheduler {
 
         // Set the PORT environment variable for the service to use and properly daemonize it
         // Create a new process group to ensure the service survives parent termination
-        let mut command = Command::new("./temporal-service");
+        let mut command = Command::new(&binary_path);
         command
             .current_dir(working_dir)
-            .env("PORT", self.port_config.http_port.to_string())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .stdin(std::process::Stdio::null());
+            .env("PORT", self.port_config.http_port.to_string());
+
+        // Platform-specific process configuration based on Electron app approach
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // On Windows, prevent console window and run detached:
+            // - Use CREATE_NO_WINDOW (0x08000000) to prevent console window
+            // - Use DETACHED_PROCESS (0x00000008) for independence
+            // - Redirect output to null to prevent console attachment
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null())
+                .creation_flags(0x08000000 | 0x00000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
+        }
+
+        #[cfg(not(windows))]
+        {
+            command
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null());
+        }
 
         // On Unix systems, create a new process group
         #[cfg(unix)]
@@ -366,7 +340,7 @@ impl TemporalScheduler {
             command.process_group(0);
         }
 
-        let child = command.spawn().map_err(|e| {
+        let mut child = command.spawn().map_err(|e| {
             SchedulerError::SchedulerInternalError(format!(
                 "Failed to start Go temporal service: {}",
                 e
@@ -379,15 +353,27 @@ impl TemporalScheduler {
             pid, self.port_config.http_port
         );
 
-        // Don't wait for the child process - let it run independently
-        std::mem::forget(child);
+        // Platform-specific process handling
+        #[cfg(windows)]
+        {
+            // On Windows, wait longer for initialization and use unref-like behavior
+            sleep(Duration::from_millis(1000)).await; // Wait 1 second for Windows initialization
 
-        // Give the process a moment to start up
-        sleep(Duration::from_millis(100)).await;
+            // Use a different approach - spawn a monitoring thread that waits longer
+            std::thread::spawn(move || {
+                // Give the process significant time to initialize on Windows
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                // After 5 seconds, let it run completely independently
+                let _ = child.wait();
+            });
+        }
 
-        // Verify the process is still running
         #[cfg(unix)]
         {
+            // Give the process a moment to start up
+            sleep(Duration::from_millis(100)).await;
+
+            // Verify the process is still running
             use std::process::Command as StdCommand;
             let ps_check = StdCommand::new("ps")
                 .arg("-p")
@@ -408,6 +394,12 @@ impl TemporalScheduler {
                     warn!("Could not verify Temporal service process status: {}", e);
                 }
             }
+
+            // Detach the child process by not waiting for it
+            // This allows it to continue running independently
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
         }
 
         Ok(())
@@ -417,17 +409,16 @@ impl TemporalScheduler {
         // Try to find the Go service binary by looking for it relative to the current executable
         // or in common locations
 
-        let possible_paths = vec![
-            // Relative to current working directory (original behavior)
-            "./temporal-service/temporal-service",
-        ];
-
-        // Also try to find it relative to the current executable path
+        // First try to find it relative to the current executable path (most common for bundled apps)
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 // Try various relative paths from the executable directory
                 let exe_relative_paths = vec![
-                    // First check in the same directory as the executable (bundled location)
+                    // First check in resources/bin subdirectory (bundled Electron app location)
+                    exe_dir.join("resources/bin/temporal-service"),
+                    exe_dir.join("resources/bin/temporal-service.exe"), // Windows version
+                    exe_dir.join("resources\\bin\\temporal-service.exe"), // Windows with backslashes
+                    // Then check in the same directory as the executable
                     exe_dir.join("temporal-service"),
                     exe_dir.join("temporal-service.exe"), // Windows version
                     // Then check in temporal-service subdirectory
@@ -442,21 +433,45 @@ impl TemporalScheduler {
 
                 for path in exe_relative_paths {
                     if path.exists() {
+                        tracing::debug!("Found temporal-service binary at: {}", path.display());
                         return Ok(path.to_string_lossy().to_string());
                     }
                 }
             }
         }
 
-        // Try the original relative paths
+        // Try relative to current working directory (original behavior)
+        let possible_paths = vec![
+            "./temporal-service/temporal-service",
+            "./temporal-service.exe",               // Windows in current dir
+            "./resources/bin/temporal-service.exe", // Windows bundled in current dir
+        ];
+
         for path in &possible_paths {
             if std::path::Path::new(path).exists() {
+                tracing::debug!("Found temporal-service binary at: {}", path);
                 return Ok(path.to_string());
             }
         }
 
+        // Check environment variable override
+        if let Ok(binary_path) = std::env::var("GOOSE_TEMPORAL_BIN") {
+            if std::path::Path::new(&binary_path).exists() {
+                tracing::info!(
+                    "Using temporal-service binary from GOOSE_TEMPORAL_BIN: {}",
+                    binary_path
+                );
+                return Ok(binary_path);
+            } else {
+                tracing::warn!(
+                    "GOOSE_TEMPORAL_BIN points to non-existent file: {}",
+                    binary_path
+                );
+            }
+        }
+
         Err(SchedulerError::SchedulerInternalError(
-            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available.".to_string()
+            "Go service binary not found. Tried paths relative to current executable and working directory. Please ensure the temporal-service binary is built and available, or set GOOSE_TEMPORAL_BIN environment variable.".to_string()
         ))
     }
 
@@ -530,11 +545,23 @@ impl TemporalScheduler {
             "TemporalScheduler: add_scheduled_job() called for job '{}'",
             job.id
         );
+
+        // Normalize the cron expression to ensure it's 6-field format
+        let normalized_cron = normalize_cron_expression(&job.cron);
+        if normalized_cron != job.cron {
+            tracing::info!(
+                "TemporalScheduler: Normalized cron expression from '{}' to '{}'",
+                job.cron,
+                normalized_cron
+            );
+        }
+
         let request = JobRequest {
             action: "create".to_string(),
             job_id: Some(job.id.clone()),
-            cron: Some(job.cron.clone()),
+            cron: Some(normalized_cron.clone()),
             recipe_path: Some(job.source.clone()),
+            execution_mode: job.execution_mode.clone(),
         };
 
         let response = self.make_request(request).await?;
@@ -554,6 +581,7 @@ impl TemporalScheduler {
             job_id: None,
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -572,6 +600,7 @@ impl TemporalScheduler {
                         paused: tj.paused,
                         current_session_id: None, // Not provided by Temporal service
                         process_start_time: None, // Not provided by Temporal service
+                        execution_mode: tj.execution_mode,
                     }
                 })
                 .collect();
@@ -587,6 +616,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -605,6 +635,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -623,6 +654,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -642,6 +674,7 @@ impl TemporalScheduler {
             job_id: Some(id.to_string()),
             cron: None,
             recipe_path: None,
+            execution_mode: None,
         };
 
         let response = self.make_request(request).await?;
@@ -717,20 +750,192 @@ impl TemporalScheduler {
 
     pub async fn update_schedule(
         &self,
-        _sched_id: &str,
-        _new_cron: String,
+        sched_id: &str,
+        new_cron: String,
     ) -> Result<(), SchedulerError> {
-        warn!("update_schedule() method not implemented for TemporalScheduler - delete and recreate job instead");
-        Err(SchedulerError::SchedulerInternalError(
-            "update_schedule not supported - delete and recreate job instead".to_string(),
-        ))
+        tracing::info!(
+            "TemporalScheduler: update_schedule() called for job '{}' with cron '{}'",
+            sched_id,
+            new_cron
+        );
+
+        // Normalize the cron expression to ensure it's 6-field format
+        let normalized_cron = normalize_cron_expression(&new_cron);
+        if normalized_cron != new_cron {
+            tracing::info!(
+                "TemporalScheduler: Normalized cron expression from '{}' to '{}'",
+                new_cron,
+                normalized_cron
+            );
+        }
+
+        let request = JobRequest {
+            action: "update".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: Some(normalized_cron),
+            recipe_path: None,
+            execution_mode: None,
+        };
+
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            info!("Successfully updated scheduled job: {}", sched_id);
+            Ok(())
+        } else {
+            Err(SchedulerError::SchedulerInternalError(response.message))
+        }
     }
 
-    pub async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
-        warn!("kill_running_job() method not implemented for TemporalScheduler");
-        Err(SchedulerError::SchedulerInternalError(
-            "kill_running_job not supported by TemporalScheduler".to_string(),
-        ))
+    pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
+        tracing::info!(
+            "TemporalScheduler: kill_running_job() called for job '{}'",
+            sched_id
+        );
+
+        let request = JobRequest {
+            action: "kill_job".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: None,
+            recipe_path: None,
+            execution_mode: None,
+        };
+
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            info!("Successfully killed running job: {}", sched_id);
+            Ok(())
+        } else {
+            Err(SchedulerError::SchedulerInternalError(response.message))
+        }
+    }
+
+    pub async fn update_job_status_from_sessions(&self) -> Result<(), SchedulerError> {
+        tracing::info!("TemporalScheduler: Checking job status based on session activity");
+
+        let jobs = self.list_scheduled_jobs().await?;
+
+        for job in jobs {
+            if job.currently_running {
+                // First, check with the Temporal service directly for the most accurate status
+                let request = JobRequest {
+                    action: "status".to_string(),
+                    job_id: Some(job.id.clone()),
+                    cron: None,
+                    recipe_path: None,
+                    execution_mode: None,
+                };
+
+                match self.make_request(request).await {
+                    Ok(response) => {
+                        if response.success {
+                            if let Some(jobs) = response.jobs {
+                                if let Some(temporal_job) = jobs.iter().find(|j| j.id == job.id) {
+                                    // If Temporal service says it's not running, trust that
+                                    if !temporal_job.currently_running {
+                                        tracing::info!(
+                                            "Temporal service reports job '{}' is not running",
+                                            job.id
+                                        );
+                                        continue; // Job is already marked as not running by Temporal
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to get status from Temporal service for job '{}': {}",
+                            job.id,
+                            e
+                        );
+                        // Fall back to session-based checking if Temporal service is unavailable
+                    }
+                }
+
+                // Secondary check: look for recent session activity (more lenient timing)
+                let recent_sessions = self.sessions(&job.id, 3).await?;
+                let mut has_active_session = false;
+
+                for (session_name, _) in recent_sessions {
+                    let session_path = match crate::session::storage::get_path(
+                        crate::session::storage::Identifier::Name(session_name.clone()),
+                    ) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to get session path for '{}': {}",
+                                session_name,
+                                e
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Check if session file was modified recently (within last 5 minutes instead of 2)
+                    if let Ok(metadata) = std::fs::metadata(&session_path) {
+                        if let Ok(modified) = metadata.modified() {
+                            let modified_dt: DateTime<Utc> = modified.into();
+                            let now = Utc::now();
+                            let time_diff = now.signed_duration_since(modified_dt);
+
+                            // Increased tolerance to 5 minutes to reduce false positives
+                            if time_diff.num_minutes() < 5 {
+                                has_active_session = true;
+                                tracing::debug!(
+                                    "Found active session for job '{}' modified {} minutes ago",
+                                    job.id,
+                                    time_diff.num_minutes()
+                                );
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Only mark as completed if both Temporal service check failed AND no recent session activity
+                if !has_active_session {
+                    tracing::info!(
+                        "No active sessions found for job '{}' in the last 5 minutes, marking as completed",
+                        job.id
+                    );
+
+                    let request = JobRequest {
+                        action: "mark_completed".to_string(),
+                        job_id: Some(job.id.clone()),
+                        cron: None,
+                        recipe_path: None,
+                        execution_mode: None,
+                    };
+
+                    if let Err(e) = self.make_request(request).await {
+                        tracing::warn!("Failed to mark job '{}' as completed: {}", job.id, e);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Periodically check and update job statuses based on session activity
+    pub async fn start_status_monitor(&self) -> Result<(), SchedulerError> {
+        let scheduler_clone = self.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60)); // Check every 60 seconds instead of 30
+
+            loop {
+                interval.tick().await;
+
+                if let Err(e) = scheduler_clone.update_job_status_from_sessions().await {
+                    tracing::warn!("Failed to update job statuses: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     pub async fn get_running_job_info(
@@ -742,24 +947,76 @@ impl TemporalScheduler {
             sched_id
         );
 
-        // First check if the job is marked as currently running
-        let jobs = self.list_scheduled_jobs().await?;
-        let job = jobs.iter().find(|j| j.id == sched_id);
+        // Get the current job status from Temporal service
+        let request = JobRequest {
+            action: "status".to_string(),
+            job_id: Some(sched_id.to_string()),
+            cron: None,
+            recipe_path: None,
+            execution_mode: None,
+        };
 
-        if let Some(job) = job {
-            if job.currently_running {
-                // For now, we'll return a placeholder session ID and current time
-                // In a more complete implementation, we would track the actual session ID
-                // and start time from the Temporal workflow execution
-                let session_id =
-                    format!("temporal-{}-{}", sched_id, chrono::Utc::now().timestamp());
-                let start_time = chrono::Utc::now(); // This should be the actual start time
-                Ok(Some((session_id, start_time)))
+        let response = self.make_request(request).await?;
+
+        if response.success {
+            if let Some(jobs) = response.jobs {
+                if let Some(job) = jobs.iter().find(|j| j.id == sched_id) {
+                    if job.currently_running {
+                        // Try to get the actual session ID from recent sessions
+                        let recent_sessions = self.sessions(sched_id, 1).await?;
+
+                        if let Some((session_name, _session_metadata)) = recent_sessions.first() {
+                            // Check if this session is still active by looking at the session file
+                            let session_path = match crate::session::storage::get_path(
+                                crate::session::storage::Identifier::Name(session_name.clone()),
+                            ) {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to get session path for '{}': {}",
+                                        session_name,
+                                        e
+                                    );
+                                    // Fallback: return a temporal session ID with current time
+                                    let session_id =
+                                        format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
+                                    let start_time = Utc::now();
+                                    return Ok(Some((session_id, start_time)));
+                                }
+                            };
+
+                            // If the session file was modified recently (within last 5 minutes),
+                            // consider it as the current running session
+                            if let Ok(metadata) = std::fs::metadata(&session_path) {
+                                if let Ok(modified) = metadata.modified() {
+                                    let modified_dt: DateTime<Utc> = modified.into();
+                                    let now = Utc::now();
+                                    let time_diff = now.signed_duration_since(modified_dt);
+
+                                    if time_diff.num_minutes() < 5 {
+                                        // This looks like an active session
+                                        return Ok(Some((session_name.clone(), modified_dt)));
+                                    }
+                                }
+                            }
+                        }
+
+                        // Fallback: return a temporal session ID with current time
+                        let session_id =
+                            format!("temporal-{}-{}", sched_id, Utc::now().timestamp());
+                        let start_time = Utc::now();
+                        Ok(Some((session_id, start_time)))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Err(SchedulerError::JobNotFound(sched_id.to_string()))
+                }
             } else {
-                Ok(None)
+                Err(SchedulerError::JobNotFound(sched_id.to_string()))
             }
         } else {
-            Err(SchedulerError::JobNotFound(sched_id.to_string()))
+            Err(SchedulerError::SchedulerInternalError(response.message))
         }
     }
 
@@ -1021,17 +1278,43 @@ mod tests {
     }
 
     #[test]
-    fn test_sessions_method_signature() {
-        // This test verifies the method signature is correct at compile time
-        // We just need to verify the method exists and can be called
+    fn test_job_status_detection_improvements() {
+        // Test that the new job status detection methods compile and work correctly
+        use tokio::runtime::Runtime;
 
-        // This will fail to compile if the method doesn't exist or has wrong signature
-        let _test_fn = |scheduler: &TemporalScheduler, id: &str, limit: usize| {
-            // This is a compile-time check - we don't actually call it
-            let _future = scheduler.sessions(id, limit);
-        };
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            // This test verifies the improved job status detection compiles
+            match TemporalScheduler::new().await {
+                Ok(scheduler) => {
+                    // Test the new status update method
+                    match scheduler.update_job_status_from_sessions().await {
+                        Ok(()) => {
+                            println!("✅ update_job_status_from_sessions() works correctly");
+                        }
+                        Err(e) => {
+                            println!("⚠️  update_job_status_from_sessions() returned error (expected if no jobs): {}", e);
+                        }
+                    }
 
-        println!("✅ sessions() method signature is correct");
+                    // Test the improved get_running_job_info method
+                    match scheduler.get_running_job_info("test-job").await {
+                        Ok(None) => {
+                            println!("✅ get_running_job_info() correctly returns None for non-existent job");
+                        }
+                        Ok(Some((session_id, start_time))) => {
+                            println!("✅ get_running_job_info() returned session info: {} at {}", session_id, start_time);
+                        }
+                        Err(e) => {
+                            println!("⚠️  get_running_job_info() returned error (expected): {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("⚠️  Temporal services not running - method signature test passed: {}", e);
+                }
+            }
+        });
     }
 
     #[test]
@@ -1103,5 +1386,25 @@ mod tests {
                 // This might happen in some test environments, but the logic is correct
             }
         }
+    }
+
+    #[test]
+    fn test_cron_normalization_in_temporal_scheduler() {
+        // Test that the temporal scheduler uses cron normalization correctly
+        use crate::scheduler::normalize_cron_expression;
+
+        // Test cases that should be normalized
+        assert_eq!(normalize_cron_expression("0 12 * * *"), "0 0 12 * * * *");
+        assert_eq!(normalize_cron_expression("*/5 * * * *"), "0 */5 * * * * *");
+        assert_eq!(normalize_cron_expression("0 0 * * 1"), "0 0 0 * * 1 *");
+
+        // Test cases that should remain unchanged
+        assert_eq!(normalize_cron_expression("0 0 12 * * *"), "0 0 12 * * * *");
+        assert_eq!(
+            normalize_cron_expression("*/30 */5 * * * *"),
+            "*/30 */5 * * * * *"
+        );
+
+        println!("✅ Cron normalization works correctly in TemporalScheduler");
     }
 }

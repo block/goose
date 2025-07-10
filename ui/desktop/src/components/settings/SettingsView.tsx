@@ -8,8 +8,11 @@ import { ToolSelectionStrategySection } from './tool_selection_strategy/ToolSele
 import SessionSharingSection from './sessions/SessionSharingSection';
 import { ResponseStylesSection } from './response_styles/ResponseStylesSection';
 import AppSettingsSection from './app/AppSettingsSection';
+import SchedulerSection from './scheduler/SchedulerSection';
+import DictationSection from './dictation/DictationSection';
 import { ExtensionConfig } from '../../api';
 import MoreMenuLayout from '../more_menu/MoreMenuLayout';
+import { useEffect } from 'react';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -26,6 +29,20 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <MoreMenuLayout showMenu={false} />
@@ -47,12 +64,16 @@ export default function SettingsView({
                 deepLinkConfig={viewOptions.deepLinkConfig}
                 showEnvVars={viewOptions.showEnvVars}
               />
+              {/* Scheduler Section */}
+              <SchedulerSection />
               {/* Goose Modes */}
               <ModeSection setView={setView} />
               {/*Session sharing*/}
               <SessionSharingSection />
               {/* Response Styles */}
               <ResponseStylesSection />
+              {/* Voice Dictation */}
+              <DictationSection />
               {/* Tool Selection Strategy */}
               <ToolSelectionStrategySection setView={setView} />
               {/* App Settings */}

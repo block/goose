@@ -38,6 +38,11 @@ declare module '*.mp4' {
   export default value;
 }
 
+declare module '*.md?raw' {
+  const value: string;
+  export default value;
+}
+
 // Extend CSS properties to include Electron-specific properties
 declare namespace React {
   interface CSSProperties {

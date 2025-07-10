@@ -28,7 +28,8 @@ export default function Modal({
     if (
       modalRef.current &&
       !modalRef.current.contains(e.target as Node) &&
-      !(e.target as HTMLElement).closest('.select__menu')
+      !(e.target as HTMLElement).closest('.select__menu') &&
+      window.getSelection()?.toString().length === 0 // Ensure no text is selected
     ) {
       onClose();
     }

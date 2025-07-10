@@ -39,10 +39,7 @@ use mcp_server::Router;
 use mcp_core::role::Role;
 
 use self::editor_models::{create_editor_model, EditorModel};
-use self::shell::{
-    expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
-    normalize_line_endings,
-};
+use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -191,12 +188,16 @@ impl DeveloperRouter {
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
                 - `edit_file`: Edit the file with the new content.
+                - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
                 To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                and `new_str` (the text to insert).
             "#, editor.get_str_replace_description()},
                 "edit_file",
             )
@@ -208,6 +209,7 @@ impl DeveloperRouter {
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
                 - `str_replace`: Replace a string in a file with a new string.
+                - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
@@ -216,6 +218,9 @@ impl DeveloperRouter {
                 To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                and `new_str` (the text to insert).
             "#}.to_string(), "str_replace")
         };
 
@@ -232,8 +237,19 @@ impl DeveloperRouter {
                     },
                     "command": {
                         "type": "string",
-                        "enum": ["view", "write", str_replace_command, "undo_edit"],
-                        "description": format!("Allowed options are: `view`, `write`, `{}`, `undo_edit`.", str_replace_command)
+                        "enum": ["view", "write", str_replace_command, "insert", "undo_edit"],
+                        "description": format!("Allowed options are: `view`, `write`, `{}`, `insert`, `undo_edit`.", str_replace_command)
+                    },
+                    "view_range": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Optional array of two integers specifying the start and end line numbers to view. Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. This parameter only applies when viewing files, not directories."
+                    },
+                    "insert_line": {
+                        "type": "integer",
+                        "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
@@ -540,7 +556,6 @@ impl DeveloperRouter {
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
-        let cmd_str = format_command_for_platform(command);
 
         // Execute the command using platform-specific shell
         let mut child = Command::new(&shell_config.executable)
@@ -548,8 +563,8 @@ impl DeveloperRouter {
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
-            .arg(&shell_config.arg)
-            .arg(cmd_str)
+            .args(&shell_config.args)
+            .arg(command)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
@@ -681,7 +696,21 @@ impl DeveloperRouter {
         }
 
         match command {
-            "view" => self.text_editor_view(&path).await,
+            "view" => {
+                let view_range = params
+                    .get("view_range")
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| {
+                        if arr.len() == 2 {
+                            let start = arr[0].as_i64().unwrap_or(1) as usize;
+                            let end = arr[1].as_i64().unwrap_or(-1);
+                            Some((start, end))
+                        } else {
+                            None
+                        }
+                    });
+                self.text_editor_view(&path, view_range).await
+            }
             "write" => {
                 let file_text = params
                     .get("file_text")
@@ -708,6 +737,22 @@ impl DeveloperRouter {
 
                 self.text_editor_replace(&path, old_str, new_str).await
             }
+            "insert" => {
+                let insert_line = params
+                    .get("insert_line")
+                    .and_then(|v| v.as_i64())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'insert_line' parameter".into())
+                    })? as usize;
+                let new_str = params
+                    .get("new_str")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'new_str' parameter".into())
+                    })?;
+
+                self.text_editor_insert(&path, insert_line, new_str).await
+            }
             "undo_edit" => self.text_editor_undo(&path).await,
             _ => Err(ToolError::InvalidParameters(format!(
                 "Unknown command '{}'",
@@ -716,7 +761,11 @@ impl DeveloperRouter {
         }
     }
 
-    async fn text_editor_view(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
+    async fn text_editor_view(
+        &self,
+        path: &PathBuf,
+        view_range: Option<(usize, i64)>,
+    ) -> Result<Vec<Content>, ToolError> {
         if path.is_file() {
             // Check file size first (400KB limit)
             const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
@@ -753,16 +802,76 @@ impl DeveloperRouter {
                 )));
             }
 
+            let lines: Vec<&str> = content.lines().collect();
+            let total_lines = lines.len();
+
+            // Handle view_range if provided, otherwise show all lines
+            let (start_idx, end_idx) = if let Some((start_line, end_line)) = view_range {
+                // Convert 1-indexed line numbers to 0-indexed
+                let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+                let end_idx = if end_line == -1 {
+                    total_lines
+                } else {
+                    std::cmp::min(end_line as usize, total_lines)
+                };
+
+                if start_idx >= total_lines {
+                    return Err(ToolError::InvalidParameters(format!(
+                        "Start line {} is beyond the end of the file (total lines: {})",
+                        start_line, total_lines
+                    )));
+                }
+
+                if start_idx >= end_idx {
+                    return Err(ToolError::InvalidParameters(format!(
+                        "Start line {} must be less than end line {}",
+                        start_line, end_line
+                    )));
+                }
+
+                (start_idx, end_idx)
+            } else {
+                (0, total_lines)
+            };
+
+            // Always format lines with line numbers for better usability
+            let display_content = if total_lines == 0 {
+                String::new()
+            } else {
+                let selected_lines: Vec<String> = lines[start_idx..end_idx]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, line)| format!("{}: {}", start_idx + i + 1, line))
+                    .collect();
+
+                selected_lines.join("\n")
+            };
+
             let language = lang::get_language_identifier(path);
-            let formatted = formatdoc! {"
-                ### {path}
-                ```{language}
-                {content}
-                ```
-                ",
-                path=path.display(),
-                language=language,
-                content=content,
+            let formatted = if view_range.is_some() {
+                formatdoc! {"
+                    ### {path} (lines {start}-{end})
+                    ```{language}
+                    {content}
+                    ```
+                    ",
+                    path=path.display(),
+                    start=view_range.unwrap().0,
+                    end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
+                    language=language,
+                    content=display_content,
+                }
+            } else {
+                formatdoc! {"
+                    ### {path}
+                    ```{language}
+                    {content}
+                    ```
+                    ",
+                    path=path.display(),
+                    language=language,
+                    content=display_content,
+                }
             };
 
             // The LLM gets just a quick update as we expect the file to view in the status
@@ -947,6 +1056,116 @@ impl DeveloperRouter {
                 .with_priority(0.2),
         ])
     }
+
+    async fn text_editor_insert(
+        &self,
+        path: &PathBuf,
+        insert_line: usize,
+        new_str: &str,
+    ) -> Result<Vec<Content>, ToolError> {
+        // Check if file exists
+        if !path.exists() {
+            return Err(ToolError::InvalidParameters(format!(
+                "File '{}' does not exist, you can write a new file with the `write` command",
+                path.display()
+            )));
+        }
+
+        // Read content
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+
+        // Save history for undo
+        self.save_file_history(path)?;
+
+        let lines: Vec<&str> = content.lines().collect();
+        let total_lines = lines.len();
+
+        // Validate insert_line parameter
+        if insert_line > total_lines {
+            return Err(ToolError::InvalidParameters(format!(
+                "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
+                insert_line, total_lines, total_lines
+            )));
+        }
+
+        // Create new content with inserted text
+        let mut new_lines = Vec::new();
+
+        // Add lines before the insertion point
+        for (i, line) in lines.iter().enumerate() {
+            if i == insert_line {
+                // Insert the new text at this position
+                new_lines.push(new_str.to_string());
+            }
+            new_lines.push(line.to_string());
+        }
+
+        // If inserting at the end (after all existing lines)
+        if insert_line == total_lines {
+            new_lines.push(new_str.to_string());
+        }
+
+        let new_content = new_lines.join("\n");
+        let normalized_content = normalize_line_endings(&new_content);
+
+        // Ensure the file ends with a newline
+        let final_content = if !normalized_content.ends_with('\n') {
+            format!("{}\n", normalized_content)
+        } else {
+            normalized_content
+        };
+
+        std::fs::write(path, &final_content)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
+
+        // Try to detect the language from the file extension
+        let language = lang::get_language_identifier(path);
+
+        // Show a snippet of the inserted content with context
+        const SNIPPET_LINES: usize = 4;
+        let insertion_line = insert_line + 1; // Convert to 1-indexed for display
+
+        // Calculate start and end lines for the snippet
+        let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
+        let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
+
+        // Get the relevant lines for our snippet with line numbers
+        let snippet_lines: Vec<String> = new_lines[start_line.saturating_sub(1)..end_line]
+            .iter()
+            .enumerate()
+            .map(|(i, line)| format!("{}: {}", start_line + i, line))
+            .collect();
+
+        let snippet = snippet_lines.join("\n");
+
+        let output = formatdoc! {r#"
+            ```{language}
+            {snippet}
+            ```
+            "#,
+            language=language,
+            snippet=snippet
+        };
+
+        let success_message = formatdoc! {r#"
+            Text has been inserted at line {} in {}. The section now reads:
+            {}
+            Review the changes above for errors. Undo and edit the file again if necessary!
+            "#,
+            insertion_line,
+            path.display(),
+            output
+        };
+
+        Ok(vec![
+            Content::text(success_message).with_audience(vec![Role::Assistant]),
+            Content::text(output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.2),
+        ])
+    }
+
     async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
         let mut history = self.file_history.lock().unwrap();
         if let Some(contents) = history.get_mut(path) {
@@ -1699,7 +1918,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         builder.add_line(None, "*.env").unwrap();
         let ignore_patterns = builder.build().unwrap();
@@ -1751,7 +1970,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         let ignore_patterns = builder.build().unwrap();
 
@@ -1811,7 +2030,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a DeveloperRouter with custom ignore patterns
-        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        let mut builder = GitignoreBuilder::new(temp_dir.path());
         builder.add_line(None, "secret.txt").unwrap();
         let ignore_patterns = builder.build().unwrap();
 
@@ -2084,6 +2303,674 @@ mod tests {
             .await;
 
         assert!(result.is_ok(), "Should be able to cat non-ignored file");
+
+        temp_dir.close().unwrap();
+    }
+
+    // Tests for view_range functionality
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_range() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a multi-line file
+        let content =
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test viewing specific range
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [3, 6]
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Should contain lines 3-6 with line numbers
+        assert!(text.contains("3: Line 3"));
+        assert!(text.contains("4: Line 4"));
+        assert!(text.contains("5: Line 5"));
+        assert!(text.contains("6: Line 6"));
+        assert!(text.contains("(lines 3-6)"));
+        // Should not contain other lines
+        assert!(!text.contains("1: Line 1"));
+        assert!(!text.contains("7: Line 7"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_range_to_end() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a multi-line file
+        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test viewing from line 3 to end using -1
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [3, -1]
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Should contain lines 3 to end
+        assert!(text.contains("3: Line 3"));
+        assert!(text.contains("4: Line 4"));
+        assert!(text.contains("5: Line 5"));
+        assert!(text.contains("(lines 3-end)"));
+        // Should not contain earlier lines
+        assert!(!text.contains("1: Line 1"));
+        assert!(!text.contains("2: Line 2"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_range_invalid() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a small file
+        let content = "Line 1\nLine 2\nLine 3";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test invalid range - start beyond end of file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [10, 15]
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("beyond the end of the file"));
+
+        // Test invalid range - start >= end
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [3, 2]
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("must be less than end line"));
+
+        temp_dir.close().unwrap();
+    }
+
+    // Tests for insert functionality
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_at_beginning() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 2\nLine 3\nLine 4";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Insert at the beginning (line 0)
+        let insert_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 0,
+                    "new_str": "Line 1"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = insert_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(text.contains("Text has been inserted at line 1"));
+
+        // Verify the file content
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let view_text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(view_text.contains("1: Line 1"));
+        assert!(view_text.contains("2: Line 2"));
+        assert!(view_text.contains("3: Line 3"));
+        assert!(view_text.contains("4: Line 4"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_in_middle() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 1\nLine 2\nLine 4\nLine 5";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Insert after line 2
+        let insert_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 2,
+                    "new_str": "Line 3"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = insert_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(text.contains("Text has been inserted at line 3"));
+
+        // Verify the file content
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let view_text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(view_text.contains("1: Line 1"));
+        assert!(view_text.contains("2: Line 2"));
+        assert!(view_text.contains("3: Line 3"));
+        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.contains("5: Line 5"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_at_end() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 1\nLine 2\nLine 3";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Insert at the end (after line 3)
+        let insert_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 3,
+                    "new_str": "Line 4"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = insert_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(text.contains("Text has been inserted at line 4"));
+
+        // Verify the file content
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let view_text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(view_text.contains("1: Line 1"));
+        assert!(view_text.contains("2: Line 2"));
+        assert!(view_text.contains("3: Line 3"));
+        assert!(view_text.contains("4: Line 4"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_invalid_line() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 1\nLine 2\nLine 3";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Try to insert beyond the end of the file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 10,
+                    "new_str": "Line 11"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("beyond the end of the file"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_missing_parameters() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": "Test content"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Try insert without insert_line parameter
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "new_str": "New line"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("Missing 'insert_line' parameter"));
+
+        // Try insert without new_str parameter
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 1
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("Missing 'new_str' parameter"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_with_undo() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 1\nLine 2";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Insert a line
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 1,
+                    "new_str": "Inserted Line"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Undo the insert
+        let undo_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "undo_edit",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = undo_result.first().unwrap().as_text().unwrap();
+        assert!(text.contains("Undid the last edit"));
+
+        // Verify the file is back to original content
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let view_text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(view_text.contains("1: Line 1"));
+        assert!(view_text.contains("2: Line 2"));
+        assert!(!view_text.contains("Inserted Line"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_nonexistent_file() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("nonexistent.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Try to insert into a nonexistent file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": 0,
+                    "new_str": "New line"
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert!(err.to_string().contains("does not exist"));
 
         temp_dir.close().unwrap();
     }

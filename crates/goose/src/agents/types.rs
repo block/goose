@@ -23,5 +23,9 @@ pub struct SessionConfig {
     /// Working directory for the session
     pub working_dir: PathBuf,
     /// ID of the schedule that triggered this session, if any
-    pub schedule_id: Option<String>, // NEW
+    pub schedule_id: Option<String>,
+    /// Execution mode for scheduled jobs: "foreground" or "background"
+    pub execution_mode: Option<String>,
+    /// Maximum number of turns (iterations) allowed without user input
+    pub max_turns: Option<u32>,
 }

@@ -150,13 +150,12 @@ jobs:
           rustup target add x86_64-apple-darwin
           cargo build --release -p goose-server --target x86_64-apple-darwin
 
-      # Build temporal-service
+      # Build temporal-service using build.sh script
       - name: Build temporal-service
         run: |
-          echo "Building temporal-service..."
+          echo "Building temporal-service using build.sh script..."
           cd temporal-service
-          go build -o temporal-service main.go
-          chmod +x temporal-service
+          ./build.sh
           echo "temporal-service built successfully"
 
       # Install and prepare temporal CLI

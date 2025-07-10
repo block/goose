@@ -93,6 +93,14 @@ export function getSubtitle(config: ExtensionConfig): SubtitleParts {
     return { description, command };
   }
 
+  if (config.type === 'streamable_http') {
+    const description = config.description
+      ? `Streamable HTTP extension: ${config.description}`
+      : 'Streamable HTTP extension';
+    const command = config.uri || null;
+    return { description, command };
+  }
+
   return {
     description: 'Unknown type of extension',
     command: null,

@@ -32,6 +32,41 @@ pub struct ModelInfo {
     pub name: String,
     /// The maximum context length this model supports
     pub context_limit: usize,
+    /// Cost per token for input (optional)
+    pub input_token_cost: Option<f64>,
+    /// Cost per token for output (optional)
+    pub output_token_cost: Option<f64>,
+    /// Currency for the costs (default: "$")
+    pub currency: Option<String>,
+}
+
+impl ModelInfo {
+    /// Create a new ModelInfo with just name and context limit
+    pub fn new(name: impl Into<String>, context_limit: usize) -> Self {
+        Self {
+            name: name.into(),
+            context_limit,
+            input_token_cost: None,
+            output_token_cost: None,
+            currency: None,
+        }
+    }
+
+    /// Create a new ModelInfo with cost information (per token)
+    pub fn with_cost(
+        name: impl Into<String>,
+        context_limit: usize,
+        input_cost: f64,
+        output_cost: f64,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            context_limit,
+            input_token_cost: Some(input_cost),
+            output_token_cost: Some(output_cost),
+            currency: Some("$".to_string()),
+        }
+    }
 }
 
 /// Metadata about a provider's configuration requirements and capabilities
@@ -74,8 +109,32 @@ impl ProviderMetadata {
                 .map(|&name| ModelInfo {
                     name: name.to_string(),
                     context_limit: ModelConfig::new(name.to_string()).context_limit(),
+                    input_token_cost: None,
+                    output_token_cost: None,
+                    currency: None,
                 })
                 .collect(),
+            model_doc_link: model_doc_link.to_string(),
+            config_keys,
+        }
+    }
+
+    /// Create a new ProviderMetadata with ModelInfo objects that include cost data
+    pub fn with_models(
+        name: &str,
+        display_name: &str,
+        description: &str,
+        default_model: &str,
+        models: Vec<ModelInfo>,
+        model_doc_link: &str,
+        config_keys: Vec<ConfigKey>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            default_model: default_model.to_string(),
+            known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
         }
@@ -313,6 +372,9 @@ mod tests {
         let info = ModelInfo {
             name: "test-model".to_string(),
             context_limit: 1000,
+            input_token_cost: None,
+            output_token_cost: None,
+            currency: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -320,6 +382,9 @@ mod tests {
         let info2 = ModelInfo {
             name: "test-model".to_string(),
             context_limit: 1000,
+            input_token_cost: None,
+            output_token_cost: None,
+            currency: None,
         };
         assert_eq!(info, info2);
 
@@ -327,7 +392,20 @@ mod tests {
         let info3 = ModelInfo {
             name: "test-model".to_string(),
             context_limit: 2000,
+            input_token_cost: None,
+            output_token_cost: None,
+            currency: None,
         };
         assert_ne!(info, info3);
+    }
+
+    #[test]
+    fn test_model_info_with_cost() {
+        let info = ModelInfo::with_cost("gpt-4o", 128000, 0.0000025, 0.00001);
+        assert_eq!(info.name, "gpt-4o");
+        assert_eq!(info.context_limit, 128000);
+        assert_eq!(info.input_token_cost, Some(0.0000025));
+        assert_eq!(info.output_token_cost, Some(0.00001));
+        assert_eq!(info.currency, Some("$".to_string()));
     }
 }

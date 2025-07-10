@@ -16,6 +16,8 @@ WORKDIR /usr/src/goose
 # Copy the entire project
 COPY . .
 
+RUN apt-get update && apt-get install -y protobuf-compiler
+
 # Build the project
 RUN cargo build --release
 

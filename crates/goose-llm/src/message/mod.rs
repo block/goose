@@ -151,7 +151,7 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(ToolCall::new("test_tool", json!({"param": "value"})).into()),
+                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();

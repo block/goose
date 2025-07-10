@@ -1,7 +1,7 @@
 use anyhow::Result;
 use futures::lock::Mutex;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, Transport};
+use mcp_client::transport::{SseTransport, StreamableHttpTransport, Transport};
 use mcp_client::StdioTransport;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,11 +20,12 @@ async fn main() -> Result<()> {
         .init();
 
     test_transport(sse_transport().await?).await?;
+    test_transport(streamable_http_transport().await?).await?;
     test_transport(stdio_transport().await?).await?;
 
     // Test broken transport
     match test_transport(broken_stdio_transport().await?).await {
-        Ok(_) => assert!(false, "Expected an error but got success"),
+        Ok(_) => panic!("Expected an error but got success"),
         Err(e) => {
             assert!(e
                 .to_string()
@@ -48,6 +49,22 @@ async fn sse_transport() -> Result<SseTransport> {
 
     Ok(SseTransport::new(
         format!("http://localhost:{}/sse", port),
+        HashMap::new(),
+    ))
+}
+
+async fn streamable_http_transport() -> Result<StreamableHttpTransport> {
+    let port = "60054";
+
+    tokio::process::Command::new("npx")
+        .env("PORT", port)
+        .arg("@modelcontextprotocol/server-everything")
+        .arg("streamable-http")
+        .spawn()?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    Ok(StreamableHttpTransport::new(
+        format!("http://localhost:{}/mcp", port),
         HashMap::new(),
     ))
 }

@@ -8,7 +8,7 @@ sidebar_position: 14
 `.gooseignore` is a text file that defines patterns for files and directories that Goose will not access. This means Goose cannot read, modify, delete, or run shell commands on these files when using the Developer extension's tools.
 
 :::info Developer extension only
-The .gooseignore feature currently only affects tools in the [Developer](/docs/tutorials/developer-mcp) extension. Other extensions are not restricted by these rules.
+The .gooseignore feature currently only affects tools in the [Developer](/docs/mcp/developer-mcp) extension. Other extensions are not restricted by these rules.
 :::
 
 This guide will show you how to use `.gooseignore` files to prevent Goose from changing specific files and directories.

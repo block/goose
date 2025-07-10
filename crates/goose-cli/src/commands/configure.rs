@@ -351,6 +351,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     .map(|m| (m, m.as_str(), ""))
                     .collect::<Vec<_>>(),
             )
+            .filter_mode() // enable "fuzzy search" filtering for the list of models
             .interact()?
             .to_string(),
         Ok(None) => {
@@ -497,8 +498,13 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         )
         .item(
             "sse",
-            "Remote Extension",
-            "Connect to a remote extension via SSE",
+            "Remote Extension (SSE)",
+            "Connect to a remote extension via Server-Sent Events",
+        )
+        .item(
+            "streamable_http",
+            "Remote Extension (Streaming HTTP)",
+            "Connect to a remote extension via MCP Streaming HTTP",
         )
         .interact()?;
 
@@ -766,6 +772,133 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
+        "streamable_http" => {
+            let extensions = ExtensionConfigManager::get_all_names()?;
+            let name: String = cliclack::input("What would you like to call this extension?")
+                .placeholder("my-remote-extension")
+                .validate(move |input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a name")
+                    } else if extensions.contains(input) {
+                        Err("An extension with this name already exists")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let uri: String = cliclack::input("What is the Streaming HTTP endpoint URI?")
+                .placeholder("http://localhost:8000/messages")
+                .validate(|input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a URI")
+                    } else if !(input.starts_with("http://") || input.starts_with("https://")) {
+                        Err("URI should start with http:// or https://")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid timeout"),
+                })
+                .interact()?;
+
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
+
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
+                    .placeholder("Description")
+                    .validate(|input: &String| {
+                        if input.trim().is_empty() {
+                            Err("Please enter a valid description")
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .interact()?;
+                Some(desc)
+            } else {
+                None
+            };
+
+            let add_headers =
+                cliclack::confirm("Would you like to add custom headers?").interact()?;
+
+            let mut headers = HashMap::new();
+            if add_headers {
+                loop {
+                    let key: String = cliclack::input("Header name:")
+                        .placeholder("Authorization")
+                        .interact()?;
+
+                    let value: String = cliclack::input("Header value:")
+                        .placeholder("Bearer token123")
+                        .interact()?;
+
+                    headers.insert(key, value);
+
+                    if !cliclack::confirm("Add another header?").interact()? {
+                        break;
+                    }
+                }
+            }
+
+            let add_env = false; // No env prompt for Streaming HTTP
+
+            let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
+            if add_env {
+                loop {
+                    let key: String = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
+
+                    let value: String = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
+
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
+
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
+                }
+            }
+
+            ExtensionConfigManager::set(ExtensionEntry {
+                enabled: true,
+                config: ExtensionConfig::StreamableHttp {
+                    name: name.clone(),
+                    uri,
+                    envs: Envs::new(envs),
+                    env_keys,
+                    headers,
+                    description,
+                    timeout: Some(timeout),
+                    bundled: None,
+                },
+            })?;
+
+            cliclack::outro(format!("Added {} extension", style(name).green()))?;
+        }
         _ => unreachable!(),
     };
 
@@ -846,6 +979,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Show more or less tool output",
         )
         .item(
+            "max_turns",
+            "Max Turns",
+            "Set maximum number of turns without user input",
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
@@ -854,6 +992,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "recipe",
             "Goose recipe github repo",
             "Goose will pull recipes from this repo if not found locally.",
+        )
+        .item(
+            "scheduler",
+            "Scheduler Type",
+            "Choose between built-in cron scheduler or Temporal workflow engine",
         )
         .interact()?;
 
@@ -870,11 +1013,17 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         "tool_output" => {
             configure_tool_output_dialog()?;
         }
+        "max_turns" => {
+            configure_max_turns_dialog()?;
+        }
         "experiment" => {
             toggle_experiments_dialog()?;
         }
         "recipe" => {
             configure_recipe_dialog()?;
+        }
+        "scheduler" => {
+            configure_scheduler_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -1224,5 +1373,91 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
     } else {
         config.set_param(key_name, Value::String(input_value))?;
     }
+    Ok(())
+}
+
+fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_SCHEDULER_TYPE is set as an environment variable
+    if std::env::var("GOOSE_SCHEDULER_TYPE").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_SCHEDULER_TYPE environment variable is set and will override the configuration here.");
+    }
+
+    // Get current scheduler type from config for display
+    let current_scheduler: String = config
+        .get_param("GOOSE_SCHEDULER_TYPE")
+        .unwrap_or_else(|_| "legacy".to_string());
+
+    println!(
+        "Current scheduler type: {}",
+        style(&current_scheduler).cyan()
+    );
+
+    let scheduler_type = cliclack::select("Which scheduler type would you like to use?")
+        .items(&[
+            ("legacy", "Built-in Cron (Default)", "Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling needs."),
+            ("temporal", "Temporal", "Uses Temporal workflow engine for advanced scheduling features. Requires Temporal CLI to be installed.")
+        ])
+        .interact()?;
+
+    match scheduler_type {
+        "legacy" => {
+            config.set_param("GOOSE_SCHEDULER_TYPE", Value::String("legacy".to_string()))?;
+            cliclack::outro(
+                "Set to Built-in Cron scheduler - simple and reliable for basic scheduling",
+            )?;
+        }
+        "temporal" => {
+            config.set_param(
+                "GOOSE_SCHEDULER_TYPE",
+                Value::String("temporal".to_string()),
+            )?;
+            cliclack::outro(
+                "Set to Temporal scheduler - advanced workflow engine for complex scheduling",
+            )?;
+            println!();
+            println!("📋 {}", style("Note:").bold());
+            println!("  • Temporal scheduler requires Temporal CLI to be installed");
+            println!("  • macOS: brew install temporal");
+            println!("  • Linux/Windows: https://github.com/temporalio/cli/releases");
+            println!("  • If Temporal is unavailable, Goose will automatically fall back to the built-in scheduler");
+            println!("  • The scheduling engines do not share the list of schedules");
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(())
+}
+
+pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    let current_max_turns: u32 = config.get_param("GOOSE_MAX_TURNS").unwrap_or(1000);
+
+    let max_turns_input: String =
+        cliclack::input("Set maximum number of agent turns without user input:")
+            .placeholder(&current_max_turns.to_string())
+            .default_input(&current_max_turns.to_string())
+            .validate(|input: &String| match input.parse::<u32>() {
+                Ok(value) => {
+                    if value < 1 {
+                        Err("Value must be at least 1")
+                    } else {
+                        Ok(())
+                    }
+                }
+                Err(_) => Err("Please enter a valid number"),
+            })
+            .interact()?;
+
+    let max_turns: u32 = max_turns_input.parse()?;
+    config.set_param("GOOSE_MAX_TURNS", Value::from(max_turns))?;
+
+    cliclack::outro(format!(
+        "Set maximum turns to {} - Goose will ask for input after {} consecutive actions",
+        max_turns, max_turns
+    ))?;
+
     Ok(())
 }

@@ -1,0 +1,136 @@
+name: Handle Recipe Submissions
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-recipe-pr:
+    if: ${{ github.event.label.name == 'recipe submission' || contains(github.event.issue.labels.*.name, 'recipe submission') }}
+    runs-on: ubuntu-latest
+
+    env:
+      PROVIDER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install and Configure Goose
+        run: |
+          mkdir -p /home/runner/.local/bin
+          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
+            | CONFIGURE=false INSTALL_PATH=/home/runner/.local/bin bash
+          echo "/home/runner/.local/bin" >> $GITHUB_PATH
+
+          mkdir -p ~/.config/goose
+          cat <<EOF > ~/.config/goose/config.yaml
+          GOOSE_PROVIDER: openrouter
+          GOOSE_MODEL: "anthropic/claude-3.5-sonnet"
+          keyring: false
+          EOF
+
+      - name: Extract recipe YAML from issue
+        id: parse
+        run: |
+          ISSUE_BODY=$(jq -r .issue.body "$GITHUB_EVENT_PATH")
+          RECIPE_YAML=$(echo "$ISSUE_BODY" | awk '/```/,/```/' | sed '1d;$d')
+          echo "$RECIPE_YAML" > recipe.yaml
+
+          AUTHOR="${{ github.event.issue.user.login }}"
+          if ! grep -q "^author:" recipe.yaml; then
+            echo -e "\nauthor:\n  contact: $AUTHOR" >> recipe.yaml
+          fi
+
+          TITLE=$(yq '.title' recipe.yaml | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
+          echo "branch_name=add-recipe-${TITLE}" >> $GITHUB_OUTPUT
+          echo "recipe_title=${TITLE}" >> $GITHUB_OUTPUT
+
+      - name: Validate recipe.yaml with Goose
+        id: validate
+        continue-on-error: true
+        run: |
+          OUTPUT=$(goose recipe validate recipe.yaml 2>&1)
+          echo "$OUTPUT"
+          {
+            echo "validation_output<<EOF"
+            echo "$OUTPUT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post validation result to issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          VALIDATION_B64: ${{ steps.validate.outputs.validation_output }}
+        run: |
+          if [ "${{ steps.validate.outcome }}" == "failure" ]; then
+            OUTPUT=$(echo "$VALIDATION_B64" | base64 --decode)
+            COMMENT="❌ Recipe validation failed:\n\n\`\`\`\n$OUTPUT\n\`\`\`\nPlease fix the above issues and resubmit."
+            echo -e "$COMMENT" | gh issue comment "$ISSUE_NUMBER"
+            gh issue close "$ISSUE_NUMBER"
+            exit 1
+          else
+            gh issue comment "$ISSUE_NUMBER" --body "✅ Recipe validated successfully!"
+          fi
+
+
+      - name: Generate recipeUrl and save updated recipe
+        run: |
+          BASE64_ENCODED=$(cat recipe.yaml | base64 | tr -d '\n')
+          echo "" >> recipe.yaml
+          echo "recipeUrl: goose://recipe?config=${BASE64_ENCODED}" >> recipe.yaml
+
+      - name: Create branch and add file
+        env:
+          BRANCH_NAME: ${{ steps.parse.outputs.branch_name }}
+        run: |
+          git checkout -b "$BRANCH_NAME"
+          DEST_DIR="documentation/src/pages/recipes/data/recipes"
+          mkdir -p "$DEST_DIR"
+          ID=$(yq '.id' recipe.yaml)
+
+          if [ -f "$DEST_DIR/${ID}.yaml" ]; then
+            echo "❌ Recipe with ID '$ID' already exists. Aborting."
+            exit 1
+          fi
+
+          cp recipe.yaml "$DEST_DIR/${ID}.yaml"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$DEST_DIR/${ID}.yaml"
+          git commit -m "Add recipe: ${ID}"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@5e5b2916f4b4c9420e5e9b0dc4a6d292d30165d7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.parse.outputs.branch_name }}
+          title: "Add recipe: ${{ steps.parse.outputs.recipe_title }}"
+          body: "This PR adds a new Goose recipe submitted via issue #${{ github.event.issue.number }}."
+          reviewers: |
+            EbonyLouis
+            angiejones
+            blackgirlbytes
+
+      - name: Comment and close issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
+          gh issue close "$ISSUE_NUMBER"

@@ -17,7 +17,8 @@ use crate::commands::schedule::{
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_as_template};
+use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
+use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -43,7 +44,8 @@ struct Identifier {
         long,
         value_name = "NAME",
         help = "Name for the chat session (e.g., 'project-x')",
-        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
+        alias = "id"
     )]
     name: Option<String>,
 
@@ -310,6 +312,15 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -431,6 +442,13 @@ enum Command {
         )]
         explain: bool,
 
+        /// Print the rendered recipe instead of running it
+        #[arg(
+            long = "render-recipe",
+            help = "Print the rendered recipe instead of running it."
+        )]
+        render_recipe: bool,
+
         /// Maximum number of consecutive identical tool calls allowed
         #[arg(
             long = "max-tool-repetitions",
@@ -439,6 +457,15 @@ enum Command {
             long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
         )]
         max_tool_repetitions: Option<u32>,
+
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -499,6 +526,26 @@ enum Command {
             help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
         )]
         quiet: bool,
+
+        /// Scheduled job ID (used internally for scheduled executions)
+        #[arg(
+            long = "scheduled-job-id",
+            value_name = "ID",
+            help = "ID of the scheduled job that triggered this execution (internal use)",
+            long_help = "Internal parameter used when this run command is executed by a scheduled job. This associates the session with the schedule for tracking purposes.",
+            hide = true
+        )]
+        scheduled_job_id: Option<String>,
+
+        /// Additional sub-recipe file paths
+        #[arg(
+            long = "sub-recipe",
+            value_name = "RECIPE",
+            help = "Sub-recipe name or file path (can be specified multiple times)",
+            long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
+            action = clap::ArgAction::Append
+        )]
+        additional_sub_recipes: Vec<String>,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -532,13 +579,15 @@ enum Command {
         reconfigure: bool,
     },
 
+    /// Evaluate system configuration across a range of practical tasks
+    #[command(about = "Evaluate system configuration across a range of practical tasks")]
     Bench {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
 
     /// Start a web server with a chat interface
-    #[command(about = "Start a web server with a chat interface", hide = true)]
+    #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
         /// Port to run the web server on
         #[arg(
@@ -571,10 +620,10 @@ enum CliProviderVariant {
 }
 
 #[derive(Debug)]
-struct InputConfig {
-    contents: Option<String>,
-    extensions_override: Option<Vec<ExtensionConfig>>,
-    additional_system_prompt: Option<String>,
+pub struct InputConfig {
+    pub contents: Option<String>,
+    pub extensions_override: Option<Vec<ExtensionConfig>>,
+    pub additional_system_prompt: Option<String>,
 }
 
 pub async fn cli() -> Result<()> {
@@ -604,6 +653,7 @@ pub async fn cli() -> Result<()> {
             history,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
@@ -652,12 +702,20 @@ pub async fn cli() -> Result<()> {
                         settings: None,
                         debug,
                         max_tool_repetitions,
+                        max_turns,
+                        scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
+                        sub_recipes: None,
+                        final_output_response: None,
                     })
                     .await;
                     setup_logging(
-                        session.session_file().file_stem().and_then(|s| s.to_str()),
+                        session
+                            .session_file()
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .and_then(|s| s.to_str()),
                         None,
                     )?;
 
@@ -681,6 +739,7 @@ pub async fn cli() -> Result<()> {
             handle_projects_interactive()?;
             return Ok(());
         }
+
         Some(Command::Run {
             instructions,
             input_text,
@@ -692,16 +751,23 @@ pub async fn cli() -> Result<()> {
             no_session,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
             builtins,
             params,
             explain,
+            render_recipe,
+            scheduled_job_id,
             quiet,
+            additional_sub_recipes,
         }) => {
-            let (input_config, session_settings) = match (instructions, input_text, recipe, explain)
-            {
-                (Some(file), _, _, _) if file == "-" => {
+            let (input_config, session_settings, sub_recipes, final_output_response) = match (
+                instructions,
+                input_text,
+                recipe,
+            ) {
+                (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
@@ -714,9 +780,11 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: system,
                         },
                         None,
+                        None,
+                        None,
                     )
                 }
-                (Some(file), _, _, _) => {
+                (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
@@ -731,40 +799,37 @@ pub async fn cli() -> Result<()> {
                             additional_system_prompt: None,
                         },
                         None,
+                        None,
+                        None,
                     )
                 }
-                (_, Some(text), _, _) => (
+                (_, Some(text), _) => (
                     InputConfig {
                         contents: Some(text),
                         extensions_override: None,
                         additional_system_prompt: system,
                     },
                     None,
+                    None,
+                    None,
                 ),
-                (_, _, Some(recipe_name), explain) => {
+                (_, _, Some(recipe_name)) => {
                     if explain {
                         explain_recipe_with_parameters(&recipe_name, params)?;
                         return Ok(());
                     }
-                    let recipe =
-                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
-                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                            std::process::exit(1);
-                        });
-                    (
-                        InputConfig {
-                            contents: recipe.prompt,
-                            extensions_override: recipe.extensions,
-                            additional_system_prompt: recipe.instructions,
-                        },
-                        recipe.settings.map(|s| SessionSettings {
-                            goose_provider: s.goose_provider,
-                            goose_model: s.goose_model,
-                            temperature: s.temperature,
-                        }),
-                    )
+                    if render_recipe {
+                        let recipe = load_recipe_content_as_template(&recipe_name, params)
+                            .unwrap_or_else(|err| {
+                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                                std::process::exit(1);
+                            });
+                        println!("{}", recipe);
+                        return Ok(());
+                    }
+                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
                 }
-                (None, None, None, _) => {
+                (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }
@@ -782,13 +847,21 @@ pub async fn cli() -> Result<()> {
                 settings: session_settings,
                 debug,
                 max_tool_repetitions,
+                max_turns,
+                scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
+                sub_recipes,
+                final_output_response,
             })
             .await;
 
             setup_logging(
-                session.session_file().file_stem().and_then(|s| s.to_str()),
+                session
+                    .session_file()
+                    .as_ref()
+                    .and_then(|p| p.file_stem())
+                    .and_then(|s| s.to_str()),
                 None,
             )?;
 
@@ -899,12 +972,20 @@ pub async fn cli() -> Result<()> {
                     settings: None::<SessionSettings>,
                     debug: false,
                     max_tool_repetitions: None,
+                    max_turns: None,
+                    scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
+                    sub_recipes: None,
+                    final_output_response: None,
                 })
                 .await;
                 setup_logging(
-                    session.session_file().file_stem().and_then(|s| s.to_str()),
+                    session
+                        .session_file()
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                        .and_then(|s| s.to_str()),
                     None,
                 )?;
                 if let Err(e) = session.interactive(None).await {

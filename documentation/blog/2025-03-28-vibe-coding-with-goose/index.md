@@ -7,7 +7,7 @@ authors:
 
 ![blog cover](vibe-coding.png)
 
-Imagine creating an app just by describing what you want out loud, like you’re talking to a friend. That’s the magic of vibe coding: turning natural language into working code with the help of an AI agent. And while typing a prompt gets the job done, saying it out loud hits different 🔥 The new [Speech MCP server](https://block.github.io/goose/docs/tutorials/speech-mcp) has quite literally entered the chat.
+Imagine creating an app just by describing what you want out loud, like you’re talking to a friend. That’s the magic of vibe coding: turning natural language into working code with the help of an AI agent. And while typing a prompt gets the job done, saying it out loud hits different 🔥 The new [Speech MCP server](/docs/mcp/speech-mcp) has quite literally entered the chat.
 
 <!--truncate-->
 

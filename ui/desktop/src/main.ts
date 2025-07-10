@@ -11,6 +11,7 @@ import {
   Tray,
   App,
   globalShortcut,
+  Event,
 } from 'electron';
 import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -24,6 +25,7 @@ import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
+import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
   createEnvironmentMenu,
@@ -31,6 +33,8 @@ import {
   loadSettings,
   saveSettings,
   updateEnvironmentVariables,
+  updateSchedulingEngineEnvironment,
+  SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
 import * as electron from 'electron';
@@ -153,7 +157,17 @@ if (process.platform === 'win32') {
             const configParam = parsedUrl.searchParams.get('config');
             if (configParam) {
               try {
-                recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+                recipeConfig = JSON.parse(
+                  Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+                );
+
+                // Check if this is a scheduled job
+                const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+                if (scheduledJobId) {
+                  console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+                  recipeConfig.scheduledJobId = scheduledJobId;
+                  recipeConfig.isScheduledExecution = true;
+                }
               } catch (e) {
                 console.error('Failed to parse bot config:', e);
               }
@@ -248,7 +262,17 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
-        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        recipeConfig = JSON.parse(
+          Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+        );
+
+        // Check if this is a scheduled job
+        const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+        if (scheduledJobId) {
+          console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+          recipeConfig.scheduledJobId = scheduledJobId;
+          recipeConfig.isScheduledExecution = true;
+        }
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -273,6 +297,14 @@ app.on('open-url', async (_event, url) => {
       if (configParam) {
         try {
           recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+
+          // Check if this is a scheduled job
+          const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+          if (scheduledJobId) {
+            console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+            recipeConfig.scheduledJobId = scheduledJobId;
+            recipeConfig.isScheduledExecution = true;
+          }
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
@@ -302,6 +334,67 @@ app.on('open-url', async (_event, url) => {
     }
   }
 });
+
+// Handle macOS drag-and-drop onto dock icon
+app.on('will-finish-launching', () => {
+  if (process.platform === 'darwin') {
+    app.setAboutPanelOptions({
+      applicationName: 'Goose',
+      applicationVersion: app.getVersion(),
+    });
+  }
+});
+
+// Handle drag-and-drop onto dock icon
+app.on('open-file', async (event, filePath) => {
+  event.preventDefault();
+  await handleFileOpen(filePath);
+});
+
+// Handle multiple files/folders
+app.on('open-files', async (event: Event, filePaths: string[]) => {
+  event.preventDefault();
+  for (const filePath of filePaths) {
+    await handleFileOpen(filePath);
+  }
+});
+
+async function handleFileOpen(filePath: string) {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      return;
+    }
+
+    const stats = fsSync.lstatSync(filePath);
+    let targetDir = filePath;
+
+    // If it's a file, use its parent directory
+    if (stats.isFile()) {
+      targetDir = path.dirname(filePath);
+    }
+
+    // Add to recent directories
+    addRecentDir(targetDir);
+
+    // Create new window for the directory
+    const newWindow = await createChat(app, undefined, targetDir);
+
+    // Focus the new window
+    if (newWindow) {
+      newWindow.show();
+      newWindow.focus();
+      newWindow.moveTop();
+    }
+  } catch (error) {
+    console.error('Failed to handle file open:', error);
+
+    // Show user-friendly error notification
+    new Notification({
+      title: 'Goose',
+      body: `Could not open directory: ${path.basename(filePath)}`,
+    }).show();
+  }
+}
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
@@ -421,8 +514,17 @@ const createChat = async (
   } else {
     // Apply current environment settings before creating chat
     updateEnvironmentVariables(envToggles);
+
+    // Apply scheduling engine setting
+    const settings = loadSettings();
+    updateSchedulingEngineEnvironment(settings.schedulingEngine);
+
     // Start new Goosed process for regular windows
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir);
+    // Pass through scheduling engine environment variables
+    const envVars = {
+      GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
+    };
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
@@ -451,6 +553,10 @@ const createChat = async (
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Enable features needed for Web Speech API
+      webSecurity: true,
+      nodeIntegration: false,
+      contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
@@ -678,7 +784,7 @@ const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
   const result = (await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: ['openFile', 'openDirectory', 'createDirectory'],
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -747,6 +853,33 @@ ipcMain.on('react-ready', () => {
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
+});
+
+// Handle scheduling engine settings
+ipcMain.handle('get-settings', () => {
+  try {
+    const settings = loadSettings();
+    return settings;
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
+  try {
+    const settings = loadSettings();
+    settings.schedulingEngine = engine as SchedulingEngine;
+    saveSettings(settings);
+
+    // Update the environment variable immediately
+    updateSchedulingEngineEnvironment(settings.schedulingEngine);
+
+    return true;
+  } catch (error) {
+    console.error('Error setting scheduling engine:', error);
+    return false;
+  }
 });
 
 // Handle menu bar icon visibility
@@ -1313,8 +1446,23 @@ const registerGlobalHotkey = (accelerator: string) => {
 };
 
 app.whenReady().then(async () => {
+  // Ensure Windows shims are available before any MCP processes are spawned
+  await ensureWinShims();
+
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
+
+  // Handle microphone permission requests
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    console.log('Permission requested:', permission);
+    // Allow microphone and media access
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      // Default behavior for other permissions
+      callback(true);
+    }
+  });
 
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -1337,8 +1485,8 @@ app.whenReady().then(async () => {
           "frame-src 'none';" +
           // Font sources
           "font-src 'self';" +
-          // Media sources
-          "media-src 'none';" +
+          // Media sources - allow microphone
+          "media-src 'self' mediastream:;" +
           // Form actions
           "form-action 'none';" +
           // Base URI restriction

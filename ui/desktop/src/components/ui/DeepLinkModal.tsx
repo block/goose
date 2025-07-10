@@ -17,7 +17,8 @@ interface DeepLinkModalProps {
 // Function to generate a deep link from a bot config
 export function generateDeepLink(recipeConfig: RecipeConfig): string {
   const configBase64 = Buffer.from(JSON.stringify(recipeConfig)).toString('base64');
-  return `goose://bot?config=${configBase64}`;
+  const urlSafe = encodeURIComponent(configBase64);
+  return `goose://bot?config=${urlSafe}`;
 }
 
 export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: DeepLinkModalProps) {

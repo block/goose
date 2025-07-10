@@ -21,7 +21,9 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
   const [failureThreshold, setFailureThreshold] = useState<number>(2);
   const [fallbackTurns, setFallbackTurns] = useState<number>(2);
   const [isEnabled, setIsEnabled] = useState(false);
-  const [modelOptions, setModelOptions] = useState<{ value: string; label: string; provider: string }[]>([]);
+  const [modelOptions, setModelOptions] = useState<
+    { value: string; label: string; provider: string }[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load current configuration
@@ -51,7 +53,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
         if (leadTurnsConfig) setLeadTurns(Number(leadTurnsConfig));
         if (failureThresholdConfig) setFailureThreshold(Number(failureThresholdConfig));
         if (fallbackTurnsConfig) setFallbackTurns(Number(fallbackTurnsConfig));
-        
+
         // Set worker model to current model or from config
         const workerModelConfig = await read('GOOSE_MODEL', false);
         if (workerModelConfig) {
@@ -59,7 +61,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
         } else if (currentModel) {
           setWorkerModel(currentModel as string);
         }
-        
+
         const workerProviderConfig = await read('GOOSE_PROVIDER', false);
         if (workerProviderConfig) {
           setWorkerProvider(workerProviderConfig as string);
@@ -69,7 +71,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
         const providers = await getProviders(false);
         const activeProviders = providers.filter((p) => p.is_configured);
         const options: { value: string; label: string; provider: string }[] = [];
-        
+
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models) {
             metadata.known_models.forEach((model) => {
@@ -81,7 +83,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
             });
           }
         });
-        
+
         setModelOptions(options);
       } catch (error) {
         console.error('Error loading configuration:', error);
@@ -184,9 +186,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
             placeholder="Select worker model..."
             isDisabled={!isEnabled}
           />
-          <p className="text-xs text-textSubtle">
-            Fast model for routine execution tasks
-          </p>
+          <p className="text-xs text-textSubtle">Fast model for routine execution tasks</p>
         </div>
 
         <div className="space-y-4 pt-4 border-t border-borderSubtle">
@@ -242,9 +242,7 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
               className="w-20"
               disabled={!isEnabled}
             />
-            <p className="text-xs text-textSubtle">
-              Turns to use lead model during fallback
-            </p>
+            <p className="text-xs text-textSubtle">Turns to use lead model during fallback</p>
           </div>
         </div>
       </div>

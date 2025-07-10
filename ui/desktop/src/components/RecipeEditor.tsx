@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
+import { Parameter } from '../recipe/index';
+
 import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
-import { Check } from 'lucide-react';
+import { Check, Save, Calendar } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
 import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
+import ParameterInput from './parameter/ParameterInput';
+import { saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
+import { toastSuccess, toastError } from '../toasts';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -19,7 +24,8 @@ interface RecipeEditorProps {
 // Function to generate a deep link from a recipe
 function generateDeepLink(recipe: Recipe): string {
   const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  return `goose://recipe?config=${configBase64}`;
+  const urlSafe = encodeURIComponent(configBase64);
+  return `goose://recipe?config=${urlSafe}`;
 }
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
@@ -30,11 +36,19 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [prompt, setPrompt] = useState(config?.prompt || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
+  const [parameters, setParameters] = useState<Parameter[]>(
+    parseParametersFromInstructions(instructions)
+  );
+
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isRecipeInfoModalOpen, setRecipeInfoModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveRecipeName, setSaveRecipeName] = useState('');
+  const [saveGlobal, setSaveGlobal] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [recipeInfoModelProps, setRecipeInfoModelProps] = useState<{
     label: string;
     value: string;
@@ -101,11 +115,39 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeExtensions, extensionsLoaded]);
 
+  // Use effect to set parameters whenever instructions or prompt changes
+  useEffect(() => {
+    const instructionsParams = parseParametersFromInstructions(instructions);
+    const promptParams = parseParametersFromInstructions(prompt);
+
+    // Combine parameters, ensuring no duplicates by key
+    const allParams = [...instructionsParams];
+    promptParams.forEach((promptParam) => {
+      if (!allParams.some((param) => param.key === promptParam.key)) {
+        allParams.push(promptParam);
+      }
+    });
+
+    setParameters(allParams);
+  }, [instructions, prompt]);
+
   const getCurrentConfig = (): Recipe => {
-    console.log('Creating config with:', {
-      selectedExtensions: recipeExtensions,
-      availableExtensions: extensionOptions,
-      recipeConfig,
+    // Transform the internal parameters state into the desired output format.
+    const formattedParameters = parameters.map((param) => {
+      const formattedParam: Parameter = {
+        key: param.key,
+        input_type: 'string',
+        requirement: param.requirement,
+        description: param.description,
+      };
+
+      // Add the 'default' key ONLY if the parameter is optional and has a default value.
+      if (param.requirement === 'optional' && param.default) {
+        // Note: `default` is a reserved keyword in JS, but assigning it as a property key like this is valid.
+        formattedParam.default = param.default;
+      }
+
+      return formattedParam;
     });
 
     const config = {
@@ -115,6 +157,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       instructions,
       activities,
       prompt,
+      // Use the newly formatted parameters array in the final config object.
+      parameters: formattedParameters,
       extensions: recipeExtensions
         .map((name) => {
           const extension = extensionOptions.find((e) => e.name === name);
@@ -135,6 +179,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         .filter(Boolean) as FullExtensionConfig[],
     };
     console.log('Final config extensions:', config.extensions);
+
     return config;
   };
 
@@ -163,6 +208,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleParameterChange = (name: string, value: Partial<Parameter>) => {
+    setParameters((prev) =>
+      prev.map((param) => (param.key === name ? { ...param, ...value } : param))
+    );
+  };
+
   const deeplink = generateDeepLink(getCurrentConfig());
 
   const handleCopy = () => {
@@ -175,6 +226,57 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       .catch((err) => {
         console.error('Failed to copy the text:', err);
       });
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!saveRecipeName.trim()) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const currentRecipe = getCurrentConfig();
+
+      if (!currentRecipe.title || !currentRecipe.description || !currentRecipe.instructions) {
+        throw new Error('Invalid recipe configuration: missing required fields');
+      }
+
+      await saveRecipe(currentRecipe, {
+        name: saveRecipeName.trim(),
+        global: saveGlobal,
+      });
+
+      // Reset dialog state
+      setShowSaveDialog(false);
+      setSaveRecipeName('');
+
+      toastSuccess({
+        title: saveRecipeName.trim(),
+        msg: `Recipe saved successfully`,
+      });
+    } catch (error) {
+      console.error('Failed to save recipe:', error);
+
+      toastError({
+        title: 'Save Failed',
+        msg: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        traceback: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveRecipeClick = () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    const currentRecipe = getCurrentConfig();
+    // Generate a suggested name from the recipe title
+    const suggestedName = generateRecipeFilename(currentRecipe);
+    setSaveRecipeName(suggestedName);
+    setShowSaveDialog(true);
   };
 
   const onClickEditTextArea = ({
@@ -203,6 +305,21 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const subtitle = config?.title
     ? "You can edit the recipe below to change the agent's behavior in a new session."
     : 'Your custom agent recipe can be shared with others. Fill in the sections below to create!';
+
+  function parseParametersFromInstructions(instructions: string): Parameter[] {
+    const regex = /\{\{(.*?)\}\}/g;
+    const matches = [...instructions.matchAll(regex)];
+
+    return matches.map((match) => {
+      return {
+        key: match[1].trim(),
+        description: `Enter value for ${match[1].trim()}`,
+        requirement: 'required',
+        input_type: 'string', // Default to string; can be changed based on requirements
+      };
+    });
+  }
+
   return (
     <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
       {activeSection === 'none' && (
@@ -281,6 +398,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <div className="text-red-500 text-sm mt-1">{errors.instructions}</div>
             )}
           </div>
+          {parameters.map((parameter: Parameter) => (
+            <ParameterInput
+              key={parameter.key}
+              parameter={parameter}
+              onChange={(name, value) => handleParameterChange(name, value)}
+            />
+          ))}
           <div className="pt-3 pb-6 border-b-2 border-borderSubtle">
             <RecipeExpandableInfo
               infoLabel="Initial Prompt"
@@ -331,28 +455,38 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             )}
           </div>
           {/* Action Buttons */}
-          <div className="flex flex-col space-y-2 pt-1">
-            {process.env.ALPHA && (
+          <div className="flex flex-col space-y-3 pt-4">
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveRecipeClick}
+                disabled={!requiredFieldsAreFilled() || saving}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-bgStandard text-textStandard border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save Recipe'}
+              </button>
               <button
                 onClick={() => setIsScheduleModalOpen(true)}
                 disabled={!requiredFieldsAreFilled()}
-                className="w-full h-[60px] rounded-none border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:border-gray-600 text-lg font-medium"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Schedule from Recipe
+                <Calendar className="w-4 h-4" />
+                Create Schedule
               </button>
-            )}
+            </div>
             <button
               onClick={() => {
                 localStorage.removeItem('recipe_editor_extensions');
                 window.close();
               }}
-              className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
+              className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle transition-colors"
             >
               Close
             </button>
           </div>
         </div>
       </div>
+
       <RecipeInfoModal
         infoLabel={recipeInfoModelProps?.label}
         originalValue={recipeInfoModelProps?.value}
@@ -378,6 +512,87 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           localStorage.setItem('pendingScheduleDeepLink', deepLink);
         }}
       />
+
+      {/* Save Recipe Dialog */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-bgApp border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
+            <h3 className="text-lg font-medium text-textProminent mb-4">Save Recipe</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="recipe-name"
+                  className="block text-sm font-medium text-textStandard mb-2"
+                >
+                  Recipe Name
+                </label>
+                <input
+                  id="recipe-name"
+                  type="text"
+                  value={saveRecipeName}
+                  onChange={(e) => setSaveRecipeName(e.target.value)}
+                  className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+                  placeholder="Enter recipe name"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-textStandard mb-2">
+                  Save Location
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="save-location"
+                      checked={saveGlobal}
+                      onChange={() => setSaveGlobal(true)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-textStandard">
+                      Global - Available across all Goose sessions
+                    </span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="save-location"
+                      checked={!saveGlobal}
+                      onChange={() => setSaveGlobal(false)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-textStandard">
+                      Directory - Available in the working directory
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowSaveDialog(false);
+                  setSaveRecipeName('');
+                }}
+                className="px-4 py-2 text-textSubtle hover:text-textStandard transition-colors"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveRecipe}
+                disabled={!saveRecipeName.trim() || saving}
+                className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving...' : 'Save Recipe'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

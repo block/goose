@@ -8,10 +8,13 @@ export interface EnvToggles {
   GOOSE_SERVER__COMPUTER_CONTROLLER: boolean;
 }
 
+export type SchedulingEngine = 'builtin-cron' | 'temporal';
+
 export interface Settings {
   envToggles: EnvToggles;
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
+  schedulingEngine: SchedulingEngine;
   showQuitConfirmation: boolean;
 }
 
@@ -25,6 +28,7 @@ const defaultSettings: Settings = {
   },
   showMenuBarIcon: true,
   showDockIcon: true,
+  schedulingEngine: 'builtin-cron',
   showQuitConfirmation: true,
 };
 
@@ -61,6 +65,15 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
     process.env.GOOSE_SERVER__COMPUTER_CONTROLLER = 'true';
   } else {
     delete process.env.GOOSE_SERVER__COMPUTER_CONTROLLER;
+  }
+}
+
+export function updateSchedulingEngineEnvironment(schedulingEngine: SchedulingEngine): void {
+  // Set GOOSE_SCHEDULER_TYPE based on the scheduling engine setting
+  if (schedulingEngine === 'temporal') {
+    process.env.GOOSE_SCHEDULER_TYPE = 'temporal';
+  } else {
+    process.env.GOOSE_SCHEDULER_TYPE = 'legacy';
   }
 }
 

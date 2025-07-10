@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[lints]
+workspace = true
+
 [build-dependencies]
 tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
@@ -17,6 +20,7 @@ mcp-core = { path = "../mcp-core" }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
+dirs = "5.0"
 reqwest = { version = "0.12.9", features = [
         "rustls-tls-native-roots",
         "json",
@@ -27,19 +31,21 @@ reqwest = { version = "0.12.9", features = [
         "zstd",
         "charset",
         "http2",
-        "stream"
+        "stream",
+        "blocking"
     ], default-features = false }
 tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
+jsonschema = "0.30.0"
 uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
 async-trait = "0.1"
 async-stream = "0.3"
 minijinja = "2.8.0"
-tokenizers = "0.20.3"
 include_dir = "0.7.4"
+tiktoken-rs = "0.6.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 indoc = "2.0.5"
 nanoid = "0.4"
@@ -48,14 +54,10 @@ base64 = "0.21"
 url = "2.5"
 axum = "0.8.1"
 webbrowser = "0.8"
-dotenv = "0.15"
-lazy_static = "1.5"
+lazy_static = "1.5.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-wiremock = "0.6.0"
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
-ctor = "0.2.7"
-paste = "1.0"
 serde_yaml = "0.9.34"
 once_cell = "1.20.2"
 etcetera = "0.8.0"
@@ -76,8 +78,9 @@ jsonwebtoken = "9.3.1"
 
 blake3 = "1.5"
 fs2 = "0.4.3"
-futures-util = "0.3.31"
 tokio-stream = "0.1.17"
+dashmap = "6.1"
+ahash = "0.8"
 
 # Vector database for tool selection
 lancedb = "0.13"
@@ -94,6 +97,8 @@ mockall = "0.13.1"
 wiremock = "0.6.0"
 tokio = { version = "1.43", features = ["full"] }
 temp-env = "0.3.6"
+dotenv = "0.15.0"
+ctor = "0.2.9"
 
 [[example]]
 name = "agent"
@@ -102,6 +107,10 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+
+[[example]]
+name = "async_token_counter_demo"
+path = "examples/async_token_counter_demo.rs"
 
 [[bench]]
 name = "tokenization_benchmark"

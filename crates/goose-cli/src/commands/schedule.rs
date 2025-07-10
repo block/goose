@@ -99,6 +99,7 @@ pub async fn handle_schedule_add(
         paused: false,
         current_session_id: None,
         process_start_time: None,
+        execution_mode: Some("background".to_string()), // Default to background for CLI
     };
 
     let scheduler_storage_path =

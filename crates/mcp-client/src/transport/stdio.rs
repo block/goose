@@ -134,10 +134,7 @@ impl StdioActor {
         while let Some(message_str) = receiver.recv().await {
             tracing::debug!(message = ?message_str, "Sending outgoing message");
 
-            if let Err(e) = stdin
-                .write_all(format!("{}\n", message_str).as_bytes())
-                .await
-            {
+            if let Err(e) = stdin.write_all(format!("{message_str}\n").as_bytes()).await {
                 tracing::error!(error = ?e, "Error writing message to child process");
                 break;
             }

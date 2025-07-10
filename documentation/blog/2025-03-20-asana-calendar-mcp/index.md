@@ -20,7 +20,7 @@ There's so many amazing MCP servers out there to make my work life better, inclu
 I used GPT-4o for this task
 :::
 
-With this prompt, Goose reviews my uncompleted tasks in Asana (note that I have my workspace, project, and user IDs stored in [memory](/docs/tutorials/memory-mcp)).
+With this prompt, Goose reviews my uncompleted tasks in Asana (note that I have my workspace, project, and user IDs stored in [memory](/docs/mcp/memory-mcp)).
 
 Rather than bouncing between different types of work, which is a productivity killer, Goose sorts my tasks into categories based on context. For example:
 

@@ -4,6 +4,7 @@ use cliclack::{self, intro, outro};
 use std::path::Path;
 
 use crate::project_tracker::ProjectTracker;
+use crate::utils::safe_truncate;
 
 /// Format a DateTime for display
 fn format_date(date: DateTime<chrono::Utc>) -> String {
@@ -199,11 +200,7 @@ pub fn handle_projects_interactive() -> Result<()> {
                     .last_instruction
                     .as_ref()
                     .map_or(String::new(), |instr| {
-                        let truncated = if instr.len() > 40 {
-                            format!("{}...", &instr[0..37])
-                        } else {
-                            instr.clone()
-                        };
+                        let truncated = safe_truncate(instr, 40);
                         format!(" [{}]", truncated)
                     });
 

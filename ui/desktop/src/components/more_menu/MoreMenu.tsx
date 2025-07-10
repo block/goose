@@ -292,15 +292,13 @@ export default function MoreMenu({
                 Session history
               </MenuButton>
 
-              {process.env.ALPHA && (
-                <MenuButton
-                  onClick={() => setView('schedules')}
-                  subtitle="Manage scheduled runs"
-                  icon={<Time className="w-4 h-4" />}
-                >
-                  Scheduler
-                </MenuButton>
-              )}
+              <MenuButton
+                onClick={() => setView('schedules')}
+                subtitle="Manage scheduled runs"
+                icon={<Time className="w-4 h-4" />}
+              >
+                Scheduler
+              </MenuButton>
 
               <MenuButton
                 onClick={() => setIsGoosehintsModalOpen(true)}
@@ -343,13 +341,13 @@ export default function MoreMenu({
                   onClick={() => {
                     setOpen(false);
                     // Signal to ChatView that we want to make an agent from the current chat
-                    window.electron.logInfo('Make Agent button clicked');
+                    window.electron.logInfo('Make recipe button clicked');
                     window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
                   }}
-                  subtitle="Make a custom agent you can share or reuse with a link"
+                  subtitle="Make a custom agent recipe you can share or reuse with a link"
                   icon={<Send className="w-4 h-4" />}
                 >
-                  Make Agent from this session
+                  Make recipe from this session
                 </MenuButton>
               )}
               <MenuButton
@@ -360,7 +358,7 @@ export default function MoreMenu({
                 subtitle="Browse your saved recipes"
                 icon={<FileText className="w-4 h-4" />}
               >
-                Go to Recipe Library
+                Recipe Library
               </MenuButton>
               <MenuButton
                 onClick={() => {

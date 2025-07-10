@@ -52,6 +52,57 @@ You can also validate your output after you have generated it to ensure it meets
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
 
+// Helper function to substitute parameters in text
+const substituteParameters = (text: string, params: Record<string, string>): string => {
+  let substitutedText = text;
+
+  for (const key in params) {
+    // Escape special characters in the key (parameter) and match optional whitespace
+    const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
+    substitutedText = substitutedText.replace(regex, params[key]);
+  }
+
+  return substitutedText;
+};
+
+/**
+ * Updates the system prompt with parameter-substituted instructions
+ * This should be called after recipe parameters are collected
+ */
+export const updateSystemPromptWithParameters = async (
+  recipeParameters: Record<string, string>
+): Promise<void> => {
+  try {
+    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
+
+    if (!originalInstructions) {
+      return;
+    }
+
+    // Substitute parameters in the instructions
+    const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
+
+    // Update the system prompt with substituted instructions
+    const response = await fetch(getApiUrl('/agent/prompt'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify({
+        extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to update system prompt with parameters: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error updating system prompt with parameters:', error);
+  }
+};
+
 /**
  * Migrates extensions from localStorage to config.yaml (settings v2)
  * This function handles the migration from settings v1 to v2 by:
@@ -140,6 +191,8 @@ export const initializeSystem = async (
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
+    const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -159,6 +212,25 @@ export const initializeSystem = async (
       console.log('Extended system prompt with desktop-specific information');
       if (botPrompt) {
         console.log('Added custom bot prompt to system prompt');
+      }
+    }
+
+    // Configure session with response config if present
+    if (responseConfig?.json_schema) {
+      const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        },
+        body: JSON.stringify({
+          response: responseConfig,
+        }),
+      });
+      if (!sessionConfigResponse.ok) {
+        console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
+      } else {
+        console.log('Configured session with response schema');
       }
     }
 

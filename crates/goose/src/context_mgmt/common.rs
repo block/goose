@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use mcp_core::Tool;
 
-use crate::{message::Message, providers::base::Provider, token_counter::TokenCounter};
+use crate::{
+    message::Message,
+    providers::base::Provider,
+    token_counter::{AsyncTokenCounter, TokenCounter},
+};
 
 const ESTIMATE_FACTOR: f32 = 0.7;
 const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
@@ -20,6 +24,19 @@ pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
 }
 
 pub fn get_messages_token_counts(token_counter: &TokenCounter, messages: &[Message]) -> Vec<usize> {
+    // Calculate current token count of each message, use count_chat_tokens to ensure we
+    // capture the full content of the message, include ToolRequests and ToolResponses
+    messages
+        .iter()
+        .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+        .collect()
+}
+
+/// Async version of get_messages_token_counts for better performance
+pub fn get_messages_token_counts_async(
+    token_counter: &AsyncTokenCounter,
+    messages: &[Message],
+) -> Vec<usize> {
     // Calculate current token count of each message, use count_chat_tokens to ensure we
     // capture the full content of the message, include ToolRequests and ToolResponses
     messages
@@ -48,6 +65,26 @@ pub fn get_token_counts(
     let system_prompt_token_count = token_counter.count_tokens(system_prompt);
     let tools_token_count = token_counter.count_tokens_for_tools(tools.as_slice());
     let messages_token_count = get_messages_token_counts(token_counter, messages);
+
+    ChatTokenCounts {
+        system: system_prompt_token_count,
+        tools: tools_token_count,
+        messages: messages_token_count,
+    }
+}
+
+/// Async version of get_token_counts for better performance
+#[allow(dead_code)]
+pub fn get_token_counts_async(
+    token_counter: &AsyncTokenCounter,
+    messages: &mut [Message],
+    system_prompt: &str,
+    tools: &mut Vec<Tool>,
+) -> ChatTokenCounts {
+    // Take into account the system prompt (includes goosehints), and our tools input
+    let system_prompt_token_count = token_counter.count_tokens(system_prompt);
+    let tools_token_count = token_counter.count_tokens_for_tools(tools.as_slice());
+    let messages_token_count = get_messages_token_counts_async(token_counter, messages);
 
     ChatTokenCounts {
         system: system_prompt_token_count,

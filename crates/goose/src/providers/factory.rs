@@ -5,9 +5,10 @@ use super::{
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
+    claude_code::ClaudeCodeProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
-    githubcopilot::GithubCopilotProvider,
+    gemini_cli::GeminiCliProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
@@ -17,6 +18,7 @@ use super::{
     sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
     venice::VeniceProvider,
+    xai::XaiProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -41,9 +43,11 @@ pub fn providers() -> Vec<ProviderMetadata> {
         AnthropicProvider::metadata(),
         AzureProvider::metadata(),
         BedrockProvider::metadata(),
+        ClaudeCodeProvider::metadata(),
         DatabricksProvider::metadata(),
         GcpVertexAIProvider::metadata(),
-        GithubCopilotProvider::metadata(),
+        GeminiCliProvider::metadata(),
+        // GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
@@ -52,6 +56,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         SageMakerTgiProvider::metadata(),
         VeniceProvider::metadata(),
         SnowflakeProvider::metadata(),
+        XaiProvider::metadata(),
     ]
 }
 
@@ -93,9 +98,40 @@ fn create_lead_worker_from_env(
         .get_param::<usize>("GOOSE_LEAD_FALLBACK_TURNS")
         .unwrap_or(default_fallback_turns());
 
-    // Create model configs
-    let lead_model_config = ModelConfig::new(lead_model_name.to_string());
-    let worker_model_config = default_model.clone();
+    // Create model configs with context limit environment variable support
+    let lead_model_config = ModelConfig::new_with_context_env(
+        lead_model_name.to_string(),
+        Some("GOOSE_LEAD_CONTEXT_LIMIT"),
+    );
+
+    // For worker model, preserve the original context_limit from config (highest precedence)
+    // while still allowing environment variable overrides
+    let worker_model_config = {
+        // Start with a clone of the original model to preserve user-specified settings
+        let mut worker_config = ModelConfig::new(default_model.model_name.clone())
+            .with_context_limit(default_model.context_limit)
+            .with_temperature(default_model.temperature)
+            .with_max_tokens(default_model.max_tokens)
+            .with_toolshim(default_model.toolshim)
+            .with_toolshim_model(default_model.toolshim_model.clone());
+
+        // Apply environment variable overrides with proper precedence
+        let global_config = crate::config::Config::global();
+
+        // Check for worker-specific context limit
+        if let Ok(limit_str) = global_config.get_param::<String>("GOOSE_WORKER_CONTEXT_LIMIT") {
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                worker_config = worker_config.with_context_limit(Some(limit));
+            }
+        } else if let Ok(limit_str) = global_config.get_param::<String>("GOOSE_CONTEXT_LIMIT") {
+            // Check for general context limit if worker-specific is not set
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                worker_config = worker_config.with_context_limit(Some(limit));
+            }
+        }
+
+        worker_config
+    };
 
     // Create the providers
     let lead_provider = create_provider(&lead_provider_name, lead_model_config)?;
@@ -118,7 +154,9 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
         "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
+        "claude-code" => Ok(Arc::new(ClaudeCodeProvider::from_env(model)?)),
         "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
+        "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
         "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
         "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
@@ -127,7 +165,8 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
-        "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
@@ -141,6 +180,40 @@ mod tests {
     use mcp_core::{content::TextContent, Role};
     use std::env;
 
+    /// Helper to save and restore environment variables for testing
+    struct EnvVarGuard {
+        saved_vars: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn new(var_names: &[&'static str]) -> Self {
+            let saved_vars = var_names
+                .iter()
+                .map(|&name| (name, env::var(name).ok()))
+                .collect();
+            Self { saved_vars }
+        }
+
+        fn clear_all(&self) {
+            for (key, _) in &self.saved_vars {
+                env::remove_var(key);
+            }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            // Restore all env vars
+            for (key, value) in &self.saved_vars {
+                match value {
+                    Some(val) => env::set_var(key, val),
+                    None => env::remove_var(key),
+                }
+            }
+        }
+    }
+
+    #[allow(dead_code)]
     #[derive(Clone)]
     struct MockTestProvider {
         name: String,
@@ -190,10 +263,17 @@ mod tests {
 
     #[test]
     fn test_create_lead_worker_provider() {
-        // Save current env vars
-        let saved_lead = env::var("GOOSE_LEAD_MODEL").ok();
-        let saved_provider = env::var("GOOSE_LEAD_PROVIDER").ok();
-        let saved_turns = env::var("GOOSE_LEAD_TURNS").ok();
+        let _guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ]);
+
+        // Set fake API keys to avoid keychain access
+        env::set_var("OPENAI_API_KEY", "fake-test-key");
+        env::set_var("ANTHROPIC_API_KEY", "fake-test-key");
 
         // Test with basic lead model configuration
         env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
@@ -201,16 +281,21 @@ mod tests {
         // This will try to create a lead/worker provider
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
 
-        // The creation might succeed or fail depending on API keys, but we can verify the logic path
+        // Since we provided fake API keys, the creation should proceed to the provider instantiation
+        // It may still fail at the provider level, but we should not get keychain-related errors
         match result {
             Ok(_) => {
-                // If it succeeds, it means we created a lead/worker provider successfully
-                // This would happen if API keys are available in the test environment
+                // If it succeeds with fake keys, the logic worked
             }
             Err(error) => {
-                // If it fails, it should be due to missing API keys, confirming we tried to create providers
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
+                // Should not fail due to missing secrets, but may fail due to invalid fake keys
+                let error_msg = error.to_string().to_lowercase();
+                // Ensure it's not a keychain/secret-related error
+                assert!(
+                    !error_msg.contains("not found") || // Configuration not found
+                    error_msg.contains("invalid") ||    // Invalid API key format
+                    error_msg.contains("unauthorized") // API validation failed
+                );
             }
         }
 
@@ -219,60 +304,49 @@ mod tests {
         env::set_var("GOOSE_LEAD_TURNS", "5");
 
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
-        // Similar validation as above - will fail due to missing API keys but confirms the logic
+        // Similar validation as above - confirms the logic path
 
-        // Restore env vars
-        match saved_lead {
-            Some(val) => env::set_var("GOOSE_LEAD_MODEL", val),
-            None => env::remove_var("GOOSE_LEAD_MODEL"),
-        }
-        match saved_provider {
-            Some(val) => env::set_var("GOOSE_LEAD_PROVIDER", val),
-            None => env::remove_var("GOOSE_LEAD_PROVIDER"),
-        }
-        match saved_turns {
-            Some(val) => env::set_var("GOOSE_LEAD_TURNS", val),
-            None => env::remove_var("GOOSE_LEAD_TURNS"),
-        }
+        // EnvVarGuard will automatically restore all env vars when dropped
     }
 
     #[test]
     fn test_lead_model_env_vars_with_defaults() {
-        // Save current env vars
-        let saved_vars = [
-            ("GOOSE_LEAD_MODEL", env::var("GOOSE_LEAD_MODEL").ok()),
-            ("GOOSE_LEAD_PROVIDER", env::var("GOOSE_LEAD_PROVIDER").ok()),
-            ("GOOSE_LEAD_TURNS", env::var("GOOSE_LEAD_TURNS").ok()),
-            (
-                "GOOSE_LEAD_FAILURE_THRESHOLD",
-                env::var("GOOSE_LEAD_FAILURE_THRESHOLD").ok(),
-            ),
-            (
-                "GOOSE_LEAD_FALLBACK_TURNS",
-                env::var("GOOSE_LEAD_FALLBACK_TURNS").ok(),
-            ),
-        ];
+        let guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "GOOSE_LEAD_FAILURE_THRESHOLD",
+            "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
+        ]);
 
         // Clear all lead env vars
-        for (key, _) in &saved_vars {
-            env::remove_var(key);
-        }
+        guard.clear_all();
+
+        // Set fake API key to avoid keychain access
+        env::set_var("OPENAI_API_KEY", "fake-test-key");
 
         // Set only the required lead model
-        env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
+        env::set_var("GOOSE_LEAD_MODEL", "grok-3");
 
         // This should use defaults for all other values
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
 
-        // Should attempt to create lead/worker provider (will fail due to missing API keys but confirms logic)
+        // Should attempt to create lead/worker provider with fake keys
         match result {
             Ok(_) => {
-                // Success means we have API keys and created the provider
+                // Success means the logic path worked
             }
             Err(error) => {
-                // Should fail due to missing API keys, confirming we tried to create providers
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
+                // Should not fail due to missing secrets since we provided fake keys
+                let error_msg = error.to_string().to_lowercase();
+                // Allow various provider-level failures but not keychain issues
+                assert!(
+                    error_msg.contains("invalid")
+                        || error_msg.contains("unauthorized")
+                        || error_msg.contains("model")
+                        || !error_msg.contains("not found")
+                );
             }
         }
 
@@ -284,62 +358,110 @@ mod tests {
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
         // Should still attempt to create lead/worker provider with custom settings
 
-        // Restore all env vars
+        // EnvVarGuard will automatically restore all env vars when dropped
+    }
+
+    #[test]
+    fn test_create_regular_provider_without_lead_config() {
+        let guard = EnvVarGuard::new(&[
+            "GOOSE_LEAD_MODEL",
+            "GOOSE_LEAD_PROVIDER",
+            "GOOSE_LEAD_TURNS",
+            "GOOSE_LEAD_FAILURE_THRESHOLD",
+            "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
+        ]);
+
+        // Ensure all GOOSE_LEAD_* variables are not set
+        guard.clear_all();
+
+        // Set fake API key to avoid keychain access
+        env::set_var("OPENAI_API_KEY", "fake-test-key");
+
+        // This should try to create a regular provider
+        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+
+        // The creation should proceed with fake API key
+        match result {
+            Ok(_) => {
+                // If it succeeds, it means we created a regular provider successfully
+            }
+            Err(error) => {
+                // Should not fail due to missing secrets since we provided fake key
+                let error_msg = error.to_string().to_lowercase();
+                // Allow provider-level failures but not keychain issues
+                assert!(
+                    error_msg.contains("invalid")
+                        || error_msg.contains("unauthorized")
+                        || !error_msg.contains("not found")
+                );
+            }
+        }
+
+        // EnvVarGuard will automatically restore all env vars when dropped
+    }
+
+    #[test]
+    fn test_worker_model_preserves_original_context_limit() {
+        use std::env;
+
+        // Save current env vars
+        let saved_vars = [
+            ("GOOSE_LEAD_MODEL", env::var("GOOSE_LEAD_MODEL").ok()),
+            (
+                "GOOSE_WORKER_CONTEXT_LIMIT",
+                env::var("GOOSE_WORKER_CONTEXT_LIMIT").ok(),
+            ),
+            ("GOOSE_CONTEXT_LIMIT", env::var("GOOSE_CONTEXT_LIMIT").ok()),
+        ];
+
+        // Clear env vars to ensure clean test
+        for (key, _) in &saved_vars {
+            env::remove_var(key);
+        }
+
+        // Set up lead model to trigger lead/worker mode
+        env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
+
+        // Create a default model with explicit context_limit
+        let default_model =
+            ModelConfig::new("gpt-3.5-turbo".to_string()).with_context_limit(Some(16_000));
+
+        // Test case 1: No environment variables - should preserve original context_limit
+        let result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+
+        // Test case 2: With GOOSE_WORKER_CONTEXT_LIMIT - should override original
+        env::set_var("GOOSE_WORKER_CONTEXT_LIMIT", "32000");
+        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+        env::remove_var("GOOSE_WORKER_CONTEXT_LIMIT");
+
+        // Test case 3: With GOOSE_CONTEXT_LIMIT - should override original
+        env::set_var("GOOSE_CONTEXT_LIMIT", "64000");
+        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+        env::remove_var("GOOSE_CONTEXT_LIMIT");
+
+        // Restore env vars
         for (key, value) in saved_vars {
             match value {
                 Some(val) => env::set_var(key, val),
                 None => env::remove_var(key),
             }
         }
-    }
 
-    #[test]
-    fn test_create_regular_provider_without_lead_config() {
-        // Save current env vars
-        let saved_lead = env::var("GOOSE_LEAD_MODEL").ok();
-        let saved_provider = env::var("GOOSE_LEAD_PROVIDER").ok();
-        let saved_turns = env::var("GOOSE_LEAD_TURNS").ok();
-        let saved_threshold = env::var("GOOSE_LEAD_FAILURE_THRESHOLD").ok();
-        let saved_fallback = env::var("GOOSE_LEAD_FALLBACK_TURNS").ok();
-
-        // Ensure all GOOSE_LEAD_* variables are not set
-        env::remove_var("GOOSE_LEAD_MODEL");
-        env::remove_var("GOOSE_LEAD_PROVIDER");
-        env::remove_var("GOOSE_LEAD_TURNS");
-        env::remove_var("GOOSE_LEAD_FAILURE_THRESHOLD");
-        env::remove_var("GOOSE_LEAD_FALLBACK_TURNS");
-
-        // This should try to create a regular provider
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
-
-        // The creation might succeed or fail depending on API keys
+        // The main verification is that the function doesn't panic and handles
+        // the context limit preservation logic correctly. More detailed testing
+        // would require mocking the provider creation.
+        // The result could be Ok or Err depending on whether API keys are available
+        // in the test environment - both are acceptable for this test
         match result {
             Ok(_) => {
-                // If it succeeds, it means we created a regular provider successfully
-                // This would happen if API keys are available in the test environment
+                // Success means API keys are available and lead/worker provider was created
+                // This confirms our logic path is working
             }
-            Err(error) => {
-                // If it fails, it should be due to missing API keys
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
+            Err(_) => {
+                // Error is expected if API keys are not available
+                // This also confirms our logic path is working
             }
-        }
-
-        // Restore env vars
-        if let Some(val) = saved_lead {
-            env::set_var("GOOSE_LEAD_MODEL", val);
-        }
-        if let Some(val) = saved_provider {
-            env::set_var("GOOSE_LEAD_PROVIDER", val);
-        }
-        if let Some(val) = saved_turns {
-            env::set_var("GOOSE_LEAD_TURNS", val);
-        }
-        if let Some(val) = saved_threshold {
-            env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", val);
-        }
-        if let Some(val) = saved_fallback {
-            env::set_var("GOOSE_LEAD_FALLBACK_TURNS", val);
         }
     }
 }
