@@ -241,9 +241,6 @@ impl MemoryRouter {
             .map(|strategy| strategy.in_config_dir("memory"))
             .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
 
-        fs::create_dir_all(&global_memory_dir).unwrap();
-        fs::create_dir_all(&local_memory_dir).unwrap();
-
         let mut memory_router = Self {
             tools: vec![
                 remember_memory,
@@ -353,6 +350,10 @@ impl MemoryRouter {
     ) -> io::Result<()> {
         let memory_file_path = self.get_memory_file(category, is_global);
 
+        if let Some(parent) = memory_file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
         let mut file = fs::OpenOptions::new()
             .append(true)
             .create(true)
@@ -446,7 +447,9 @@ impl MemoryRouter {
         } else {
             &self.local_memory_dir
         };
-        fs::remove_dir_all(base_dir)?;
+        if base_dir.exists() {
+            fs::remove_dir_all(base_dir)?;
+        }
         Ok(())
     }
 
