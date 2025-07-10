@@ -255,7 +255,7 @@ impl SubAgent {
         }
     }
 
-    /// Process a message and generate a response using the subagent's provider
+    /// Process a message and generate a response using the provider
     #[instrument(skip(self, message, provider, extension_manager))]
     pub async fn reply_subagent(
         &self,
@@ -264,8 +264,15 @@ impl SubAgent {
         extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
     ) -> Result<Message, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
-        self.send_mcp_notification("message_processing", &format!("Processing: {}", message))
-            .await;
+        self.send_mcp_notification(
+            "message_processing",
+            &format!(
+                "Processing: {} (via {})",
+                message,
+                provider.get_model_config().model_name
+            ),
+        )
+        .await;
 
         // Check if we've exceeded max turns
         {
@@ -512,10 +519,14 @@ impl SubAgent {
                         .with_text("Rate limit exceeded. Please try again later."));
                 }
                 Err(e) => {
+                    let model_name = provider.get_model_config().model_name;
                     self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
                         .await;
-                    error!("Error: {}", e);
-                    break Ok(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
+                    error!("Error with model '{}': {}", model_name, e);
+                    break Ok(Message::assistant().with_text(format!(
+                        "Ran into this error with model '{}': {}\n\nPlease check that the model name is valid for the provider. If you think this is a transient or recoverable error, please retry.",
+                        model_name, e
+                    )));
                 }
             }
         }

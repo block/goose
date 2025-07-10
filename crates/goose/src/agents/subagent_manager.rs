@@ -155,7 +155,7 @@ impl SubAgentManager {
     }
 
     /// Load a recipe from file
-    async fn load_recipe(&self, recipe_name: &str) -> Result<Recipe> {
+    pub async fn load_recipe(&self, recipe_name: &str) -> Result<Recipe> {
         // Try to load from current directory first
         let recipe_path = if recipe_name.ends_with(".yaml") || recipe_name.ends_with(".yml") {
             recipe_name.to_string()

@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 use crate::agents::subagent_types::SpawnSubAgentArgs;
 use crate::agents::Agent;
+use crate::model::ModelConfig;
+use crate::providers::create;
 
 impl Agent {
     /// Handle running a complete subagent task (replaces the individual spawn/send/check tools)
@@ -55,11 +57,82 @@ impl Agent {
             args = args.with_timeout(timeout);
         }
 
-        // Get the provider from the parent agent
-        let provider = self
-            .provider()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to get provider: {}", e)))?;
+        // Determine which provider to use
+        let provider = if let Some(recipe_name) = &args.recipe_name {
+            // Load the recipe to check if it specifies a provider
+            match manager.load_recipe(recipe_name).await {
+                Ok(recipe) => {
+                    if let Some(settings) = recipe.settings {
+                        if let Some(recipe_provider_name) = settings.goose_provider {
+                            // Recipe specifies a provider, create it
+                            let model_name = if let Some(recipe_model) = settings.goose_model {
+                                recipe_model
+                            } else {
+                                // Use the agent's provider's model if not specified in recipe
+                                self.provider()
+                                    .await
+                                    .map_err(|e| {
+                                        ToolError::ExecutionError(format!(
+                                            "Failed to get provider: {}",
+                                            e
+                                        ))
+                                    })?
+                                    .get_model_config()
+                                    .model_name
+                            };
+                            let model_config =
+                                ModelConfig::new(model_name).with_temperature(settings.temperature);
+
+                            match create(&recipe_provider_name, model_config) {
+                                Ok(recipe_provider) => {
+                                    tracing::info!(
+                                        "Using recipe-specified provider: {}",
+                                        recipe_provider_name
+                                    );
+                                    recipe_provider
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to create recipe provider '{}': {}. Falling back to agent provider.", recipe_provider_name, e);
+                                    // Fall back to agent's provider
+                                    self.provider().await.map_err(|e| {
+                                        ToolError::ExecutionError(format!(
+                                            "Failed to get provider: {}",
+                                            e
+                                        ))
+                                    })?
+                                }
+                            }
+                        } else {
+                            // Recipe doesn't specify a provider, use agent's provider
+                            self.provider().await.map_err(|e| {
+                                ToolError::ExecutionError(format!("Failed to get provider: {}", e))
+                            })?
+                        }
+                    } else {
+                        // Recipe doesn't have settings, use agent's provider
+                        self.provider().await.map_err(|e| {
+                            ToolError::ExecutionError(format!("Failed to get provider: {}", e))
+                        })?
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to load recipe '{}': {}. Using agent provider.",
+                        recipe_name,
+                        e
+                    );
+                    // Fall back to agent's provider if recipe loading fails
+                    self.provider().await.map_err(|e| {
+                        ToolError::ExecutionError(format!("Failed to get provider: {}", e))
+                    })?
+                }
+            }
+        } else {
+            // No recipe, use agent's provider
+            self.provider()
+                .await
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to get provider: {}", e)))?
+        };
 
         // Get the extension manager from the parent agent
         let extension_manager = Arc::clone(&self.extension_manager);
