@@ -64,6 +64,8 @@ Each parameter in the `parameters` array has the following structure:
 - `optional`: Can be omitted if a default value is specified
 - `user_prompt`: Will interactively prompt the user for input if not provided
 
+The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
+
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
@@ -141,7 +143,7 @@ The `response` field enables recipes to enforce a final structured JSON output f
 1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
 2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
 
-This **Enables automation** by returning consistent, parseable results for scripts and workflows.
+This **enables automation** by returning consistent, parseable results for scripts and workflows. Recipes can produce structured output when run from either the Goose CLI or Goose Desktop.
 
 ### Basic Structure
 

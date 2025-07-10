@@ -1,5 +1,5 @@
 ---
-sidebar_position: 11
+sidebar_position: 2
 title: Adjusting Tool Output Verbosity
 sidebar_label: Adjust Tool Output
 ---
