@@ -279,7 +279,7 @@ impl Provider for OpenRouterProvider {
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
-    /// Fetch supported models from OpenRouter API
+    /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
@@ -313,7 +313,25 @@ impl Provider for OpenRouterProvider {
 
         let mut models: Vec<String> = data
             .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .filter_map(|model| {
+                // Get the model ID
+                let id = model.get("id").and_then(|v| v.as_str())?;
+
+                // Check if the model supports tools
+                let supported_params = model
+                    .get("supported_parameters")
+                    .and_then(|v| v.as_array())?;
+
+                let has_tool_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"));
+
+                if has_tool_support {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
+            })
             .collect();
         models.sort();
         Ok(Some(models))
