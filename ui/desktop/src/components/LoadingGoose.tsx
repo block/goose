@@ -1,6 +1,10 @@
 import GooseLogo from './GooseLogo';
 
-const LoadingGoose = () => {
+interface LoadingGooseProps {
+  message?: string;
+}
+
+const LoadingGoose = ({ message = 'goose is working on it…' }: LoadingGooseProps) => {
   return (
     <div className="w-full animate-fade-slide-up">
       <div
@@ -8,7 +12,7 @@ const LoadingGoose = () => {
         className="flex items-center gap-2 text-xs text-textStandard py-2"
       >
         <GooseLogo size="small" hover={false} />
-        goose is working on it…
+        {message}
       </div>
     </div>
   );

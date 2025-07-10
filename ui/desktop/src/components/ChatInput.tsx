@@ -20,6 +20,7 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import { useChatContextManager } from './context_management/ChatContextManager';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
@@ -96,6 +97,7 @@ export default function ChatInput({
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
+  const { isLoadingSummary } = useChatContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -753,6 +755,7 @@ export default function ChatInput({
       evt.preventDefault();
       const canSubmit =
         !isLoading &&
+        !isLoadingSummary &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -766,6 +769,7 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
+      !isLoadingSummary &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1062,27 +1066,31 @@ export default function ChatInput({
                   isAnyImageLoading ||
                   isAnyDroppedFileLoading ||
                   isRecording ||
-                  isTranscribing
+                  isTranscribing ||
+                  isLoadingSummary
                 }
                 className={`text-text-muted ${
                   !hasSubmittableContent ||
                   isAnyImageLoading ||
                   isAnyDroppedFileLoading ||
                   isRecording ||
-                  isTranscribing
+                  isTranscribing ||
+                  isLoadingSummary
                     ? 'text-textSubtle cursor-not-allowed'
                     : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
                 }`}
                 title={
-                  isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isAnyDroppedFileLoading
-                      ? 'Processing dropped files...'
-                      : isRecording
-                        ? 'Recording...'
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Send'
+                  isLoadingSummary
+                    ? 'Summarizing conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : 'Send'
                 }
               >
                 <Send />

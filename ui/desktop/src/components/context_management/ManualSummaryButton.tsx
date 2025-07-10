@@ -52,12 +52,19 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
       <div className="relative flex items-center">
         <button
           className={cn(
-            'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer',
-            (isLoadingSummary || isLoading) && 'cursor-not-allowed'
+            'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
+            (isLoadingSummary || isLoading) &&
+              'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
           )}
           onClick={handleClick}
           disabled={isLoadingSummary || isLoading}
-          title="Summarize conversation context"
+          title={
+            isLoadingSummary
+              ? 'Summarizing conversation...'
+              : isLoading
+                ? 'Goose is working...'
+                : 'Summarize conversation context'
+          }
         >
           <ScrollText size={16} />
         </button>
@@ -85,10 +92,12 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button onClick={handleSummarize}>Summarize</Button>
+            <Button type="button" onClick={handleSummarize}>
+              Summarize
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

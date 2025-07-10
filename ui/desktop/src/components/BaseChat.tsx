@@ -121,6 +121,7 @@ function BaseChatContent({
     summaryContent,
     summarizedThread,
     isSummaryModalOpen,
+    isLoadingSummary,
     resetMessagesWithSummary,
     closeSummaryModal,
     updateSummary,
@@ -377,7 +378,11 @@ function BaseChatContent({
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          <div className="px-6">{isLoading && <LoadingGoose />}</div>
+          <div className="px-6">
+            {isLoading && (
+              <LoadingGoose message={isLoadingSummary ? 'summarizing conversation…' : undefined} />
+            )}
+          </div>
           <ChatInput
             handleSubmit={handleSubmit}
             isLoading={isLoading}
