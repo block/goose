@@ -320,7 +320,8 @@ impl Provider for OpenRouterProvider {
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+            tracing::warn!("OpenRouter API returned an error: {}", msg);
+            return Ok(None);
         }
 
         let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
