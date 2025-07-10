@@ -287,16 +287,32 @@ impl Provider for OpenRouterProvider {
             ProviderError::RequestFailed(format!("Failed to construct models URL: {e}"))
         })?;
 
-        let response = self
+        // Handle request failures gracefully
+        // If the request fails, fall back to manual entry
+        let response = match self
             .client
             .get(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
             .send()
-            .await?;
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
+                return Ok(None);
+            }
+        };
 
-        let json: serde_json::Value = response.json().await?;
+        // Handle JSON parsing failures gracefully
+        let json: serde_json::Value = match response.json().await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry", e);
+                return Ok(None);
+            }
+        };
 
         // Check for error in response
         if let Some(err_obj) = json.get("error") {
@@ -318,9 +334,18 @@ impl Provider for OpenRouterProvider {
                 let id = model.get("id").and_then(|v| v.as_str())?;
 
                 // Check if the model supports tools
-                let supported_params = model
-                    .get("supported_parameters")
-                    .and_then(|v| v.as_array())?;
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
+                        Some(params) => params,
+                        None => {
+                            // If supported_parameters is missing, skip this model (assume no tool support)
+                            tracing::debug!(
+                                "Model '{}' missing supported_parameters field, skipping",
+                                id
+                            );
+                            return None;
+                        }
+                    };
 
                 let has_tool_support = supported_params
                     .iter()
@@ -333,6 +358,13 @@ impl Provider for OpenRouterProvider {
                 }
             })
             .collect();
+
+        // If no models with tool support were found, fall back to manual entry
+        if models.is_empty() {
+            tracing::warn!("No models with tool support found in OpenRouter API response, falling back to manual model entry");
+            return Ok(None);
+        }
+
         models.sort();
         Ok(Some(models))
     }
