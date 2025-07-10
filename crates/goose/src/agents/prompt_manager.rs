@@ -48,7 +48,7 @@ impl PromptManager {
     /// Map model (normalized) to prompt filenames; returns filename if a key is contained in the normalized model
     fn model_prompt_map(model: &str) -> &'static str {
         let mut map = HashMap::new();
-        map.insert("gpt_4_1", "system_gpt_4_1.md");
+        map.insert("gpt_4_1", "system_gpt_4.1.md");
         // Add more mappings as needed
         let norm_model = Self::normalize_model_name(model);
         for (key, val) in &map {
