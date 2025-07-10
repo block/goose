@@ -186,19 +186,32 @@ You can turn your current Goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-   There are two ways to use a recipe in Goose Desktop:
+  1. Open the recipe using a direct link or manual URL entry:
 
-   1. **Direct Link**
-      - Click a recipe link shared with you
-      - The recipe will automatically open in Goose Desktop
+     - **Direct Link**
+       - Click a recipe link shared with you
+       - The recipe will automatically open in Goose Desktop
 
-   2. **Manual URL Entry**
-      - Copy a recipe URL
-      - Paste it into your browser's address bar
-      - You will see a prompt to "Open Goose"
-      - Goose Desktop will open with the recipe
+     - **Manual URL Entry**
+       - Copy a recipe URL
+       - Paste it into your browser's address bar
+       - You will see a prompt to "Open Goose"
+       - Goose Desktop will open with the recipe
 
-  :::note Privacy & Isolation
+  2. If the recipe contains parameters, enter your values in the **Recipe Parameters** dialog and click **Start Recipe**.
+  
+     Parameters are dynamic values used in the recipe:
+
+     - **Required parameters** are marked with red asterisks (*)
+     - **Optional parameters** show default values that can be changed
+
+  3. To run the recipe, click an activity bubble or send the prompt.
+
+  :::info Parameter Creation In Goose CLI Only
+  You can enter parameter values to use in a recipe, but you cannot add parameters to a recipe in Goose Desktop. Parameters can only be defined in recipes created via the CLI.
+  :::
+
+  :::info Privacy & Isolation
   - Each person gets their own private session
   - No data is shared between users
   - Your session won't affect the original recipe creator's session
@@ -364,7 +377,7 @@ You can turn your current Goose session into a reusable recipe that includes the
 
      </TabItem>
    </Tabs>
-  :::note Privacy & Isolation
+  :::info Privacy & Isolation
   - Each person gets their own private session
   - No data is shared between users
   - Your session won't affect the original recipe creator's session
