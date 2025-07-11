@@ -4,14 +4,8 @@ import Model from './modelInterface';
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
     const envModels = window.appConfig.get('GOOSE_PREDEFINED_MODELS'); // process.env.GOOSE_PREDEFINED_MODELS
-    console.log('GOOSE_PREDEFINED_MODELS raw value:', envModels);
-    console.log('GOOSE_PREDEFINED_MODELS type:', typeof envModels);
-
     if (envModels && typeof envModels === 'string') {
-      console.log('Attempting to parse GOOSE_PREDEFINED_MODELS as JSON...');
-      const parsed = JSON.parse(envModels) as Model[];
-      console.log('Successfully parsed GOOSE_PREDEFINED_MODELS:', parsed);
-      return parsed;
+      return JSON.parse(envModels) as Model[];
     } else {
       console.log('GOOSE_PREDEFINED_MODELS is not a string or is empty');
     }
