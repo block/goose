@@ -18,6 +18,50 @@ import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
 
+// Helper functions for predefined models
+function getPredefinedModelsFromEnv(): Model[] {
+  console.log('here');
+  // TODO: remove
+  const models_for_test = [
+    {
+      id: 1,
+      name: 'goose-claude-4-sonnet',
+      provider: 'databricks',
+      alias: 'claude-4-sonnet (recommended)',
+      subtext: 'Anthropic',
+    },
+    {
+      id: 2,
+      name: 'goose-claude-3-5-sonnet',
+      provider: 'databricks',
+      alias: 'claude-3.5-sonnet',
+      subtext: 'Anthropic',
+    },
+    {
+      id: 3,
+      name: 'goose-claude-4-opus',
+      provider: 'databricks',
+      alias: 'claude-4-opus',
+      subtext: 'Anthropic',
+    },
+  ];
+  try {
+    const envModels = models_for_test; //process.env.GOOSE_PREDEFINED_MODELS;
+    if (envModels) {
+      // return JSON.parse(envModels) as Model[];
+      return envModels as Model[]; // No JSON.parse needed since it's already an array
+    }
+  } catch (error) {
+    console.warn('Failed to parse GOOSE_PREDEFINED_MODELS environment variable:', error);
+  }
+  return [];
+}
+
+// TODO: change
+function shouldShowPredefinedModels(): boolean {
+  return true; // process.env.GOOSE_PREDEFINED_MODELS !== undefined;
+}
+
 type AddModelModalProps = {
   onClose: () => void;
   setView: (view: View) => void;
@@ -38,6 +82,9 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   });
   const [isValid, setIsValid] = useState(true);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [usePredefinedModels] = useState(shouldShowPredefinedModels());
+  const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
+  const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -47,20 +94,27 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     };
     let formIsValid = true;
 
-    if (!provider) {
-      errors.provider = 'Please select a provider';
-      formIsValid = false;
-    }
+    if (usePredefinedModels) {
+      if (!selectedPredefinedModel) {
+        errors.model = 'Please select a model';
+        formIsValid = false;
+      }
+    } else {
+      if (!provider) {
+        errors.provider = 'Please select a provider';
+        formIsValid = false;
+      }
 
-    if (!model) {
-      errors.model = 'Please select or enter a model';
-      formIsValid = false;
+      if (!model) {
+        errors.model = 'Please select or enter a model';
+        formIsValid = false;
+      }
     }
 
     setValidationErrors(errors);
     setIsValid(formIsValid);
     return formIsValid;
-  }, [model, provider]);
+  }, [model, provider, usePredefinedModels, selectedPredefinedModel]);
 
   const handleClose = () => {
     onClose();
@@ -71,13 +125,17 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     const isFormValid = validateForm();
 
     if (isFormValid) {
-      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
-      const providerDisplayName = providerMetaData.display_name;
+      let modelObj: Model;
 
-      const modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
+      if (usePredefinedModels && selectedPredefinedModel) {
+        modelObj = selectedPredefinedModel;
+      } else {
+        const providerMetaData = await getProviderMetadata(provider || '', getProviders);
+        const providerDisplayName = providerMetaData.display_name;
+        modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
+      }
 
       await changeModel(modelObj);
-
       onClose();
     }
   };
@@ -90,6 +148,12 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   }, [attemptedSubmit, validateForm]);
 
   useEffect(() => {
+    // Load predefined models if enabled
+    if (usePredefinedModels) {
+      setPredefinedModels(getPredefinedModelsFromEnv());
+    }
+
+    // Load providers for manual model selection
     (async () => {
       try {
         const providersResponse = await getProviders(false);
@@ -137,7 +201,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         console.error('Failed to load providers:', error);
       }
     })();
-  }, [getProviders]);
+  }, [getProviders, usePredefinedModels]);
 
   // Filter model options based on selected provider
   const filteredModelOptions = provider
@@ -229,71 +293,135 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
             </a>
           </div>
 
-          <div className="w-full flex flex-col gap-4">
-            <div>
-              <Select
-                options={providerOptions}
-                value={providerOptions.find((option) => option.value === provider) || null}
-                onChange={(newValue: unknown) => {
-                  const option = newValue as { value: string; label: string } | null;
-                  if (option?.value === 'configure_providers') {
-                    // Navigate to ConfigureProviders view
-                    setView('ConfigureProviders');
-                    onClose(); // Close the current modal
-                  } else {
-                    setProvider(option?.value || null);
-                    setModel('');
-                    setIsCustomModel(false);
-                  }
-                }}
-                placeholder="Provider"
-                isClearable
-              />
-              {attemptedSubmit && validationErrors.provider && (
-                <div className="text-red-500 text-sm mt-1">{validationErrors.provider}</div>
+          {usePredefinedModels ? (
+            /* Predefined Models Section */
+            <div className="w-full flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium text-textStandard">Choose a model:</label>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {predefinedModels.map((model) => (
+                  <div key={model.id || model.name} className="group hover:cursor-pointer text-sm">
+                    <div
+                      className={`flex items-center justify-between text-text-default py-2 px-2 ${
+                        selectedPredefinedModel?.name === model.name
+                          ? 'bg-background-muted'
+                          : 'bg-background-default hover:bg-background-muted'
+                      } rounded-lg transition-all`}
+                      onClick={() => setSelectedPredefinedModel(model)}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-text-default font-medium">
+                            {model.alias || model.name}
+                          </span>
+                          {model.alias?.includes('recommended') && (
+                            <span className="text-xs bg-background-muted text-textStandard px-2 py-1 rounded-full border border-borderSubtle ml-2">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-[2px]">
+                          <span className="text-xs text-text-muted">{model.subtext}</span>
+                          <span className="text-xs text-text-muted">•</span>
+                          <span className="text-xs text-text-muted">{model.provider}</span>
+                        </div>
+                      </div>
+
+                      <div className="relative flex items-center ml-3">
+                        <input
+                          type="radio"
+                          name="predefined-model"
+                          value={model.name}
+                          checked={selectedPredefinedModel?.name === model.name}
+                          onChange={() => setSelectedPredefinedModel(model)}
+                          className="peer sr-only"
+                        />
+                        <div
+                          className="h-4 w-4 rounded-full border border-border-default 
+                                peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
+                                peer-checked:bg-white dark:peer-checked:bg-black
+                                transition-all duration-200 ease-in-out group-hover:border-border-default"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {attemptedSubmit && validationErrors.model && (
+                <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
               )}
             </div>
-
-            {provider && (
-              <>
-                {!isCustomModel ? (
-                  <div>
-                    <Select
-                      options={filteredModelOptions}
-                      onChange={handleModelChange}
-                      onInputChange={handleInputChange} // Added for input handling
-                      value={model ? { value: model, label: model } : null}
-                      placeholder="Select a model"
-                    />
-                    {attemptedSubmit && validationErrors.model && (
-                      <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between">
-                      <label className="text-sm text-textSubtle">Custom model name</label>
-                      <button
-                        onClick={() => setIsCustomModel(false)}
-                        className="text-sm text-textSubtle"
-                      >
-                        Back to model list
-                      </button>
-                    </div>
-                    <Input
-                      className="border-2 px-4 py-5"
-                      placeholder="Type model name here"
-                      onChange={(event) => setModel(event.target.value)}
-                      value={model}
-                    />
-                    {attemptedSubmit && validationErrors.model && (
-                      <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
-                    )}
-                  </div>
+          ) : (
+            /* Manual Provider/Model Selection */
+            <div className="w-full flex flex-col gap-4">
+              <div>
+                <Select
+                  options={providerOptions}
+                  value={providerOptions.find((option) => option.value === provider) || null}
+                  onChange={(newValue: unknown) => {
+                    const option = newValue as { value: string; label: string } | null;
+                    if (option?.value === 'configure_providers') {
+                      // Navigate to ConfigureProviders view
+                      setView('ConfigureProviders');
+                      onClose(); // Close the current modal
+                    } else {
+                      setProvider(option?.value || null);
+                      setModel('');
+                      setIsCustomModel(false);
+                    }
+                  }}
+                  placeholder="Provider"
+                  isClearable
+                />
+                {attemptedSubmit && validationErrors.provider && (
+                  <div className="text-red-500 text-sm mt-1">{validationErrors.provider}</div>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+
+              {provider && (
+                <>
+                  {!isCustomModel ? (
+                    <div>
+                      <Select
+                        options={filteredModelOptions}
+                        onChange={handleModelChange}
+                        onInputChange={handleInputChange} // Added for input handling
+                        value={model ? { value: model, label: model } : null}
+                        placeholder="Select a model"
+                      />
+                      {attemptedSubmit && validationErrors.model && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between">
+                        <label className="text-sm text-textSubtle">Custom model name</label>
+                        <button
+                          onClick={() => setIsCustomModel(false)}
+                          className="text-sm text-textSubtle"
+                        >
+                          Back to model list
+                        </button>
+                      </div>
+                      <Input
+                        className="border-2 px-4 py-5"
+                        placeholder="Type model name here"
+                        onChange={(event) => setModel(event.target.value)}
+                        value={model}
+                      />
+                      {attemptedSubmit && validationErrors.model && (
+                        <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="pt-2">
