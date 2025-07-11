@@ -106,6 +106,7 @@ These variables control how Goose manages conversation sessions and context.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
+| `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 
 **Examples**
 
@@ -115,6 +116,15 @@ export GOOSE_CONTEXT_STRATEGY=summarize
 
 # Always prompt user to choose (default for interactive mode)
 export GOOSE_CONTEXT_STRATEGY=prompt
+
+# Set a low limit for step-by-step control
+export GOOSE_MAX_TURNS=5
+
+# Set a moderate limit for controlled automation
+export GOOSE_MAX_TURNS=25
+
+# Set a reasonable limit for production
+export GOOSE_MAX_TURNS=100
 ```
 
 ### Context Limit Configuration
