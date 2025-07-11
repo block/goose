@@ -3,17 +3,24 @@ import MoreMenu from './MoreMenu';
 import type { View, ViewOptions } from '../../App';
 import { Document } from '../icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
+import { SessionHeader } from '../session/SessionHeader';
 
 export default function MoreMenuLayout({
   hasMessages,
   showMenu = true,
   setView,
   setIsGoosehintsModalOpen,
+  sessionId,
+  sessionName,
+  onSessionNameUpdated,
 }: {
   hasMessages?: boolean;
   showMenu?: boolean;
   setView?: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
+  sessionId?: string;
+  sessionName?: string | null;
+  onSessionNameUpdated?: (newName: string) => void;
 }) {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
@@ -29,40 +36,50 @@ export default function MoreMenuLayout({
         <div
           className={`flex items-center justify-between w-full h-full ${safeIsMacOS ? 'pl-[86px]' : 'pl-[8px]'} pr-4`}
         >
-          <TooltipProvider>
-            <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
-              <TooltipTrigger asChild>
-                <button
-                  className="z-[100] no-drag hover:cursor-pointer border border-borderSubtle hover:border-borderStandard rounded-lg p-2 pr-3 text-textSubtle hover:text-textStandard text-sm flex items-center transition-colors [&>svg]:size-4 "
-                  onClick={async () => {
-                    if (hasMessages) {
-                      window.electron.directoryChooser();
-                    } else {
-                      window.electron.directoryChooser(true);
-                    }
-                  }}
-                  style={{ minWidth: 0 }}
-                >
-                  <Document className="mr-1" />
-                  <span
-                    className="flex-grow block text-ellipsis overflow-hidden"
-                    style={{
-                      direction: 'rtl',
-                      textAlign: 'left',
-                      unicodeBidi: 'plaintext',
-                      minWidth: 0,
-                      maxWidth: '100%',
+          <div className="flex items-center space-x-2">
+            <TooltipProvider>
+              <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+                <TooltipTrigger asChild>
+                  <button
+                    className="z-[100] no-drag hover:cursor-pointer border border-borderSubtle hover:border-borderStandard rounded-lg p-2 pr-3 text-textSubtle hover:text-textStandard text-sm flex items-center transition-colors [&>svg]:size-4 "
+                    onClick={async () => {
+                      if (hasMessages) {
+                        window.electron.directoryChooser();
+                      } else {
+                        window.electron.directoryChooser(true);
+                      }
                     }}
+                    style={{ minWidth: 0 }}
                   >
-                    {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
-                  </span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-                {window.appConfig.get('GOOSE_WORKING_DIR') as string}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                    <Document className="mr-1" />
+                    <span
+                      className="flex-grow block text-ellipsis overflow-hidden"
+                      style={{
+                        direction: 'rtl',
+                        textAlign: 'left',
+                        unicodeBidi: 'plaintext',
+                        minWidth: 0,
+                        maxWidth: '100%',
+                      }}
+                    >
+                      {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+                  {window.appConfig.get('GOOSE_WORKING_DIR') as string}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {sessionId && sessionName && (
+              <SessionHeader
+                sessionId={sessionId}
+                sessionName={sessionName}
+                onNameUpdated={onSessionNameUpdated}
+              />
+            )}
+          </div>
 
           <MoreMenu
             setView={setView || (() => {})}
