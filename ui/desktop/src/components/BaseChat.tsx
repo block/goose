@@ -307,101 +307,108 @@ function BaseChatContent({
   };
 
   return (
-    <div>
-      <MainPanelLayout {...customMainLayoutProps}>
+    <div className="bg-background-muted h-full flex flex-col min-h-0">
+      <MainPanelLayout removeTopPadding={true} {...customMainLayoutProps}>
         {/* Loader when generating recipe */}
         {isGeneratingRecipe && <LayingEggLoader />}
 
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
-        {/* Recipe agent header - fixed at top when recipe is active */}
-        {recipeConfig?.title && (
-          <AgentHeader
-            title={recipeConfig.title}
-            profileInfo={
-              recipeConfig.profile
-                ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
-                : undefined
-            }
-            onChangeProfile={() => {
-              console.log('Change profile clicked');
-            }}
-            showBorder={messages.length > 0}
-          />
-        )}
+        {/* Recipe agent header - inside the messages container when present */}
+        <div className="flex flex-col flex-1 mb-0.5 min-h-0">
+          <ScrollArea
+            ref={scrollRef}
+            className={`flex-1 bg-background-default rounded-b-2xl min-h-0 ${contentClassName}`}
+            autoScroll
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            data-drop-zone="true"
+            paddingX={6}
+            paddingY={0}
+          >
+            {/* Recipe agent header - now inside the messages container */}
+            {recipeConfig?.title && (
+              <div className="px-0 -mx-6">
+                <AgentHeader
+                  title={recipeConfig.title}
+                  profileInfo={
+                    recipeConfig.profile
+                      ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                      : undefined
+                  }
+                  onChangeProfile={() => {
+                    console.log('Change profile clicked');
+                  }}
+                  showBorder={messages.length > 0}
+                />
+              </div>
+            )}
 
-        <ScrollArea
-          ref={scrollRef}
-          className={`flex-1 ${contentClassName}`}
-          autoScroll
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          data-drop-zone="true"
-          paddingX={6}
-          paddingY={0}
-        >
-          {/* Custom content before messages */}
-          {renderBeforeMessages && renderBeforeMessages()}
+            {/* Custom content before messages */}
+            {renderBeforeMessages && renderBeforeMessages()}
 
-          {/* Messages or Splash */}
-          {messages.length === 0 ? (
-            /* Show Splash when no messages and we have a recipe config */
-            recipeConfig && (
-              <Splash
-                append={(text: string) => append(text)}
-                activities={Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null}
-                title={recipeConfig.title}
-              />
-            )
-          ) : (
-            <>
-              {disableSearch ? (
-                // Render messages without SearchView wrapper when search is disabled
-                renderMessages()
-              ) : (
-                // Render messages with SearchView wrapper when search is enabled
-                <SearchView>{renderMessages()}</SearchView>
-              )}
+            {/* Messages or Splash */}
+            {messages.length === 0 ? (
+              /* Show Splash when no messages and we have a recipe config */
+              recipeConfig && (
+                <Splash
+                  append={(text: string) => append(text)}
+                  activities={Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null}
+                  title={recipeConfig.title}
+                />
+              )
+            ) : (
+              <>
+                {disableSearch ? (
+                  // Render messages without SearchView wrapper when search is disabled
+                  renderMessages()
+                ) : (
+                  // Render messages with SearchView wrapper when search is enabled
+                  <SearchView>{renderMessages()}</SearchView>
+                )}
 
-              {error && (
-                <div className="flex flex-col items-center justify-center p-4">
-                  <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                    {error.message || 'Honk! Goose experienced an error while responding'}
+                {error && (
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                      {error.message || 'Honk! Goose experienced an error while responding'}
+                    </div>
+                    <div
+                      className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                      onClick={async () => {
+                        // Find the last user message
+                        const lastUserMessage = messages.reduceRight(
+                          (found, m) => found || (m.role === 'user' ? m : null),
+                          null as Message | null
+                        );
+                        if (lastUserMessage) {
+                          append(lastUserMessage);
+                        }
+                      }}
+                    >
+                      Retry Last Message
+                    </div>
                   </div>
-                  <div
-                    className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                    onClick={async () => {
-                      // Find the last user message
-                      const lastUserMessage = messages.reduceRight(
-                        (found, m) => found || (m.role === 'user' ? m : null),
-                        null as Message | null
-                      );
-                      if (lastUserMessage) {
-                        append(lastUserMessage);
-                      }
-                    }}
-                  >
-                    Retry Last Message
-                  </div>
-                </div>
-              )}
-              <div className="block h-8" />
-            </>
-          )}
+                )}
+                <div className="block h-8" />
+              </>
+            )}
 
-          {/* Custom content after messages */}
-          {renderAfterMessages && renderAfterMessages()}
-        </ScrollArea>
+            {/* Loading indicator at bottom of messages container */}
+            {isLoading && (
+              <div className="px-0 -mx-6">
+                <LoadingGoose message={isLoadingSummary ? 'summarizing conversation…' : undefined} />
+              </div>
+            )}
+
+            {/* Custom content after messages */}
+            {renderAfterMessages && renderAfterMessages()}
+          </ScrollArea>
+        </div>
 
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          <div className="px-6">
-            {isLoading && (
-              <LoadingGoose message={isLoadingSummary ? 'summarizing conversation…' : undefined} />
-            )}
-          </div>
           <ChatInput
             handleSubmit={handleSubmit}
             isLoading={isLoading}
