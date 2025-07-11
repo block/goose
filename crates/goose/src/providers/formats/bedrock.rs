@@ -260,11 +260,7 @@ pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
         .collect::<Result<Vec<_>>>()?;
     let created = Utc::now().timestamp();
 
-    Ok(Message {
-        role,
-        content,
-        created,
-    })
+    Ok(Message::new(role, created, content))
 }
 
 pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<MessageContent> {

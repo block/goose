@@ -225,6 +225,7 @@ async fn handler(
                 return;
             }
         };
+        let saved_message_count = all_messages.len();
 
         loop {
             tokio::select! {
@@ -242,16 +243,6 @@ async fn handler(
                                 ).await;
                                 break;
                             }
-
-
-                            let session_path = session_path.clone();
-                            let messages = all_messages.clone();
-                            let provider = Arc::clone(provider.as_ref().unwrap());
-                            tokio::spawn(async move {
-                                if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
-                                    tracing::error!("Failed to store session history: {:?}", e);
-                                }
-                            });
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
@@ -301,6 +292,17 @@ async fn handler(
                     }
                 }
             }
+        }
+
+        if all_messages.len() > saved_message_count {
+            let provider = Arc::clone(provider.as_ref().unwrap());
+            tokio::spawn(async move {
+                if let Err(e) =
+                    session::persist_messages(&session_path, &all_messages, Some(provider)).await
+                {
+                    tracing::error!("Failed to store session history: {:?}", e);
+                }
+            });
         }
 
         let _ = stream_event(
