@@ -273,7 +273,11 @@ impl ClaudeCodeProvider {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{}': {}. \
+                Make sure the Claude CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
+                self.command, e
+            )))?;
 
         let stdout = child
             .stdout
