@@ -225,9 +225,22 @@ impl StdioTransport {
         #[cfg(windows)]
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW flag
 
-        let mut process = command
-            .spawn()
-            .map_err(|e| Error::StdioProcessError(e.to_string()))?;
+        let mut process = command.spawn().map_err(|e| {
+            let command = command.into_std();
+            Error::StdioProcessError(format!(
+                "Could not run extension command (`{} {}`): {}",
+                command
+                    .get_program()
+                    .to_str()
+                    .unwrap_or("[invalid command]"),
+                command
+                    .get_args()
+                    .map(|arg| arg.to_str().unwrap_or("[invalid arg]"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                e
+            ))
+        })?;
 
         let stdin = process
             .stdin
