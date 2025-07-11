@@ -193,10 +193,10 @@ impl PkceOAuth2Client {
             };
 
             // Store updated token data
-            match self.credentials_manager.write_credentials(&token_data) {
-                Ok(_) => debug!("Successfully stored token data"),
-                Err(e) => error!("Failed to store token data: {}", e),
-            }
+            self.credentials_manager
+                .write_credentials(&token_data)
+                .map(|_| debug!("Successfully stored token data"))
+                .unwrap_or_else(|e| error!("Failed to store token data: {}", e));
         } else {
             debug!("No refresh token provided in OAuth flow response");
         }
@@ -248,10 +248,10 @@ impl PkceOAuth2Client {
         };
 
         // Store updated token data
-        match self.credentials_manager.write_credentials(&token_data) {
-            Ok(_) => debug!("Successfully stored token data"),
-            Err(e) => error!("Failed to store token data: {}", e),
-        }
+        self.credentials_manager
+            .write_credentials(&token_data)
+            .map(|_| debug!("Successfully stored token data"))
+            .unwrap_or_else(|e| error!("Failed to store token data: {}", e));
 
         Ok(access_token)
     }
