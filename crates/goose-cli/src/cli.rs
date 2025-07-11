@@ -29,6 +29,345 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 
+use goose::message::MessageContent;
+use goose::telemetry::{
+    CommandExecution, CommandResult, CommandType, SessionExecution, SessionResult, SessionType,
+    TokenUsage, ToolUsage,
+};
+use std::collections::HashMap;
+
+fn extract_telemetry_data_from_session(
+    session: &crate::Session,
+    params: &[(String, String)],
+) -> (
+    Option<TokenUsage>,
+    Vec<ToolUsage>,
+    HashMap<String, String>,
+    Option<String>,
+) {
+    let token_usage = if let Ok(metadata) = session.get_metadata() {
+        let input_tokens = metadata.input_tokens.unwrap_or(0) as u64;
+        let output_tokens = metadata.output_tokens.unwrap_or(0) as u64;
+
+        if input_tokens > 0 || output_tokens > 0 {
+            Some(TokenUsage::new(input_tokens, output_tokens))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let messages = session.message_history();
+    let mut tool_usage_map: HashMap<String, ToolUsage> = HashMap::new();
+
+    for message in &messages {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(tool_request) => {
+                    if let Ok(tool_call) = &tool_request.tool_call {
+                        let tool_name = &tool_call.name;
+                        let entry = tool_usage_map
+                            .entry(tool_name.clone())
+                            .or_insert_with(|| ToolUsage::new(tool_name));
+                        entry.add_call(std::time::Duration::from_millis(0), true);
+                    }
+                }
+                MessageContent::ToolResponse(tool_response) => {
+                    if tool_response.tool_result.is_err() {
+                        for tool_usage in tool_usage_map.values_mut() {
+                            if tool_usage.error_count < tool_usage.call_count {
+                                tool_usage.error_count += 1;
+                                tool_usage.success_count =
+                                    tool_usage.call_count - tool_usage.error_count;
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let tool_usage: Vec<ToolUsage> = tool_usage_map.into_values().collect();
+
+    let mut metadata = HashMap::new();
+    for (key, value) in params {
+        metadata.insert(key.clone(), value.clone());
+    }
+
+    if let Ok(session_metadata) = session.get_metadata() {
+        metadata.insert(
+            "working_dir".to_string(),
+            session_metadata.working_dir.to_string_lossy().to_string(),
+        );
+        metadata.insert(
+            "message_count".to_string(),
+            session_metadata.message_count.to_string(),
+        );
+        if let Some(schedule_id) = session_metadata.schedule_id {
+            metadata.insert("schedule_id".to_string(), schedule_id);
+        }
+    }
+
+    let environment = detect_environment();
+
+    (token_usage, tool_usage, metadata, environment)
+}
+
+fn detect_environment() -> Option<String> {
+    let mut env_indicators = Vec::new();
+
+    if std::env::var("CI").is_ok() {
+        env_indicators.push("ci");
+    }
+    if std::env::var("GITHUB_ACTIONS").is_ok() {
+        env_indicators.push("github-actions");
+    }
+    if std::env::var("JENKINS_URL").is_ok() {
+        env_indicators.push("jenkins");
+    }
+    if std::env::var("GITLAB_CI").is_ok() {
+        env_indicators.push("gitlab-ci");
+    }
+
+    if std::env::var("DOCKER_CONTAINER").is_ok() || std::path::Path::new("/.dockerenv").exists() {
+        env_indicators.push("docker");
+    }
+    if std::env::var("KUBERNETES_SERVICE_HOST").is_ok() {
+        env_indicators.push("kubernetes");
+    }
+
+    if std::env::var("AWS_LAMBDA_FUNCTION_NAME").is_ok() {
+        env_indicators.push("aws-lambda");
+    }
+    if std::env::var("GOOGLE_CLOUD_PROJECT").is_ok() {
+        env_indicators.push("gcp");
+    }
+    if std::env::var("AZURE_FUNCTIONS_ENVIRONMENT").is_ok() {
+        env_indicators.push("azure-functions");
+    }
+
+    if std::env::var("VSCODE_INJECTION").is_ok() {
+        env_indicators.push("vscode");
+    }
+    if std::env::var("TERM_PROGRAM").as_deref() == Ok("iTerm.app") {
+        env_indicators.push("iterm");
+    }
+    if std::env::var("TERM_PROGRAM").as_deref() == Ok("Apple_Terminal") {
+        env_indicators.push("terminal-app");
+    }
+
+    if std::env::var("GOOSE_JOB_ID").is_ok() {
+        env_indicators.push("scheduled");
+    }
+
+    #[cfg(target_os = "macos")]
+    env_indicators.push("macos");
+    #[cfg(target_os = "linux")]
+    env_indicators.push("linux");
+    #[cfg(target_os = "windows")]
+    env_indicators.push("windows");
+
+    #[cfg(target_arch = "x86_64")]
+    env_indicators.push("x86_64");
+    #[cfg(target_arch = "aarch64")]
+    env_indicators.push("aarch64");
+    #[cfg(target_arch = "arm")]
+    env_indicators.push("arm");
+
+    if env_indicators.is_empty() {
+        None
+    } else {
+        Some(env_indicators.join(","))
+    }
+}
+
+async fn track_session_execution<F, Fut, T>(
+    session_id: &str,
+    session_type: SessionType,
+    execution_fn: F,
+) -> Result<T>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<(T, crate::Session)>>,
+{
+    let start_time = std::time::Instant::now();
+
+    let telemetry_execution = goose::telemetry::global_telemetry().map(|_manager| {
+        SessionExecution::new(session_id, session_type).with_metadata("interface", "cli")
+    });
+
+    let result = execution_fn().await;
+
+    if let Some(mut execution) = telemetry_execution {
+        let duration = start_time.elapsed();
+
+        match &result {
+            Ok((_, session)) => {
+                let (token_usage, tool_usage, metadata, environment) =
+                    extract_telemetry_data_from_session(session, &[]);
+
+                execution = execution
+                    .with_result(SessionResult::Success)
+                    .with_duration(duration);
+
+                if let Some(tokens) = token_usage {
+                    execution = execution.with_token_usage(tokens);
+                }
+
+                for tool in tool_usage {
+                    execution.add_tool_usage(tool);
+                }
+
+                for (key, value) in metadata {
+                    execution = execution.with_metadata(&key, &value);
+                }
+
+                if let Some(env) = environment {
+                    execution = execution.with_environment(&env);
+                }
+
+                if let Ok(session_metadata) = session.get_metadata() {
+                    execution = execution.with_message_count(session_metadata.message_count as u64);
+                }
+                let messages = session.message_history();
+                execution = execution.with_turn_count(messages.len() as u64);
+            }
+            Err(e) => {
+                execution = execution
+                    .with_result(SessionResult::Error(e.to_string()))
+                    .with_duration(duration);
+            }
+        }
+
+        if let Some(manager) = goose::telemetry::global_telemetry() {
+            if let Err(e) = manager.track_session_execution(execution).await {
+                tracing::warn!("Failed to track session execution: {}", e);
+            }
+        }
+    }
+
+    result.map(|(result, _)| result)
+}
+
+async fn track_command_execution<F, Fut, T>(
+    command_name: &str,
+    command_type: CommandType,
+    execution_fn: F,
+) -> Result<T>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let start_time = std::time::Instant::now();
+
+    let telemetry_execution = goose::telemetry::global_telemetry()
+        .map(|_manager| CommandExecution::new(command_name, command_type));
+
+    let result = execution_fn().await;
+
+    if let Some(mut execution) = telemetry_execution {
+        let duration = start_time.elapsed();
+
+        match &result {
+            Ok(_) => {
+                execution = execution
+                    .with_result(CommandResult::Success)
+                    .with_duration(duration);
+            }
+            Err(e) => {
+                execution = execution
+                    .with_result(CommandResult::Error(e.to_string()))
+                    .with_duration(duration);
+            }
+        }
+
+        if let Some(env) = detect_environment() {
+            execution = execution.with_environment(&env);
+        }
+
+        if let Some(manager) = goose::telemetry::global_telemetry() {
+            if let Err(e) = manager.track_command_execution(execution).await {
+                tracing::warn!("Failed to track command execution: {}", e);
+            }
+        }
+    }
+
+    result
+}
+
+async fn track_recipe_execution<F, Fut, T>(
+    recipe_name: &str,
+    recipe_version: &str,
+    execution_fn: F,
+    params: Vec<(String, String)>,
+) -> Result<T>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<(T, crate::Session)>>,
+{
+    let start_time = std::time::Instant::now();
+
+    let telemetry_execution = goose::telemetry::global_telemetry()
+        .map(|manager| manager.recipe_execution(recipe_name, recipe_version));
+
+    let result = execution_fn().await;
+
+    if let Some(execution_builder) = telemetry_execution {
+        let duration = start_time.elapsed();
+        let execution = match &result {
+            Ok((_, session)) => {
+                let (token_usage, tool_usage, metadata, environment) =
+                    extract_telemetry_data_from_session(session, &params);
+
+                let mut builder = execution_builder
+                    .with_result(goose::telemetry::RecipeResult::Success)
+                    .with_duration(duration);
+
+                if let Some(tokens) = token_usage {
+                    builder = builder.with_token_usage(tokens);
+                }
+
+                for tool in tool_usage {
+                    builder = builder.add_tool_usage(tool);
+                }
+
+                for (key, value) in metadata {
+                    builder = builder.with_metadata(&key, &value);
+                }
+
+                if let Some(env) = environment {
+                    builder = builder.with_environment(&env);
+                }
+
+                builder.build()
+            }
+            Err(e) => {
+                let metadata: HashMap<String, String> = params.iter().cloned().collect();
+                let mut builder = execution_builder
+                    .with_result(goose::telemetry::RecipeResult::Error(e.to_string()))
+                    .with_duration(duration);
+
+                for (key, value) in metadata {
+                    builder = builder.with_metadata(&key, &value);
+                }
+
+                builder.build()
+            }
+        };
+
+        if let Some(manager) = goose::telemetry::global_telemetry() {
+            if let Err(e) = manager.track_recipe_execution(execution).await {
+                tracing::warn!("Failed to track recipe execution: {}", e);
+            }
+        }
+    }
+
+    result.map(|(result, _)| result)
+}
+
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
@@ -636,7 +975,12 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Configure {}) => {
-            let _ = handle_configure().await;
+            track_command_execution("configure", CommandType::Configure, || async {
+                handle_configure()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Configure failed: {}", e))
+            })
+            .await?;
             return Ok(());
         }
         Some(Command::Info { verbose }) => {
@@ -690,41 +1034,53 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session: crate::Session = build_session(SessionBuilderConfig {
-                        identifier: identifier.map(extract_identifier),
-                        resume,
-                        no_session: false,
-                        extensions,
-                        remote_extensions,
-                        builtins,
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                        settings: None,
-                        debug,
-                        max_tool_repetitions,
-                        max_turns,
-                        scheduled_job_id: None,
-                        interactive: true,
-                        quiet: false,
-                        sub_recipes: None,
-                        final_output_response: None,
+                    let session_id = format!(
+                        "session_{}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs()
+                    );
+
+                    track_session_execution(&session_id, SessionType::Interactive, || async {
+                        let mut session: crate::Session = build_session(SessionBuilderConfig {
+                            identifier: identifier.map(extract_identifier),
+                            resume,
+                            no_session: false,
+                            extensions,
+                            remote_extensions,
+                            builtins,
+                            extensions_override: None,
+                            additional_system_prompt: None,
+                            settings: None,
+                            debug,
+                            max_tool_repetitions,
+                            max_turns,
+                            scheduled_job_id: None,
+                            interactive: true,
+                            quiet: false,
+                            sub_recipes: None,
+                            final_output_response: None,
+                        })
+                        .await;
+                        setup_logging(
+                            session
+                                .session_file()
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str()),
+                            None,
+                        )?;
+
+                        // Render previous messages if resuming a session and history flag is set
+                        if resume && history {
+                            session.render_message_history();
+                        }
+
+                        let result = session.interactive(None).await;
+                        result.map(|r| (r, session))
                     })
-                    .await;
-                    setup_logging(
-                        session
-                            .session_file()
-                            .as_ref()
-                            .and_then(|p| p.file_stem())
-                            .and_then(|s| s.to_str()),
-                        None,
-                    )?;
-
-                    // Render previous messages if resuming a session and history flag is set
-                    if resume && history {
-                        session.render_message_history();
-                    }
-
-                    let _ = session.interactive(None).await;
+                    .await?;
                     Ok(())
                 }
             };
@@ -762,6 +1118,10 @@ pub async fn cli() -> Result<()> {
             quiet,
             additional_sub_recipes,
         }) => {
+            // Check if this is a recipe execution for telemetry tracking
+            let is_recipe_execution = recipe.is_some();
+            let recipe_name_for_telemetry = recipe.clone().unwrap_or_default();
+
             let (input_config, session_settings, sub_recipes, final_output_response) = match (
                 instructions,
                 input_text,
@@ -827,7 +1187,12 @@ pub async fn cli() -> Result<()> {
                         println!("{}", recipe);
                         return Ok(());
                     }
-                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
+
+                    extract_recipe_info_from_cli(
+                        recipe_name.clone(),
+                        params.clone(),
+                        additional_sub_recipes,
+                    )?
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -835,43 +1200,117 @@ pub async fn cli() -> Result<()> {
                 }
             };
 
-            let mut session = build_session(SessionBuilderConfig {
-                identifier: identifier.map(extract_identifier),
-                resume,
-                no_session,
-                extensions,
-                remote_extensions,
-                builtins,
-                extensions_override: input_config.extensions_override,
-                additional_system_prompt: input_config.additional_system_prompt,
-                settings: session_settings,
-                debug,
-                max_tool_repetitions,
-                max_turns,
-                scheduled_job_id,
-                interactive, // Use the interactive flag from the Run command
-                quiet,
-                sub_recipes,
-                final_output_response,
-            })
-            .await;
+            if is_recipe_execution {
+                let recipe_version = "1.0.0";
 
-            setup_logging(
-                session
-                    .session_file()
-                    .as_ref()
-                    .and_then(|p| p.file_stem())
-                    .and_then(|s| s.to_str()),
-                None,
-            )?;
+                track_recipe_execution(
+                    &recipe_name_for_telemetry,
+                    recipe_version,
+                    || async {
+                        let mut session = build_session(SessionBuilderConfig {
+                            identifier: identifier.map(extract_identifier),
+                            resume,
+                            no_session,
+                            extensions,
+                            remote_extensions,
+                            builtins,
+                            extensions_override: input_config.extensions_override,
+                            additional_system_prompt: input_config.additional_system_prompt,
+                            settings: session_settings,
+                            debug,
+                            max_tool_repetitions,
+                            max_turns,
+                            scheduled_job_id,
+                            interactive,
+                            quiet,
+                            sub_recipes,
+                            final_output_response,
+                        })
+                        .await;
 
-            if interactive {
-                let _ = session.interactive(input_config.contents).await;
-            } else if let Some(contents) = input_config.contents {
-                let _ = session.headless(contents).await;
+                        setup_logging(
+                            session
+                                .session_file()
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str()),
+                            None,
+                        )?;
+
+                        let result = if interactive {
+                            session.interactive(input_config.contents).await
+                        } else if let Some(contents) = input_config.contents {
+                            session.headless(contents).await
+                        } else {
+                            Err(anyhow::anyhow!(
+                                "Error: no text provided for prompt in headless mode"
+                            ))
+                        };
+
+                        result.map(|r| (r, session))
+                    },
+                    params,
+                )
+                .await?;
             } else {
-                eprintln!("Error: no text provided for prompt in headless mode");
-                std::process::exit(1);
+                // Use session tracking for non-recipe runs (--text, --instructions, stdin)
+                let session_id = format!(
+                    "run_{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                );
+                let session_type = if interactive {
+                    SessionType::Interactive
+                } else {
+                    SessionType::Headless
+                };
+
+                track_session_execution(&session_id, session_type, || async {
+                    let mut session = build_session(SessionBuilderConfig {
+                        identifier: identifier.map(extract_identifier),
+                        resume,
+                        no_session,
+                        extensions,
+                        remote_extensions,
+                        builtins,
+                        extensions_override: input_config.extensions_override,
+                        additional_system_prompt: input_config.additional_system_prompt,
+                        settings: session_settings,
+                        debug,
+                        max_tool_repetitions,
+                        max_turns,
+                        scheduled_job_id,
+                        interactive,
+                        quiet,
+                        sub_recipes,
+                        final_output_response,
+                    })
+                    .await;
+
+                    setup_logging(
+                        session
+                            .session_file()
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .and_then(|s| s.to_str()),
+                        None,
+                    )?;
+
+                    let result = if interactive {
+                        session.interactive(input_config.contents).await
+                    } else if let Some(contents) = input_config.contents {
+                        session.headless(contents).await
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Error: no text provided for prompt in headless mode"
+                        ))
+                    };
+
+                    result.map(|r| (r, session))
+                })
+                .await?;
             }
 
             return Ok(());

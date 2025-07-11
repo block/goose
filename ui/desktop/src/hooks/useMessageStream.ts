@@ -9,6 +9,13 @@ const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
+export interface ChatRequestBody {
+  messages: Message[];
+  recipe_name?: string;
+  recipe_version?: string;
+  [key: string]: unknown;
+}
+
 export interface SessionMetadata {
   workingDir: string;
   description: string;
@@ -390,10 +397,30 @@ export function useMessageStream({
         // Filter out messages where sendToLLM is explicitly false
         const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
 
+        // Get recipe information from app config if available
+        const appConfig = (window as unknown as Record<string, unknown>).appConfig as
+          | Record<string, unknown>
+          | undefined;
+        const recipeConfig = appConfig?.recipeConfig as
+          | { title?: string; version?: string }
+          | undefined;
+
+        // Prepare request body with recipe information
+        const requestBody: ChatRequestBody = {
+          messages: filteredMessages,
+          ...extraMetadataRef.current.body,
+        };
+
+        // Add recipe metadata if available
+        if (recipeConfig && recipeConfig.title) {
+          requestBody.recipe_name = recipeConfig.title;
+          requestBody.recipe_version = recipeConfig.version || '1.0.0';
+        }
+
         // Log request details for debugging
         console.log('Request details:', {
           messages: filteredMessages,
-          body: extraMetadataRef.current.body,
+          body: requestBody,
         });
 
         // Send request to the server
@@ -404,10 +431,7 @@ export function useMessageStream({
             'X-Secret-Key': getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
-          body: JSON.stringify({
-            messages: filteredMessages,
-            ...extraMetadataRef.current.body,
-          }),
+          body: JSON.stringify(requestBody),
           signal: abortController.signal,
         });
 
