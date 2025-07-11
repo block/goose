@@ -16,7 +16,6 @@ pub mod sub_recipe_manager;
 pub mod subagent;
 pub mod subagent_handler;
 pub mod subagent_manager;
-pub mod subagent_tools;
 pub mod subagent_types;
 mod tool_execution;
 mod tool_router_index_manager;

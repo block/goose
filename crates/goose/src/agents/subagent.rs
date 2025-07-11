@@ -21,7 +21,6 @@ use crate::agents::platform_tools::{
     self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
-use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -581,28 +580,8 @@ impl SubAgent {
 
     /// Filter out subagent spawning tools to prevent infinite recursion
     fn filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
-        let original_count = tools.len();
-        let filtered_tools: Vec<Tool> = tools
-            .into_iter()
-            .filter(|tool| {
-                let should_keep = tool.name != SUBAGENT_RUN_TASK_TOOL_NAME;
-                if !should_keep {
-                    debug!("Filtering out subagent tool: {}", tool.name);
-                }
-                should_keep
-            })
-            .collect();
-
-        let filtered_count = filtered_tools.len();
-        if filtered_count < original_count {
-            debug!(
-                "Filtered {} subagent tool(s) from {} total tools",
-                original_count - filtered_count,
-                original_count
-            );
-        }
-
-        filtered_tools
+        // TODO: experiment with subagent recursion
+        tools
     }
 
     /// Add platform tools to the subagent's tool list (excluding dangerous tools)

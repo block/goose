@@ -1,3 +1,9 @@
+// =======================================
+// Module: Sub Recipe Task Tools
+// Handles creation of tasks based on sub-recipes, in contrast to dynamic_task_tools.rs 
+// which creates tasks dynamically without sub-recipes
+// =======================================
+
 use std::collections::HashSet;
 use std::fs;
 
@@ -11,8 +17,8 @@ use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubReci
 use super::param_utils::prepare_command_params;
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
-const EXECUTION_MODE_PARALLEL: &str = "parallel";
-const EXECUTION_MODE_SEQUENTIAL: &str = "sequential";
+pub const EXECUTION_MODE_PARALLEL: &str = "parallel";
+pub const EXECUTION_MODE_SEQUENTIAL: &str = "sequential";
 
 pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();
