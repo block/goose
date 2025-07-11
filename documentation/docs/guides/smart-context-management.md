@@ -137,6 +137,64 @@ Key information has been preserved while reducing context length.
   </TabItem>
 </Tabs>
 
+## Model Context Limit Overrides
+
+Context limits are automatically detected based on your model name, but Goose provides settings to override the default limits:
+
+| Model | Description | Best For | Setting |
+|-------|-------------|----------|---------|
+| **Main** | Set context limit for the main model (also serves as fallback for other models) | LiteLLM proxies, custom models with non-standard names | `GOOSE_CONTEXT_LIMIT` |
+| **Lead** | Set larger context for planning in [lead/worker mode](/docs/tutorials/lead-worker) | Complex planning tasks requiring more context | `GOOSE_LEAD_CONTEXT_LIMIT` |
+| **Worker** | Set smaller context for execution in lead/worker mode | Cost optimization during execution phase | `GOOSE_WORKER_CONTEXT_LIMIT` |
+| **Planner** | Set context for [planner models](/docs/guides/creating-plans) | Large planning tasks requiring extensive context | `GOOSE_PLANNER_CONTEXT_LIMIT` |
+
+This feature is particularly useful with:
+
+- **LiteLLM Proxy Models**: When using LiteLLM with custom model names that don't match Goose's patterns
+- **Enterprise Deployments**: Custom model deployments with non-standard naming  
+- **Fine-tuned Models**: Custom models with different context limits than their base versions
+- **Development/Testing**: Temporarily adjusting context limits for testing purposes
+
+Goose resolves context limits with the following precedence (highest to lowest):
+
+1. Explicit context_limit in model configuration (if set programmatically)
+2. Specific environment variable (e.g., `GOOSE_LEAD_CONTEXT_LIMIT`)
+3. Global environment variable (`GOOSE_CONTEXT_LIMIT`)
+4. Model-specific default based on name pattern matching
+5. Global default (128,000 tokens)
+
+Session [environment variables](/docs/guides/environment-variables#model-context-limit-overrides) take precedence over the corresponding key in the [configuration file](/docs/guides/config-file).
+
+:::info
+These settings cannot be configured through the Desktop app or using `goose configure`. 
+:::
+
+**Scenario 1: LiteLLM proxy with custom model name**
+
+```bash
+# LiteLLM proxy with custom model name
+export GOOSE_PROVIDER="openai"
+export GOOSE_MODEL="my-custom-gpt4-proxy"
+export GOOSE_CONTEXT_LIMIT=200000  # Override the 32k default
+```
+
+**Scenario 2: Lead/worker setup with different context limits**
+
+```bash
+# Different context limits for planning vs execution
+export GOOSE_LEAD_MODEL="claude-opus-custom"
+export GOOSE_LEAD_CONTEXT_LIMIT=500000    # Large context for planning
+export GOOSE_WORKER_CONTEXT_LIMIT=128000  # Smaller context for execution
+```
+
+**Scenario 3: Planner with large context**
+
+```bash
+# Large context for complex planning
+export GOOSE_PLANNER_MODEL="gpt-4-custom"
+export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
+```
+
 ## Maximum Turns
 The `Max Turns` limit is the maximum number of consecutive turns that Goose can take without user input (default: 1000). When the limit is reached, Goose stops and prompts: "I've reached the maximum number of actions I can do without user input. Would you like me to continue?" If the user answers in the affirmative, Goose continues until the limit is reached and then prompts again.
 
