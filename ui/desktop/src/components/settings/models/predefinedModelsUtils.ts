@@ -3,9 +3,8 @@ import Model from './modelInterface';
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
-    // For testing: use hardcoded models
-    const envModels = process.env.GOOSE_PREDEFINED_MODELS;
-    if (envModels) {
+    const envModels = window.appConfig.get('GOOSE_PREDEFINED_MODELS'); // process.env.GOOSE_PREDEFINED_MODELS
+    if (envModels && typeof envModels === 'string') {
       // When using real environment variable, it will be a JSON string that needs parsing:
       return JSON.parse(envModels) as Model[];
     }
