@@ -263,6 +263,36 @@ Export sessions to Markdown to share with your team, create documentation, archi
 
 For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
 
+## Voice Dictation
+Speak to Goose directly instead of typing your prompts.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+    To enable voice dictation:
+        1. Click `⚙️` in the upper right corner
+        2. Click **Advanced Settings**
+        3. Scroll to **Voice Dictation**
+        4. Toggle **Enable Voice Dictation** on
+        5. Choose between **OpenAI Whisper** or **ElevenLabs** as your dictation provider
+        6. Enter your API key for the provider you chose 
+        7. Click the back button at the top of the settings screen to return to the chat. A microphone icon appears to the right of the text input field.
+
+        **If you don't see the microphone icon**, check the [models you have configured](/docs/getting-started/providers.md). ElevenLabs can be used as a dictation provider alongside any LLM, but OpenAI Whisper requires that you have an OpenAI model configured in Goose, even if using another LLM provider for chat.  
+
+        To start using voice dictation, click the microphone icon and begin speaking. The first time, Goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
+
+       #### Important Notes
+        * You can record up to 10 minutes or 25MB of audio.
+        * The audio is processed by your chosen provider (OpenAI or ElevenLabs).
+        * Voice input is appended to any existing text in the text input field, so you can combine typing and speaking your prompts.
+        * Recordings are not stored locally after transcription.
+
+  </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        Voice dictation is not available in the Goose CLI. 
+    </TabItem>
+</Tabs>
+
 ## Search Within Sessions
 
 Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
