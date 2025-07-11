@@ -37,7 +37,6 @@ pub fn load_recipe_content_as_template(
             missing_parameters_command_line(missing_params)
         ));
     }
-
     render_recipe_content_with_params(&recipe_file_content, &params_for_template)
 }
 
