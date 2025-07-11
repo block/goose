@@ -67,8 +67,10 @@ impl AzureProvider {
             .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
-        // Try to get API key first, if not found use Azure credential chain
-        let api_key = config.get_secret("AZURE_OPENAI_API_KEY").ok();
+        let api_key = config
+            .get_secret("AZURE_OPENAI_API_KEY")
+            .ok()
+            .filter(|key: &String| !key.is_empty());
         let auth = AzureAuth::new(api_key)?;
 
         let client = Client::builder()
@@ -227,6 +229,7 @@ impl Provider for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_API_VERSION", true, false, Some("2024-10-21")),
+                ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, Some("")),
             ],
         )
     }
