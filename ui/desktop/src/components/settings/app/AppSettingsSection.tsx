@@ -8,6 +8,8 @@ import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import BlockLogoBlack from './icons/block-lockup_black.png';
+import BlockLogoWhite from './icons/block-lockup_white.png';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -24,11 +26,34 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
+
+  // Check if GOOSE_VERSION is set to determine if Updates section should be shown
+  const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
 
   // Check if running on macOS
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
+  }, []);
+
+  // Detect theme changes
+  useEffect(() => {
+    const updateTheme = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+
+    // Initial check
+    updateTheme();
+
+    // Listen for theme changes
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   // Load show pricing setting
@@ -406,8 +431,29 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      {/* Update Section */}
-      {UPDATES_ENABLED && (
+      {/* Version Section - only show if GOOSE_VERSION is set */}
+      {!shouldShowUpdates && (
+        <Card className="rounded-lg">
+          <CardHeader className="pb-0">
+            <CardTitle className="mb-1">Version</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 px-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={isDarkMode ? BlockLogoWhite : BlockLogoBlack}
+                alt="Block Logo"
+                className="h-8 w-auto"
+              />
+              <span className="text-2xl font-mono text-black dark:text-white">
+                {String(window.appConfig.get('GOOSE_VERSION') || 'Block Internal v2.1.0')}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Update Section - only show if GOOSE_VERSION is NOT set */}
+      {UPDATES_ENABLED && shouldShowUpdates && (
         <div ref={updateSectionRef}>
           <Card className="rounded-lg">
             <CardHeader className="pb-0">
