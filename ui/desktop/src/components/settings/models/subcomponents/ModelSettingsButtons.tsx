@@ -2,12 +2,7 @@ import { useState } from 'react';
 import { Button } from '../../../ui/button';
 import { AddModelModal } from './AddModelModal';
 import type { View } from '../../../../App';
-
-// Helper function to check if predefined models should be shown
-// TODO: change
-function shouldShowPredefinedModels(): boolean {
-  return true; // process.env.GOOSE_PREDEFINED_MODELS !== undefined;
-}
+import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface ConfigureModelButtonsProps {
   setView: (view: View) => void;

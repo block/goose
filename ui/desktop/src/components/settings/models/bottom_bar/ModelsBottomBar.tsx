@@ -33,11 +33,17 @@ export default function ModelsBottomBar({
   alerts,
   recipeConfig,
 }: ModelsBottomBarProps) {
-  const { currentModel, currentProvider, getCurrentModelAndProviderForDisplay } =
-    useModelAndProvider();
+  const {
+    currentModel,
+    currentProvider,
+    getCurrentModelAndProviderForDisplay,
+    getCurrentModelDisplayName,
+    getCurrentProviderDisplayName,
+  } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
+  const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
@@ -66,20 +72,31 @@ export default function ModelsBottomBar({
 
   // Determine which model to display - activeModel takes priority when lead/worker is active
   const displayModel =
-    isLeadWorkerActive && currentModelInfo?.model
-      ? currentModelInfo.model
-      : currentModel || 'Select Model';
+    isLeadWorkerActive && currentModelInfo?.model ? currentModelInfo.model : displayModelName;
   const modelMode = currentModelInfo?.mode;
 
   // Update display provider when current provider changes
   useEffect(() => {
     if (currentProvider) {
       (async () => {
-        const modelProvider = await getCurrentModelAndProviderForDisplay();
-        setDisplayProvider(modelProvider.provider);
+        const providerDisplayName = await getCurrentProviderDisplayName();
+        if (providerDisplayName) {
+          setDisplayProvider(providerDisplayName);
+        } else {
+          const modelProvider = await getCurrentModelAndProviderForDisplay();
+          setDisplayProvider(modelProvider.provider);
+        }
       })();
     }
-  }, [currentProvider, getCurrentModelAndProviderForDisplay]);
+  }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
+
+  // Update display model name when current model changes
+  useEffect(() => {
+    (async () => {
+      const displayName = await getCurrentModelDisplayName();
+      setDisplayModelName(displayName);
+    })();
+  }, [currentModel, getCurrentModelDisplayName]);
 
   // Handle view recipe - open modal instead of navigating
   const handleViewRecipe = () => {
@@ -153,7 +170,7 @@ export default function ModelsBottomBar({
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
           <h6 className="text-xs text-textProminent mt-2 ml-2">Current model</h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
-            {currentModel}
+            {displayModelName}
             {displayProvider && ` — ${displayProvider}`}
           </p>
           <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>

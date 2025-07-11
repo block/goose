@@ -17,57 +17,14 @@ import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
-
-// Helper functions for predefined models
-function getPredefinedModelsFromEnv(): Model[] {
-  console.log('here');
-  // TODO: remove
-  const models_for_test = [
-    {
-      id: 1,
-      name: 'goose-claude-4-sonnet',
-      provider: 'databricks',
-      alias: 'claude-4-sonnet (recommended)',
-      subtext: 'Anthropic',
-    },
-    {
-      id: 2,
-      name: 'goose-claude-3-5-sonnet',
-      provider: 'databricks',
-      alias: 'claude-3.5-sonnet',
-      subtext: 'Anthropic',
-    },
-    {
-      id: 3,
-      name: 'goose-claude-4-opus',
-      provider: 'databricks',
-      alias: 'claude-4-opus',
-      subtext: 'Anthropic',
-    },
-  ];
-  try {
-    const envModels = models_for_test; //process.env.GOOSE_PREDEFINED_MODELS;
-    if (envModels) {
-      // return JSON.parse(envModels) as Model[];
-      return envModels as Model[]; // No JSON.parse needed since it's already an array
-    }
-  } catch (error) {
-    console.warn('Failed to parse GOOSE_PREDEFINED_MODELS environment variable:', error);
-  }
-  return [];
-}
-
-// TODO: change
-function shouldShowPredefinedModels(): boolean {
-  return true; // process.env.GOOSE_PREDEFINED_MODELS !== undefined;
-}
+import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 type AddModelModalProps = {
   onClose: () => void;
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders } = useConfig();
+  const { getProviders, read } = useConfig();
   const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelOptions, setModelOptions] = useState<
@@ -150,7 +107,21 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   useEffect(() => {
     // Load predefined models if enabled
     if (usePredefinedModels) {
-      setPredefinedModels(getPredefinedModelsFromEnv());
+      const models = getPredefinedModelsFromEnv();
+      setPredefinedModels(models);
+
+      // Initialize selected predefined model with current model
+      (async () => {
+        try {
+          const currentModelName = (await read('GOOSE_MODEL', false)) as string;
+          const matchingModel = models.find((model) => model.name === currentModelName);
+          if (matchingModel) {
+            setSelectedPredefinedModel(matchingModel);
+          }
+        } catch (error) {
+          console.error('Failed to get current model for selection:', error);
+        }
+      })();
     }
 
     // Load providers for manual model selection
@@ -201,7 +172,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         console.error('Failed to load providers:', error);
       }
     })();
-  }, [getProviders, usePredefinedModels]);
+  }, [getProviders, usePredefinedModels, read]);
 
   // Filter model options based on selected provider
   const filteredModelOptions = provider

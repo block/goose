@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
+import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
 import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
@@ -14,35 +15,43 @@ interface ModelsSectionProps {
 
 export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);
-  const [model, setModel] = useState<string>('');
+  const [displayModelName, setDisplayModelName] = useState<string>('');
   const { read, getProviders } = useConfig();
+  const { getCurrentModelDisplayName, getCurrentProviderDisplayName } = useModelAndProvider();
 
   // Function to load model data
   const loadModelData = useCallback(async () => {
     try {
-      const gooseModel = (await read('GOOSE_MODEL', false)) as string;
       const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
       const providers = await getProviders(true);
 
-      // lookup display name
-      const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+      // Get display name (alias if available, otherwise model name)
+      const modelDisplayName = await getCurrentModelDisplayName();
+      setDisplayModelName(modelDisplayName);
 
-      if (providerDetailsList.length != 1) {
-        toastError({
-          title: UNKNOWN_PROVIDER_TITLE,
-          msg: UNKNOWN_PROVIDER_MSG,
-        });
-        setModel(gooseModel);
-        setProvider(gooseProvider);
-      } else {
-        const providerDisplayName = providerDetailsList[0].metadata.display_name;
-        setModel(gooseModel);
+      // Get provider display name (subtext if available from predefined models, otherwise provider metadata)
+      const providerDisplayName = await getCurrentProviderDisplayName();
+      if (providerDisplayName) {
         setProvider(providerDisplayName);
+      } else {
+        // Fallback to original provider lookup
+        const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+
+        if (providerDetailsList.length != 1) {
+          toastError({
+            title: UNKNOWN_PROVIDER_TITLE,
+            msg: UNKNOWN_PROVIDER_MSG,
+          });
+          setProvider(gooseProvider);
+        } else {
+          const fallbackProviderDisplayName = providerDetailsList[0].metadata.display_name;
+          setProvider(fallbackProviderDisplayName);
+        }
       }
     } catch (error) {
       console.error('Error loading model data:', error);
     }
-  }, [read, getProviders]);
+  }, [read, getProviders, getCurrentModelDisplayName, getCurrentProviderDisplayName]);
 
   useEffect(() => {
     loadModelData();
@@ -53,7 +62,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     <section id="models" className="space-y-4 pr-4">
       <Card className="p-2 pb-4">
         <CardContent className="px-2">
-          <h3 className="text-text-default">{model}</h3>
+          <h3 className="text-text-default">{displayModelName}</h3>
           <h4 className="text-xs text-text-muted">{provider}</h4>
           <ModelSettingsButtons setView={setView} />
         </CardContent>
