@@ -1,5 +1,8 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::provider_common::{
+    get_shared_client, retry_with_backoff, ProviderConfigBuilder, RetryConfig,
+};
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -9,7 +12,7 @@ use async_trait::async_trait;
 use mcp_core::tool::Tool;
 use reqwest::Client;
 use serde_json::Value;
-use std::time::Duration;
+use std::sync::Arc;
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
@@ -22,9 +25,11 @@ pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 #[derive(serde::Serialize)]
 pub struct OllamaProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for OllamaProvider {
@@ -37,18 +42,21 @@ impl Default for OllamaProvider {
 impl OllamaProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OLLAMA_HOST")
-            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
+        let config_builder = ProviderConfigBuilder::new(config, "OLLAMA");
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let host = config_builder.get_host(OLLAMA_HOST);
+
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         Ok(Self {
             client,
             host,
             model,
+            retry_config,
         })
     }
 
@@ -88,9 +96,12 @@ impl OllamaProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let response = self.client.post(url).json(&payload).send().await?;
-
-        handle_response_openai_compat(response).await
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            let response = self.client.post(url.clone()).json(&payload).send().await?;
+            handle_response_openai_compat(response).await
+        })
+        .await
     }
 }
 

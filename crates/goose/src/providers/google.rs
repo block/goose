@@ -3,17 +3,18 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
+use crate::providers::provider_common::{
+    build_endpoint_url, get_shared_client, retry_with_backoff, ProviderConfigBuilder, RetryConfig,
+};
 use crate::providers::utils::{
     emit_debug_trace, handle_response_google_compat, unescape_json_values,
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use axum::http::HeaderMap;
 use mcp_core::tool::Tool;
 use reqwest::Client;
 use serde_json::Value;
-use std::time::Duration;
-use url::Url;
+use std::sync::Arc;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-flash";
@@ -50,9 +51,13 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 #[derive(Debug, serde::Serialize)]
 pub struct GoogleProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
+    #[serde(skip)]
+    api_key: String,
 }
 
 impl Default for GoogleProvider {
@@ -65,82 +70,46 @@ impl Default for GoogleProvider {
 impl GoogleProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
-        let host: String = config
-            .get_param("GOOGLE_HOST")
-            .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
+        let config_builder = ProviderConfigBuilder::new(config, "GOOGLE");
 
-        let mut headers = HeaderMap::new();
-        headers.insert("CONTENT_TYPE", "application/json".parse()?);
-        headers.insert("x-goog-api-key", api_key.parse()?);
+        let api_key = config_builder.get_api_key()?;
+        let host = config_builder.get_host(GOOGLE_API_HOST);
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .default_headers(headers)
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         Ok(Self {
             client,
             host,
             model,
+            retry_config,
+            api_key,
         })
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let path = format!(
+            "v1beta/models/{}:generateContent?key={}",
+            self.model.model_name, self.api_key
+        );
+        let url = build_endpoint_url(&self.host, &path)?;
 
-        let url = base_url
-            .join(&format!(
-                "v1beta/models/{}:generateContent",
-                self.model.model_name
-            ))
-            .map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-            })?;
-
-        let max_retries = 3;
-        let mut retries = 0;
-        let base_delay = Duration::from_secs(2);
-
-        loop {
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
             let response = self
                 .client
-                .post(url.clone()) // Clone the URL for each retry
+                .post(url.clone())
+                .header("Content-Type", "application/json")
                 .json(&payload)
                 .send()
-                .await;
+                .await?;
 
-            match response {
-                Ok(res) => {
-                    match handle_response_google_compat(res).await {
-                        Ok(result) => return Ok(result),
-                        Err(ProviderError::RateLimitExceeded(_)) => {
-                            retries += 1;
-                            if retries > max_retries {
-                                return Err(ProviderError::RateLimitExceeded(
-                                    "Max retries exceeded for rate limit error".to_string(),
-                                ));
-                            }
-
-                            let delay = 2u64.pow(retries);
-                            let total_delay = Duration::from_secs(delay) + base_delay;
-
-                            println!("Rate limit hit. Retrying in {:?}", total_delay);
-                            tokio::time::sleep(total_delay).await;
-                            continue;
-                        }
-                        Err(err) => return Err(err), // Other errors
-                    }
-                }
-                Err(err) => {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Request failed: {}",
-                        err
-                    )));
-                }
-            }
-        }
+            handle_response_google_compat(response).await
+        })
+        .await
     }
 }
 
@@ -195,14 +164,18 @@ impl Provider for GoogleProvider {
     /// Fetch supported models from Google Generative Language API; returns Err on failure, Ok(None) if not present
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // List models via the v1beta/models endpoint
-        let url = format!("{}/v1beta/models", self.host);
-        let response = self.client.get(&url).send().await?;
+        let path = format!("v1beta/models?key={}", self.api_key);
+        let url = build_endpoint_url(&self.host, &path)?;
+
+        let response = self.client.get(url).send().await?;
         let json: serde_json::Value = response.json().await?;
+
         // If 'models' field missing, return None
         let arr = match json.get("models").and_then(|v| v.as_array()) {
             Some(arr) => arr,
             None => return Ok(None),
         };
+
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("name").and_then(|v| v.as_str()))

@@ -9,11 +9,12 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::sync::Arc;
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::provider_common::{get_shared_client, retry_with_backoff, RetryConfig};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
@@ -107,12 +108,14 @@ impl DiskCache {
 #[derive(Debug, serde::Serialize)]
 pub struct GithubCopilotProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     #[serde(skip)]
     cache: DiskCache,
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for GithubCopilotProvider {
@@ -124,16 +127,16 @@ impl Default for GithubCopilotProvider {
 
 impl GithubCopilotProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = get_shared_client();
         let cache = DiskCache::new();
         let mu = tokio::sync::Mutex::new(RefCell::new(None));
+        let retry_config = RetryConfig::default();
         Ok(Self {
             client,
             cache,
             mu,
             model,
+            retry_config,
         })
     }
 
@@ -154,14 +157,19 @@ impl GithubCopilotProvider {
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let response = self
-            .client
-            .post(url)
-            .headers(self.get_github_headers())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&payload)
-            .send()
-            .await?;
+
+        // Use retry logic for resilience
+        let response = retry_with_backoff(&self.retry_config, || async {
+            self.client
+                .post(url.clone())
+                .headers(self.get_github_headers())
+                .header("Authorization", format!("Bearer {}", token.clone()))
+                .json(&payload)
+                .send()
+                .await
+                .map_err(|e| ProviderError::RequestFailed(e.to_string()))
+        })
+        .await?;
         if stream_only_model {
             let mut collector = OAIStreamCollector::new();
             let mut stream = response.bytes_stream();
