@@ -161,16 +161,12 @@ impl GoogleDriveRouter {
             Err(_) => false,
         };
 
-        // Use factory to create keyring backend consistently
-        let keyring = goose::keyring::create_default_keyring();
-
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(
             credentials_path.clone(),
             fallback_to_disk,
             KEYCHAIN_SERVICE.to_string(),
             KEYCHAIN_USERNAME.to_string(),
-            keyring,
         ));
 
         // Read the OAuth credentials from the keyfile

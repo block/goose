@@ -1,17 +1,16 @@
 use anyhow::Result;
-use goose::keyring::{KeyringBackend, KeyringError};
+use keyring::Entry;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
 #[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum StorageError {
-    #[error("Failed to access keyring: {0}")]
-    KeyringError(String),
+    #[error("Failed to access keychain: {0}")]
+    KeyringError(#[from] keyring::Error),
     #[error("Failed to access file system: {0}")]
     FileSystemError(#[from] std::io::Error),
     #[error("No credentials found")]
@@ -22,15 +21,6 @@ pub enum StorageError {
     SerializationError(#[from] serde_json::Error),
 }
 
-impl From<KeyringError> for StorageError {
-    fn from(err: KeyringError) -> Self {
-        match err {
-            KeyringError::NotFound { .. } => StorageError::NotFound,
-            _ => StorageError::KeyringError(err.to_string()),
-        }
-    }
-}
-
 /// CredentialsManager handles secure storage of OAuth credentials.
 /// It attempts to store credentials in the system keychain first,
 /// with fallback to file system storage if keychain access fails and fallback is enabled.
@@ -39,7 +29,6 @@ pub struct CredentialsManager {
     fallback_to_disk: bool,
     keychain_service: String,
     keychain_username: String,
-    keyring: Arc<dyn KeyringBackend>,
 }
 
 impl CredentialsManager {
@@ -48,14 +37,12 @@ impl CredentialsManager {
         fallback_to_disk: bool,
         keychain_service: String,
         keychain_username: String,
-        keyring: Arc<dyn KeyringBackend>,
     ) -> Self {
         Self {
             credentials_path,
             fallback_to_disk,
             keychain_service,
             keychain_username,
-            keyring,
         }
     }
 
@@ -66,19 +53,17 @@ impl CredentialsManager {
     ///
     /// # Type Parameters
     ///
-    /// * `T` - The type to deserialize to. Must implement `serde::DeserializeOwned`.
+    /// * `T` - The type to deserialize the credentials into. Must implement `serde::de::DeserializeOwned`.
     ///
     /// # Returns
     ///
-    /// * `Ok(T)` - The deserialized data
+    /// * `Ok(T)` - The deserialized credentials
     /// * `Err(StorageError)` - If reading or deserialization fails
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use goose_mcp::google_drive::storage::CredentialsManager;
-    /// # use goose::keyring::SystemKeyringBackend;
-    /// # use std::sync::Arc;
     /// use serde::{Serialize, Deserialize};
     ///
     /// #[derive(Serialize, Deserialize)]
@@ -88,45 +73,34 @@ impl CredentialsManager {
     ///     expiry: u64,
     /// }
     ///
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let keyring = Arc::new(SystemKeyringBackend);
     /// let manager = CredentialsManager::new(
     ///     String::from("/path/to/credentials.json"),
     ///     true,  // fallback to disk if keychain fails
     ///     String::from("test_service"),
-    ///     String::from("test_user"),
-    ///     keyring
+    ///     String::from("test_user")
     /// );
     /// match manager.read_credentials::<OAuthToken>() {
-    ///     Ok(token) => println!("Access token: {}", token.access_token),
+    ///     Ok(token) => println!("Token expires at: {}", token.expiry),
     ///     Err(e) => eprintln!("Failed to read token: {}", e),
     /// }
-    /// # Ok(())
-    /// # }
     /// ```
     pub fn read_credentials<T>(&self) -> Result<T, StorageError>
     where
         T: DeserializeOwned,
     {
-        let json_str = self
-            .keyring
-            .get_password(&self.keychain_service, &self.keychain_username)
+        let json_str = Entry::new(&self.keychain_service, &self.keychain_username)
+            .and_then(|entry| entry.get_password())
             .inspect(|_| {
                 debug!("Successfully read credentials from keychain");
             })
             .or_else(|e| {
                 if self.fallback_to_disk {
-                    warn!("Falling back to file system due to keyring error: {}", e);
+                    debug!("Falling back to file system due to keyring error: {}", e);
                     self.read_from_file()
                 } else {
-                    // Convert anyhow::Error back to our error type
-                    if let Some(keyring_err) = e.downcast_ref::<KeyringError>() {
-                        match keyring_err {
-                            KeyringError::NotFound { .. } => Err(StorageError::NotFound),
-                            _ => Err(StorageError::KeyringError(e.to_string())),
-                        }
-                    } else {
-                        Err(StorageError::KeyringError(e.to_string()))
+                    match e {
+                        keyring::Error::NoEntry => Err(StorageError::NotFound),
+                        _ => Err(StorageError::KeyringError(e)),
                     }
                 }
             })?;
@@ -175,8 +149,6 @@ impl CredentialsManager {
     ///
     /// ```no_run
     /// # use goose_mcp::google_drive::storage::CredentialsManager;
-    /// # use goose::keyring::SystemKeyringBackend;
-    /// # use std::sync::Arc;
     /// use serde::{Serialize, Deserialize};
     ///
     /// #[derive(Serialize, Deserialize)]
@@ -186,26 +158,21 @@ impl CredentialsManager {
     ///     expiry: u64,
     /// }
     ///
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let token = OAuthToken {
     ///     access_token: String::from("access_token_value"),
     ///     refresh_token: String::from("refresh_token_value"),
     ///     expiry: 1672531200, // Unix timestamp
     /// };
     ///
-    /// let keyring = Arc::new(SystemKeyringBackend);
     /// let manager = CredentialsManager::new(
     ///     String::from("/path/to/credentials.json"),
     ///     true,  // fallback to disk if keychain fails
     ///     String::from("test_service"),
-    ///     String::from("test_user"),
-    ///     keyring
+    ///     String::from("test_user")
     /// );
     /// if let Err(e) = manager.write_credentials(&token) {
     ///     eprintln!("Failed to write token: {}", e);
     /// }
-    /// # Ok(())
-    /// # }
     /// ```
     pub fn write_credentials<T>(&self, content: &T) -> Result<(), StorageError>
     where
@@ -213,8 +180,8 @@ impl CredentialsManager {
     {
         let json_str = serde_json::to_string(content).map_err(StorageError::SerializationError)?;
 
-        self.keyring
-            .set_password(&self.keychain_service, &self.keychain_username, &json_str)
+        Entry::new(&self.keychain_service, &self.keychain_username)
+            .and_then(|entry| entry.set_password(&json_str))
             .inspect(|_| {
                 debug!("Successfully wrote credentials to keychain");
             })
@@ -223,14 +190,13 @@ impl CredentialsManager {
                     warn!("Falling back to file system due to keyring error: {}", e);
                     self.write_to_file(&json_str)
                 } else {
-                    Err(StorageError::KeyringError(e.to_string()))
+                    Err(StorageError::KeyringError(e))
                 }
             })
     }
 
     fn write_to_file(&self, content: &str) -> Result<(), StorageError> {
         let path = Path::new(&self.credentials_path);
-
         if let Some(parent) = path.parent() {
             if !parent.exists() {
                 match fs::create_dir_all(parent) {
@@ -263,7 +229,6 @@ impl Clone for CredentialsManager {
             fallback_to_disk: self.fallback_to_disk,
             keychain_service: self.keychain_service.clone(),
             keychain_username: self.keychain_username.clone(),
-            keyring: self.keyring.clone(),
         }
     }
 }
@@ -271,7 +236,6 @@ impl Clone for CredentialsManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::keyring::MockKeyringBackend;
     use serde::{Deserialize, Serialize};
     use tempfile::tempdir;
 
@@ -299,31 +263,25 @@ mod tests {
         let cred_path = temp_dir.path().join("test_credentials.json");
         let cred_path_str = cred_path.to_str().unwrap().to_string();
 
-        // Create a mock keyring backend
-        let keyring = Arc::new(MockKeyringBackend::new());
-
         // Create a credentials manager with fallback enabled
+        // Using a unique service name to ensure keychain operation fails
         let manager = CredentialsManager::new(
             cred_path_str,
             true, // fallback to disk
             "test_service".to_string(),
             "test_user".to_string(),
-            keyring,
         );
 
         // Test credentials to store
         let creds = TestCredentials::new();
 
-        // Write should succeed with mock keyring
+        // Write should write to keychain
         let write_result = manager.write_credentials(&creds);
-        assert!(
-            write_result.is_ok(),
-            "Write should succeed with mock keyring"
-        );
+        assert!(write_result.is_ok(), "Write should succeed with fallback");
 
-        // Read should succeed with mock keyring
+        // Read should read from keychain
         let read_result = manager.read_credentials::<TestCredentials>();
-        assert!(read_result.is_ok(), "Read should succeed with mock keyring");
+        assert!(read_result.is_ok(), "Read should succeed with fallback");
 
         // Verify the read credentials match what we wrote
         assert_eq!(
@@ -340,28 +298,20 @@ mod tests {
         let cred_path = temp_dir.path().join("nonexistent_credentials.json");
         let cred_path_str = cred_path.to_str().unwrap().to_string();
 
-        // Create a mock keyring backend (empty by default)
-        let keyring = Arc::new(MockKeyringBackend::new());
-
         // Create a credentials manager with fallback disabled
         let manager = CredentialsManager::new(
             cred_path_str,
             false, // no fallback to disk
             "test_service_that_should_not_exist".to_string(),
             "test_user_no_fallback".to_string(),
-            keyring,
         );
 
-        // Read should fail with NotFound since mock keyring is empty and no fallback
+        // Read should fail with NotFound or KeyringError depending on the system
         let read_result = manager.read_credentials::<TestCredentials>();
         println!("{:?}", read_result);
         assert!(
             read_result.is_err(),
             "Read should fail when credentials don't exist"
-        );
-        assert!(
-            matches!(read_result.unwrap_err(), StorageError::NotFound),
-            "Should return NotFound error"
         );
     }
 
@@ -377,13 +327,11 @@ mod tests {
     fn test_file_system_error_handling() {
         // Test handling of file system errors by using an invalid path
         let invalid_path = String::from("/nonexistent_directory/credentials.json");
-        let keyring = Arc::new(MockKeyringBackend::new());
         let manager = CredentialsManager::new(
             invalid_path,
             true,
             "test_service".to_string(),
             "test_user".to_string(),
-            keyring,
         );
 
         // Create test credentials

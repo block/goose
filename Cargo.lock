@@ -3629,7 +3629,6 @@ dependencies = [
  "google-docs1",
  "google-drive3",
  "google-sheets4",
- "goose",
  "http-body-util",
  "hyper 1.6.0",
  "ignore",
