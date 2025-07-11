@@ -97,7 +97,7 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
     >
       <Card
         ref={modalRef}
-        className="relative w-[700px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col shadow-lg"
+        className="relative w-[700px] max-w-full bg-background-default rounded-xl my-10 max-h-[90vh] flex flex-col shadow-lg"
       >
         <div className="p-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 32px)' }}>
           <div className="flex flex-col">

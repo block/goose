@@ -52,7 +52,7 @@ The Goose Desktop App is an Electron application built with TypeScript, React, a
 2. Create a main component file (e.g., `YourFeatureView.tsx`)
 3. Add your view type to the `View` type in `App.tsx`
 4. Import and add your component to the render section in `App.tsx`
-5. Add navigation to your view from other components (e.g., adding a button in `BottomMenu.tsx` or `MoreMenu.tsx`)
+5. Add navigation to your view from other components (e.g., adding a new route or button in `App.tsx`)
 
 ## State Management
 

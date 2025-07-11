@@ -1,4 +1,5 @@
 import { Goose, Rain } from './icons/Goose';
+import { cn } from '../utils';
 
 interface GooseLogoProps {
   className?: string;
@@ -28,12 +29,21 @@ export default function GooseLogo({
 
   return (
     <div
-      className={`${className} ${currentSize.frame} ${hover ? 'group/with-hover' : ''} relative overflow-hidden`}
+      className={cn(
+        className,
+        currentSize.frame,
+        'relative overflow-hidden',
+        hover && 'group/with-hover'
+      )}
     >
       <Rain
-        className={`${currentSize.rain} absolute left-0 bottom-0 ${hover ? 'opacity-0 group-hover/with-hover:opacity-100' : ''} transition-all duration-300 z-1`}
+        className={cn(
+          currentSize.rain,
+          'absolute left-0 bottom-0 transition-all duration-300 z-1',
+          hover && 'opacity-0 group-hover/with-hover:opacity-100'
+        )}
       />
-      <Goose className={`${currentSize.goose} absolute left-0 bottom-0 z-2`} />
+      <Goose className={cn(currentSize.goose, 'absolute left-0 bottom-0 z-2')} />
     </div>
   );
 }

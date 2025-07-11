@@ -5,6 +5,8 @@ import { useConfig } from '../../ConfigContext';
 import { toastError } from '../../../toasts';
 
 import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import ResetProviderSection from '../reset_provider/ResetProviderSection';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -48,17 +50,25 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   }, []);
 
   return (
-    <section id="models" className="px-8">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-medium text-textStandard">Models</h2>
-      </div>
-      <div className="border-b border-borderSubtle pb-8">
-        <div className="">
-          <h3 className="text-textStandard">{model}</h3>
-          <h4 className="text-xs text-textSubtle">{provider}</h4>
-        </div>
-        <ModelSettingsButtons setView={setView} />
-      </div>
+    <section id="models" className="space-y-4 pr-4">
+      <Card className="p-2 pb-4">
+        <CardContent className="px-2">
+          <h3 className="text-text-default">{model}</h3>
+          <h4 className="text-xs text-text-muted">{provider}</h4>
+          <ModelSettingsButtons setView={setView} />
+        </CardContent>
+      </Card>
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Reset Provider and Model</CardTitle>
+          <CardDescription>
+            Clear your selected model and provider settings to start fresh
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <ResetProviderSection setView={setView} />
+        </CardContent>
+      </Card>
     </section>
   );
 }

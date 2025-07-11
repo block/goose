@@ -1,23 +1,17 @@
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  MessageSquareText,
-  Target,
-  LoaderCircle,
-  AlertCircle,
-  Calendar,
-  ChevronRight,
-  Folder,
-} from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { MessageSquareText, Target, AlertCircle, Calendar, Folder } from 'lucide-react';
+import { VariableSizeList as List } from 'react-window';
 import { fetchSessions, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import MoreMenuLayout from '../more_menu/MoreMenuLayout';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
+import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
+import { Skeleton } from '../ui/skeleton';
 
 interface SearchContainerElement extends HTMLDivElement {
   _searchHighlighter: SearchHighlighter | null;
@@ -28,54 +22,91 @@ interface SessionListViewProps {
   onSelectSession: (sessionId: string) => void;
 }
 
-const ITEM_HEIGHT = 90; // Adjust based on your card height
-const BUFFER_SIZE = 5; // Number of items to render above/below viewport
+// Flattened item structure for virtualization
+interface FlattenedItem {
+  type: 'header' | 'session';
+  data: DateGroup | Session;
+  index: number;
+}
 
-const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSession }) => {
+const SessionListView: React.FC<SessionListViewProps> = ({ onSelectSession }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
+  const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  const [showContent, setShowContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<{
     count: number;
     currentIndex: number;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
+  const listRef = useRef<List>(null);
+
+  // Flatten date groups into a single array for virtualization
+  const flattenedItems = useMemo((): FlattenedItem[] => {
+    const items: FlattenedItem[] = [];
+    let index = 0;
+
+    dateGroups.forEach((group) => {
+      // Add header
+      items.push({
+        type: 'header',
+        data: group,
+        index: index++,
+      });
+
+      // Add sessions
+      group.sessions.forEach((session) => {
+        items.push({
+          type: 'session',
+          data: session,
+          index: index++,
+        });
+      });
+    });
+
+    return items;
+  }, [dateGroups]);
 
   useEffect(() => {
     loadSessions();
   }, []);
 
-  // Handle scroll events to update visible range
+  // Minimum loading time to prevent skeleton flash
   useEffect(() => {
-    const viewportEl = containerRef.current?.closest('[data-radix-scroll-area-viewport]');
-    if (!viewportEl) return;
+    if (!isLoading && showSkeleton) {
+      const timer = setTimeout(() => {
+        setShowSkeleton(false);
+        // Add a small delay before showing content for fade-in effect
+        setTimeout(() => {
+          setShowContent(true);
+        }, 50);
+      }, 300); // Show skeleton for at least 300ms
 
-    const handleScroll = () => {
-      const scrollTop = viewportEl.scrollTop;
-      const viewportHeight = viewportEl.clientHeight;
+      // eslint-disable-next-line no-undef
+      return () => clearTimeout(timer);
+    }
+    return () => void 0;
+  }, [isLoading, showSkeleton]);
 
-      const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER_SIZE);
-      const end = Math.min(
-        filteredSessions.length,
-        Math.ceil((scrollTop + viewportHeight) / ITEM_HEIGHT) + BUFFER_SIZE
-      );
+  // Update date groups when filtered sessions change
+  useEffect(() => {
+    if (filteredSessions.length > 0) {
+      const groups = groupSessionsByDate(filteredSessions);
+      setDateGroups(groups);
+    } else {
+      setDateGroups([]);
+    }
+  }, [filteredSessions]);
 
-      setVisibleRange({ start, end });
-    };
-
-    handleScroll(); // Initial calculation
-    viewportEl.addEventListener('scroll', handleScroll);
-
-    const resizeObserver = new ResizeObserver(handleScroll);
-    resizeObserver.observe(viewportEl);
-
-    return () => {
-      viewportEl.removeEventListener('scroll', handleScroll);
-      resizeObserver.disconnect();
-    };
-  }, [filteredSessions.length]);
+  // Reset list cache when items change
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.resetAfterIndex(0);
+    }
+  }, [flattenedItems]);
 
   // Filter sessions when search term or case sensitivity changes
   const handleSearch = (term: string, caseSensitive: boolean) => {
@@ -108,17 +139,12 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
     setFilteredSessions(filtered);
     setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
-
-    // Reset scroll position when search changes
-    const viewportEl = containerRef.current?.closest('[data-radix-scroll-area-viewport]');
-    if (viewportEl) {
-      viewportEl.scrollTop = 0;
-    }
-    setVisibleRange({ start: 0, end: 20 });
   };
 
   const loadSessions = async () => {
     setIsLoading(true);
+    setShowSkeleton(true);
+    setShowContent(false);
     setError(null);
     try {
       const sessions = await fetchSessions();
@@ -162,62 +188,76 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
     return (
       <Card
         onClick={() => onSelectSession(session.id)}
-        className="p-2 mx-4 mb-2 bg-bgSecondary hover:bg-bgSubtle cursor-pointer transition-all duration-150"
+        className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between"
       >
-        <div className="flex justify-between items-start gap-4">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-base font-medium text-textStandard truncate max-w-[50vw]">
-              {session.metadata.description || session.id}
-            </h3>
-            <div className="flex gap-3 min-w-0">
-              <div className="flex items-center text-textSubtle text-sm shrink-0">
-                <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span>{formatMessageTimestamp(Date.parse(session.modified) / 1000)}</span>
-              </div>
-              <div className="flex items-center text-textSubtle text-sm min-w-0">
-                <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span className="truncate">{session.metadata.working_dir}</span>
-              </div>
-            </div>
+        <div className="flex-1">
+          <h3 className="text-base truncate mb-1">{session.metadata.description || session.id}</h3>
+          <div className="flex items-center text-text-muted text-xs mb-1">
+            <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
+            <span>{formatMessageTimestamp(Date.parse(session.modified) / 1000)}</span>
           </div>
+          <div className="flex items-center text-text-muted text-xs mb-1">
+            <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{session.metadata.working_dir}</span>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex flex-col items-end">
-              <div className="flex items-center text-sm text-textSubtle">
-                <span>{session.path.split('/').pop() || session.path}</span>
-              </div>
-              <div className="flex items-center mt-1 space-x-3 text-sm text-textSubtle">
-                <div className="flex items-center">
-                  <MessageSquareText className="w-3 h-3 mr-1" />
-                  <span>{session.metadata.message_count}</span>
-                </div>
-                {session.metadata.total_tokens !== null && (
-                  <div className="flex items-center">
-                    <Target className="w-3 h-3 mr-1" />
-                    <span>{session.metadata.total_tokens.toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
+        <div className="flex items-center justify-between mt-1 pt-2">
+          <div className="flex items-center space-x-3 text-xs text-text-muted">
+            <div className="flex items-center">
+              <MessageSquareText className="w-3 h-3 mr-1" />
+              <span className="font-mono">{session.metadata.message_count}</span>
             </div>
-            <ChevronRight className="w-8 h-5 text-textSubtle" />
+            {session.metadata.total_tokens !== null && (
+              <div className="flex items-center">
+                <Target className="w-3 h-3 mr-1" />
+                <span className="font-mono">{session.metadata.total_tokens.toLocaleString()}</span>
+              </div>
+            )}
           </div>
         </div>
       </Card>
     );
   });
 
+  // Render skeleton loader for session items
+  const SessionSkeleton = () => (
+    <Card className="h-full p-3 bg-background-default flex flex-col justify-between">
+      <div className="flex-1">
+        <Skeleton className="h-5 w-3/4 mb-2" />
+        <Skeleton className="h-4 w-24 mb-2" />
+        <Skeleton className="h-4 w-32 mb-2" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border-subtle">
+        <div className="flex items-center space-x-3">
+          <Skeleton className="h-4 w-8" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+      </div>
+    </Card>
+  );
+
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading || showSkeleton) {
       return (
-        <div className="flex justify-center items-center h-full">
-          <LoaderCircle className="h-8 w-8 animate-spin text-textPrimary" />
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <Skeleton className="h-6 w-24" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <SessionSkeleton />
+              <SessionSkeleton />
+              <SessionSkeleton />
+              <SessionSkeleton />
+            </div>
+          </div>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-textSubtle">
+        <div className="flex flex-col items-center justify-center h-full text-text-muted">
           <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
           <p className="text-lg mb-2">Error Loading Sessions</p>
           <p className="text-sm text-center mb-4">{error}</p>
@@ -228,18 +268,9 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
       );
     }
 
-    if (filteredSessions.length === 0) {
-      if (searchResults === null && sessions.length > 0) {
-        return (
-          <div className="flex flex-col items-center justify-center h-full text-textSubtle mt-4">
-            <MessageSquareText className="h-12 w-12 mb-4" />
-            <p className="text-lg mb-2">No matching sessions found</p>
-            <p className="text-sm">Try adjusting your search terms</p>
-          </div>
-        );
-      }
+    if (sessions.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-textSubtle">
+        <div className="flex flex-col justify-center h-full text-text-muted">
           <MessageSquareText className="h-12 w-12 mb-4" />
           <p className="text-lg mb-2">No chat sessions found</p>
           <p className="text-sm">Your chat history will appear here</p>
@@ -247,45 +278,56 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
       );
     }
 
-    const visibleSessions = filteredSessions.slice(visibleRange.start, visibleRange.end);
-
-    return (
-      <div style={{ height: filteredSessions.length * ITEM_HEIGHT }} className="relative">
-        <div
-          style={{
-            position: 'absolute',
-            top: visibleRange.start * ITEM_HEIGHT,
-            width: '100%',
-          }}
-        >
-          {visibleSessions.map((session) => (
-            <SessionItem key={session.id} session={session} />
-          ))}
+    if (dateGroups.length === 0 && searchResults !== null) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
+          <MessageSquareText className="h-12 w-12 mb-4" />
+          <p className="text-lg mb-2">No matching sessions found</p>
+          <p className="text-sm">Try adjusting your search terms</p>
         </div>
+      );
+    }
+
+    // For regular rendering in grid layout
+    return (
+      <div className="space-y-8">
+        {dateGroups.map((group) => (
+          <div key={group.label} className="space-y-4">
+            <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
+              <h2 className="text-text-muted">{group.label}</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              {group.sessions.map((session) => (
+                <SessionItem key={session.id} session={session} />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
 
   return (
-    <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
+    <MainPanelLayout>
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-8 pt-6 pb-4">
-          <BackButton onClick={() => setView('chat')} />
+        <div className="bg-background-default px-8 pb-8 pt-16">
+          <div className="flex flex-col animate-in fade-in duration-500">
+            <div className="flex justify-between items-center mb-1">
+              <h1 className="text-4xl font-light">Chat history</h1>
+            </div>
+            <p className="text-sm text-text-muted mb-4">
+              View and search your past conversations with Goose.
+            </p>
+          </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex flex-col mb-6 px-8">
-          <h1 className="text-3xl font-medium text-textStandard">Previous goose sessions</h1>
-          <h3 className="text-sm text-textSubtle mt-2">
-            View previous goose sessions and their contents to pick up where you left off.
-          </h3>
-        </div>
-
-        <div className="flex-1 min-h-0 relative">
-          <ScrollArea className="h-full" data-search-scroll-area>
-            <div ref={containerRef} className="h-full relative">
+        <div className="flex-1 min-h-0 relative px-8">
+          <ScrollArea className="h-full">
+            <div
+              className={`h-full relative transition-all duration-300 ${
+                showContent ? 'opacity-100 animate-in fade-in' : 'opacity-0'
+              }`}
+            >
               <SearchView
                 onSearch={handleSearch}
                 onNavigate={handleSearchNavigation}
@@ -298,7 +340,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
           </ScrollArea>
         </div>
       </div>
-    </div>
+    </MainPanelLayout>
   );
 };
 

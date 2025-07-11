@@ -12,14 +12,14 @@ let cfg = {
     certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
     signingRole: process.env.WINDOW_SIGNING_ROLE,
     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
-    signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256'
+    signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256',
   },
   // Protocol registration
   protocols: [
     {
-      name: "GooseProtocol",
-      schemes: ["goose"]
-    }
+      name: 'GooseProtocol',
+      schemes: ['goose'],
+    },
   ],
   // macOS Info.plist extensions for drag-and-drop support
   extendInfo: {
@@ -44,9 +44,9 @@ let cfg = {
   osxNotarize: {
     appleId: process.env['APPLE_ID'],
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
-    teamId: process.env['APPLE_TEAM_ID']
+    teamId: process.env['APPLE_TEAM_ID'],
   },
-}
+};
 
 if (process.env['APPLE_ID'] === undefined) {
   delete cfg.osxNotarize;
@@ -62,12 +62,12 @@ module.exports = {
       config: {
         repository: {
           owner: 'block',
-          name: 'goose'
+          name: 'goose',
         },
         prerelease: false,
-        draft: true
-      }
-    }
+        draft: true,
+      },
+    },
   ],
   makers: [
     {
@@ -76,22 +76,22 @@ module.exports = {
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: 'src/images/icon.ico'
-        }
-      }
+          icon: 'src/images/icon.ico',
+        },
+      },
     },
     {
       name: '@electron-forge/maker-deb',
       config: {
         name: 'Goose',
-        bin: 'Goose'
+        bin: 'Goose',
       },
     },
     {
       name: '@electron-forge/maker-rpm',
       config: {
         name: 'Goose',
-        bin: 'Goose'
+        bin: 'Goose',
       },
     },
   ],
@@ -102,17 +102,17 @@ module.exports = {
         build: [
           {
             entry: 'src/main.ts',
-            config: 'vite.main.config.ts',
+            config: 'vite.main.config.mts',
           },
           {
             entry: 'src/preload.ts',
-            config: 'vite.preload.config.ts',
+            config: 'vite.preload.config.mts',
           },
         ],
         renderer: [
           {
             name: 'main_window',
-            config: 'vite.renderer.config.ts',
+            config: 'vite.renderer.config.mts',
           },
         ],
       },

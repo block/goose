@@ -221,6 +221,8 @@ export type MessageContent = (TextContent & {
     type: 'text';
 }) | (ImageContent & {
     type: 'image';
+}) | (EmbeddedResource & {
+    type: 'embeddedResource';
 }) | (ToolRequest & {
     type: 'toolRequest';
 }) | (ToolResponse & {
@@ -428,6 +430,10 @@ export type SessionMetadata = {
      * The number of output tokens used in the session. Retrieved from the provider's last usage.
      */
     output_tokens?: number | null;
+    /**
+     * ID of the project this session belongs to, if any
+     */
+    project_id?: string | null;
     /**
      * ID of the schedule that triggered this session, if any
      */

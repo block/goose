@@ -1,6 +1,6 @@
-import { AddModelButton } from './AddModelButton';
+import { useState } from 'react';
 import { Button } from '../../../ui/button';
-import { Sliders } from 'lucide-react';
+import { AddModelModal } from './AddModelModal';
 import type { View } from '../../../../App';
 
 interface ConfigureModelButtonsProps {
@@ -8,16 +8,29 @@ interface ConfigureModelButtonsProps {
 }
 
 export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsProps) {
+  const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
+
   return (
-    <div className="flex gap-4 pt-4 ">
-      <AddModelButton setView={setView} />
+    <div className="flex gap-2 pt-4">
       <Button
-        className="flex items-center gap-2 justify-center text-textStandard bg-bgApp border border-borderSubtle hover:border-borderProminent hover:bg-bgApp [&>svg]:!size-4"
+        className="flex items-center gap-2 justify-center"
+        variant="default"
+        size="sm"
+        onClick={() => setIsAddModelModalOpen(true)}
+      >
+        Switch models
+      </Button>
+      {isAddModelModalOpen ? (
+        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+      ) : null}
+      <Button
+        className="flex items-center gap-2 justify-center"
+        variant="secondary"
+        size="sm"
         onClick={() => {
           setView('ConfigureProviders');
         }}
       >
-        <Sliders className="rotate-90" />
         Configure providers
       </Button>
     </div>

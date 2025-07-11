@@ -1,7 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ArrowLeftRight, ExternalLink } from 'lucide-react';
 
-import Modal from '../../../Modal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../ui/dialog';
 import { Button } from '../../../ui/button';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import { Input } from '../../../ui/input';
@@ -10,37 +17,6 @@ import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
-
-const ModalButtons = ({
-  onSubmit,
-  onCancel,
-  _isValid: _,
-  _validationErrors: __,
-}: {
-  onSubmit: () => void;
-  onCancel: () => void;
-  _isValid: boolean;
-  _validationErrors: { provider: string; model: string };
-}) => (
-  <div>
-    <Button
-      type="submit"
-      variant="ghost"
-      onClick={onSubmit}
-      className="w-full h-[60px] rounded-none border-borderSubtle text-base hover:bg-bgSubtle text-textProminent font-regular"
-    >
-      Select model
-    </Button>
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onCancel}
-      className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-base font-regular"
-    >
-      Cancel
-    </Button>
-  </div>
-);
 
 type AddModelModalProps = {
   onClose: () => void;
@@ -86,7 +62,11 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     return formIsValid;
   }, [model, provider]);
 
-  const onSubmit = async () => {
+  const handleClose = () => {
+    onClose();
+  };
+
+  const handleSubmit = async () => {
     setAttemptedSubmit(true);
     const isFormValid = validateForm();
 
@@ -223,37 +203,30 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   };
 
   return (
-    <div className="z-10">
-      <Modal
-        onClose={onClose}
-        footer={
-          <ModalButtons
-            onSubmit={onSubmit}
-            onCancel={onClose}
-            _isValid={isValid}
-            _validationErrors={validationErrors}
-          />
-        }
-      >
-        <div className="flex flex-col items-center gap-8">
-          <div className="flex flex-col gap-3">
+    <Dialog open={true} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             <ArrowLeftRight size={24} className="text-textStandard" />
-            <div className="text-textStandard font-medium text-base">Switch models</div>
-            <div className="text-textSubtle text-md">
-              Configure your AI model providers by adding their API keys. Your keys are stored
-              securely and encrypted locally.
-            </div>
-            <div>
-              <a
-                href={QUICKSTART_GUIDE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center text-textStandard font-medium text-sm"
-              >
-                <ExternalLink size={16} className="mr-1" />
-                View quick start guide
-              </a>
-            </div>
+            Switch models
+          </DialogTitle>
+          <DialogDescription>
+            Configure your AI model providers by adding their API keys. Your keys are stored
+            securely and encrypted locally.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-4">
+          <div>
+            <a
+              href={QUICKSTART_GUIDE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center text-textStandard font-medium text-sm"
+            >
+              <ExternalLink size={16} className="mr-1" />
+              View quick start guide
+            </a>
           </div>
 
           <div className="w-full flex flex-col gap-4">
@@ -322,7 +295,16 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
             )}
           </div>
         </div>
-      </Modal>
-    </div>
+
+        <DialogFooter className="pt-2">
+          <Button variant="outline" onClick={handleClose} type="button">
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={!isValid}>
+            Select model
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

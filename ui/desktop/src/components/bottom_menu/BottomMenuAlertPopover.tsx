@@ -1,6 +1,5 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
@@ -12,13 +11,72 @@ interface AlertPopoverProps {
 }
 
 export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [hasShownInitial, setHasShownInitial] = React.useState(false);
-  const [isHovered, setIsHovered] = React.useState(false);
-  const [wasAutoShown, setWasAutoShown] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasShownInitial, setHasShownInitial] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [wasAutoShown, setWasAutoShown] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const previousAlertsRef = useRef<Alert[]>([]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Calculate popover position
+  const calculatePosition = useCallback(() => {
+    if (!triggerRef.current || !popoverRef.current) return;
+
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 275;
+
+    // Get the actual rendered height of the popover
+    const popoverHeight = popoverRef.current.offsetHeight || 120;
+    const offset = 8; // Small gap to avoid blocking the trigger dot
+
+    // Position above the trigger, centered horizontally
+    let top = triggerRect.top - popoverHeight - offset;
+    let left = triggerRect.left + triggerRect.width / 2 - popoverWidth / 2;
+
+    // Ensure popover doesn't go off-screen
+    const viewportWidth = window.innerWidth;
+
+    // Adjust horizontal position if off-screen
+    if (left < 10) {
+      left = 10;
+    } else if (left + popoverWidth > viewportWidth - 10) {
+      left = viewportWidth - popoverWidth - 10;
+    }
+
+    // If popover would go above viewport, show it below the trigger instead
+    if (top < 10) {
+      top = triggerRect.bottom + offset;
+    }
+
+    setPopoverPosition({ top, left });
+  }, []);
+
+  // Update position when popover opens
+  useEffect(() => {
+    if (isOpen) {
+      calculatePosition();
+      // Recalculate on window resize
+      const handleResize = () => calculatePosition();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+    return undefined;
+  }, [isOpen, calculatePosition]);
+
+  // Recalculate position after popover is rendered to get actual height
+  useEffect(() => {
+    if (isOpen && popoverRef.current) {
+      // Small delay to ensure DOM is updated
+      const timer = setTimeout(() => {
+        calculatePosition();
+      }, 10);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [isOpen, calculatePosition]);
 
   // Function to start the hide timer
   const startHideTimer = useCallback((duration = 3000) => {
@@ -98,78 +156,68 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       : 'text-[#cc4b03]'; // Orange color for warning alerts
 
   return (
-    <div ref={popoverRef}>
-      <Popover open={isOpen}>
-        <div className="relative">
-          <PopoverTrigger asChild>
-            <div
-              className="cursor-pointer flex items-center justify-center min-w-5 min-h-5 translate-y-[1px]"
-              onMouseEnter={() => {
-                setIsOpen(true);
-                setIsHovered(true);
-                setWasAutoShown(false);
-                if (hideTimerRef.current) {
-                  clearTimeout(hideTimerRef.current);
-                }
-              }}
-              onMouseLeave={() => {
-                // Start a short timer to allow moving to content
-                hideTimerRef.current = setTimeout(() => {
-                  if (!isHovered) {
-                    setIsHovered(false);
-                    setIsOpen(false);
-                  }
-                }, 100);
-              }}
-            >
-              <div className={cn('relative', '-right-1', triggerColor)}>
-                <FaCircle size={5} />
-              </div>
-            </div>
-          </PopoverTrigger>
-
-          {/* Small connector area between trigger and content */}
-          {isOpen && (
-            <div
-              className="absolute -right-2 h-6 w-8 top-full"
-              onMouseEnter={() => {
-                setIsHovered(true);
-                if (hideTimerRef.current) {
-                  clearTimeout(hideTimerRef.current);
-                }
-              }}
-              onMouseLeave={() => {
+    <>
+      <div className="relative">
+        <button
+          ref={triggerRef}
+          className="cursor-pointer flex items-center justify-center min-w-5 min-h-5 rounded hover:bg-background-muted"
+          onClick={() => {
+            setIsOpen(true);
+          }}
+          onMouseEnter={() => {
+            setIsOpen(true);
+            setIsHovered(true);
+            setWasAutoShown(false);
+            if (hideTimerRef.current) {
+              clearTimeout(hideTimerRef.current);
+            }
+          }}
+          onMouseLeave={() => {
+            // Start a short timer to allow moving to content
+            hideTimerRef.current = setTimeout(() => {
+              if (!isHovered) {
                 setIsHovered(false);
-              }}
-            />
-          )}
-
-          <PopoverContent
-            className="w-[275px] p-0 rounded-lg overflow-hidden"
-            align="end"
-            alignOffset={-100}
-            sideOffset={5}
-            onMouseEnter={() => {
-              setIsHovered(true);
-              if (hideTimerRef.current) {
-                clearTimeout(hideTimerRef.current);
+                setIsOpen(false);
               }
-            }}
-            onMouseLeave={() => {
-              setIsHovered(false);
-              setIsOpen(false);
-            }}
-          >
-            <div className="flex flex-col">
-              {alerts.map((alert, index) => (
-                <div key={index} className={cn(index > 0 && 'border-t border-white/20')}>
-                  <AlertBox alert={alert} />
-                </div>
-              ))}
-            </div>
-          </PopoverContent>
+            }, 100);
+          }}
+        >
+          <div className={cn('relative', triggerColor)}>
+            <FaCircle size={5} />
+          </div>
+        </button>
+      </div>
+
+      {/* Popover rendered separately to avoid blocking clicks */}
+      {isOpen && (
+        <div
+          ref={popoverRef}
+          className="fixed w-[275px] p-0 rounded-lg overflow-hidden bg-app border z-50 shadow-lg pointer-events-auto text-left"
+          style={{
+            top: `${popoverPosition.top}px`,
+            left: `${popoverPosition.left}px`,
+            visibility: popoverPosition.top === 0 ? 'hidden' : 'visible',
+          }}
+          onMouseEnter={() => {
+            setIsHovered(true);
+            if (hideTimerRef.current) {
+              clearTimeout(hideTimerRef.current);
+            }
+          }}
+          onMouseLeave={() => {
+            setIsHovered(false);
+            setIsOpen(false);
+          }}
+        >
+          <div className="flex flex-col">
+            {alerts.map((alert, index) => (
+              <div key={index} className={cn(index > 0 && 'border-t border-white/20')}>
+                <AlertBox alert={alert} />
+              </div>
+            ))}
+          </div>
         </div>
-      </Popover>
-    </div>
+      )}
+    </>
   );
 }

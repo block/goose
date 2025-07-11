@@ -112,17 +112,17 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        className={`prose prose-sm text-textStandard dark:prose-invert w-full max-w-full word-break
+        className={`prose prose-sm text-text-default dark:prose-invert w-full max-w-full word-break
           prose-pre:p-0 prose-pre:m-0 !p-0
           prose-code:break-all prose-code:whitespace-pre-wrap
           prose-table:table prose-table:w-full
           prose-blockquote:text-inherit
-          prose-td:border prose-td:border-borderSubtle prose-td:p-2
-          prose-th:border prose-th:border-borderSubtle prose-th:p-2
-          prose-thead:bg-bgSubtle
-          prose-h1:text-2xl prose-h1:font-medium prose-h1:mb-5 prose-h1:mt-5
-          prose-h2:text-xl prose-h2:font-medium prose-h2:mb-4 prose-h2:mt-4
-          prose-h3:text-lg prose-h3:font-medium prose-h3:mb-3 prose-h3:mt-3
+          prose-td:border prose-td:border-border-default prose-td:p-2
+          prose-th:border prose-th:border-border-default prose-th:p-2
+          prose-thead:bg-background-default
+          prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0
+          prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4
+          prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3
           prose-p:mt-0 prose-p:mb-2
           prose-ol:my-2
           prose-ul:mt-0 prose-ul:mb-3

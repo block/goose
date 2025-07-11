@@ -41,14 +41,7 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
   };
 
   return (
-    <div className="px-8">
-      <div className="mb-4">
-        <h2 className="text-xl font-medium text-textStandard mb-2">Scheduling Engine</h2>
-        <p className="text-sm text-textSubtle mb-4">
-          Choose which scheduling backend to use for scheduled recipes and tasks.
-        </p>
-      </div>
-
+    <div className="px-4">
       <div className="space-y-3">
         <div className="flex items-start space-x-3">
           <input
