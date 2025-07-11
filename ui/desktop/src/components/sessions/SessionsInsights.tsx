@@ -106,25 +106,29 @@ export function SessionInsights() {
   }
 
   return (
-    <div className="bg-background-muted ml-8 mr-8">
-      <div className="px-8 pb-12 pt-19 bg-background-default space-y-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.25, x: -5, y: 5, rotate: -20 }}
-          animate={{ opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="origin-bottom-left"
-        >
-          <Goose className="size-8" />
-        </motion.div>
-        <Greeting />
+    <div className="bg-background-muted flex flex-col h-full">
+      {/* Header container with rounded bottom */}
+      <div className="bg-background-default rounded-b-2xl mb-0.5">
+        <div className="px-8 pb-12 pt-19 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.25, x: -5, y: 5, rotate: -20 }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="origin-bottom-left"
+          >
+            <Goose className="size-8" />
+          </motion.div>
+          <Greeting />
+        </div>
       </div>
 
-      <div className="grid gap-[2px] pl-[2px] pr-[2px] mt-0.5">
+      {/* Stats containers - full bleed with 2px gaps */}
+      <div className="flex flex-col flex-1 space-y-0.5">
         {/* Top row with three equal columns */}
-        <div className="grid grid-cols-3 gap-[2px]">
+        <div className="grid grid-cols-3 gap-0.5">
           {/* Total Sessions Card */}
-          <Card className="w-full py-6 px-4 border-none rounded-tl-none rounded-bl-none">
-            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full px-4">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
                   {insights?.totalSessions}
@@ -135,8 +139,8 @@ export function SessionInsights() {
           </Card>
 
           {/* Average Duration Card */}
-          <Card className="w-full py-6 px-4 border-none">
-            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full px-4">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
                   {insights?.avgSessionDuration?.toFixed(1)}m
@@ -147,8 +151,8 @@ export function SessionInsights() {
           </Card>
 
           {/* Total Tokens Card */}
-          <Card className="w-full py-6 px-4 border-none rounded-tr-none rounded-br-none">
-            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full px-4">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+            <CardContent className="animate-in fade-in duration-500 flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
                   {insights?.totalTokens ? `${(insights.totalTokens / 1000000).toFixed(2)}M` : ''}
@@ -159,66 +163,36 @@ export function SessionInsights() {
           </Card>
         </div>
 
-        {/* Bottom row with two equal columns */}
-        <div className="grid grid-cols-1 gap-[2px]">
+        {/* Projects and Chats row */}
+        <div className="grid grid-cols-2 gap-0.5">
           {/* Recent Projects Card */}
-          {/*<Card className="w-full py-6 px-4 border-none rounded-tl-none rounded-bl-none">*/}
-          {/*  <CardContent className="animate-in fade-in duration-500 px-4">*/}
-          {/*    <div className="flex justify-between items-center mb-2 px-2">*/}
-          {/*      <CardDescription className="mb-0">*/}
-          {/*        <span className="text-lg text-text-default">Recent projects</span>*/}
-          {/*      </CardDescription>*/}
-          {/*      <Button*/}
-          {/*        variant="ghost"*/}
-          {/*        size="sm"*/}
-          {/*        className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"*/}
-          {/*        onClick={navigateToProjects}*/}
-          {/*      >*/}
-          {/*        See all*/}
-          {/*      </Button>*/}
-          {/*    </div>*/}
-          {/*    <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">*/}
-          {/*      <AnimatePresence>*/}
-          {/*        {recentProjects.length > 0 ? (*/}
-          {/*          recentProjects.map((project, index) => (*/}
-          {/*            <motion.div*/}
-          {/*              key={project.id}*/}
-          {/*              className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"*/}
-          {/*              onClick={() => handleProjectClick(project.id)}*/}
-          {/*              role="button"*/}
-          {/*              tabIndex={0}*/}
-          {/*              initial={{ opacity: 0, y: 5 }}*/}
-          {/*              animate={{ opacity: 1, y: 0 }}*/}
-          {/*              transition={{ duration: 0.3, delay: index * 0.1 }}*/}
-          {/*              onKeyDown={(e) => {*/}
-          {/*                if (e.key === 'Enter' || e.key === ' ') {*/}
-          {/*                  handleProjectClick(project.id);*/}
-          {/*                }*/}
-          {/*              }}*/}
-          {/*            >*/}
-          {/*              <div className="flex items-center space-x-2">*/}
-          {/*                <Folder className="h-4 w-4 text-text-muted" />*/}
-          {/*                <span className="truncate max-w-[200px]">{project.name}</span>*/}
-          {/*              </div>*/}
-          {/*              <span className="text-text-muted font-mono font-light">*/}
-          {/*                {formatDateOnly(project.updatedAt)}*/}
-          {/*              </span>*/}
-          {/*            </motion.div>*/}
-          {/*          ))*/}
-          {/*        ) : (*/}
-          {/*          <div className="text-text-muted text-sm py-2 px-2">*/}
-          {/*            No recent projects found.*/}
-          {/*          </div>*/}
-          {/*        )}*/}
-          {/*      </AnimatePresence>*/}
-          {/*    </div>*/}
-          {/*  </CardContent>*/}
-          {/*</Card>*/}
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+            <CardContent className="animate-in fade-in duration-500 p-0">
+              <div className="flex justify-between items-center mb-4">
+                <CardDescription className="mb-0">
+                  <span className="text-lg text-text-default">Recent projects</span>
+                </CardDescription>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"
+                  onClick={() => {/* navigateToProjects */}}
+                >
+                  See all
+                </Button>
+              </div>
+              <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">
+                <div className="text-text-muted text-sm py-2">
+                  No recent projects found.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Recent Chats Card */}
-          <Card className="w-full py-6 px-4 border-none rounded-none">
-            <CardContent className="animate-in fade-in duration-500 px-4">
-              <div className="flex justify-between items-center mb-2 px-2">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+            <CardContent className="animate-in fade-in duration-500 p-0">
+              <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
                   <span className="text-lg text-text-default">Recent chats</span>
                 </CardDescription>
@@ -271,7 +245,9 @@ export function SessionInsights() {
             </CardContent>
           </Card>
         </div>
-        <div className="h-full bg-background-default"></div>
+
+        {/* Filler container - extends to fill remaining space */}
+        <div className="bg-background-default rounded-2xl flex-1"></div>
       </div>
     </div>
   );

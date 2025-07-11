@@ -823,13 +823,13 @@ export default function ChatInput({
 
   return (
     <div
-      className={`flex flex-col relative h-auto border-t-2 border-background-muted p-4 transition-colors ${
+      className={`flex flex-col relative h-auto p-4 transition-colors ${
         disableAnimation ? '' : 'animate-in fade-in duration-500'
       } ${
         isFocused
           ? 'border-borderProminent hover:border-borderProminent'
           : 'border-borderSubtle hover:border-borderStandard'
-      } bg-background-default z-10`}
+      } bg-background-default z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}

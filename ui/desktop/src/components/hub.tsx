@@ -86,8 +86,8 @@ export default function Hub({
 
   return (
     <ChatContextManagerProvider>
-      <div className="flex flex-col h-full bg-background-default">
-        <div className="flex-1 flex flex-col">
+      <div className="flex flex-col h-full bg-background-muted">
+        <div className="flex-1 flex flex-col mb-0.5">
           <SessionInsights />
         </div>
 
