@@ -241,7 +241,8 @@ impl DeveloperRouter {
                 
                 **Important**: Use this tool instead of the shell tool for search commands, as it
                 properly filters results to respect ignored files.
-            "#}.to_string(),
+            "#}
+            .to_string(),
             json!({
                 "type": "object",
                 "required": ["command"],
@@ -755,17 +756,15 @@ impl DeveloperRouter {
     }
 
     async fn glob(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let pattern = params
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The pattern string is required".to_string(),
-            ))?;
+        let pattern =
+            params
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The pattern string is required".to_string(),
+                ))?;
 
-        let search_path = params
-            .get("path")
-            .and_then(|v| v.as_str())
-            .unwrap_or(".");
+        let search_path = params.get("path").and_then(|v| v.as_str()).unwrap_or(".");
 
         let full_pattern = if search_path == "." {
             pattern.to_string()
@@ -777,7 +776,7 @@ impl DeveloperRouter {
             .map_err(|e| ToolError::InvalidParameters(format!("Invalid glob pattern: {}", e)))?;
 
         let mut file_paths_with_metadata = Vec::new();
-        
+
         for entry in glob_result {
             match entry {
                 Ok(path) => {
@@ -867,7 +866,7 @@ impl DeveloperRouter {
 
     //     let stdout = String::from_utf8_lossy(&output.stdout);
     //     let stderr = String::from_utf8_lossy(&output.stderr);
-        
+
     //     // Parse and filter results for file paths
     //     let mut filtered_lines = Vec::new();
 
@@ -888,7 +887,6 @@ impl DeveloperRouter {
     //         }
     //     }
 
-        
     //     let mut result = filtered_lines.join("\n");
     //     if !stderr.is_empty() {
     //         result.push_str("\nErrors:\n");
