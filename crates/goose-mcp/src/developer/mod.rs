@@ -158,7 +158,9 @@ impl DeveloperRouter {
                 sourcing files do not persist between tool calls. So you may need to repeat them each time by
                 stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
 
-                Use this tool for building, testing, running programs, system operations, and general command execution.
+                - Restrictions: Avoid find, grep, cat, head, tail, ls - use dedicated tools instead (Grep, Glob, Read, LS)
+                - Multiple commands: Use ; or && to chain commands, avoid newlines
+                - Pathnames: Use absolute paths and avoid cd unless explicitly requested
             "#},
         };
 
@@ -224,6 +226,8 @@ impl DeveloperRouter {
                 - Case-insensitive search: `rg -i "pattern"`
                 - Search specific file types: `rg "pattern" --glob "*.js"`
                 - Show matches with context: `rg "pattern" -C 3`
+                - List files by name: `rg --files | rg <filename>`
+                - List files that contain a regex: `rg '<regex>' -l`
                 - Sort by modification time: `rg -l "pattern" --sort modified`
                 
                 **grep** - Traditional Unix tool:
@@ -750,7 +754,6 @@ impl DeveloperRouter {
         ])
     }
 
-    // Glob search tool implementation
     async fn glob(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let pattern = params
             .get("pattern")
@@ -764,14 +767,12 @@ impl DeveloperRouter {
             .and_then(|v| v.as_str())
             .unwrap_or(".");
 
-        // Construct the full glob pattern
         let full_pattern = if search_path == "." {
             pattern.to_string()
         } else {
             format!("{}/{}", search_path.trim_end_matches('/'), pattern)
         };
 
-        // Use the glob crate to find matching files
         let glob_result = glob::glob(&full_pattern)
             .map_err(|e| ToolError::InvalidParameters(format!("Invalid glob pattern: {}", e)))?;
 
@@ -818,90 +819,89 @@ impl DeveloperRouter {
         ])
     }
 
-    // Search command execution tool implementation
-    async fn grep(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let command = params
-            .get("command")
-            .and_then(|v| v.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The command string is required".to_string(),
-            ))?;
+    // async fn grep(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    //     let command = params
+    //         .get("command")
+    //         .and_then(|v| v.as_str())
+    //         .ok_or(ToolError::InvalidParameters(
+    //             "The command string is required".to_string(),
+    //         ))?;
 
-        // Check if command might access ignored files and return early if it does
-        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
-        for arg in &cmd_parts[1..] {
-            // Skip command flags
-            if arg.starts_with('-') {
-                continue;
-            }
-            // Skip invalid paths
-            let path = Path::new(arg);
-            if !path.exists() {
-                continue;
-            }
+    //     // Check if command might access ignored files and return early if it does
+    //     let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+    //     for arg in &cmd_parts[1..] {
+    //         // Skip command flags
+    //         if arg.starts_with('-') {
+    //             continue;
+    //         }
+    //         // Skip invalid paths
+    //         let path = Path::new(arg);
+    //         if !path.exists() {
+    //             continue;
+    //         }
 
-            if self.is_ignored(path) {
-                return Err(ToolError::ExecutionError(format!(
-                    "The command attempts to access '{}' which is restricted by .gooseignore",
-                    arg
-                )));
-            }
-        }
+    //         if self.is_ignored(path) {
+    //             return Err(ToolError::ExecutionError(format!(
+    //                 "The command attempts to access '{}' which is restricted by .gooseignore",
+    //                 arg
+    //             )));
+    //         }
+    //     }
 
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
+    //     // Get platform-specific shell configuration
+    //     let shell_config = get_shell_config();
 
-        // Execute the command using platform-specific shell
-        let mut child = Command::new(&shell_config.executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .args(&shell_config.args)
-            .arg(command)
-            .spawn()
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+    //     // Execute the command using platform-specific shell
+    //     let child = Command::new(&shell_config.executable)
+    //         .stdout(Stdio::piped())
+    //         .stderr(Stdio::piped())
+    //         .stdin(Stdio::null())
+    //         .kill_on_drop(true)
+    //         .args(&shell_config.args)
+    //         .arg(command)
+    //         .spawn()
+    //         .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let output = child.wait_with_output().await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+    //     let output = child.wait_with_output().await
+    //         .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    //     let stdout = String::from_utf8_lossy(&output.stdout);
+    //     let stderr = String::from_utf8_lossy(&output.stderr);
         
-        // Parse and filter results for file paths
-        let mut filtered_lines = Vec::new();
-        for line in stdout.lines() {
-            let line = line.trim();
-            if !line.is_empty() {
-                // Try to extract file path from search tool output
-                let file_path = if line.contains(':') {
-                    // For grep/rg output like "file.txt:content", extract just the file path
-                    line.split(':').next().unwrap_or(line)
-                } else {
-                    // For commands like "rg -l", the whole line is the file path
-                    line
-                };
-                
-                let path = Path::new(file_path);
-                if !self.is_ignored(path) {
-                    filtered_lines.push(line);
-                }
-            }
-        }
-        
-        let mut result = filtered_lines.join("\n");
-        if !stderr.is_empty() {
-            result.push_str("\nErrors:\n");
-            result.push_str(&stderr);
-        }
+    //     // Parse and filter results for file paths
+    //     let mut filtered_lines = Vec::new();
 
-        Ok(vec![
-            Content::text(result.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(result)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
-    }
+    //     for line in stdout.lines() {
+    //         let line = line.trim();
+    //         if line.is_empty() {
+    //             continue;
+    //         }
+
+    //         let file_path = match line.find(':') {
+    //             Some(idx) if Path::new(&line[..idx]).exists() => &line[..idx],
+    //             _ => line,
+    //         };
+
+    //         let path = Path::new(file_path);
+    //         if !self.is_ignored(path) {
+    //             filtered_lines.push(file_path.to_string());
+    //         }
+    //     }
+
+        
+    //     let mut result = filtered_lines.join("\n");
+    //     if !stderr.is_empty() {
+    //         result.push_str("\nErrors:\n");
+    //         result.push_str(&stderr);
+    //     }
+
+    //     Ok(vec![
+    //         Content::text(result.clone()).with_audience(vec![Role::Assistant]),
+    //         Content::text(result)
+    //             .with_audience(vec![Role::User])
+    //             .with_priority(0.0),
+    //     ])
+    // }
 
     async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
@@ -1670,7 +1670,7 @@ impl Router for DeveloperRouter {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
                 "glob" => this.glob(arguments).await,
-                "grep" => this.grep(arguments).await,
+                "grep" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
