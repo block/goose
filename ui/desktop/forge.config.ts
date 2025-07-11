@@ -102,7 +102,7 @@ module.exports = {
         build: [
           {
             entry: 'src/main.ts',
-            config: 'vite.main.config.ts',
+            config: 'vite.main.config.mts',
           },
           {
             entry: 'src/preload.ts',
