@@ -4,7 +4,10 @@ mod export;
 mod input;
 mod output;
 mod prompt;
+mod task_execution_display;
 mod thinking;
+
+use crate::session::task_execution_display::TASK_EXECUTION_NOTIFICATION_TYPE;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -15,6 +18,8 @@ use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
+use std::io::Write;
+use task_execution_display::format_task_execution_notification;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
@@ -1014,6 +1019,8 @@ impl Session {
                                                 } else if let Some(Value::String(output)) = o.get("output") {
                                                     // Fallback for other MCP notification types
                                                     (output.to_owned(), None, None)
+                                                } else if let Some(result) = format_task_execution_notification(data) {
+                                                    result
                                                 } else {
                                                     (data.to_string(), None, None)
                                                 }
@@ -1032,7 +1039,19 @@ impl Session {
                                             } else {
                                                 progress_bars.log(&formatted_message);
                                             }
-                                        } else {
+                                        } else if let Some(ref notification_type) = _notification_type {
+                                            if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
+                                                if interactive {
+                                                    let _ = progress_bars.hide();
+                                                    print!("{}", formatted_message);
+                                                    std::io::stdout().flush().unwrap();
+                                                } else {
+                                                    print!("{}", formatted_message);
+                                                    std::io::stdout().flush().unwrap();
+                                                }
+                                            }
+                                        }
+                                        else {
                                             // Non-subagent notification, display immediately with compact spacing
                                             if interactive {
                                                 let _ = progress_bars.hide();
