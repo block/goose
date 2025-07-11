@@ -16,7 +16,7 @@ export function getPredefinedModelsFromEnv(): Model[] {
 }
 
 export function shouldShowPredefinedModels(): boolean {
-  return true; // process.env.GOOSE_PREDEFINED_MODELS !== undefined;
+  return getPredefinedModelsFromEnv().length > 0;
 }
 
 export function getModelDisplayName(modelName: string): string {
