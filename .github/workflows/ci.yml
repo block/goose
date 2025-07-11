@@ -23,11 +23,10 @@ jobs:
       - name: Run cargo fmt
         run: source ./bin/activate-hermit && cargo fmt --check
 
-  rust-build-and-test:
-    name: Build and Test Rust Project
+  rust-test:
+    name: Test Rust Project
     runs-on: goose
     steps:
-      # Add disk space cleanup before linting
       - name: Check disk space before build
         run: df -h
 
@@ -68,31 +67,22 @@ jobs:
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Cache Cargo Registry
+      # Improved unified caching strategy
+      - name: Cache Cargo
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target/debug/deps
+            target/debug/build
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+            ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-
+            ${{ runner.os }}-cargo-
 
-      - name: Cache Cargo Index
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: ~/.cargo/index
-          key: ${{ runner.os }}-cargo-index
-          restore-keys: |
-            ${{ runner.os }}-cargo-index
-
-      - name: Cache Cargo Build
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
-
-      - name: Build and Test
+      - name: Run Tests
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           source ../bin/activate-hermit
@@ -100,37 +90,118 @@ jobs:
           cargo test --jobs 2
         working-directory: crates
 
-      - name: Check disk space before cleanup
+      - name: Smart cleanup (preserve cache)
+        run: |
+          echo "Selective cleanup to preserve cache..."
+          # Remove only large temporary files, keep cached deps
+          rm -rf target/debug/incremental  # These rebuild anyway
+          rm -rf target/debug/examples     # Not needed
+          rm -rf target/debug/*.d          # Dependency files
+          # Keep target/debug/deps and target/debug/build (cached)
+          
+          # Clean system caches but preserve cargo cache
+          sudo apt-get clean
+          docker system prune -f 2>/dev/null || true
+          
+          df -h
+
+  rust-clippy:
+    name: Lint Rust Project
+    runs-on: goose
+    steps:
+      - name: Check disk space before build
         run: df -h
 
+      #https://github.com/actions/runner-images/issues/2840
       - name: Clean up disk space
         run: |
           echo "Cleaning up disk space..."
-          # Remove debug artifacts that are no longer needed after tests
-          rm -rf target/debug/deps
-          rm -rf target/debug/build
-          rm -rf target/debug/incremental
-          # Clean cargo cache more aggressively
-          cargo clean || true
-          # Clean npm cache if it exists
-          npm cache clean --force 2>/dev/null || true
-          # Clean apt cache
+          sudo rm -rf \
+            /opt/google/chrome \
+            /opt/microsoft/msedge \
+            /opt/microsoft/powershell \
+            /usr/lib/mono \
+            /usr/local/lib/android \
+            /usr/local/lib/node_modules \
+            /usr/local/share/chromium \
+            /usr/local/share/powershell \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /opt/ghc \
+            /opt/hostedtoolcache \
+            /usr/local/graalvm \
+            /usr/local/sqlpackage
+          
+          # Clean package manager caches
           sudo apt-get clean
           sudo apt-get autoremove -y
-          # Remove unnecessary large directories
-          rm -rf ~/.cargo/registry/index || true
-          rm -rf ~/.cargo/registry/cache || true
-          # Remove docker images if any
+          
+          # Clean docker if present
           docker system prune -af 2>/dev/null || true
+          
+          df -h
 
-      - name: Check disk space after cleanup
-        run: df -h
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
-      - name: Lint
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      # Same cache as test job for sharing
+      - name: Cache Cargo
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target/debug/deps
+            target/debug/build
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-
+            ${{ runner.os }}-cargo-
+
+      - name: Run Clippy
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
           cargo clippy --jobs 2 -- -D warnings
+
+      - name: Smart cleanup (preserve cache)
+        run: |
+          echo "Selective cleanup to preserve cache..."
+          # Remove only large temporary files, keep cached deps
+          rm -rf target/debug/incremental  # These rebuild anyway
+          rm -rf target/debug/examples     # Not needed
+          rm -rf target/debug/*.d          # Dependency files
+          # Keep target/debug/deps and target/debug/build (cached)
+          
+          # Clean system caches but preserve cargo cache
+          sudo apt-get clean
+          docker system prune -f 2>/dev/null || true
+          
+          df -h
+
+  rust-build-and-test:
+    name: Build and Test Rust Project
+    runs-on: ubuntu-latest
+    needs: [rust-test, rust-clippy]
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          if [[ "${{ needs.rust-test.result }}" == "success" && "${{ needs.rust-clippy.result }}" == "success" ]]; then
+            echo "✅ All Rust jobs completed successfully"
+            exit 0
+          else
+            echo "❌ One or more Rust jobs failed:"
+            echo "  Test job: ${{ needs.rust-test.result }}"
+            echo "  Clippy job: ${{ needs.rust-clippy.result }}"
+            exit 1
+          fi
           
   desktop-lint:
     name: Lint Electron Desktop App
