@@ -8,6 +8,7 @@ import {
 } from '../components/settings/extensions';
 import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
+import type Model from '../components/settings/models/modelInterface';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
 import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
@@ -182,16 +183,48 @@ export const initializeSystem = async (
   options?: {
     getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
     addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+    changeModel?: (
+      model: Model,
+      options?: { showToast?: boolean; persist?: boolean }
+    ) => Promise<void>;
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
-    await initializeAgent({ provider, model });
-
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
+    const recipeSettings = (
+      recipeConfig as {
+        settings?: { goose_provider?: string; goose_model?: string; temperature?: number };
+      }
+    )?.settings;
+
+    // Handle precedence: recipe settings override UI model selection
+    const effectiveProvider = recipeSettings?.goose_provider || provider;
+    const effectiveModel = recipeSettings?.goose_model || model;
+
+    // Update UI context if recipe settings are overriding the model/provider
+    if (recipeSettings && (recipeSettings.goose_provider || recipeSettings.goose_model)) {
+      if (options?.changeModel) {
+        await options.changeModel(
+          {
+            name: effectiveModel,
+            provider: effectiveProvider,
+          },
+          { showToast: false, persist: false }
+        );
+        console.log(
+          'Updated UI to show recipe-specified model:',
+          effectiveModel,
+          'provider:',
+          effectiveProvider
+        );
+      }
+    }
+
+    console.log('initializing agent with provider', effectiveProvider, 'model', effectiveModel);
+    await initializeAgent({ provider: effectiveProvider, model: effectiveModel });
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
@@ -215,22 +248,38 @@ export const initializeSystem = async (
       }
     }
 
-    // Configure session with response config if present
-    if (responseConfig?.json_schema) {
+    // Configure session with response config AND settings if present
+    if (responseConfig?.json_schema || recipeSettings) {
+      const sessionConfigPayload: {
+        response?: { json_schema?: unknown };
+        settings?: { goose_provider?: string; goose_model?: string; temperature?: number };
+      } = {};
+
+      if (responseConfig?.json_schema) {
+        sessionConfigPayload.response = responseConfig;
+      }
+
+      if (recipeSettings) {
+        sessionConfigPayload.settings = {
+          goose_provider: recipeSettings.goose_provider,
+          goose_model: recipeSettings.goose_model,
+          temperature: recipeSettings.temperature,
+        };
+      }
+
       const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Secret-Key': getSecretKey(),
         },
-        body: JSON.stringify({
-          response: responseConfig,
-        }),
+        body: JSON.stringify(sessionConfigPayload),
       });
+
       if (!sessionConfigResponse.ok) {
         console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
       } else {
-        console.log('Configured session with response schema');
+        console.log('Configured session with recipe settings and/or response schema');
       }
     }
 

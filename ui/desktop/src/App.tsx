@@ -27,7 +27,10 @@ import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
-import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import {
+  ModelAndProviderProvider,
+  useModelAndProvider,
+} from './components/ModelAndProviderContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import {
   backupConfig,
@@ -112,7 +115,7 @@ const getInitialView = (): ViewConfig => {
   };
 };
 
-export default function App() {
+function AppContent() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
@@ -122,6 +125,7 @@ export default function App() {
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
 
   const { getExtensions, addExtension, read } = useConfig();
+  const { changeModel } = useModelAndProvider();
   const initAttemptedRef = useRef(false);
 
   function extractCommand(link: string): string {
@@ -232,6 +236,7 @@ export default function App() {
             await initializeSystem(provider as string, model as string, {
               getExtensions,
               addExtension,
+              changeModel,
             });
           } catch (error) {
             console.error('Error in initialization:', error);
@@ -257,7 +262,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension]);
+  }, [read, getExtensions, addExtension, changeModel]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -509,7 +514,7 @@ export default function App() {
     );
 
   return (
-    <ModelAndProviderProvider>
+    <>
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
@@ -612,6 +617,14 @@ export default function App() {
         />
       )}
       <AnnouncementModal />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <ModelAndProviderProvider>
+      <AppContent />
     </ModelAndProviderProvider>
   );
 }

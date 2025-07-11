@@ -26,6 +26,11 @@ export interface Recipe {
   context?: string[];
   profile?: string;
   mcps?: number;
+  settings?: {
+    goose_provider?: string;
+    goose_model?: string;
+    temperature?: number;
+  };
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
