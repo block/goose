@@ -12,6 +12,8 @@ use std::sync::Arc;
 
 use super::output;
 use super::Session;
+use crate::recipes::secret_collector::SecretCollector;
+use crate::recipes::secret_discovery::SecretDiscovery;
 
 /// Configuration for building a new Goose session
 ///
@@ -160,6 +162,24 @@ pub struct SessionSettings {
     pub goose_model: Option<String>,
     pub goose_provider: Option<String>,
     pub temperature: Option<f32>,
+}
+
+/// Collect missing secrets for extensions
+async fn collect_extension_secrets(extensions: &[ExtensionConfig]) -> anyhow::Result<()> {
+    let discovery = SecretDiscovery::new();
+    let mut all_requirements = Vec::new();
+
+    for extension in extensions {
+        let requirements = discovery.discover_extension_secrets(extension);
+        all_requirements.extend(requirements);
+    }
+
+    if !all_requirements.is_empty() {
+        let collector = SecretCollector::new();
+        collector.collect_missing_secrets(all_requirements).await?;
+    }
+
+    Ok(())
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
@@ -330,6 +350,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             .map(|ext| ext.config)
             .collect()
     };
+
+    if session_config.interactive && !extensions_to_run.is_empty() {
+        if let Err(e) = collect_extension_secrets(&extensions_to_run).await {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Failed to collect extension secrets: {}",
+                    e
+                ))
+                .yellow()
+            );
+        }
+    }
 
     for extension in extensions_to_run {
         if let Err(e) = agent.add_extension(extension.clone()).await {
@@ -510,6 +543,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::agents::extension::Envs;
+    use std::collections::HashMap;
 
     #[test]
     fn test_session_builder_config_creation() {
@@ -578,5 +613,78 @@ mod tests {
         // This test mainly serves as a compilation check
         assert_eq!(extension_name, "test-extension");
         assert_eq!(error_message, "test error");
+    }
+
+    #[tokio::test]
+    async fn test_collect_extension_secrets_with_empty_extensions() {
+        let extensions: Vec<ExtensionConfig> = vec![];
+        let result = collect_extension_secrets(&extensions).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_collect_extension_secrets_with_builtin_extensions() {
+        let extensions = vec![ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            display_name: Some("Developer Tools".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+        }];
+
+        let result = collect_extension_secrets(&extensions).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_collect_extension_secrets_with_stdio_extensions_logic() {
+        let extensions = vec![ExtensionConfig::Stdio {
+            name: "test-extension".to_string(),
+            cmd: "test-cmd".to_string(),
+            args: vec![],
+            envs: Envs::new(HashMap::new()),
+            env_keys: vec!["TEST_API_KEY".to_string()],
+            timeout: Some(300),
+            description: Some("Test extension".to_string()),
+            bundled: Some(false),
+        }];
+
+        // Test the discovery part of the logic (without interactive collection)
+        let discovery = SecretDiscovery::new();
+        let mut all_requirements = Vec::new();
+
+        for extension in &extensions {
+            let requirements = discovery.discover_extension_secrets(extension);
+            all_requirements.extend(requirements);
+        }
+
+        // Should discover that TEST_API_KEY is missing
+        assert_eq!(all_requirements.len(), 1);
+        assert_eq!(all_requirements[0].key, "TEST_API_KEY");
+        assert_eq!(all_requirements[0].extension_name, "test-extension");
+        assert!(!all_requirements[0].is_available);
+    }
+
+    #[tokio::test]
+    async fn test_collect_extension_secrets_with_available_secrets() {
+        // Set environment variable to simulate available secret
+        std::env::set_var("TEST_AVAILABLE_KEY", "test_value");
+
+        let extensions = vec![ExtensionConfig::Stdio {
+            name: "test-extension".to_string(),
+            cmd: "test-cmd".to_string(),
+            args: vec![],
+            envs: Envs::new(HashMap::new()),
+            env_keys: vec!["TEST_AVAILABLE_KEY".to_string()],
+            timeout: Some(300),
+            description: Some("Test extension".to_string()),
+            bundled: Some(false),
+        }];
+
+        let result = collect_extension_secrets(&extensions).await;
+        // Should succeed because the secret is already available
+        assert!(result.is_ok());
+
+        // Clean up
+        std::env::remove_var("TEST_AVAILABLE_KEY");
     }
 }
