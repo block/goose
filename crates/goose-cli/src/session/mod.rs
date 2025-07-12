@@ -679,6 +679,14 @@ impl Session {
 
                     continue;
                 }
+                InputResult::ListTools(extension) => {
+                    save_history(&mut editor);
+
+                    match self.list_tools(extension).await {
+                        Ok(tools) => output::render_tools(&tools),
+                        Err(e) => output::render_error(&e.to_string()),
+                    }
+                }
             }
         }
 
@@ -1451,6 +1459,49 @@ impl Session {
         serde_yaml::to_writer(file, recipe).context("Failed to save recipe")?;
 
         Ok(path)
+    }
+
+    /// Lists available tools from the agent, optionally filtered by extension
+    ///
+    /// # Arguments
+    /// * `extension` - Optional filter to only show tools from a specific extension
+    ///
+    /// # Returns
+    /// A HashMap mapping extension names to their tools
+    pub async fn list_tools(
+        &self,
+        extension: Option<String>,
+    ) -> Result<HashMap<String, Vec<mcp_core::tool::Tool>>> {
+        let all_extension_names = self.agent.list_extensions().await;
+
+        // Early validation if filtering by extension
+        if let Some(filter) = &extension {
+            if !all_extension_names.contains(filter) {
+                return Err(anyhow::anyhow!("Extension '{}' not found", filter));
+            }
+        }
+
+        let mut tools_by_extension = HashMap::new();
+
+        for ext_name in all_extension_names {
+            // Skip extensions not matching the filter if one is provided
+            if extension.as_ref().is_some_and(|f| f != &ext_name) {
+                continue;
+            }
+
+            let tools = self.agent.list_tools(Some(ext_name.clone())).await;
+            tools_by_extension.insert(ext_name, tools);
+        }
+
+        Ok(tools_by_extension)
+    }
+
+    /// Returns a list of all extension names currently loaded in the session
+    ///
+    /// # Returns
+    /// A vector of extension names as strings
+    pub async fn list_extension_names(&self) -> Vec<String> {
+        self.agent.list_extensions().await
     }
 }
 
