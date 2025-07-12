@@ -95,10 +95,17 @@ export class SearchHighlighter {
     if (!term.trim()) return [];
 
     const range = document.createRange();
-    const regex = new RegExp(
-      term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-      caseSensitive ? 'g' : 'gi'
-    );
+    
+    // Create regex pattern based on whether there are wildcards or not
+    let regex: RegExp;
+    if (term.includes('*')) {
+      // Convert wildcard pattern to regex for substring matching
+      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
+      regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+    } else {
+      // Regular search term (no wildcards)
+      regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+    }
 
     // Find all text nodes in the container
     const walker = document.createTreeWalker(this.container, NodeFilter.SHOW_TEXT, {
