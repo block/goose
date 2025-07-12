@@ -2,6 +2,16 @@ import kotlinx.coroutines.runBlocking
 import uniffi.goose_llm.*
 
 fun main() = runBlocking {
+    // Initialize the provider pool (optional, but good practice)
+    initProviderPool()
+    
+    // Configure the provider pool with custom settings
+    configureProviderPool(
+        maxSize = 10,     // Max 10 connections in the pool
+        maxIdleSec = 300, // 5 minutes max idle time
+        maxLifetimeSec = 3600, // 1 hour max lifetime
+        maxUses = 100     // Max 100 uses per connection
+    )
     val now = System.currentTimeMillis() / 1000
     val msgs = listOf(
         // 1) User sends a plain-text prompt
@@ -186,6 +196,7 @@ fun main() = runBlocking {
                 )
             )),
         extensions = extensions
+        usePool = true // Enable connection pooling
     )
 
     val respToolErr = completion(reqToolErr)
@@ -237,44 +248,107 @@ fun main() = runBlocking {
 
 suspend fun runUiExtraction(providerName: String, providerConfig: String) {
     val systemPrompt = "You are a UI generator AI. Convert the user input into a JSON-driven UI."
+    val messageText = """
+    [
+  {
+    "year": 2015,
+    "unique_artists": 71
+  },
+  {
+    "year": 2016,
+    "unique_artists": 51
+  },
+  {
+    "year": 2017,
+    "unique_artists": 121
+  },
+  {
+    "year": 2018,
+    "unique_artists": 92
+  },
+  {
+    "year": 2019,
+    "unique_artists": 377
+  },
+  {
+    "year": 2020,
+    "unique_artists": 335
+  },
+  {
+    "year": 2021,
+    "unique_artists": 383
+  },
+  {
+    "year": 2022,
+    "unique_artists": 444
+  },
+  {
+    "year": 2023,
+    "unique_artists": 510
+  },
+  {
+    "year": 2024,
+    "unique_artists": 627
+  },
+  {
+    "year": 2025,
+    "unique_artists": 243
+  }
+]
+""".trimIndent()
+
     val messages = listOf(
         Message(
             role = Role.USER,
             created = System.currentTimeMillis() / 1000,
             content = listOf(
                 MessageContent.Text(
-                    TextContent("Make a User Profile Form")
+                    TextContent(messageText)
                 )
             )
         )
     )
+
+    val schema2 = """
+    {
+  "type": "object",
+  "properties": {
+    "chartType": {
+      "const": "line",
+      "type": "string"
+    },
+    "xAxis": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
+    "yAxis": {
+      "type": "array",
+      "items": { "type": "number" }
+    }
+  },
+  "required": ["chartType", "xAxis", "yAxis"],
+  "additionalProperties": false
+}
+""".trimIndent();
+
     val schema = """{
-        "type": "object",
-        "properties": {
-            "type": {
-                "type": "string",
-                "enum": ["div","button","header","section","field","form"]
-            },
-            "label":   { "type": "string" },
-            "children": {
-                "type": "array",
-                "items": { "${'$'}ref": "#" }
-            },
-            "attributes": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "name":  { "type": "string" },
-                        "value": { "type": "string" }
-                    },
-                    "required": ["name","value"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        "required": ["type","label","children","attributes"],
-        "additionalProperties": false
+  "properties": {
+    "chartType": {
+      "const": "line",
+      "type": "string"
+    },
+    "xAxis": {
+      "title": "Year",
+      "type": "string"
+    },
+    "yAxis": {
+      "title": "Number of Unique Artists",
+      "type": "number"
+    }
+  },
+  "type": "object",
+   "additionalProperties": false,
+    "required": ["chartType", "xAxis", "yAxis"]
     }""".trimIndent();
 
     try {
@@ -283,7 +357,7 @@ suspend fun runUiExtraction(providerName: String, providerConfig: String) {
             providerConfig = providerConfig,
             systemPrompt = systemPrompt,
             messages = messages,
-            schema = schema
+            schema = schema2
         )
         println("\nUI Extraction Output:\n${response}")
     } catch (e: ProviderException) {
