@@ -109,6 +109,11 @@ pub fn inspect_keys(
 pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
     let config = Config::global();
 
+    if metadata.config_keys.is_empty() {
+        let configured_marker = format!("{}_configured", metadata.name);
+        return config.get_param::<bool>(&configured_marker).is_ok();
+    }
+
     // Get all required keys
     let required_keys: Vec<&ConfigKey> = metadata
         .config_keys
@@ -130,6 +135,18 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
 
     // For providers with multiple keys or keys without defaults:
     // Find required keys that don't have default values
+    if required_keys.is_empty() && !metadata.config_keys.is_empty() {
+        let all_optional_with_defaults = metadata
+            .config_keys
+            .iter()
+            .all(|key| !key.required && key.default.is_some());
+
+        if all_optional_with_defaults {
+            let configured_marker = format!("{}_configured", metadata.name);
+            return config.get_param::<bool>(&configured_marker).is_ok();
+        }
+    }
+
     let required_non_default_keys: Vec<&ConfigKey> = required_keys
         .iter()
         .filter(|key| key.default.is_none())
