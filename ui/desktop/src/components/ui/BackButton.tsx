@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import Back from '../icons/Back';
 
 interface BackButtonProps {
@@ -16,7 +16,7 @@ const BackButton: React.FC<BackButtonProps> = ({
   iconSize = 'w-3 h-3',
   showText = true,
 }) => {
-  const handleExit = () => {
+  const handleExit = useCallback(() => {
     if (onClick) {
       onClick(); // Custom onClick handler passed via props
     } else if (window.history.length > 1) {
@@ -24,7 +24,38 @@ const BackButton: React.FC<BackButtonProps> = ({
     } else {
       console.warn('No history to go back to');
     }
-  };
+  }, [onClick]);
+
+  // Set up mouse back button event listener.
+  useEffect(() => {
+    const handleMouseBack = () => {
+      handleExit();
+    };
+
+    if (window.electron) {
+      const mouseBackHandler = (e: MouseEvent) => {
+        // MouseButton 3 or 4 is typically back button.
+        if (e.button === 3 || e.button === 4) {
+          handleExit();
+          e.preventDefault();
+        }
+      };
+
+      window.electron.on('mouse-back-button-clicked', handleMouseBack);
+
+      // Also listen for mouseup events directly, for better OS compatibility.
+      document.addEventListener('mouseup', mouseBackHandler);
+
+      return () => {
+        if (window.electron) {
+          window.electron.off('mouse-back-button-clicked', handleMouseBack);
+        }
+        document.removeEventListener('mouseup', mouseBackHandler);
+      };
+    }
+
+    return undefined;
+  }, [handleExit]);
 
   return (
     <button
