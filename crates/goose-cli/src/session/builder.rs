@@ -7,6 +7,7 @@ use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
+use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
 
@@ -132,6 +133,7 @@ async fn offer_extension_debugging_help(
         debug_agent,
         Some(temp_session_file.clone()),
         false,
+        None,
         None,
         None,
     );
@@ -381,6 +383,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     }
 
+    // Determine editor mode
+    let edit_mode = config
+        .get_param::<String>("EDIT_MODE")
+        .ok()
+        .and_then(|edit_mode| match edit_mode.to_lowercase().as_str() {
+            "emacs" => Some(EditMode::Emacs),
+            "vi" => Some(EditMode::Vi),
+            _ => {
+                eprintln!("Invalid EDIT_MODE specified, defaulting to Emacs");
+                None
+            }
+        });
+
     // Create new session
     let mut session = Session::new(
         agent,
@@ -388,6 +403,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.debug,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
+        edit_mode,
     );
 
     // Add extensions if provided
