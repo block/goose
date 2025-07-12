@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -39,7 +40,71 @@ impl ClaudeCodeProvider {
             .get_param("CLAUDE_CODE_COMMAND")
             .unwrap_or_else(|_| "claude".to_string());
 
-        Ok(Self { command, model })
+        // If command is just "claude" (not a full path), search for it in common locations
+        let resolved_command = if !command.contains('/') {
+            Self::find_claude_executable(&command).unwrap_or(command)
+        } else {
+            command
+        };
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+        })
+    }
+
+    /// Search for claude executable in common installation locations
+    fn find_claude_executable(command_name: &str) -> Option<String> {
+        let home = std::env::var("HOME").ok()?;
+
+        // Common locations where claude might be installed
+        let search_paths = vec![
+            format!("{}/.claude/local/{}", home, command_name),
+            format!("{}/.local/bin/{}", home, command_name),
+            format!("{}/bin/{}", home, command_name),
+            format!("/usr/local/bin/{}", command_name),
+            format!("/usr/bin/{}", command_name),
+            format!("/opt/claude/{}", command_name),
+        ];
+
+        for path in search_paths {
+            let path_buf = PathBuf::from(&path);
+            if path_buf.exists() && path_buf.is_file() {
+                // Check if it's executable
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
+                        let permissions = metadata.permissions();
+                        if permissions.mode() & 0o111 != 0 {
+                            tracing::info!("Found claude executable at: {}", path);
+                            return Some(path);
+                        }
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    // On non-Unix systems, just check if file exists
+                    tracing::info!("Found claude executable at: {}", path);
+                    return Some(path);
+                }
+            }
+        }
+
+        // If not found in common locations, check if it's in PATH
+        if let Ok(path_var) = std::env::var("PATH") {
+            for dir in path_var.split(':') {
+                let full_path = format!("{}/{}", dir, command_name);
+                let path_buf = PathBuf::from(&full_path);
+                if path_buf.exists() && path_buf.is_file() {
+                    tracing::info!("Found claude executable in PATH at: {}", full_path);
+                    return Some(full_path);
+                }
+            }
+        }
+
+        tracing::warn!("Could not find claude executable in common locations");
+        None
     }
 
     /// Filter out the Extensions section from the system prompt
