@@ -9,6 +9,8 @@ import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
   Message,
+  TextContent,
+  ImageContent,
   getTextContent,
   getToolRequests,
   getToolResponses,
@@ -18,6 +20,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { UIResourceRenderer, isUIResource, extractUIResource } from './UIResourceRenderer';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -68,6 +71,16 @@ export default function GooseMessage({
   // Remove image paths from text for display
   const displayText =
     imagePaths.length > 0 ? removeImagePathsFromText(textWithoutCot, imagePaths) : textWithoutCot;
+
+  // Extract UI resources from the message content
+  const uiResources = message.content
+    .filter(
+      (content): content is TextContent | ImageContent =>
+        content.type === 'text' || content.type === 'image'
+    )
+    .filter(isUIResource)
+    .map(extractUIResource)
+    .filter((resource): resource is NonNullable<typeof resource> => resource !== null);
 
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
@@ -156,6 +169,17 @@ export default function GooseMessage({
               <div className="flex flex-wrap gap-2 mt-2 mb-2">
                 {imagePaths.map((imagePath, index) => (
                   <ImagePreview key={index} src={imagePath} alt={`Image ${index + 1}`} />
+                ))}
+              </div>
+            )}
+
+            {/* Render UI resources if any */}
+            {uiResources.length > 0 && (
+              <div className="flex flex-col gap-4 mt-2 mb-2">
+                {uiResources.map((resource, index) => (
+                  <div key={index} className="border border-borderSubtle rounded-lg p-4 bg-bgApp">
+                    <UIResourceRenderer resource={resource} />
+                  </div>
                 ))}
               </div>
             )}
