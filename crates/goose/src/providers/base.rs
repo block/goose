@@ -38,6 +38,8 @@ pub struct ModelInfo {
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
+    /// Whether this model supports cache control
+    pub supports_cache_control: Option<bool>,
 }
 
 impl ModelInfo {
@@ -49,6 +51,7 @@ impl ModelInfo {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         }
     }
 
@@ -65,6 +68,7 @@ impl ModelInfo {
             input_token_cost: Some(input_cost),
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
+            supports_cache_control: None,
         }
     }
 }
@@ -112,6 +116,7 @@ impl ProviderMetadata {
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
+                    supports_cache_control: None,
                 })
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
@@ -257,6 +262,11 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Check if this provider supports cache control
+    fn supports_cache_control(&self) -> bool {
+        false
+    }
+
     /// Create embeddings if supported. Default implementation returns an error.
     async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
@@ -375,6 +385,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -385,6 +396,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info, info2);
 
@@ -395,6 +407,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_ne!(info, info3);
     }
