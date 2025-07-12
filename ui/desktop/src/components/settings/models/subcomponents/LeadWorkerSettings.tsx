@@ -5,6 +5,7 @@ import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { Info } from 'lucide-react';
+import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface LeadWorkerSettingsProps {
   onClose: () => void;
@@ -68,21 +69,35 @@ export function LeadWorkerSettings({ onClose }: LeadWorkerSettingsProps) {
         }
 
         // Load available models
-        const providers = await getProviders(false);
-        const activeProviders = providers.filter((p) => p.is_configured);
         const options: { value: string; label: string; provider: string }[] = [];
 
-        activeProviders.forEach(({ metadata, name }) => {
-          if (metadata.known_models) {
-            metadata.known_models.forEach((model) => {
-              options.push({
-                value: model.name,
-                label: `${model.name} (${metadata.display_name})`,
-                provider: name,
-              });
+        if (shouldShowPredefinedModels()) {
+          // Use predefined models if available
+          const predefinedModels = getPredefinedModelsFromEnv();
+          predefinedModels.forEach((model) => {
+            options.push({
+              value: model.name, // Use name for switching
+              label: model.alias || model.name, // Use alias for display, fallback to name
+              provider: model.provider,
             });
-          }
-        });
+          });
+        } else {
+          // Fallback to provider-based models
+          const providers = await getProviders(false);
+          const activeProviders = providers.filter((p) => p.is_configured);
+
+          activeProviders.forEach(({ metadata, name }) => {
+            if (metadata.known_models) {
+              metadata.known_models.forEach((model) => {
+                options.push({
+                  value: model.name,
+                  label: `${model.name} (${metadata.display_name})`,
+                  provider: name,
+                });
+              });
+            }
+          });
+        }
 
         setModelOptions(options);
       } catch (error) {
