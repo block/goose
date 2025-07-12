@@ -37,7 +37,6 @@ impl GeminiCliProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let command_name = "gemini";
 
-        // Search for gemini executable in common locations
         let resolved_command =
             Self::find_gemini_executable(command_name).unwrap_or_else(|| command_name.to_string());
 
@@ -51,7 +50,6 @@ impl GeminiCliProvider {
     fn find_gemini_executable(command_name: &str) -> Option<String> {
         let home = std::env::var("HOME").ok()?;
 
-        // Common locations where gemini might be installed
         let search_paths = vec![
             format!("{}/.gemini/local/{}", home, command_name),
             format!("{}/.local/bin/{}", home, command_name),
@@ -65,7 +63,6 @@ impl GeminiCliProvider {
         for path in search_paths {
             let path_buf = PathBuf::from(&path);
             if path_buf.exists() && path_buf.is_file() {
-                // Check if it's executable
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
@@ -79,14 +76,12 @@ impl GeminiCliProvider {
                 }
                 #[cfg(not(unix))]
                 {
-                    // On non-Unix systems, just check if file exists
                     tracing::info!("Found gemini executable at: {}", path);
                     return Some(path);
                 }
             }
         }
 
-        // If not found in common locations, check if it's in PATH
         if let Ok(path_var) = std::env::var("PATH") {
             #[cfg(unix)]
             let path_separator = ':';
@@ -109,22 +104,17 @@ impl GeminiCliProvider {
 
     /// Filter out the Extensions section from the system prompt
     fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
         if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
             let after_extensions = &system[extensions_start..];
             if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
                 let before_extensions = &system[..extensions_start];
                 let next_section_start = extensions_start + next_section_pos + 1;
                 let after_next_section = &system[next_section_start..];
                 format!("{}{}", before_extensions.trim_end(), after_next_section)
             } else {
-                // No next section found, just remove everything from Extensions onward
                 system[..extensions_start].trim_end().to_string()
             }
         } else {
-            // No Extensions section found, return original
             system.to_string()
         }
     }
@@ -136,15 +126,12 @@ impl GeminiCliProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<Vec<String>, ProviderError> {
-        // Create a simple prompt combining system + conversation
         let mut full_prompt = String::new();
 
-        // Add system prompt
         let filtered_system = self.filter_extensions_from_system_prompt(system);
         full_prompt.push_str(&filtered_system);
         full_prompt.push_str("\n\n");
 
-        // Add conversation history
         for message in messages {
             let role_prefix = match message.role {
                 Role::User => "Human: ",
@@ -191,7 +178,7 @@ impl GeminiCliProvider {
         loop {
             line.clear();
             match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
+                Ok(0) => break,
                 Ok(_) => {
                     let trimmed = line.trim();
                     if !trimmed.is_empty() {
@@ -228,7 +215,6 @@ impl GeminiCliProvider {
 
     /// Parse simple text response
     fn parse_response(&self, lines: &[String]) -> Result<(Message, Usage), ProviderError> {
-        // Join all lines into a single response
         let response_text = lines.join("\n");
 
         if response_text.trim().is_empty() {
@@ -246,7 +232,7 @@ impl GeminiCliProvider {
             })],
         };
 
-        let usage = Usage::default(); // No usage info available for gemini CLI
+        let usage = Usage::default();
 
         Ok((message, usage))
     }
@@ -256,7 +242,6 @@ impl GeminiCliProvider {
         &self,
         messages: &[Message],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
         let description = messages
             .iter()
             .find(|m| m.role == Role::User)
@@ -267,7 +252,6 @@ impl GeminiCliProvider {
                 })
             })
             .map(|text| {
-                // Take first few words, limit to 4 words
                 text.split_whitespace()
                     .take(4)
                     .collect::<Vec<_>>()
@@ -315,7 +299,6 @@ impl Provider for GeminiCliProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        // Return a custom config with 1M token limit for Gemini CLI
         ModelConfig::new("gemini-1.5-pro".to_string()).with_context_limit(Some(1_000_000))
     }
 
@@ -329,7 +312,6 @@ impl Provider for GeminiCliProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request (short system prompt asking for 4 words or less)
         if system.contains("four words or less") || system.contains("4 words or less") {
             return self.generate_simple_session_description(messages);
         }
@@ -338,7 +320,6 @@ impl Provider for GeminiCliProvider {
 
         let (message, usage) = self.parse_response(&lines)?;
 
-        // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
             "model": self.model.model_name,

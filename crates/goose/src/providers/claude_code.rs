@@ -40,7 +40,6 @@ impl ClaudeCodeProvider {
             .get_param("CLAUDE_CODE_COMMAND")
             .unwrap_or_else(|_| "claude".to_string());
 
-        // If command is just "claude" (not a full path), search for it in common locations
         let resolved_command = if !command.contains('/') {
             Self::find_claude_executable(&command).unwrap_or(command)
         } else {
@@ -57,7 +56,6 @@ impl ClaudeCodeProvider {
     fn find_claude_executable(command_name: &str) -> Option<String> {
         let home = std::env::var("HOME").ok()?;
 
-        // Common locations where claude might be installed
         let search_paths = vec![
             format!("{}/.claude/local/{}", home, command_name),
             format!("{}/.local/bin/{}", home, command_name),
@@ -70,7 +68,6 @@ impl ClaudeCodeProvider {
         for path in search_paths {
             let path_buf = PathBuf::from(&path);
             if path_buf.exists() && path_buf.is_file() {
-                // Check if it's executable
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
@@ -84,14 +81,12 @@ impl ClaudeCodeProvider {
                 }
                 #[cfg(not(unix))]
                 {
-                    // On non-Unix systems, just check if file exists
                     tracing::info!("Found claude executable at: {}", path);
                     return Some(path);
                 }
             }
         }
 
-        // If not found in common locations, check if it's in PATH
         if let Ok(path_var) = std::env::var("PATH") {
             #[cfg(unix)]
             let path_separator = ':';
@@ -114,22 +109,17 @@ impl ClaudeCodeProvider {
 
     /// Filter out the Extensions section from the system prompt
     fn filter_extensions_from_system_prompt(&self, system: &str) -> String {
-        // Find the Extensions section and remove it
         if let Some(extensions_start) = system.find("# Extensions") {
-            // Look for the next major section that starts with #
             let after_extensions = &system[extensions_start..];
             if let Some(next_section_pos) = after_extensions[1..].find("\n# ") {
-                // Found next section, keep everything before Extensions and after the next section
                 let before_extensions = &system[..extensions_start];
                 let next_section_start = extensions_start + next_section_pos + 1;
                 let after_next_section = &system[next_section_start..];
                 format!("{}{}", before_extensions.trim_end(), after_next_section)
             } else {
-                // No next section found, just remove everything from Extensions onward
                 system[..extensions_start].trim_end().to_string()
             }
         } else {
-            // No Extensions section found, return original
             system.to_string()
         }
     }
@@ -165,7 +155,6 @@ impl ClaudeCodeProvider {
                     }
                     MessageContent::ToolResponse(tool_response) => {
                         if let Ok(tool_contents) = &tool_response.tool_result {
-                            // Convert tool result contents to text
                             let content_text = tool_contents
                                 .iter()
                                 .filter_map(|content| content.as_text())
@@ -179,9 +168,7 @@ impl ClaudeCodeProvider {
                             }));
                         }
                     }
-                    _ => {
-                        // Skip other content types for now
-                    }
+                    _ => {}
                 }
             }
 
@@ -202,7 +189,6 @@ impl ClaudeCodeProvider {
         let mut all_text_content = Vec::new();
         let mut usage = Usage::default();
 
-        // Join all lines and parse as a single JSON array
         let full_response = json_lines.join("");
         let json_array: Vec<Value> = serde_json::from_str(&full_response).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to parse JSON response: {}", e))
@@ -213,7 +199,6 @@ impl ClaudeCodeProvider {
                 match msg_type {
                     "assistant" => {
                         if let Some(message) = parsed.get("message") {
-                            // Extract text content from this assistant message
                             if let Some(content) = message.get("content").and_then(|c| c.as_array())
                             {
                                 for item in content {
@@ -227,12 +212,10 @@ impl ClaudeCodeProvider {
                                                 all_text_content.push(text.to_string());
                                             }
                                         }
-                                        // Skip tool_use - those are claude CLI's internal tools
                                     }
                                 }
                             }
 
-                            // Extract usage information
                             if let Some(usage_info) = message.get("usage") {
                                 usage.input_tokens = usage_info
                                     .get("input_tokens")
@@ -243,7 +226,6 @@ impl ClaudeCodeProvider {
                                     .and_then(|v| v.as_i64())
                                     .map(|v| v as i32);
 
-                                // Calculate total if not provided
                                 if usage.total_tokens.is_none() {
                                     if let (Some(input), Some(output)) =
                                         (usage.input_tokens, usage.output_tokens)
@@ -255,7 +237,6 @@ impl ClaudeCodeProvider {
                         }
                     }
                     "result" => {
-                        // Extract additional usage info from result if available
                         if let Some(result_usage) = parsed.get("usage") {
                             if usage.input_tokens.is_none() {
                                 usage.input_tokens = result_usage
@@ -271,12 +252,11 @@ impl ClaudeCodeProvider {
                             }
                         }
                     }
-                    _ => {} // Ignore other message types
+                    _ => {}
                 }
             }
         }
 
-        // Combine all text content into a single message
         let combined_text = all_text_content.join("\n\n");
         if combined_text.is_empty() {
             return Err(ProviderError::RequestFailed(
@@ -310,7 +290,6 @@ impl ClaudeCodeProvider {
                 ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
             })?;
 
-        // Create a filtered system prompt without Extensions section
         let filtered_system = self.filter_extensions_from_system_prompt(system);
 
         if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
@@ -397,7 +376,6 @@ impl ClaudeCodeProvider {
         &self,
         messages: &[Message],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
         let description = messages
             .iter()
             .find(|m| m.role == mcp_core::Role::User)
@@ -408,7 +386,6 @@ impl ClaudeCodeProvider {
                 })
             })
             .map(|text| {
-                // Take first few words, limit to 4 words
                 text.split_whitespace()
                     .take(4)
                     .collect::<Vec<_>>()
@@ -475,7 +452,6 @@ impl Provider for ClaudeCodeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request (short system prompt asking for 4 words or less)
         if system.contains("four words or less") || system.contains("4 words or less") {
             return self.generate_simple_session_description(messages);
         }
@@ -484,7 +460,6 @@ impl Provider for ClaudeCodeProvider {
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
 
-        // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
             "model": self.model.model_name,
