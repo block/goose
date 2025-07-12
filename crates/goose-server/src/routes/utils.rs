@@ -121,15 +121,20 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
         .filter(|key| key.required)
         .collect();
 
+    // Special case: If a provider has exactly one required key and that key
+    // has a default value, check if it's explicitly set
     if required_keys.len() == 1 && required_keys[0].default.is_some() {
         let key = &required_keys[0];
 
+        // Check if the key is explicitly set (either in env or config)
         let is_set_in_env = env::var(&key.name).is_ok();
         let is_set_in_config = config.get(&key.name, key.secret).is_ok();
 
         return is_set_in_env || is_set_in_config;
     }
 
+    // For providers with multiple keys or keys without defaults:
+    // Find required keys that don't have default values
     if required_keys.is_empty() && !metadata.config_keys.is_empty() {
         let all_optional_with_defaults = metadata
             .config_keys
@@ -148,6 +153,7 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
         .cloned()
         .collect();
 
+    // If there are no non-default keys, this provider needs at least one key explicitly set
     if required_non_default_keys.is_empty() {
         return required_keys.iter().any(|key| {
             let is_set_in_env = env::var(&key.name).is_ok();
@@ -157,6 +163,7 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
         });
     }
 
+    // Otherwise, all non-default keys must be set
     required_non_default_keys.iter().all(|key| {
         let is_set_in_env = env::var(&key.name).is_ok();
         let is_set_in_config = config.get(&key.name, key.secret).is_ok();
