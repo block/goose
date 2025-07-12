@@ -275,7 +275,7 @@ impl ClaudeCodeProvider {
             .spawn()
             .map_err(|e| ProviderError::RequestFailed(format!(
                 "Failed to spawn Claude CLI command '{}': {}. \
-                Make sure the Claude CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
+                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
                 self.command, e
             )))?;
 
