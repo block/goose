@@ -48,6 +48,9 @@ impl ModelConfig {
             // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
             name if name.contains("llama3.2") => Some(128_000),
             name if name.contains("llama3.3") => Some(128_000),
+
+            // Google Gemini models
+            name if name.contains("gemini-2") => Some(1_000_000),
             _ => None,
         }
     }
@@ -99,6 +102,9 @@ mod tests {
 
         let config = ModelConfig::new("gpt-4-turbo".to_string());
         assert_eq!(config.context_limit(), 128_000);
+
+        let config = ModelConfig::new("gemini-2.5-flash".to_string());
+        assert_eq!(config.context_limit(), 1_000_000);
 
         // Test fallback to default
         let config = ModelConfig::new("unknown-model".to_string());
