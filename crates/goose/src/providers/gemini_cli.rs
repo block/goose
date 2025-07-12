@@ -88,10 +88,15 @@ impl GeminiCliProvider {
 
         // If not found in common locations, check if it's in PATH
         if let Ok(path_var) = std::env::var("PATH") {
-            for dir in path_var.split(':') {
-                let full_path = format!("{}/{}", dir, command_name);
-                let path_buf = PathBuf::from(&full_path);
+            #[cfg(unix)]
+            let path_separator = ':';
+            #[cfg(windows)]
+            let path_separator = ';';
+
+            for dir in path_var.split(path_separator) {
+                let path_buf = PathBuf::from(dir).join(command_name);
                 if path_buf.exists() && path_buf.is_file() {
+                    let full_path = path_buf.to_string_lossy().to_string();
                     tracing::info!("Found gemini executable in PATH at: {}", full_path);
                     return Some(full_path);
                 }
