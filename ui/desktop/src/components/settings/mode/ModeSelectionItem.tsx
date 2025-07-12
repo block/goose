@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
 import { View, ViewOptions } from '../../../App';
@@ -38,82 +38,90 @@ interface ModeSelectionItemProps {
   showDescription: boolean;
   isApproveModeConfigure: boolean;
   parentView: View;
+  parentViewOptions?: ViewOptions;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   handleModeChange: (newMode: string) => void;
 }
 
-export function ModeSelectionItem({
-  currentMode,
-  mode,
-  showDescription,
-  isApproveModeConfigure,
-  parentView,
-  setView,
-  handleModeChange,
-}: ModeSelectionItemProps) {
-  const [checked, setChecked] = useState(currentMode == mode.key);
-  const [isDislogOpen, setIsDislogOpen] = useState(false);
+export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemProps>(
+  (
+    {
+      currentMode,
+      mode,
+      showDescription,
+      isApproveModeConfigure,
+      parentView,
+      parentViewOptions,
+      setView,
+      handleModeChange,
+    },
+    ref
+  ) => {
+    const [checked, setChecked] = useState(currentMode == mode.key);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  useEffect(() => {
-    setChecked(currentMode === mode.key);
-  }, [currentMode, mode.key]);
+    useEffect(() => {
+      setChecked(currentMode === mode.key);
+    }, [currentMode, mode.key]);
 
-  return (
-    <div className="group hover:cursor-pointer">
-      <div
-        className="flex items-center justify-between text-textStandard py-2 px-4 hover:bg-bgSubtle"
-        onClick={() => handleModeChange(mode.key)}
-      >
-        <div className="flex">
-          <div>
-            <h3 className="text-textStandard">{mode.label}</h3>
-            {showDescription && (
-              <p className="text-xs text-textSubtle mt-[2px]">{mode.description}</p>
+    return (
+      <div ref={ref} className="group hover:cursor-pointer text-sm">
+        <div
+          className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
+          onClick={() => handleModeChange(mode.key)}
+        >
+          <div className="flex">
+            <div>
+              <h3 className="text-text-default">{mode.label}</h3>
+              {showDescription && <p className="text-text-muted mt-[2px]">{mode.description}</p>}
+            </div>
+          </div>
+
+          <div className="relative flex items-center gap-2">
+            {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
+              <button
+                onClick={() => {
+                  setView('permission', {
+                    parentView,
+                    parentViewOptions,
+                  });
+                }}
+              >
+                <Gear className="w-4 h-4 text-text-muted hover:text-text-default" />
+              </button>
             )}
+            <input
+              type="radio"
+              name="modes"
+              value={mode.key}
+              checked={checked}
+              onChange={() => handleModeChange(mode.key)}
+              className="peer sr-only"
+            />
+            <div
+              className="h-4 w-4 rounded-full border border-border-default 
+                    peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
+                    peer-checked:bg-white dark:peer-checked:bg-black
+                    transition-all duration-200 ease-in-out group-hover:border-border-default"
+            ></div>
           </div>
         </div>
-
-        <div className="relative flex items-center gap-2">
-          {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
-            <button
-              onClick={() => {
-                setView('permission', {
-                  parentView,
-                });
-              }}
-            >
-              <Gear className="w-4 h-4 text-textSubtle hover:text-textStandard" />
-            </button>
-          )}
-          <input
-            type="radio"
-            name="modes"
-            value={mode.key}
-            checked={checked}
-            onChange={() => handleModeChange(mode.key)}
-            className="peer sr-only"
-          />
-          <div
-            className="h-4 w-4 rounded-full border border-borderStandard 
-                  peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
-                  peer-checked:bg-white dark:peer-checked:bg-black
-                  transition-all duration-200 ease-in-out group-hover:border-borderProminent"
-          ></div>
-        </div>
-      </div>
-      <div>
         <div>
-          {isDislogOpen ? (
-            <ConfigureApproveMode
-              onClose={() => {
-                setIsDislogOpen(false);
-              }}
-              handleModeChange={handleModeChange}
-              currentMode={currentMode}
-            />
-          ) : null}
+          <div>
+            {isDialogOpen ? (
+              <ConfigureApproveMode
+                onClose={() => {
+                  setIsDialogOpen(false);
+                }}
+                handleModeChange={handleModeChange}
+                currentMode={currentMode}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+);
+
+ModeSelectionItem.displayName = 'ModeSelectionItem';

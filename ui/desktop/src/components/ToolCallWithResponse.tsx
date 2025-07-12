@@ -1,11 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { Card } from './ui/card';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
-import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
 
 interface ToolCallWithResponseProps {
@@ -27,10 +26,8 @@ export default function ToolCallWithResponse({
   }
 
   return (
-    <div className={'w-full text-textSubtle text-sm'}>
-      <Card className="">
-        <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse, notifications }} />
-      </Card>
+    <div className={'w-full text-sm'}>
+      <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse, notifications }} />
     </div>
   );
 }
@@ -59,10 +56,14 @@ function ToolCallExpandable({
 
   return (
     <div className={className}>
-      <button onClick={toggleExpand} className="w-full flex justify-between items-center pr-2">
-        <span className="flex items-center">{label}</span>
-        <Expand size={5} isExpanded={isExpanded} />
-      </button>
+      <Button
+        onClick={toggleExpand}
+        className="w-full flex justify-between items-center pr-2 rounded-lg hover:bg-background-muted transition-colors"
+        variant="ghost"
+      >
+        <span className="flex items-center font-mono">{label}</span>
+        {/* <Expand size={5} isExpanded={isExpanded} /> */}
+      </Button>
       {isExpanded && <div>{children}</div>}
     </div>
   );
@@ -127,6 +128,16 @@ function ToolCallView({
     ? 'loading'
     : toolResponse?.toolResult.status;
 
+  // Tool call timing tracking
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  // Track when tool call starts (when there's no response yet)
+  useEffect(() => {
+    if (!toolResponse?.toolResult.status && startTime === null) {
+      setStartTime(Date.now());
+    }
+  }, [toolResponse?.toolResult.status, startTime]);
+
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
       ? toolResponse!.toolResult.value
@@ -167,7 +178,7 @@ function ToolCallView({
   const isShouldExpand = toolResults.some((v) => v.isExpandToolResults);
 
   // Function to create a descriptive representation of what the tool is doing
-  const getToolDescription = () => {
+  const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
     const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
 
@@ -313,70 +324,74 @@ function ToolCallView({
   };
 
   return (
-    <ToolCallExpandable
-      isStartExpanded={isRenderingProgress}
-      isForceExpand={isShouldExpand}
-      label={
-        <>
-          <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
-            {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback to the original tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
-        </>
-      }
-    >
-      {/* Tool Details */}
-      {isToolDetails && (
-        <div className="bg-bgStandard rounded-t mt-1">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
-        </div>
-      )}
-
-      {logs && logs.length > 0 && (
-        <div className="bg-bgStandard mt-1">
-          <ToolLogsView
-            logs={logs}
-            working={toolResults.length === 0}
-            isStartExpanded={toolResults.length === 0}
-          />
-        </div>
-      )}
-
-      {toolResults.length === 0 &&
-        progressEntries.length > 0 &&
-        progressEntries.map((entry, index) => (
-          <div className="p-2" key={index}>
-            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+    <div className="border border-borderSubtle rounded-lg overflow-hidden shadow-sm">
+      <ToolCallExpandable
+        isStartExpanded={isRenderingProgress}
+        isForceExpand={isShouldExpand}
+        label={
+          <>
+            <Dot size={2} loadingStatus={loadingStatus} />
+            <span className="ml-[10px]">
+              {(() => {
+                const description = getToolDescription();
+                if (description) {
+                  return description;
+                }
+                // Fallback to the original tool name formatting
+                return snakeToTitleCase(
+                  toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2)
+                );
+              })()}
+            </span>
+          </>
+        }
+      >
+        {/* Tool Details */}
+        {isToolDetails && (
+          <div className="bg-background-default rounded-sm mt-1 border-t border-borderSubtle">
+            <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
           </div>
-        ))}
+        )}
 
-      {/* Tool Output */}
-      {!isCancelledMessage && (
-        <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            const isLast = index === toolResults.length - 1;
-            return (
-              <div
-                key={index}
-                className={`bg-bgStandard mt-1 
-                  ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
-                  ${isLast ? 'rounded-b' : ''}
-                `}
-              >
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-              </div>
-            );
-          })}
-        </>
-      )}
-    </ToolCallExpandable>
+        {logs && logs.length > 0 && (
+          <div className="bg-background-default mt-1 border-t border-borderSubtle">
+            <ToolLogsView
+              logs={logs}
+              working={toolResults.length === 0}
+              isStartExpanded={toolResults.length === 0}
+            />
+          </div>
+        )}
+
+        {toolResults.length === 0 &&
+          progressEntries.length > 0 &&
+          progressEntries.map((entry, index) => (
+            <div className="p-3 border-t border-borderSubtle" key={index}>
+              <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+            </div>
+          ))}
+
+        {/* Tool Output */}
+        {!isCancelledMessage && (
+          <>
+            {toolResults.map(({ result, isExpandToolResults }, index) => {
+              const isLast = index === toolResults.length - 1;
+              return (
+                <div
+                  key={index}
+                  className={`bg-background-default mt-1 border-t border-borderSubtle 
+                    ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
+                    ${isLast ? 'rounded-b' : ''}
+                  `}
+                >
+                  <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
+                </div>
+              );
+            })}
+          </>
+        )}
+      </ToolCallExpandable>
+    </div>
   );
 }
 
@@ -391,13 +406,15 @@ interface ToolDetailsViewProps {
 function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   return (
     <ToolCallExpandable
-      label="Tool Details"
-      className="pl-[19px] py-1"
+      label={<span className="pl-4 py-1 font-medium">Tool Details</span>}
+      className="py-1"
       isStartExpanded={isStartExpanded}
     >
-      {toolCall.arguments && (
-        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
-      )}
+      <div className="px-4 py-2">
+        {toolCall.arguments && (
+          <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+        )}
+      </div>
     </ToolCallExpandable>
   );
 }
@@ -410,14 +427,14 @@ interface ToolResultViewProps {
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-[19px] py-1">Output</span>}
+      label={<span className="pl-4 py-1 font-medium">Output</span>}
       isStartExpanded={isStartExpanded}
     >
-      <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
+      <div className="bg-background-default rounded-b pl-4 pr-4 py-4">
         {result.type === 'text' && result.text && (
           <MarkdownContent
             content={result.text}
-            className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+            className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}
         {result.type === 'image' && (
@@ -457,7 +474,7 @@ function ToolLogsView({
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-[19px] py-1">
+        <span className="pl-4 py-1 font-medium flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -475,7 +492,7 @@ function ToolLogsView({
     >
       <div
         ref={boxRef}
-        className={`flex flex-col items-start space-y-2 overflow-y-auto ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'} bg-bgApp`}
+        className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'} bg-background-default`}
       >
         {logs.map((log, i) => (
           <span key={i} className="font-mono text-sm text-textSubtle">
@@ -493,16 +510,16 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="text-sm text-gray-700">{message}</div>}
+      {message && <div className="text-sm text-textSubtle">{message}</div>}
 
-      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden relative">
+      <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (
           <div
-            className="bg-blue-500 h-full transition-all duration-300"
+            className="bg-primary h-full transition-all duration-300"
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="absolute inset-0 animate-indeterminate bg-blue-500" />
+          <div className="absolute inset-0 animate-indeterminate bg-primary" />
         )}
       </div>
     </div>

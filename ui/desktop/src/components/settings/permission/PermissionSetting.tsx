@@ -4,7 +4,7 @@ import BackButton from '../../ui/BackButton';
 import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
-import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
+import { Button } from '../../ui/button';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -14,19 +14,22 @@ function RuleItem({ title, description }: { title: string; description: string }
   };
 
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h3 className="font-semibold text-textStandard">{title}</h3>
-        <p className="text-xs text-textSubtle mt-1">{description}</p>
-      </div>
-      <div>
-        <button onClick={() => setIsModalOpen(true)}>
-          <ChevronRight className="w-4 h-4 text-iconStandard" />
-        </button>
-      </div>
-      {/* Modal for updating tool permission */}
+    <>
+      <Button
+        className="flex items-center gap-2 w-full justify-between"
+        onClick={() => setIsModalOpen(true)}
+        variant="secondary"
+        size="lg"
+      >
+        <div>
+          <h3 className="font-semibold text-textStandard">{title}</h3>
+          <p className="text-xs text-textSubtle mt-1">{description}</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-iconStandard" />
+        {/* Modal for updating tool permission */}
+      </Button>
       {isModalOpen && <PermissionModal onClose={handleModalClose} extensionName={title} />}
-    </div>
+    </>
   );
 }
 
@@ -76,20 +79,18 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
   }, []);
 
   return (
-    <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
-      <MoreMenuLayout showMenu={false} />
-
+    <div className="bg-background-default h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">
             <BackButton onClick={() => onClose()} className="mb-4" />
-            <div className="rounded-full bg-bgAppInverse w-16 h-16 flex items-center justify-center mb-4">
+            <div className="rounded-full bg-background-inverse w-16 h-16 flex items-center justify-center mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="24"
                 height="24"
                 viewBox="0 0 24 24"
-                className="stroke-bgApp fill-textProminent"
+                className="stroke-text-inverse fill-background-inverse"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"

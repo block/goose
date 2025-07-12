@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.34"
+    "version": "1.0.35"
   },
   "paths": {
     "/agent/tools": {
@@ -2223,6 +2223,11 @@
             "type": "integer",
             "format": "int32",
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
+            "nullable": true
+          },
+          "project_id": {
+            "type": "string",
+            "description": "ID of the project this session belongs to, if any",
             "nullable": true
           },
           "schedule_id": {

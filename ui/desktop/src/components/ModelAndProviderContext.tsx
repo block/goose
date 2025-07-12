@@ -4,6 +4,10 @@ import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata } from '../api';
 import { useConfig } from './ConfigContext';
+import {
+  getModelDisplayName,
+  getProviderDisplayName,
+} from './settings/models/predefinedModelsUtils';
 
 // titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
@@ -26,6 +30,8 @@ interface ModelAndProviderContextType {
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getCurrentModelAndProviderForDisplay: () => Promise<{ model: string; provider: string }>;
+  getCurrentModelDisplayName: () => Promise<string>;
+  getCurrentProviderDisplayName: () => Promise<string>; // Gets provider display name from subtext
   refreshCurrentModelAndProvider: () => Promise<void>;
 }
 
@@ -138,6 +144,30 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     return { model: gooseModel, provider: providerDisplayName };
   }, [getCurrentModelAndProvider, getProviders]);
 
+  const getCurrentModelDisplayName = useCallback(async () => {
+    try {
+      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
+      return getModelDisplayName(currentModelName);
+    } catch (error) {
+      return 'Select Model';
+    }
+  }, [read]);
+
+  const getCurrentProviderDisplayName = useCallback(async () => {
+    try {
+      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
+      const providerDisplayName = getProviderDisplayName(currentModelName);
+      if (providerDisplayName) {
+        return providerDisplayName;
+      }
+      // Fall back to regular provider display name lookup
+      const { provider } = await getCurrentModelAndProviderForDisplay();
+      return provider;
+    } catch (error) {
+      return '';
+    }
+  }, [read, getCurrentModelAndProviderForDisplay]);
+
   const refreshCurrentModelAndProvider = useCallback(async () => {
     try {
       const { model, provider } = await getCurrentModelAndProvider();
@@ -161,6 +191,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,
       getCurrentModelAndProviderForDisplay,
+      getCurrentModelDisplayName,
+      getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
     }),
     [
@@ -170,6 +202,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,
       getCurrentModelAndProviderForDisplay,
+      getCurrentModelDisplayName,
+      getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
     ]
   );

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
-import Modal from '../../../../components/Modal';
-import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../ui/dialog';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
@@ -12,6 +18,7 @@ import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
+import { ConfigKey } from '../../../../api';
 
 interface FormValues {
   [key: string]: string | number | boolean | null;
@@ -33,10 +40,15 @@ export default function ProviderConfigurationModal() {
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isActiveProvider, setIsActiveProvider] = useState(false); // New state for tracking active provider
+  const [requiredParameters, setRequiredParameters] = useState<ConfigKey[]>([]); // New state for tracking active provider
 
   useEffect(() => {
     if (isOpen && currentProvider) {
       // Reset form state when the modal opens with a new provider
+      const requiredParameters = currentProvider.metadata.config_keys.filter(
+        (param) => param.required === true
+      );
+      setRequiredParameters(requiredParameters);
       setConfigValues({});
       setValidationErrors({});
       setShowDeleteConfirmation(false);
@@ -192,49 +204,55 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <Modal
-      onClose={closeModal}
-      footer={
-        <ProviderSetupActions
-          onCancel={handleCancel}
-          onSubmit={handleSubmitForm}
-          onDelete={handleDelete}
-          showDeleteConfirmation={showDeleteConfirmation}
-          onConfirmDelete={handleConfirmDelete}
-          onCancelDelete={() => {
-            setShowDeleteConfirmation(false);
-            setIsActiveProvider(false);
-          }}
-          canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
-          providerName={currentProvider.metadata.display_name}
-          isActiveProvider={isActiveProvider} // Pass this to actions for button state
-        />
-      }
-    >
-      <div className="space-y-1">
-        {/* Logo area or warning icon */}
-        <div>{getModalIcon()}</div>
-        {/* Title and some information - centered */}
-        <ProviderSetupHeader title={headerText} body={descriptionText} />
-      </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {getModalIcon()}
+            {headerText}
+          </DialogTitle>
+          <DialogDescription>{descriptionText}</DialogDescription>
+        </DialogHeader>
 
-      {/* Contains information used to set up each provider */}
-      {/* Only show the form when NOT in delete confirmation mode */}
-      {!showDeleteConfirmation ? (
-        <>
+        <div className="py-4">
           {/* Contains information used to set up each provider */}
-          <FormComponent
-            configValues={configValues}
-            setConfigValues={setConfigValues}
-            provider={currentProvider}
-            validationErrors={validationErrors}
-            {...(modalProps.formProps || {})} // Spread any custom form props
-          />
+          {/* Only show the form when NOT in delete confirmation mode */}
+          {!showDeleteConfirmation ? (
+            <>
+              {/* Contains information used to set up each provider */}
+              <FormComponent
+                configValues={configValues}
+                setConfigValues={setConfigValues}
+                provider={currentProvider}
+                validationErrors={validationErrors}
+                {...(modalProps.formProps || {})} // Spread any custom form props
+              />
 
-          {currentProvider.metadata.config_keys &&
-            currentProvider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
-        </>
-      ) : null}
-    </Modal>
+              {requiredParameters.length > 0 &&
+                currentProvider.metadata.config_keys &&
+                currentProvider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
+            </>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <ProviderSetupActions
+            requiredParameters={requiredParameters}
+            onCancel={handleCancel}
+            onSubmit={handleSubmitForm}
+            onDelete={handleDelete}
+            showDeleteConfirmation={showDeleteConfirmation}
+            onConfirmDelete={handleConfirmDelete}
+            onCancelDelete={() => {
+              setShowDeleteConfirmation(false);
+              setIsActiveProvider(false);
+            }}
+            canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
+            providerName={currentProvider.metadata.display_name}
+            isActiveProvider={isActiveProvider} // Pass this to actions for button state
+          />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

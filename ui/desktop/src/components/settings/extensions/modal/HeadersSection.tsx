@@ -149,7 +149,7 @@ export default function HeadersSection({
         <Button
           onClick={handleAdd}
           variant="ghost"
-          className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-bgApp border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
+          className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-default border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
         >
           <Plus /> Add
         </Button>

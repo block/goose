@@ -190,76 +190,71 @@ export default function UpdateSection() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-medium text-textStandard">Updates</h2>
-      </div>
-      <div className="pb-8">
-        <p className="text-sm text-textStandard mb-6">
-          Current version: {updateInfo.currentVersion || 'Loading...'}
-          {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-            <span className="text-textSubtle"> → {updateInfo.latestVersion} available</span>
-          )}
-          {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && ' (up to date)'}
-        </p>
-
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={checkForUpdates}
-              disabled={updateStatus !== 'idle' && updateStatus !== 'error'}
-              variant="outline"
-              size="sm"
-              className="text-xs"
-            >
-              Check for Updates
-            </Button>
-
-            {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
-              <Button
-                onClick={downloadAndInstallUpdate}
-                variant="default"
-                size="sm"
-                className="text-xs"
-              >
-                <Download className="w-3 h-3 mr-1" />
-                Download Update
-              </Button>
-            )}
-
-            {updateStatus === 'ready' && (
-              <Button onClick={installUpdate} variant="default" size="sm" className="text-xs">
-                Install & Restart
-              </Button>
-            )}
+      <div className="text-sm text-text-muted mb-4 flex items-center gap-2">
+        <div className="flex flex-col">
+          <div className="text-text-default text-2xl font-mono">
+            {updateInfo.currentVersion || 'Loading...'}
           </div>
+          <div className="text-xs text-text-muted">Current version</div>
+        </div>
+        {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
+          <span className="text-textSubtle"> → {updateInfo.latestVersion} available</span>
+        )}
+        {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
+          <span className="text-text-default"> (up to date)</span>
+        )}
+      </div>
 
-          {getStatusMessage() && (
-            <div className="flex items-center gap-2 text-xs text-textSubtle">
-              {getStatusIcon()}
-              <span>{getStatusMessage()}</span>
-            </div>
+      <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={checkForUpdates}
+            disabled={updateStatus !== 'idle' && updateStatus !== 'error'}
+            variant="secondary"
+            size="sm"
+          >
+            Check for Updates
+          </Button>
+
+          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
+            <Button onClick={downloadAndInstallUpdate} variant="secondary" size="sm">
+              <Download className="w-3 h-3 mr-1" />
+              Download Update
+            </Button>
           )}
 
-          {updateStatus === 'downloading' && (
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
-              <div
-                className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          )}
-
-          {/* Update information */}
-          {updateInfo.isUpdateAvailable && (
-            <div className="text-xs text-textSubtle mt-4 space-y-1">
-              <p>Update will be downloaded to your Downloads folder.</p>
-              <p className="text-xs text-amber-600">
-                After download, extract Goose-{updateInfo.latestVersion}.zip and move the Goose app
-                to /Applications to complete the update.
-              </p>
-            </div>
+          {updateStatus === 'ready' && (
+            <Button onClick={installUpdate} variant="default" size="sm">
+              Install & Restart
+            </Button>
           )}
         </div>
+
+        {getStatusMessage() && (
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            {getStatusIcon()}
+            <span>{getStatusMessage()}</span>
+          </div>
+        )}
+
+        {updateStatus === 'downloading' && (
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div
+              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+
+        {/* Update information */}
+        {updateInfo.isUpdateAvailable && (
+          <div className="text-xs text-text-muted mt-4 space-y-1">
+            <p>Update will be downloaded to your Downloads folder.</p>
+            <p className="text-xs text-amber-600">
+              Note: After downloading, you'll need to close the app and manually install the update.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

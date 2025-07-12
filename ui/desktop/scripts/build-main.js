@@ -12,7 +12,7 @@ async function buildMain() {
     }
 
     await build({
-      configFile: resolve(__dirname, '../vite.main.config.ts'),
+      configFile: resolve(__dirname, '../vite.main.config.mts'),
       build: {
         outDir,
         emptyOutDir: false,

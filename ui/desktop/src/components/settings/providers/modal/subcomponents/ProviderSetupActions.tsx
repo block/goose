@@ -1,6 +1,7 @@
 import { SyntheticEvent } from 'react';
 import { Button } from '../../../../ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
+import { ConfigKey } from '../../../../../api';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;
@@ -11,6 +12,7 @@ interface ProviderSetupActionsProps {
   onCancelDelete?: () => void;
   canDelete?: boolean;
   providerName?: string;
+  requiredParameters?: ConfigKey[];
   isActiveProvider?: boolean; // Made optional with default false
 }
 
@@ -27,6 +29,7 @@ export default function ProviderSetupActions({
   onCancelDelete,
   canDelete,
   providerName,
+  requiredParameters,
   isActiveProvider = false, // Default value provided
 }: ProviderSetupActionsProps) {
   // If we're showing delete confirmation, render the delete confirmation buttons
@@ -83,7 +86,7 @@ export default function ProviderSetupActions({
 
   // Regular buttons (with delete if applicable)
   return (
-    <div className="-ml-8 -mr-8">
+    <div className="w-full">
       {canDelete && onDelete && (
         <Button
           type="button"
@@ -93,22 +96,35 @@ export default function ProviderSetupActions({
           <Trash2 className="h-4 w-4 mr-2" /> Delete Provider
         </Button>
       )}
-      <Button
-        type="submit"
-        variant="ghost"
-        onClick={onSubmit}
-        className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-medium"
-      >
-        Submit
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={onCancel}
-        className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-md font-regular"
-      >
-        Cancel
-      </Button>
+      {requiredParameters && requiredParameters.length > 0 ? (
+        <>
+          <Button
+            type="submit"
+            variant="ghost"
+            onClick={onSubmit}
+            className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-medium"
+          >
+            Submit
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-md font-regular"
+          >
+            Cancel
+          </Button>
+        </>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onCancel}
+          className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-md font-regular"
+        >
+          Close
+        </Button>
+      )}
     </div>
   );
 }

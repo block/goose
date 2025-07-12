@@ -96,12 +96,12 @@ const daysOfWeekOptions: { value: string; label: string }[] = [
   { value: '0', label: 'Sun' },
 ];
 
-const modalLabelClassName = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
-const cronPreviewTextColor = 'text-xs text-gray-500 dark:text-gray-400 mt-1';
-const cronPreviewSpecialNoteColor = 'text-xs text-yellow-600 dark:text-yellow-500 mt-1';
-const checkboxLabelClassName = 'flex items-center text-sm text-textStandard dark:text-gray-300';
+const modalLabelClassName = 'block text-sm font-medium text-text-prominent mb-1';
+const cronPreviewTextColor = 'text-xs text-text-subtle mt-1';
+const cronPreviewSpecialNoteColor = 'text-xs text-text-warning mt-1';
+const checkboxLabelClassName = 'flex items-center text-sm text-text-default';
 const checkboxInputClassName =
-  'h-4 w-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 mr-2';
+  'h-4 w-4 text-accent-default border-border-subtle rounded focus:ring-accent-default mr-2';
 
 type SourceType = 'file' | 'deeplink';
 type ExecutionMode = 'background' | 'foreground';
@@ -543,15 +543,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-background-default shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
         <div className="px-8 pt-8 pb-4 flex-shrink-0 text-center">
           <div className="flex flex-col items-center">
             <img src={ClockIcon} alt="Clock" className="w-11 h-11 mb-2" />
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Create New Schedule
-            </h2>
-            <p className="text-base text-gray-500 dark:text-gray-400 mt-2 max-w-sm">
+            <h2 className="text-base font-semibold text-text-prominent">Create New Schedule</h2>
+            <p className="text-base text-text-subtle mt-2 max-w-sm">
               Create a new schedule using the settings below to do things like automatically run
               tasks or create files
             </p>
@@ -564,12 +562,12 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           className="px-8 py-4 space-y-4 flex-grow overflow-y-auto"
         >
           {apiErrorExternally && (
-            <p className="text-red-500 text-sm mb-3 p-2 bg-red-100 dark:bg-red-900/30 rounded-md border border-red-500/50">
+            <p className="text-text-error text-sm mb-3 p-2 bg-background-error border border-border-error rounded-md">
               {apiErrorExternally}
             </p>
           )}
           {internalValidationError && (
-            <p className="text-red-500 text-sm mb-3 p-2 bg-red-100 dark:bg-red-900/30 rounded-md border border-red-500/50">
+            <p className="text-text-error text-sm mb-3 p-2 bg-background-error border border-border-error rounded-md">
               {internalValidationError}
             </p>
           )}

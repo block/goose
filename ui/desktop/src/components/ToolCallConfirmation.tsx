@@ -3,6 +3,7 @@ import { snakeToTitleCase } from '../utils';
 import PermissionModal from './settings/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
 import { confirmPermission } from '../api';
+import { Button } from './ui/button';
 
 const ALWAYS_ALLOW = 'always_allow';
 const ALLOW_ONCE = 'allow_once';
@@ -58,16 +59,16 @@ export default function ToolConfirmation({
   }
 
   return isCancelledMessage ? (
-    <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 text-textStandard">
+    <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 text-textStandard">
       Tool call confirmation is cancelled.
     </div>
   ) : (
     <>
-      <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
+      <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
         Goose would like to call the above tool. Allow?
       </div>
       {clicked ? (
-        <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
+        <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-center">
             {status === 'always_allow' && (
               <svg
@@ -118,31 +119,24 @@ export default function ToolConfirmation({
           </div>
         </div>
       ) : (
-        <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
-          <button
-            className={
-              'bg-black text-white dark:bg-white dark:text-black rounded-full px-6 py-2 transition'
-            }
-            onClick={() => handleButtonClick(ALWAYS_ALLOW)}
-          >
+        <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
+          <Button className="rounded-full" onClick={() => handleButtonClick(ALWAYS_ALLOW)}>
             Always Allow
-          </button>
-          <button
-            className={
-              'bg-bgProminent text-white dark:text-white rounded-full px-6 py-2 transition'
-            }
+          </Button>
+          <Button
+            className="rounded-full"
+            variant="secondary"
             onClick={() => handleButtonClick(ALLOW_ONCE)}
           >
             Allow Once
-          </button>
-          <button
-            className={
-              'bg-white text-black dark:bg-black dark:text-white border border-gray-300 dark:border-gray-700 rounded-full px-6 py-2 transition'
-            }
+          </Button>
+          <Button
+            className="rounded-full"
+            variant="outline"
             onClick={() => handleButtonClick(DENY)}
           >
             Deny
-          </button>
+          </Button>
         </div>
       )}
 

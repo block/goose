@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { Button } from '../../../ui/button';
-import Modal from '../../../Modal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../ui/dialog';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
@@ -80,7 +87,7 @@ export default function ExtensionModal({
   };
 
   // Handle backdrop close with confirmation if needed
-  const handleBackdropClose = () => {
+  const handleClose = () => {
     if (hasFormChanges()) {
       setShowCloseConfirmation(true);
     } else {
@@ -271,150 +278,142 @@ export default function ExtensionModal({
     }
   };
 
-  // Create footer buttons based on current state
-  const footerContent = showDeleteConfirmation ? (
-    // Delete confirmation footer
-    <>
-      <div className="w-full px-6 py-4 bg-red-900/20 border-t border-red-500/30">
-        <p className="text-red-400 text-sm mb-2">
-          Are you sure you want to remove "{formData.name}"? This action cannot be undone.
-        </p>
-      </div>
-      <Button
-        onClick={() => {
-          if (onDelete) {
-            onDelete(formData.name);
-            onClose(); // Add this line to close the modal after deletion
-          }
-        }}
-        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
-      >
-        <Trash2 className="h-4 w-4 mr-2" /> Confirm removal
-      </Button>
-      <Button
-        onClick={() => setShowDeleteConfirmation(false)}
-        variant="ghost"
-        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
-      >
-        Cancel
-      </Button>
-    </>
-  ) : (
-    // Normal footer
-    <>
-      {modalType === 'edit' && onDelete && (
-        <Button
-          onClick={() => setShowDeleteConfirmation(true)}
-          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md [&>svg]:!size-4"
-        >
-          <Trash2 className="h-4 w-4 mr-2" /> Remove extension
-        </Button>
-      )}
-      <Button
-        onClick={handleSubmit}
-        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
-      >
-        {submitLabel}
-      </Button>
-      <Button
-        onClick={handleBackdropClose}
-        variant="ghost"
-        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
-      >
-        Cancel
-      </Button>
-    </>
-  );
-
   // Update title based on current state
   const modalTitle = showDeleteConfirmation ? `Delete Extension "${formData.name}"` : title;
 
   return (
     <>
-      <Modal footer={footerContent} onClose={handleBackdropClose}>
-        {/* Title and Icon */}
-        <div className="flex flex-col mb-6">
-          <div>{getModalIcon()}</div>
-          <div className="mt-2">
-            <h2 className="text-2xl font-regular text-textStandard">{modalTitle}</h2>
-          </div>
-        </div>
+      <Dialog open={true} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {getModalIcon()}
+              {modalTitle}
+            </DialogTitle>
+            {showDeleteConfirmation && (
+              <DialogDescription>
+                This will permanently remove this extension and all of its settings.
+              </DialogDescription>
+            )}
+          </DialogHeader>
 
-        {showDeleteConfirmation ? (
-          <div className="mb-6">
-            <p className="text-textStandard">
-              This will permanently remove this extension and all of its settings.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Form Fields */}
-            {/* Name and Type */}
-            <ExtensionInfoFields
-              name={formData.name}
-              type={formData.type}
-              description={formData.description}
-              onChange={(key, value) => setFormData({ ...formData, [key]: value })}
-              submitAttempted={submitAttempted}
-            />
-
-            {/* Divider */}
-            <hr className="border-t border-borderSubtle mb-4" />
-
-            {/* Command */}
-            <div className="mb-6">
-              <ExtensionConfigFields
+          {showDeleteConfirmation ? (
+            <div className="py-4">
+              <p className="text-textStandard">
+                This will permanently remove this extension and all of its settings.
+              </p>
+            </div>
+          ) : (
+            <div className="py-4 space-y-6">
+              {/* Form Fields */}
+              {/* Name and Type */}
+              <ExtensionInfoFields
+                name={formData.name}
                 type={formData.type}
-                full_cmd={formData.cmd || ''}
-                endpoint={formData.endpoint || ''}
-                onChange={(key, value) => setFormData({ ...formData, [key]: value })}
-                submitAttempted={submitAttempted}
-                isValid={isConfigValid()}
-              />
-              <div className="mb-4" />
-              <ExtensionTimeoutField
-                timeout={formData.timeout || 300}
+                description={formData.description}
                 onChange={(key, value) => setFormData({ ...formData, [key]: value })}
                 submitAttempted={submitAttempted}
               />
+
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle" />
+
+              {/* Command */}
+              <div>
+                <ExtensionConfigFields
+                  type={formData.type}
+                  full_cmd={formData.cmd || ''}
+                  endpoint={formData.endpoint || ''}
+                  onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+                  submitAttempted={submitAttempted}
+                  isValid={isConfigValid()}
+                />
+                <div className="mb-4" />
+                <ExtensionTimeoutField
+                  timeout={formData.timeout || 300}
+                  onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+                  submitAttempted={submitAttempted}
+                />
+              </div>
+
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle" />
+
+              {/* Environment Variables */}
+              <div>
+                <EnvVarsSection
+                  envVars={formData.envVars}
+                  onAdd={handleAddEnvVar}
+                  onRemove={handleRemoveEnvVar}
+                  onChange={handleEnvVarChange}
+                  submitAttempted={submitAttempted}
+                  onPendingInputChange={setHasPendingEnvVars}
+                />
+              </div>
             </div>
+          )}
 
-            {/* Divider */}
-            <hr className="border-t border-borderSubtle mb-4" />
+          {/* Request Headers - Only for streamable_http */}
+          {formData.type === 'streamable_http' && (
+            <>
+              {/* Divider */}
+              <hr className="border-t border-borderSubtle mb-4" />
 
-            {/* Environment Variables */}
-            <div className="mb-6">
-              <EnvVarsSection
-                envVars={formData.envVars}
-                onAdd={handleAddEnvVar}
-                onRemove={handleRemoveEnvVar}
-                onChange={handleEnvVarChange}
-                submitAttempted={submitAttempted}
-                onPendingInputChange={setHasPendingEnvVars}
-              />
-            </div>
+              <div className="mb-6">
+                <HeadersSection
+                  headers={formData.headers}
+                  onAdd={handleAddHeader}
+                  onRemove={handleRemoveHeader}
+                  onChange={handleHeaderChange}
+                  submitAttempted={submitAttempted}
+                  onPendingInputChange={setHasPendingHeaders}
+                />
+              </div>
+            </>
+          )}
 
-            {/* Request Headers - Only for streamable_http */}
-            {formData.type === 'streamable_http' && (
+          <DialogFooter className="pt-2">
+            {showDeleteConfirmation ? (
               <>
-                {/* Divider */}
-                <hr className="border-t border-borderSubtle mb-4" />
-
-                <div className="mb-6">
-                  <HeadersSection
-                    headers={formData.headers}
-                    onAdd={handleAddHeader}
-                    onRemove={handleRemoveHeader}
-                    onChange={handleHeaderChange}
-                    submitAttempted={submitAttempted}
-                    onPendingInputChange={setHasPendingHeaders}
-                  />
-                </div>
+                <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (onDelete) {
+                      onDelete(formData.name);
+                      onClose();
+                    }
+                  }}
+                  variant="destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Confirm removal
+                </Button>
+              </>
+            ) : (
+              <>
+                {modalType === 'edit' && onDelete && (
+                  <Button
+                    onClick={() => setShowDeleteConfirmation(true)}
+                    variant="outline"
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove extension
+                  </Button>
+                )}
+                <Button variant="outline" onClick={handleClose}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmit} disabled={!isFormValid()}>
+                  {submitLabel}
+                </Button>
               </>
             )}
-          </>
-        )}
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Close Confirmation Modal */}
       {showCloseConfirmation && (
