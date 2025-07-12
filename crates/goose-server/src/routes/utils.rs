@@ -137,7 +137,7 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
 
     // Special case: If a provider has only optional keys with defaults,
     // check if a configuration marker exists
-    if required_keys.is_empty() && metadata.config_keys.len() > 0 {
+    if required_keys.is_empty() && !metadata.config_keys.is_empty() {
         let all_optional_with_defaults = metadata
             .config_keys
             .iter()
