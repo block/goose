@@ -982,6 +982,9 @@ impl Session {
                                                         "message_processing" | "turn_progress" => {
                                                             format!("💭 {}", msg)
                                                         }
+                                                        "missing_extensions" => {
+                                                            format!("🔍 {}", msg)
+                                                        }
                                                         "response_generated" => {
                                                             // Check verbosity setting for subagent response content
                                                             let config = Config::global();

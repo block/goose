@@ -47,6 +47,23 @@ Your recipe doesn't specify any extensions, so you have access to the basic tool
 
 You have {{tool_count}} tool{% if tool_count > 1 %}s{% endif %} available: {{available_tools}}
 {% endif %}
+
+{% if missing_extensions is defined and missing_extensions %}
+## ⚠️ Missing Extensions
+
+Your recipe requires the following extensions that are not currently enabled:
+
+{% for extension in missing_extensions %}
+- **{{extension}}**
+{% endfor %}
+
+**Options to proceed:**
+1. **Continue without missing extensions**: You can attempt to complete your task using only the available tools, but functionality may be limited.
+2. **Request extension installation**: Ask the user to enable the missing extensions using the main agent's extension management tools.
+3. **Modify the task**: Adapt your approach to work with the available tools.
+
+**Recommendation**: If the missing extensions are essential for your task, inform the user that they need to enable these extensions first. You can suggest they use the main agent to manage extensions.
+{% endif %}
 {% else %}
 **Inheritance Mode**: You inherit all available extensions and tools from the parent Goose agent. You can use all the tools that were available to the parent agent when you were created.
 

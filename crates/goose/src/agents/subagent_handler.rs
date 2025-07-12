@@ -62,7 +62,7 @@ impl Agent {
             .map_err(|e| ToolError::ExecutionError(format!("Failed to get provider: {}", e)))?;
 
         // Get the extension manager from the parent agent
-        let extension_manager = Arc::new(self.extension_manager.read().await);
+        let extension_manager = Arc::clone(&self.extension_manager);
 
         // Run the complete subagent task
         match manager

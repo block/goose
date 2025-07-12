@@ -61,7 +61,7 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: RwLock<ExtensionManager>,
+    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
@@ -135,7 +135,7 @@ impl Agent {
 
         Self {
             provider: Mutex::new(None),
-            extension_manager: RwLock::new(ExtensionManager::new()),
+            extension_manager: Arc::new(RwLock::new(ExtensionManager::new())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             final_output_tool: Mutex::new(None),
             frontend_tools: Mutex::new(HashMap::new()),
