@@ -34,6 +34,8 @@ pub struct ExtensionManager {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
+    /// Extensions that support UI resources
+    ui_capable_extensions: HashSet<String>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -104,11 +106,22 @@ impl ExtensionManager {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
+            ui_capable_extensions: HashSet::new(),
         }
     }
 
     pub fn supports_resources(&self) -> bool {
         !self.resource_capable_extensions.is_empty()
+    }
+
+    /// Check if any extensions support UI resources
+    pub fn supports_ui(&self) -> bool {
+        !self.ui_capable_extensions.is_empty()
+    }
+
+    /// Check if a specific extension supports UI resources
+    pub fn extension_supports_ui(&self, extension_name: &str) -> bool {
+        self.ui_capable_extensions.contains(extension_name)
     }
 
     /// Add a new MCP extension based on the provided client type
@@ -288,6 +301,14 @@ impl ExtensionManager {
         if init_result.capabilities.resources.is_some() {
             self.resource_capable_extensions
                 .insert(sanitized_name.clone());
+        }
+
+        // Check if server supports UI resources
+        if let Some(ui_caps) = &init_result.capabilities.ui {
+            if ui_caps.supports_ui {
+                self.ui_capable_extensions
+                    .insert(sanitized_name.clone());
+            }
         }
 
         self.clients
@@ -656,12 +677,21 @@ impl ExtensionManager {
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
+        
+        // Check if this extension supports UI resources
+        let supports_ui = self.extension_supports_ui(client_name);
 
         let fut = async move {
             let client_guard = client.lock().await;
-            client_guard
-                .call_tool(&tool_name, arguments)
-                .await
+            
+            // Use UI-aware tool calling if the extension supports UI
+            let result = if supports_ui {
+                client_guard.call_tool_with_ui(&tool_name, arguments).await
+            } else {
+                client_guard.call_tool(&tool_name, arguments).await
+            };
+            
+            result
                 .map(|call| call.content)
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         };

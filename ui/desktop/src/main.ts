@@ -740,8 +740,11 @@ const showWindow = async () => {
   if (windows.length === 0) {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir || undefined);
+    // Filter out problematic directories like Downloads, and use goose project directory as fallback
+    const validRecentDirs = recentDirs.filter(d => !d.includes('Downloads') && !d.includes('Trash'));
+    const gooseProjectDir = path.resolve(__dirname, '../../../../..');
+    const openDir = validRecentDirs.length > 0 ? validRecentDirs[0] : gooseProjectDir;
+    await createChat(app, undefined, openDir);
     return;
   }
 
@@ -1407,7 +1410,10 @@ ipcMain.handle('get-allowed-extensions', async () => {
 
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
-  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  // Filter out problematic directories like Downloads, and use goose project directory as fallback
+  const validRecentDirs = recentDirs.filter(d => !d.includes('Downloads') && !d.includes('Trash'));
+  const gooseProjectDir = path.resolve(__dirname, '../../../../..');
+  const openDir = dir || (validRecentDirs.length > 0 ? validRecentDirs[0] : gooseProjectDir);
   return await createChat(app, undefined, openDir);
 };
 

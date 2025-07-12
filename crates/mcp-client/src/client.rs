@@ -2,6 +2,7 @@ use mcp_core::protocol::{
     CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcError,
     JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ListPromptsResult,
     ListResourcesResult, ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
+    UICapabilities,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -68,7 +69,9 @@ pub struct ClientInfo {
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct ClientCapabilities {
-    // Add fields as needed. For now, empty capabilities are fine.
+    /// UI capabilities - declare support for MCP UI resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UICapabilities>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -99,6 +102,12 @@ pub trait McpClientTrait: Send + Sync {
 
     async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error>;
 
+    /// Call a tool with UI support preference
+    async fn call_tool_with_ui(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+        // Default implementation falls back to regular tool call
+        self.call_tool(name, arguments).await
+    }
+
     async fn list_prompts(&self, next_cursor: Option<String>) -> Result<ListPromptsResult, Error>;
 
     async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error>;
@@ -116,6 +125,8 @@ where
     server_capabilities: Option<ServerCapabilities>,
     server_info: Option<Implementation>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<JsonRpcMessage>>>>,
+    /// Whether the connected server supports UI resources
+    ui_supported: bool,
 }
 
 impl<T> McpClient<T>
@@ -162,7 +173,13 @@ where
             server_capabilities: None,
             server_info: None,
             notification_subscribers,
+            ui_supported: false,
         })
+    }
+
+    /// Check if the connected server supports UI resources
+    pub fn supports_ui(&self) -> bool {
+        self.ui_supported
     }
 
     /// Send a JSON-RPC request and check we don't get an error response.
@@ -283,24 +300,29 @@ where
     async fn initialize(
         &mut self,
         info: ClientInfo,
-        capabilities: ClientCapabilities,
+        mut capabilities: ClientCapabilities,
     ) -> Result<InitializeResult, Error> {
-        let params = InitializeParams {
-            protocol_version: "2025-03-26".to_string(),
-            client_info: info,
-            capabilities,
-        };
+        // Declare UI capabilities to the server
+        capabilities.ui = Some(UICapabilities::default());
+        
         let result: InitializeResult = self
-            .send_request("initialize", serde_json::to_value(params)?)
+            .send_request(
+                "initialize",
+                json!({
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": capabilities,
+                    "clientInfo": info,
+                }),
+            )
             .await?;
 
-        self.send_notification("notifications/initialized", serde_json::json!({}))
-            .await?;
+        // Check if server supports UI resources
+        if let Some(server_ui_caps) = &result.capabilities.ui {
+            self.ui_supported = server_ui_caps.supports_ui;
+        }
 
         self.server_capabilities = Some(result.capabilities.clone());
-
         self.server_info = Some(result.server_info.clone());
-
         Ok(result)
     }
 
@@ -374,22 +396,35 @@ where
     }
 
     async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
-        }
-        // If tools is not supported, return an error
-        if self.server_capabilities.as_ref().unwrap().tools.is_none() {
-            return Err(Error::RpcError {
-                code: METHOD_NOT_FOUND,
-                message: "Server does not support 'tools' capability".to_string(),
+        self.send_request(
+            "tools/call",
+            json!({
+                "name": name,
+                "arguments": arguments,
+            }),
+        )
+        .await
+    }
+
+    /// Call a tool with UI support preference - override with UI-aware logic
+    async fn call_tool_with_ui(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+        if self.supports_ui() {
+            // Add UI preference to the tool call
+            let mut enhanced_params = json!({
+                "name": name,
+                "arguments": arguments,
             });
+            
+            // Add UI preference metadata
+            if let Some(params_obj) = enhanced_params.as_object_mut() {
+                params_obj.insert("_ui_preferred".to_string(), json!(true));
+            }
+            
+            self.send_request("tools/call", enhanced_params).await
+        } else {
+            // Fallback to regular tool call
+            self.call_tool(name, arguments).await
         }
-
-        let params = serde_json::json!({ "name": name, "arguments": arguments });
-
-        // TODO ERROR: check that if there is an error, we send back is_error: true with msg
-        // https://modelcontextprotocol.io/docs/concepts/tools#error-handling-2
-        self.send_request("tools/call", params).await
     }
 
     async fn list_prompts(&self, next_cursor: Option<String>) -> Result<ListPromptsResult, Error> {

@@ -7,6 +7,7 @@ import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { UIResourceRenderer, isUIResource, extractUIResource } from './UIResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -408,6 +409,23 @@ interface ToolResultViewProps {
 }
 
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+  // Check if this is a UI resource
+  if (isUIResource(result)) {
+    const resource = extractUIResource(result);
+    if (resource) {
+      return (
+        <ToolCallExpandable
+          label={<span className="pl-[19px] py-1">Interactive UI</span>}
+          isStartExpanded={isStartExpanded}
+        >
+          <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
+            <UIResourceRenderer resource={resource} />
+          </div>
+        </ToolCallExpandable>
+      );
+    }
+  }
+
   return (
     <ToolCallExpandable
       label={<span className="pl-[19px] py-1">Output</span>}
