@@ -17,14 +17,14 @@ pub fn process_tool_response(
                 match content {
                     Content::Text(text_content) => {
                         // Check if text exceeds threshold
-                        if text_content.text.len() > LARGE_TEXT_THRESHOLD {
+                        if text_content.text.chars().count() > LARGE_TEXT_THRESHOLD {
                             // Write to temp file
                             match write_large_text_to_file(&text_content.text) {
                                 Ok(file_path) => {
                                     // Create a new text content with reference to the file
                                     let message = format!(
                                         "The response returned from the tool call was larger ({} characters) and is stored in the file which you can use other tools to examine or search in: {}",
-                                        text_content.text.len(),
+                                        text_content.text.chars().count(),
                                         file_path
                                     );
                                     processed_contents.push(Content::text(message));

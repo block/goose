@@ -3,6 +3,7 @@ use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
 use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
 use anyhow::Result;
+use goose::utils::safe_truncate;
 use indoc::indoc;
 use serde_json::{json, Value};
 
@@ -60,11 +61,7 @@ pub async fn generate_session_name(
         .take(3)
         .map(|m| {
             let text = m.content.concat_text_str();
-            if text.len() > 300 {
-                text.chars().take(300).collect()
-            } else {
-                text
-            }
+            safe_truncate(&text, 300)
         })
         .collect();
 
