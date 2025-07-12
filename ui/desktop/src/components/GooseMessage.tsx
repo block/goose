@@ -72,16 +72,6 @@ export default function GooseMessage({
   const displayText =
     imagePaths.length > 0 ? removeImagePathsFromText(textWithoutCot, imagePaths) : textWithoutCot;
 
-  // Extract UI resources from the message content
-  const uiResources = message.content
-    .filter(
-      (content): content is TextContent | ImageContent =>
-        content.type === 'text' || content.type === 'image'
-    )
-    .filter(isUIResource)
-    .map(extractUIResource)
-    .filter((resource): resource is NonNullable<typeof resource> => resource !== null);
-
   // Memoize the timestamp
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
 
@@ -93,6 +83,62 @@ export default function GooseMessage({
   // 2. The link wasn't also present in the previous message
   // 3. The message contains the explicit http:// or https:// protocol at the beginning
   const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
+
+  // Extract UI resources from the message content and tool responses
+  const uiResources = useMemo(() => {
+    const resources: NonNullable<ReturnType<typeof extractUIResource>>[] = [];
+
+    // Check message content for UI resources
+    const messageUIResources = message.content
+      .filter(
+        (content): content is TextContent | ImageContent =>
+          content.type === 'text' || content.type === 'image'
+      )
+      .filter(isUIResource)
+      .map(extractUIResource)
+      .filter((resource): resource is NonNullable<typeof resource> => resource !== null);
+
+    resources.push(...messageUIResources);
+
+    // Check tool responses for UI resources
+    const toolResponses = getToolResponses(message);
+    for (const toolResponse of toolResponses) {
+      if (
+        toolResponse.toolResult.status === 'success' &&
+        Array.isArray(toolResponse.toolResult.value)
+      ) {
+        const toolUIResources = toolResponse.toolResult.value
+          .filter(isUIResource)
+          .map(extractUIResource)
+          .filter((resource): resource is NonNullable<typeof resource> => resource !== null);
+        resources.push(...toolUIResources);
+      }
+    }
+
+    // Also check tool responses from subsequent messages (for tool calls in this message)
+    if (messageIndex !== undefined && messageIndex >= 0) {
+      for (let i = messageIndex + 1; i < messages.length; i++) {
+        const responses = getToolResponses(messages[i]);
+        for (const response of responses) {
+          // Check if this response matches any of our tool requests
+          const matchingRequest = toolRequests.find((req) => req.id === response.id);
+          if (
+            matchingRequest &&
+            response.toolResult.status === 'success' &&
+            Array.isArray(response.toolResult.value)
+          ) {
+            const toolUIResources = response.toolResult.value
+              .filter(isUIResource)
+              .map(extractUIResource)
+              .filter((resource): resource is NonNullable<typeof resource> => resource !== null);
+            resources.push(...toolUIResources);
+          }
+        }
+      }
+    }
+
+    return resources;
+  }, [message, messages, messageIndex, toolRequests]);
   const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
