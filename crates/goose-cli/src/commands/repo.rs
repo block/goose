@@ -16,6 +16,7 @@ use tree_sitter_typescript as ts_typescript;
 use tree_sitter_c_sharp as ts_c_sharp;
 use tree_sitter_swift as ts_swift;
 use tree_sitter_go as ts_go;
+use anyhow::Result;
 
 /// Recursively extract function call names from a node (for any language)
 fn extract_function_calls(node: &tree_sitter::Node, source: &str) -> Vec<String> {
@@ -834,11 +835,11 @@ fn extract_js_ts_entities<W: Write>(
     );
 }
 
-pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<(), String> {
+pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<()> {
     println!("Indexing repository with Tree-sitter at '{root_path}'...");
     let start_time = Instant::now();
     let mut out = fs::File::create(output_file)
-        .map_err(|e| format!("[goose repo] Failed to create index file '{output_file}': {e}"))?;
+        .map_err(|e| anyhow::anyhow!("[goose repo] Failed to create index file '{output_file}': {e}"))?;
 
     let mut files_indexed = 0usize;
     let mut entities_indexed = 0usize;
@@ -952,7 +953,7 @@ pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<
         for err in &errors {
             eprintln!("  {err}");
         }
-        return Err(format!("Encountered {} errors during indexing.", errors.len()));
+        return Err(anyhow::anyhow!("Encountered {} errors during indexing.", errors.len()));
     }
     Ok(())
 }

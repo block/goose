@@ -1193,7 +1193,7 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Repo { command }) => match command {
             Some(RepoCommand::Index { path, output }) => {
-                let _ = repo::index_repository_with_args(&path, &output);
+                repo::index_repository_with_args(&path, &output)?;
                 return Ok(());
             }
             None => {
