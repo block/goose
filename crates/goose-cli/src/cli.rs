@@ -341,6 +341,16 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
+        /// Add streamable HTTP extensions with a URL
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -509,6 +519,16 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
+        /// Add streamable HTTP extensions
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -674,6 +694,7 @@ pub async fn cli() -> Result<()> {
             max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
         }) => {
             return match command {
@@ -714,6 +735,7 @@ pub async fn cli() -> Result<()> {
                         no_session: false,
                         extensions,
                         remote_extensions,
+                        streamable_http_extensions,
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
@@ -774,6 +796,7 @@ pub async fn cli() -> Result<()> {
             max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
             params,
             explain,
@@ -863,6 +886,7 @@ pub async fn cli() -> Result<()> {
                 no_session,
                 extensions,
                 remote_extensions,
+                streamable_http_extensions,
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
@@ -990,6 +1014,7 @@ pub async fn cli() -> Result<()> {
                     no_session: false,
                     extensions: Vec::new(),
                     remote_extensions: Vec::new(),
+                    streamable_http_extensions: Vec::new(),
                     builtins: Vec::new(),
                     extensions_override: None,
                     additional_system_prompt: None,
