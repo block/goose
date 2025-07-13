@@ -57,3 +57,22 @@ class Dog extends Animal {
         super(name, pose);
     }
 }
+
+interface Named {
+    getName(): string;
+}
+
+class Cat extends Animal implements Named {
+    constructor(name: string, pose: Pose) {
+        super(name, pose);
+    }
+    getName(): string {
+        return this.name;
+    }
+}
+
+class Box<T> {
+    value: T;
+    constructor(value: T) { this.value = value; }
+    get(): T { return this.value; }
+}

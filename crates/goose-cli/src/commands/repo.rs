@@ -1,5 +1,22 @@
 use std::time::Instant;
 use ignore::WalkBuilder;
+use serde_json::json;
+use std::fs;
+use std::io::Write;
+use std::path::Path;
+use std::io;
+use tree_sitter::{Language, Parser};
+// Import the language crates
+use tree_sitter_rust as ts_rust;
+use tree_sitter_python as ts_python;
+use tree_sitter_javascript as ts_javascript;
+use tree_sitter_cpp as ts_cpp;
+use tree_sitter_java as ts_java;
+use tree_sitter_typescript as ts_typescript;
+use tree_sitter_c_sharp as ts_c_sharp;
+use tree_sitter_swift as ts_swift;
+use tree_sitter_go as ts_go;
+
 /// Recursively extract function call names from a node (for any language)
 fn extract_function_calls(node: &tree_sitter::Node, source: &str) -> Vec<String> {
     let mut calls = Vec::new();
@@ -28,25 +45,6 @@ fn extract_function_calls(node: &tree_sitter::Node, source: &str) -> Vec<String>
     }
     calls
 }
-use serde_json::json;
-/// Goose CLI repo command handler (Tree-sitter indexing)
-use std::fs;
-use std::io::Write;
-use std::path::Path;
-
-// Tree-sitter and language grammars
-use std::io;
-use tree_sitter::{Language, Parser};
-// Import the language crates
-use tree_sitter_rust as ts_rust;
-use tree_sitter_python as ts_python;
-use tree_sitter_javascript as ts_javascript;
-use tree_sitter_cpp as ts_cpp;
-use tree_sitter_java as ts_java;
-use tree_sitter_typescript as ts_typescript;
-use tree_sitter_c_sharp as ts_c_sharp;
-use tree_sitter_swift as ts_swift;
-use tree_sitter_go as ts_go;
 
 // Provide functions to get the language from each crate
 fn tree_sitter_rust() -> Language {
@@ -149,7 +147,7 @@ fn extract_swift_entities<W: Write>(
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_type)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == "class_declaration"
             || kind == "struct_declaration"
@@ -182,7 +180,7 @@ fn extract_swift_entities<W: Write>(
                 None,
                 None,
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
             for child in node.children(&mut node.walk()) {
                 stack.push((child, Some(name.to_string())));
             }
@@ -194,7 +192,7 @@ fn extract_swift_entities<W: Write>(
             let starting_line = node.start_position().row + 1;
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let parent = parent_type.as_deref();
+            let parent = parent.as_deref();
             let calls = extract_function_calls(&node, source);
             let info = make_entity_json(
                 file,
@@ -208,10 +206,10 @@ fn extract_swift_entities<W: Write>(
                 None,
                 Some(&calls),
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else {
             for child in node.children(&mut node.walk()) {
-                stack.push((child, parent_type.clone()));
+                stack.push((child, parent.clone()));
             }
         }
     }
@@ -222,7 +220,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_type)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == "import_spec" {
             // import_spec: child 'path'
@@ -236,7 +234,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             let info = make_entity_json(
                 file, "go", "import", name, signature, starting_line, ending_line, None, None, None,
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else if kind == "type_spec" {
             // type_spec: child 'name', child 'type' (struct_type, interface_type, etc), child 'type_parameters' (generics)
             let name_node = node.child_by_field_name("name");
@@ -272,7 +270,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             if let Some(g) = generics {
                 info["generics"] = serde_json::json!(g);
             }
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
             // Extract fields for structs/interfaces/enums
             if let Some(type_node) = type_node {
                 for child in type_node.children(&mut type_node.walk()) {
@@ -296,7 +294,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
                             None,
                             None,
                         );
-                        writeln!(out, "{}", info.to_string()).ok();
+                        let _ = writeln!(out, "{}", info.to_string());
                     }
                 }
             }
@@ -311,7 +309,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             let starting_line = node.start_position().row + 1;
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let parent = parent_type.as_deref();
+            let parent = parent.as_deref();
             let generics = node
                 .child_by_field_name("type_parameters")
                 .and_then(|n| n.utf8_text(source.as_bytes()).ok());
@@ -331,7 +329,7 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             if let Some(g) = generics {
                 info["generics"] = serde_json::json!(g);
             }
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else if kind == "var_spec" {
             // var_spec: child 'name', child 'type', child 'value'
             let name_node = node.child_by_field_name("name");
@@ -341,14 +339,14 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             let starting_line = node.start_position().row + 1;
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let parent = parent_type.as_deref();
+            let parent = parent.as_deref();
             let info = make_entity_json(
                 file, "go", "variable", name, signature, starting_line, ending_line, parent, None, None,
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else {
             for child in node.children(&mut node.walk()) {
-                stack.push((child, parent_type.clone()));
+                stack.push((child, parent.clone()));
             }
         }
     }
@@ -373,7 +371,7 @@ fn extract_entities_with_doc<W: Write, DocFn>(
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_class)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == class_kind {
             let name_node = node.child_by_field_name(class_name_field);
@@ -396,7 +394,7 @@ fn extract_entities_with_doc<W: Write, DocFn>(
                 Some(&doc),
                 None,
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
             for child in node.children(&mut node.walk()) {
                 stack.push((child, Some(name.to_string())));
             }
@@ -409,7 +407,7 @@ fn extract_entities_with_doc<W: Write, DocFn>(
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
             let doc = doc_extractor(&node, source);
-            let parent = parent_class.as_deref();
+            let parent = parent.as_deref();
             let calls = extract_function_calls(&node, source);
             let info = make_entity_json(
                 file,
@@ -423,10 +421,10 @@ fn extract_entities_with_doc<W: Write, DocFn>(
                 Some(&doc),
                 Some(&calls),
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else {
             for child in node.children(&mut node.walk()) {
-                stack.push((child, parent_class.clone()));
+                stack.push((child, parent.clone()));
             }
         }
     }
@@ -462,7 +460,7 @@ fn extract_python_entities<W: Write>(
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_class)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == "class_definition" || kind == "function_definition" {
             for child in node.children(&mut node.walk()) {
@@ -477,7 +475,7 @@ fn extract_python_entities<W: Write>(
                         node.child_by_field_name("name")
                             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
                     } else {
-                        parent_class.as_deref()
+                        parent.as_deref()
                     };
                     let starting_line = child.start_position().row + 1;
                     let ending_line = child.end_position().row + 1;
@@ -493,12 +491,12 @@ fn extract_python_entities<W: Write>(
                         None,
                         None,
                     );
-                    writeln!(out, "{}", info.to_string()).ok();
+                    let _ = writeln!(out, "{}", info.to_string());
                 }
             }
         }
         for child in node.children(&mut node.walk()) {
-            stack.push((child, parent_class.clone()));
+            stack.push((child, parent.clone()));
         }
     }
     extract_entities_with_doc(
@@ -565,7 +563,7 @@ fn extract_rust_entities<W: Write>(
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_impl)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == "impl_item" {
             let type_node = node.child_by_field_name("type");
@@ -585,7 +583,7 @@ fn extract_rust_entities<W: Write>(
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
             let doc = extract_rust_doc_comment(&node, source);
-            let parent = parent_impl.as_deref();
+            let parent = parent.as_deref();
             let calls = extract_function_calls(&node, source);
             let info = make_entity_json(
                 file,
@@ -599,10 +597,10 @@ fn extract_rust_entities<W: Write>(
                 Some(&doc),
                 Some(&calls),
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else {
             for child in node.children(&mut node.walk()) {
-                stack.push((child, parent_impl.clone()));
+                stack.push((child, parent.clone()));
             }
         }
     }
@@ -661,62 +659,73 @@ fn extract_cpp_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: 
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_class)) = stack.pop() {
-        let kind = node.kind();
-        if kind == "template_declaration" {
-            // C++ template declaration
-            let name = "template";
-            let starting_line = node.start_position().row + 1;
-            let ending_line = node.end_position().row + 1;
-            let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let info = make_entity_json(
-                file,
-                "cpp",
-                "template",
-                name,
-                signature,
-                starting_line,
-                ending_line,
-                parent_class.as_deref(),
-                None,
-                None,
-            );
-            writeln!(out, "{}", info.to_string()).ok();
-        } else if kind == "class_specifier" {
-            // Use generic helper for class
-            let name_node = node.child_by_field_name("name");
-            let name = name_node
-                .map(|n| n.utf8_text(source.as_bytes()).unwrap_or(""))
-                .unwrap_or("");
-            let starting_line = node.start_position().row + 1;
-            let ending_line = node.end_position().row + 1;
-            let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let info = make_entity_json(
-                file, "cpp", "class", name, signature, starting_line, ending_line, None, None, None,
-            );
-            writeln!(out, "{}", info.to_string()).ok();
-            for child in node.children(&mut node.walk()) {
-                stack.push((child, Some(name.to_string())));
+    while let Some((node, parent)) = stack.pop() {
+        match node.kind() {
+            "template_declaration" => {
+                // C++ template declaration
+                let name = "template";
+                let starting_line = node.start_position().row + 1;
+                let ending_line = node.end_position().row + 1;
+                let signature = source[node.byte_range()].lines().next().unwrap_or("");
+                let info = make_entity_json(
+                    file,
+                    "cpp",
+                    "template",
+                    name,
+                    signature,
+                    starting_line,
+                    ending_line,
+                    parent.as_deref(),
+                    None,
+                    None,
+                );
+                let _ = writeln!(out, "{}", info.to_string());
+                for child in node.children(&mut node.walk()) {
+                    stack.push((child, parent.as_ref().map(|s| s.as_str().to_string())));
+                }
             }
-        } else if kind == "function_definition" {
-            // Custom function name extraction
-            let decl_node = node.child_by_field_name("declarator");
-            let name = decl_node
-                .and_then(|n| n.child_by_field_name("declarator"))
-                .map(|n| n.utf8_text(source.as_bytes()).unwrap_or(""))
-                .unwrap_or("");
-            let starting_line = node.start_position().row + 1;
-            let ending_line = node.end_position().row + 1;
-            let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let parent = parent_class.as_deref();
-            let calls = extract_function_calls(&node, source);
-            let info = make_entity_json(
-                file, "cpp", "function", name, signature, starting_line, ending_line, parent, None, Some(&calls),
-            );
-            writeln!(out, "{}", info.to_string()).ok();
-        }
-        for child in node.children(&mut node.walk()) {
-            stack.push((child, parent_class.clone()));
+            "class_specifier" => {
+                // Use generic helper for class
+                let name_node = node.child_by_field_name("name");
+                let name = name_node
+                    .map(|n| n.utf8_text(source.as_bytes()).unwrap_or(""))
+                    .unwrap_or("");
+                let starting_line = node.start_position().row + 1;
+                let ending_line = node.end_position().row + 1;
+                let signature = source[node.byte_range()].lines().next().unwrap_or("");
+                let info = make_entity_json(
+                    file, "cpp", "class", name, signature, starting_line, ending_line, None, None, None,
+                );
+                let _ = writeln!(out, "{}", info.to_string());
+                for child in node.children(&mut node.walk()) {
+                    stack.push((child, Some(name.to_string())));
+                }
+            }
+            "function_definition" => {
+                // Custom function name extraction
+                let decl_node = node.child_by_field_name("declarator");
+                let name = decl_node
+                    .and_then(|n| n.child_by_field_name("declarator"))
+                    .map(|n| n.utf8_text(source.as_bytes()).unwrap_or(""))
+                    .unwrap_or("");
+                let starting_line = node.start_position().row + 1;
+                let ending_line = node.end_position().row + 1;
+                let signature = source[node.byte_range()].lines().next().unwrap_or("");
+                let parent_ref = parent.as_deref();
+                let calls = extract_function_calls(&node, source);
+                let info = make_entity_json(
+                    file, "cpp", "function", name, signature, starting_line, ending_line, parent_ref, None, Some(&calls),
+                );
+                let _ = writeln!(out, "{}", info.to_string());
+                for child in node.children(&mut node.walk()) {
+                    stack.push((child, parent.as_ref().map(|s| s.as_str().to_string())));
+                }
+            }
+            _ => {
+                for child in node.children(&mut node.walk()) {
+                    stack.push((child, parent.as_ref().map(|s| s.as_str().to_string())));
+                }
+            }
         }
     }
 }
@@ -736,7 +745,7 @@ fn extract_entities_generic<W: Write>(
     // use tree_sitter::{Node, TreeCursor};
     let cursor = tree.root_node().walk();
     let mut stack = vec![(cursor.node(), None::<String>)];
-    while let Some((node, parent_class)) = stack.pop() {
+    while let Some((node, parent)) = stack.pop() {
         let kind = node.kind();
         if kind == class_kind {
             let name_node = node.child_by_field_name(class_name_field);
@@ -749,7 +758,7 @@ fn extract_entities_generic<W: Write>(
             let info = make_entity_json(
                 file, language, "class", name, signature, starting_line, ending_line, None, None, None,
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
             for child in node.children(&mut node.walk()) {
                 stack.push((child, Some(name.to_string())));
             }
@@ -761,7 +770,7 @@ fn extract_entities_generic<W: Write>(
             let starting_line = node.start_position().row + 1;
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
-            let parent = parent_class.as_deref();
+            let parent = parent.as_deref();
             let calls = extract_function_calls(&node, source);
             let info = make_entity_json(
                 file,
@@ -775,10 +784,10 @@ fn extract_entities_generic<W: Write>(
                 None,
                 Some(&calls),
             );
-            writeln!(out, "{}", info.to_string()).ok();
+            let _ = writeln!(out, "{}", info.to_string());
         } else {
             for child in node.children(&mut node.walk()) {
-                stack.push((child, parent_class.clone()));
+                stack.push((child, parent.clone()));
             }
         }
     }
@@ -826,23 +835,16 @@ fn extract_js_ts_entities<W: Write>(
     );
 }
 
-pub fn index_repository_with_args(root_path: &str, output_file: &str) {
-    // use std::io;
+pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<(), String> {
     println!("Indexing repository with Tree-sitter at '{root_path}'...");
     let start_time = Instant::now();
-    let mut out = match fs::File::create(output_file) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("[goose repo] Failed to create index file '{output_file}': {e}");
-            return;
-        }
-    };
+    let mut out = fs::File::create(output_file)
+        .map_err(|e| format!("[goose repo] Failed to create index file '{output_file}': {e}"))?;
 
     let mut files_indexed = 0usize;
     let mut entities_indexed = 0usize;
     let mut errors = Vec::new();
 
-    // Use ignore crate to respect .gitignore if present
     let walker = WalkBuilder::new(root_path)
         .standard_filters(true)
         .add_custom_ignore_filename(".gitignore")
@@ -948,10 +950,12 @@ pub fn index_repository_with_args(root_path: &str, output_file: &str) {
     println!("Indexing complete. Indexed {files_indexed} files, {entities_indexed} entities in {:.2?}.", elapsed);
     if !errors.is_empty() {
         eprintln!("Encountered {} errors during indexing:", errors.len());
-        for err in errors {
+        for err in &errors {
             eprintln!("  {err}");
         }
+        return Err(format!("Encountered {} errors during indexing.", errors.len()));
     }
+    Ok(())
 }
 
 /// A writer that increments a counter for each line written (i.e., each entity output)

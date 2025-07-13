@@ -1,4 +1,5 @@
-// C++ example
+#include "point.hpp"
+#include "pose.hpp"
 #include <iostream>
 #include <cmath>
 #include <string>
@@ -15,34 +16,6 @@ int add(int a, int b) {
     return a + b;
 }
 
-class Point {
-public:
-    double x, y;
-    Point(double x, double y) : x(x), y(y) {}
-
-    double distanceTo(const Point& other) const {
-        double dx = x - other.x;
-        double dy = y - other.y;
-        return std::sqrt(dx * dx + dy * dy);
-    }
-
-    double headingTo(const Point& other) const {
-        return std::atan2(other.y - y, other.x - x);
-    }
-};
-
-class Pose : public Point {
-public:
-    double heading;
-    Pose(double x, double y, double heading)
-        : Point(x, y), heading(heading) {}
-
-    double headingTo(const Point& other) const override {
-        // Adjust the heading by the pose's heading
-        return Point::headingTo(other) - heading;
-    }
-};
-
 class Animal {
 public:
     std::string name;
@@ -58,4 +31,23 @@ public:
 class Dog : public Animal {
 public:
     Dog(const std::string& name, const Pose& pose) : Animal(name, pose) {}
+};
+
+template <typename T>
+class Box {
+public:
+    T value;
+    Box(const T& value) : value(value) {}
+    T get() const { return value; }
+};
+
+class Named {
+public:
+    virtual std::string getName() const = 0;
+};
+
+class Cat : public Animal, public Named {
+public:
+    Cat(const std::string& name, const Pose& pose) : Animal(name, pose) {}
+    std::string getName() const override { return name; }
 };

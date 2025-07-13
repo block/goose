@@ -83,3 +83,31 @@ impl Dog {
         Dog { animal: Animal::new(name, pose) }
     }
 }
+
+/// A trait for types that can be named.
+pub trait Named {
+    /// Returns the name of the object.
+    fn name(&self) -> &str;
+}
+
+impl Named for Animal {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// A generic container for any type.
+pub struct Container<T> {
+    pub value: T,
+}
+
+impl<T> Container<T> {
+    /// Creates a new Container.
+    pub fn new(value: T) -> Self {
+        Container { value }
+    }
+    /// Consumes the container and returns the value.
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+}

@@ -59,3 +59,23 @@ class Dog extends Animal {
         super(name, pose);
     }
 }
+
+interface Named {
+    String getName();
+}
+
+class Cat extends Animal implements Named {
+    public Cat(String name, Pose pose) {
+        super(name, pose);
+    }
+    @Override
+    public String getName() {
+        return name;
+    }
+}
+
+class Box<T> {
+    private T value;
+    public Box(T value) { this.value = value; }
+    public T get() { return value; }
+}

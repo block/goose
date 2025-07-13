@@ -2,25 +2,51 @@
 import math
 from enum import Enum
 
+def log_call(func):
+    """
+    A decorator that logs the function call with its arguments.
+    """
+    def wrapper(*args, **kwargs):
+        print(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
+@log_call
+def greet(name):
+    """
+    Greets a person by name.
+    """
+    print(f"Hello, {name}!")
+
 def add(a, b):
     """
     Adds two numbers and returns the result.
-    
+
+    This function demonstrates a simple docstring with a summary line, a blank line,
+    and a more detailed description. It also includes argument and return value documentation.
+
     Args:
-        a: First number.
-        b: Second number.
+        a (int or float): First number to add.
+        b (int or float): Second number to add.
+
     Returns:
-        Sum of a and b.
+        int or float: The sum of a and b.
     """
     return a + b
 
 class Point:
     """
     Represents a 2D point.
+
+    This class demonstrates a class-level docstring with a summary and a longer description.
     """
     def __init__(self, x, y):
         """
         Initializes a Point with x and y coordinates.
+
+        Args:
+            x (float): The x coordinate.
+            y (float): The y coordinate.
         """
         self.x = x
         self.y = y
@@ -28,6 +54,11 @@ class Point:
     def distance_to(self, other):
         """
         Calculates the Euclidean distance to another Point.
+
+        Args:
+            other (Point): The other point.
+        Returns:
+            float: The Euclidean distance.
         """
         dx = self.x - other.x
         dy = self.y - other.y
@@ -36,6 +67,11 @@ class Point:
     def heading_to(self, other):
         """
         Returns the angle (in radians) from this point to another Point.
+
+        Args:
+            other (Point): The other point.
+        Returns:
+            float: The angle in radians.
         """
         return math.atan2(other.y - self.y, other.x - self.x)
 
