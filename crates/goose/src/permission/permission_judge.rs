@@ -2,7 +2,7 @@ use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, RequestPurpose};
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
@@ -138,6 +138,7 @@ pub async fn detect_read_only_tools(
 
     let res = provider
         .complete(
+            RequestPurpose::Normal,
             "You are a good analyst and can detect operations whether they have read-only operations.",
             &check_messages,
             &[tool.clone()],
@@ -291,6 +292,7 @@ mod tests {
 
         async fn complete(
             &self,
+            _purpose: RequestPurpose,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

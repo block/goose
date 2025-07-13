@@ -14,7 +14,7 @@ use goose::config::{
     PermissionManager,
 };
 use goose::message::Message;
-use goose::providers::{create, providers};
+use goose::providers::{base::RequestPurpose, create, providers};
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::Tool;
 use serde_json::{json, Value};
@@ -408,6 +408,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 
     let result = provider
         .complete(
+            RequestPurpose::Normal,
             "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
             &messages,
             &tools

@@ -5,7 +5,9 @@ use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, RequestPurpose,
+};
 use super::errors::ProviderError;
 use super::formats::anthropic::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model};
@@ -165,6 +167,7 @@ impl Provider for AnthropicProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

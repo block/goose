@@ -2,7 +2,10 @@ use anyhow::Result;
 use dotenv::dotenv;
 use goose::{
     message::Message,
-    providers::{base::Provider, databricks::DatabricksProvider},
+    providers::{
+        base::{Provider, RequestPurpose},
+        databricks::DatabricksProvider,
+    },
 };
 
 #[tokio::main]
@@ -21,7 +24,12 @@ async fn main() -> Result<()> {
 
     // Get a response
     let (response, usage) = provider
-        .complete("You are a helpful assistant.", &[message], &[])
+        .complete(
+            RequestPurpose::Normal,
+            "You are a helpful assistant.",
+            &[message],
+            &[],
+        )
         .await?;
 
     // Print the response and usage statistics

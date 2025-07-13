@@ -14,7 +14,10 @@ use tokio::sync::RwLock;
 use crate::agents::tool_vectordb::ToolVectorDB;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::{self, base::Provider};
+use crate::providers::{
+    self,
+    base::{Provider, RequestPurpose},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
@@ -280,7 +283,7 @@ impl RouterToolSelector for LLMToolSelector {
             let system_message = Message::user().with_text("You are a tool selection assistant. Your task is to find the most relevant tools based on the user's query.");
             let response = self
                 .llm_provider
-                .complete(&prompt, &[system_message], &[])
+                .complete(RequestPurpose::Normal, &prompt, &[system_message], &[])
                 .await
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 

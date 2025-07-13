@@ -17,6 +17,8 @@ use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
 use crate::message::Message;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
+#[cfg(test)]
+use crate::providers::base::RequestPurpose;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
@@ -1365,6 +1367,7 @@ mod tests {
 
         async fn complete(
             &self,
+            _purpose: RequestPurpose,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

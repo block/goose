@@ -1,7 +1,9 @@
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use crate::providers::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage,
+};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::providers::utils::get_model;
 use anyhow::Result;
@@ -124,6 +126,7 @@ impl Provider for GroqProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

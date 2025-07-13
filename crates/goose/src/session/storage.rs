@@ -6,7 +6,7 @@
 // Additional debug logging can be added if needed for troubleshooting.
 
 use crate::message::Message;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, RequestPurpose};
 use anyhow::Result;
 use chrono::Local;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
@@ -1289,6 +1289,7 @@ pub async fn generate_description_with_schedule_id(
     let message = Message::user().with_text(&description_prompt);
     let result = provider
         .complete(
+            RequestPurpose::Description,
             "Reply with only a description in four words or less",
             &[message],
             &[],

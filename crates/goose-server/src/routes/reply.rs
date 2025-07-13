@@ -538,7 +538,7 @@ mod tests {
         agents::Agent,
         model::ModelConfig,
         providers::{
-            base::{Provider, ProviderUsage, Usage},
+            base::{Provider, ProviderUsage, RequestPurpose, Usage},
             errors::ProviderError,
         },
     };
@@ -561,6 +561,7 @@ mod tests {
 
         async fn complete(
             &self,
+            _purpose: RequestPurpose,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

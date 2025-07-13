@@ -9,7 +9,9 @@ use url::Url;
 
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose,
+};
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
@@ -496,6 +498,7 @@ impl Provider for GcpVertexAIProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

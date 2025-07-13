@@ -3,7 +3,10 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use dotenv::dotenv;
 use goose::{
     message::Message,
-    providers::{bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider},
+    providers::{
+        base::RequestPurpose, bedrock::BedrockProvider, databricks::DatabricksProvider,
+        openai::OpenAiProvider,
+    },
 };
 use mcp_core::{
     content::Content,
@@ -57,6 +60,7 @@ async fn main() -> Result<()> {
         });
         let (response, usage) = provider
             .complete(
+                RequestPurpose::Normal,
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema, None)],

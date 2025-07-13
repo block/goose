@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dotenv::dotenv;
 use goose::message::{Message, MessageContent};
-use goose::providers::base::Provider;
+use goose::providers::base::{Provider, RequestPurpose};
 use goose::providers::errors::ProviderError;
 use goose::providers::{
     anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake, xai,
@@ -94,7 +94,12 @@ impl ProviderTester {
 
         let (response, _) = self
             .provider
-            .complete("You are a helpful assistant.", &[message], &[])
+            .complete(
+                RequestPurpose::Normal,
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         // For a basic response, we expect a single text response
@@ -135,6 +140,7 @@ impl ProviderTester {
         let (response1, _) = self
             .provider
             .complete(
+                RequestPurpose::Normal,
                 "You are a helpful weather assistant.",
                 &[message.clone()],
                 &[weather_tool.clone()],
@@ -180,6 +186,7 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
+                RequestPurpose::Normal,
                 "You are a helpful weather assistant.",
                 &[message, response1, weather],
                 &[weather_tool],
@@ -225,7 +232,12 @@ impl ProviderTester {
         // Test that we get ProviderError::ContextLengthExceeded when the context window is exceeded
         let result = self
             .provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete(
+                RequestPurpose::Normal,
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         // Print some debug info
@@ -286,6 +298,7 @@ impl ProviderTester {
         let result = self
             .provider
             .complete(
+                RequestPurpose::Normal,
                 "You are a helpful assistant. Describe what you see in the image briefly.",
                 &[message_with_image],
                 &[],
@@ -330,6 +343,7 @@ impl ProviderTester {
         let result2 = self
             .provider
             .complete(
+                RequestPurpose::Normal,
                 "You are a helpful assistant.",
                 &[user_message, tool_request, tool_response],
                 &[screenshot_tool],

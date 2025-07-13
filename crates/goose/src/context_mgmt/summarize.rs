@@ -1,6 +1,8 @@
 use super::common::{get_messages_token_counts, get_messages_token_counts_async};
 use crate::message::{Message, MessageContent};
 use crate::providers::base::Provider;
+#[cfg(test)]
+use crate::providers::base::RequestPurpose;
 use crate::token_counter::{AsyncTokenCounter, TokenCounter};
 use anyhow::Result;
 use mcp_core::Role;
@@ -24,23 +26,18 @@ async fn summarize_combined_messages(
         .chain(current_chunk.iter().cloned())
         .collect();
 
-    // Format the batch as a summarization request.
-    let request_text = format!(
-        "Please summarize the following conversation history, preserving the key points. This summarization will be used for the later conversations.\n\n```\n{:?}\n```",
-        combined_messages
-    );
-    let summarization_request = vec![Message::user().with_text(&request_text)];
+    // Use the provider's summarize method for cost-effective summarization
+    let summary_text = provider.summarize(&combined_messages).await?;
 
-    // Send the request to the provider and fetch the response.
-    let mut response = provider
-        .complete(SUMMARY_PROMPT, &summarization_request, &[])
-        .await?
-        .0;
-    // Set role to user as it will be used in following conversation as user content.
-    response.role = Role::User;
+    // Create a message with the summary
+    let summary_message = Message {
+        role: Role::User, // Set role to user as it will be used in following conversation as user content
+        created: chrono::Utc::now().timestamp(),
+        content: vec![MessageContent::text(summary_text)],
+    };
 
     // Return the summary as the new accumulated summary.
-    Ok(vec![response])
+    Ok(vec![summary_message])
 }
 
 /// Preprocesses the messages to handle edge cases involving tool responses.
@@ -242,6 +239,7 @@ mod tests {
 
         async fn complete(
             &self,
+            _purpose: RequestPurpose,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

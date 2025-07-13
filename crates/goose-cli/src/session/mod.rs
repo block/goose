@@ -13,7 +13,7 @@ use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
-use goose::providers::base::Provider;
+use goose::providers::base::{Provider, RequestPurpose};
 pub use goose::session::Identifier;
 
 use anyhow::{Context, Result};
@@ -93,6 +93,7 @@ pub async fn classify_planner_response(
     let message = Message::user().with_text(&prompt);
     let (result, _usage) = provider
         .complete(
+            RequestPurpose::Description,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
             &[],
@@ -699,7 +700,9 @@ impl Session {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
-        let (plan_response, _usage) = reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+        let (plan_response, _usage) = reasoner
+            .complete(RequestPurpose::Normal, &plan_prompt, &plan_messages, &[])
+            .await?;
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =

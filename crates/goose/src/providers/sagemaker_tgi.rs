@@ -10,7 +10,7 @@ use mcp_core::Tool;
 use serde_json::{json, Value};
 use tokio::time::sleep;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
@@ -293,6 +293,7 @@ impl Provider for SageMakerTgiProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::providers::base::{Provider, ProviderUsage};
+use crate::providers::base::{Provider, ProviderUsage, RequestPurpose};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -125,7 +125,12 @@ impl Agent {
 
         // Call the provider to get a response
         let (mut response, usage) = provider
-            .complete(system_prompt, &messages_for_provider, tools)
+            .complete(
+                RequestPurpose::Normal,
+                system_prompt,
+                &messages_for_provider,
+                tools,
+            )
             .await?;
 
         // Store the model information in the global store
