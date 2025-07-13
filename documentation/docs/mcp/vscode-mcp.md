@@ -5,6 +5,10 @@ description: Use the Goose VS Code Extension to connect Goose to your editor
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/gddEgvCLrgU" />
+
 
 This tutorial covers how to install and use the [Goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use Goose interactively for file operations and development workflow management from within VS Code.
 

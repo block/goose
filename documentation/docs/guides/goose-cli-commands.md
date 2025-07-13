@@ -144,6 +144,31 @@ goose configure
     goose session --max-turns 50
     ```
 
+- Set the [maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
+
+    **Options:**
+
+    **`--max-turns <NUMBER>`**
+
+    **Usage:**
+
+    ```bash
+    goose session --max-turns 10
+    ```
+
+    **Examples:**
+
+    ```bash
+    # Low limit for step-by-step control
+    goose session --max-turns 3
+    
+    # Moderate limit for controlled automation
+    goose session --max-turns 25
+    
+    # Combined with other options
+    goose session --name my-project --max-turns 10 --debug
+    ```
+
 ---
 ### session list [options]
 
@@ -303,6 +328,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--max-turns <NUMBER>`**: [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
 - **`--max-turns <NUMBER>`**: Limit the maximum number of turns the agent can take before asking for user input to continue (default: 1000)
@@ -335,6 +361,9 @@ goose run --no-session -i instructions.txt
 
 #Run with a limit of 25 turns before asking for user input
 goose run --max-turns 25 -i plan.md
+
+#Run with limited turns before prompting user
+goose run --recipe recipe.yaml --max-turns 10
 ```
 
 ---

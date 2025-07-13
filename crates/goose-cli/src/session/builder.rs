@@ -37,6 +37,10 @@ pub struct SessionBuilderConfig {
     pub additional_system_prompt: Option<String>,
     /// Settings to override the global Goose settings
     pub settings: Option<SessionSettings>,
+    /// Provider override from CLI arguments
+    pub provider: Option<String>,
+    /// Model override from CLI arguments
+    pub model: Option<String>,
     /// Enable debug printing
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
@@ -167,16 +171,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let config = Config::global();
 
     let provider_name = session_config
-        .settings
-        .as_ref()
-        .and_then(|s| s.goose_provider.clone())
+        .provider
+        .or_else(|| {
+            session_config
+                .settings
+                .as_ref()
+                .and_then(|s| s.goose_provider.clone())
+        })
         .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
         .expect("No provider configured. Run 'goose configure' first");
 
     let model_name = session_config
-        .settings
-        .as_ref()
-        .and_then(|s| s.goose_model.clone())
+        .model
+        .or_else(|| {
+            session_config
+                .settings
+                .as_ref()
+                .and_then(|s| s.goose_model.clone())
+        })
         .or_else(|| config.get_param("GOOSE_MODEL").ok())
         .expect("No model configured. Run 'goose configure' first");
 
@@ -523,6 +535,8 @@ mod tests {
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             settings: None,
+            provider: None,
+            model: None,
             debug: true,
             max_tool_repetitions: Some(5),
             max_turns: None,

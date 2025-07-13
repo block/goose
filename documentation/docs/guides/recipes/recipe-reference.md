@@ -36,6 +36,7 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
+| `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
 
 ## Parameters
@@ -62,6 +63,8 @@ Each parameter in the `parameters` array has the following structure:
 - `required`: Parameter must be provided when using the recipe
 - `optional`: Can be omitted if a default value is specified
 - `user_prompt`: Will interactively prompt the user for input if not provided
+
+The `required` and `optional` parameters work best for recipes opened in Goose Desktop. If a value isn't provided for a `user_prompt` parameter, the parameter won't be substituted and may appear as literal `{{ parameter_name }}` text in the recipe output.
 
 :::important
 - Optional parameters MUST have a default value specified
@@ -107,6 +110,32 @@ extensions:
     description: "For searching logs using Presidio"
 ```
 
+## Sub-Recipes
+
+The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-recipes) that the main recipe calls to perform specific tasks. Each sub-recipe in the array has the following structure:
+
+### Sub-Recipe Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Unique identifier for the sub-recipe |
+| `path` | String | Relative or absolute path to the sub-recipe file |
+| `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
+
+### Example Sub-Recipe Configuration
+
+```yaml
+sub_recipes:
+  - name: "security_scan"
+    path: "./sub-recipes/security-analysis.yaml"
+    values:  # in key-value format: {parameter_name}: {parameter_value}
+      scan_level: "comprehensive"
+      include_dependencies: "true"
+  
+  - name: "quality_check"
+    path: "./sub-recipes/quality-analysis.yaml"
+```
+
 ## Structured Output with `response`
 
 The `response` field enables recipes to enforce a final structured JSON output from Goose. When you specify a `json_schema`, Goose will:
@@ -114,7 +143,7 @@ The `response` field enables recipes to enforce a final structured JSON output f
 1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
 2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
 
-This **Enables automation** by returning consistent, parseable results for scripts and workflows.
+This **enables automation** by returning consistent, parseable results for scripts and workflows. Recipes can produce structured output when run from either the Goose CLI or Goose Desktop.
 
 ### Basic Structure
 
