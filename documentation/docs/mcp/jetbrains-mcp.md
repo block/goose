@@ -44,7 +44,8 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
   │  ● Built-in Extension (Use an extension that comes with Goose)
   // highlight-end  
   │  ○ Command-line Extension 
-  │  ○ Remote Extension 
+  │  ○ Remote Extension (SSE) 
+  │  ○ Remote Extension (Streaming HTTP) 
   └  
   ```
 

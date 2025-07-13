@@ -114,7 +114,7 @@ goose run --with-builtin "developer,computercontroller" -t "your instructions"
 goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
 ```
 
-- Using remote extensions
+- Using remote SSE extensions
 
 ```bash
 goose run --with-remote-extension "url" -t "your instructions"

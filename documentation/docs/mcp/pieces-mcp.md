@@ -56,10 +56,12 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  ○ Built-in Extension 
         │  ○ Command-line Extension (Run a local command or script)
         // highlight-start    
-        │  ● Remote Extension 
-        // highlight-end    
+        │  ● Remote Extension (SSE)
+        // highlight-end
+        │  ○ Remote Extension (Streaming HTTP)     
         └ 
       ```
+    
 
   3. Give your extension a name
   
@@ -70,7 +72,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
-        │  Remote Extension 
+        │  Remote Extension (SSE)
         │
         // highlight-start
         ◆  What would you like to call this extension?
@@ -92,7 +94,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
-        │  Remote Extension 
+        │  Remote Extension (SSE)
         │
         ◇  What would you like to call this extension?
         │  Pieces
@@ -113,7 +115,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
-        │  Remote Extension 
+        │  Remote Extension (SSE)
         │
         ◇  What would you like to call this extension?
         │  Pieces
@@ -137,7 +139,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
-        │  Remote Extension 
+        │  Remote Extension (SSE)
         │
         ◇  What would you like to call this extension?
         │  Pieces
@@ -165,7 +167,7 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
         │  Add Extension (Connect to a new extension) 
         │
         ◇  What type of extension would you like to add?
-        │  Remote Extension 
+        │  Remote Extension (SSE)
         │
         ◇  What would you like to call this extension?
         │  Pieces

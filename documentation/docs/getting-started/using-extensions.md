@@ -54,7 +54,8 @@ Here are the built-in extensions:
     3. Choose the type of extension you'd like to add:
         - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
         - `Command-Line Extension`: Add a local command or script to run as an extension.
-        - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+        - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
+        - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
     4. Follow the prompts based on the type of extension you selected.
 
     **Example: Adding Built-in Extension**
@@ -143,7 +144,8 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
   3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
-      - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+      - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
+      - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
 
   4. Follow the prompts based on the type of extension you selected.
 
@@ -590,7 +592,7 @@ To enable a remote extension over SSE while starting a session, run the followin
 goose session --with-remote-extension "{extension URL}" --with-remote-extension "{another extension URL}"
 ```
 
-For example, to start a session with a remote extension running on localhost on port 8080, you'd run:
+For example, to start a session with a remote extension over SSE running on localhost on port 8080, you'd run:
 
 ```bash
 goose session --with-remote-extension "http://localhost:8080/sse"
