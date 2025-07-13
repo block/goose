@@ -102,6 +102,24 @@ goose configure
     goose session --with-remote-extension "http://localhost:8080/sse"
     ```
 
+- Start a session with the specified remote extension over Streaming HTTP
+
+     **Options:**
+
+     **`--with-streamable-http-extension <url>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-streamable-http-extension <url>
+    ```
+
+    **Examples:**
+
+    ```bash
+    goose session --with-streamable-http-extension "https://example.com/streamable"
+    ```
+
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
     **Options:**
@@ -326,6 +344,8 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
 - **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
+- **`--with-remote-extension <URL>`**: Add remote extensions over SSE (can be used multiple times in the same command)
+- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
 - **`--max-turns <NUMBER>`**: [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
