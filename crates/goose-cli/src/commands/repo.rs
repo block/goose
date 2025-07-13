@@ -469,7 +469,6 @@ fn extract_python_entities<W: Write>(
                     let name = name_node
                         .map(|n| n.utf8_text(source.as_bytes()).unwrap_or(""))
                         .unwrap_or("");
-                        // removed unused line variable
                     let signature = source[child.byte_range()].lines().next().unwrap_or("");
                     let parent = if kind == "class_definition" {
                         node.child_by_field_name("name")
