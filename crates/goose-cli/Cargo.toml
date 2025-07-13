@@ -61,11 +61,17 @@ base64 = "0.22.1"
 regex = "1.11.1"
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
+<<<<<<< HEAD
+=======
+dirs = "5.0"
+
+>>>>>>> Fixed cargo.toml
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 http = "1.0"
 webbrowser = "1.0"
+
 # Tree-sitter language grammars (runtime dependencies)
 tree-sitter = "0.20.10"
 tree-sitter-c-sharp = "0.20.0"
@@ -78,6 +84,7 @@ tree-sitter-rust = "0.20.4"
 tree-sitter-swift = "0.2.0"
 tree-sitter-typescript = "0.20.5"
 # Add more language grammars as needed
+
 indicatif = "0.17.11"
 tokio-util = "0.7.15"
 is-terminal = "0.4.16"
@@ -88,6 +95,10 @@ tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
 tokio = { version = "1.43", features = ["rt", "macros"] }
+
+[[bin]]
+name = "goose"
+path = "src/main.rs"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
