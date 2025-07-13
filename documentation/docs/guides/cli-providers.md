@@ -6,7 +6,7 @@ sidebar_label: CLI Providers
 
 # CLI Providers
 
-Goose supports two special pass-through providers that leverage existing CLI tools from Anthropic and Google. These providers allow you to use your existing subscriptions to Claude Code and Google Gemini CLI tools directly through Goose, providing a cost-effective way to access these excellent AI models and tools while maintaining the benefits of Goose's ecosystem and working with multiple models and extensions.
+Goose supports two special pass-through providers that leverage existing CLI tools and extensions from Anthropic and Google. These providers allow you to use your existing subscriptions to Claude Code and Google Gemini CLI tools directly through Goose, providing a cost-effective way to access these excellent AI models and tools while maintaining the benefits of Goose's ecosystem and working with multiple models and extensions.
 
 ## Overview
 
