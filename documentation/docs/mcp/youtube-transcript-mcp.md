@@ -27,8 +27,9 @@ This tutorial covers how to add the [YouTube Transcript MCP Server](https://gith
 
 ## Configuration
 
+
 :::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
 
 <Tabs groupId="interface">
