@@ -127,7 +127,7 @@ goose session
 
 ### Combining with Other Models
 
-CLI providers work well in combination with other models using Goose's [lead/worker pattern](docs/tutorials/lead-worker):
+CLI providers work well in combination with other models using Goose's [lead/worker pattern](/docs/tutorials/lead-worker):
 
 ```bash
 # Use Claude Code as lead model, GPT-4o as worker
