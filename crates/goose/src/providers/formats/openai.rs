@@ -274,11 +274,11 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
         }
     }
 
-    Ok(Message {
-        role: Role::Assistant,
-        created: chrono::Utc::now().timestamp(),
+    Ok(Message::new(
+        Role::Assistant,
+        chrono::Utc::now().timestamp(),
         content,
-    })
+    ))
 }
 
 pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {

@@ -557,11 +557,7 @@ impl Provider for VeniceProvider {
         };
 
         Ok((
-            Message {
-                role: Role::Assistant,
-                created: Utc::now().timestamp(),
-                content,
-            },
+            Message::new(Role::Assistant, Utc::now().timestamp(), content),
             ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage),
         ))
     }

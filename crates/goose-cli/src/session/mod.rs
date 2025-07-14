@@ -10,6 +10,7 @@ pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::agents::AgentEvent;
+use goose::message::push_message;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -356,7 +357,7 @@ impl Session {
 
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
-        self.messages.push(Message::user().with_text(&message));
+        self.push_message(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await?;
 
@@ -462,7 +463,7 @@ impl Session {
                         RunMode::Normal => {
                             save_history(&mut editor);
 
-                            self.messages.push(Message::user().with_text(&content));
+                            self.push_message(Message::user().with_text(&content));
 
                             // Track the current directory and last instruction in projects.json
                             let session_id = self
@@ -785,7 +786,7 @@ impl Session {
                     self.messages.clear();
                     // add the plan response as a user message
                     let plan_message = Message::user().with_text(plan_response.as_concat_text());
-                    self.messages.push(plan_message);
+                    self.push_message(plan_message);
                     // act on the plan
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -800,13 +801,13 @@ impl Session {
                 } else {
                     // add the plan response (assistant message) & carry the conversation forward
                     // in the next round, the user might wanna slightly modify the plan
-                    self.messages.push(plan_response);
+                    self.push_message(plan_response);
                 }
             }
             PlannerResponseType::ClarifyingQuestions => {
                 // add the plan response (assistant message) & carry the conversation forward
                 // in the next round, the user will answer the clarifying questions
-                self.messages.push(plan_response);
+                self.push_message(plan_response);
             }
         }
 
@@ -878,7 +879,7 @@ impl Session {
                                         confirmation.id.clone(),
                                         Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
-                                    self.messages.push(response_message);
+                                    push_message(&mut self.messages, response_message);
                                     if let Some(session_file) = &self.session_file {
                                         session::persist_messages_with_schedule_id(
                                             session_file,
@@ -975,7 +976,7 @@ impl Session {
                             }
                             // otherwise we have a model/tool to render
                             else {
-                                self.messages.push(message.clone());
+                                push_message(&mut self.messages, message.clone());
 
                                 // No need to update description on assistant messages
                                 if let Some(session_file) = &self.session_file {
@@ -991,7 +992,6 @@ impl Session {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
                                 output::render_message(&message, self.debug);
-                                if interactive {output::show_thinking()};
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
@@ -1139,6 +1139,7 @@ impl Session {
                 }
             }
         }
+        println!();
 
         Ok(())
     }
@@ -1182,7 +1183,7 @@ impl Session {
                     Err(ToolError::ExecutionError(notification.clone())),
                 ));
             }
-            self.messages.push(response_message);
+            self.push_message(response_message);
 
             // No need for description update here
             if let Some(session_file) = &self.session_file {
@@ -1199,7 +1200,7 @@ impl Session {
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
-            self.messages.push(Message::assistant().with_text(&prompt));
+            self.push_message(Message::assistant().with_text(&prompt));
 
             // No need for description update here
             if let Some(session_file) = &self.session_file {
@@ -1221,7 +1222,7 @@ impl Session {
                         Some(MessageContent::ToolResponse(_)) => {
                             // Interruption occurred after a tool had completed but not assistant reply
                             let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
-                            self.messages.push(Message::assistant().with_text(prompt));
+                            self.push_message(Message::assistant().with_text(prompt));
 
                             // No need for description update here
                             if let Some(session_file) = &self.session_file {
@@ -1438,7 +1439,7 @@ impl Session {
                         if msg.role == mcp_core::Role::User {
                             output::render_message(&msg, self.debug);
                         }
-                        self.messages.push(msg);
+                        self.push_message(msg);
                     }
 
                     if valid {
@@ -1495,6 +1496,10 @@ impl Session {
         serde_yaml::to_writer(file, recipe).context("Failed to save recipe")?;
 
         Ok(path)
+    }
+
+    fn push_message(&mut self, message: Message) {
+        push_message(&mut self.messages, message);
     }
 }
 
