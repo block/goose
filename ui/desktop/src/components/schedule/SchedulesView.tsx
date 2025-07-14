@@ -14,7 +14,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye } from 'lucide-react';
+import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
 import { CreateScheduleModal, NewSchedulePayload } from './CreateScheduleModal';
 import { EditScheduleModal } from './EditScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
@@ -608,15 +608,9 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                 )}
 
                 {!isLoading && !apiError && schedules.length === 0 && (
-                  <div className="flex flex-col justify-center items-center py-12">
-                    <p className="text-lg mb-2">No schedules found</p>
-                    <p className="text-sm text-text-muted mb-4">
-                      Create your first schedule to get started with automated tasks.
-                    </p>
-                    <Button onClick={handleOpenCreateModal} className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Create Schedule
-                    </Button>
+                  <div className="flex flex-col pt-4 pb-12">
+                    <CircleDotDashed className="h-5 w-5 text-text-muted mb-3.5" />
+                    <p className="text-base text-text-muted font-light mb-2">No schedules yet</p>
                   </div>
                 )}
 
