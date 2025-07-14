@@ -680,7 +680,7 @@ fn safe_truncate_str(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {
         return s;
     }
-    
+
     // Find the largest valid UTF-8 char boundary at or before max_bytes
     let mut end = max_bytes;
     while end > 0 && !s.is_char_boundary(end) {
@@ -714,7 +714,8 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                         match content_item {
                             Content::Text(ref mut text_content) => {
                                 if text_content.text.len() > max_content_size {
-                                    let truncated_text = safe_truncate_str(&text_content.text, max_content_size);
+                                    let truncated_text =
+                                        safe_truncate_str(&text_content.text, max_content_size);
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
                                         truncated_text,
@@ -729,7 +730,8 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                     &mut resource_content.resource
                                 {
                                     if text.len() > max_content_size {
-                                        let truncated_text = safe_truncate_str(text, max_content_size);
+                                        let truncated_text =
+                                            safe_truncate_str(text, max_content_size);
                                         let truncated = format!(
                                             "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
                                             truncated_text,
