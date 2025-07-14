@@ -127,6 +127,10 @@ $DEST_GOOSE = Join-Path $env:GOOSE_BIN_DIR $OUT_FILE
 if (Test-Path $SOURCE_GOOSE) {
     Write-Host "Moving goose to $DEST_GOOSE" -ForegroundColor Green
     try {
+        # Remove existing file if it exists to avoid conflicts
+        if (Test-Path $DEST_GOOSE) {
+            Remove-Item -Path $DEST_GOOSE -Force
+        }
         Move-Item -Path $SOURCE_GOOSE -Destination $DEST_GOOSE -Force
     } catch {
         Write-Error "Failed to move goose.exe to $DEST_GOOSE. Error: $($_.Exception.Message)"
@@ -139,12 +143,29 @@ if (Test-Path $SOURCE_GOOSE) {
     exit 1
 }
 
+# --- 9.1) Install goosed binary (copy of goose.exe for VS Code extension compatibility) ---
+$DEST_GOOSED = Join-Path $env:GOOSE_BIN_DIR "goosed.exe"
+Write-Host "Creating goosed.exe (copy of goose.exe for VS Code extension compatibility)" -ForegroundColor Green
+try {
+    # Remove existing file if it exists to avoid conflicts
+    if (Test-Path $DEST_GOOSED) {
+        Remove-Item -Path $DEST_GOOSED -Force
+    }
+    Copy-Item -Path $DEST_GOOSE -Destination $DEST_GOOSED -Force
+} catch {
+    Write-Warning "Failed to create goosed.exe: $($_.Exception.Message)"
+}
+
 # --- 10) Install temporal-service if it exists ---
 $SOURCE_TEMPORAL_SERVICE = Join-Path $EXTRACT_DIR "temporal-service.exe"
 if (Test-Path $SOURCE_TEMPORAL_SERVICE) {
     $DEST_TEMPORAL_SERVICE = Join-Path $env:GOOSE_BIN_DIR "temporal-service.exe"
     Write-Host "Moving temporal-service to $DEST_TEMPORAL_SERVICE" -ForegroundColor Green
     try {
+        # Remove existing file if it exists to avoid conflicts
+        if (Test-Path $DEST_TEMPORAL_SERVICE) {
+            Remove-Item -Path $DEST_TEMPORAL_SERVICE -Force
+        }
         Move-Item -Path $SOURCE_TEMPORAL_SERVICE -Destination $DEST_TEMPORAL_SERVICE -Force
     } catch {
         Write-Warning "Failed to move temporal-service.exe: $($_.Exception.Message)"
@@ -157,6 +178,10 @@ if (Test-Path $SOURCE_TEMPORAL) {
     $DEST_TEMPORAL = Join-Path $env:GOOSE_BIN_DIR "temporal.exe"
     Write-Host "Moving temporal CLI to $DEST_TEMPORAL" -ForegroundColor Green
     try {
+        # Remove existing file if it exists to avoid conflicts
+        if (Test-Path $DEST_TEMPORAL) {
+            Remove-Item -Path $DEST_TEMPORAL -Force
+        }
         Move-Item -Path $SOURCE_TEMPORAL -Destination $DEST_TEMPORAL -Force
     } catch {
         Write-Warning "Failed to move temporal.exe: $($_.Exception.Message)"
@@ -169,6 +194,10 @@ foreach ($dll in $DLL_FILES) {
     $DEST_DLL = Join-Path $env:GOOSE_BIN_DIR $dll.Name
     Write-Host "Moving Windows runtime DLL: $($dll.Name)" -ForegroundColor Green
     try {
+        # Remove existing file if it exists to avoid conflicts
+        if (Test-Path $DEST_DLL) {
+            Remove-Item -Path $DEST_DLL -Force
+        }
         Move-Item -Path $dll.FullName -Destination $DEST_DLL -Force
     } catch {
         Write-Warning "Failed to move $($dll.Name): $($_.Exception.Message)"
