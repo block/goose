@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
-import { ChatSmart, Idea, Refresh, Time, Send, Settings } from '../icons';
+import { ChatSmart, Idea, Refresh, Time, Send, Settings, Langfuse } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun, Save, FileText } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { ViewOptions, View } from '../../App';
@@ -233,6 +233,16 @@ export default function MoreMenu({
     }
   };
 
+  const langfuseConfigRaw = localStorage.getItem('langfuse_config');
+  const langfuseConfig = JSON.parse(langfuseConfigRaw || '{}') || {};
+  const openLangfuse = () => {
+    // sessionStorage
+    const langfuse_host = langfuseConfig.selfHosted
+      ? langfuseConfig.langfuseUrl
+      : 'https://cloud.langfuse.com';
+    window.open(langfuse_host, '_blank');
+  };
+
   const recipeConfig = window.appConfig.get('recipeConfig');
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -307,6 +317,18 @@ export default function MoreMenu({
               >
                 Configure .goosehints
               </MenuButton>
+
+              {langfuseConfig.enabled ? (
+                <MenuButton
+                  onClick={openLangfuse}
+                  subtitle="Follow observations of agent session."
+                  icon={<Langfuse className="w-4 h-4" />}
+                >
+                  Open In Langfuse
+                </MenuButton>
+              ) : (
+                <></>
+              )}
 
               {recipeConfig ? (
                 <>
