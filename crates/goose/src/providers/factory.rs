@@ -175,7 +175,7 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
+    use crate::providers::base::{ProviderMetadata, ProviderUsage, RequestPurpose, Usage};
     use chrono::Utc;
     use mcp_core::{content::TextContent, Role};
     use std::env;
@@ -207,6 +207,7 @@ mod tests {
 
         async fn complete(
             &self,
+            _purpose: RequestPurpose,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

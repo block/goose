@@ -5,7 +5,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -163,6 +165,7 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -235,6 +238,28 @@ impl Provider for OpenAiProvider {
         EmbeddingCapable::create_embeddings(self, texts)
             .await
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
+
+    async fn summarize(&self, messages: &[Message]) -> Result<String, ProviderError> {
+        // Use gpt-3.5-turbo for summarization to save costs
+        let cheap_model = ModelConfig::new("gpt-3.5-turbo".to_string()).with_temperature(Some(0.3)); // Lower temperature for consistent summaries
+
+        let cheap_provider = OpenAiProvider {
+            model: cheap_model,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
+            api_key: self.api_key.clone(),
+            organization: self.organization.clone(),
+            project: self.project.clone(),
+            custom_headers: self.custom_headers.clone(),
+            client: self.client.clone(),
+        };
+
+        let summary_prompt = "Please summarize the following conversation history, preserving the key points. This summarization will be used for the later conversations.";
+        let (response, _) = cheap_provider
+            .complete(RequestPurpose::Summarize, summary_prompt, messages, &[])
+            .await?;
+        Ok(response.as_concat_text())
     }
 }
 

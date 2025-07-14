@@ -1,4 +1,4 @@
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage};
 use super::errors::ProviderError;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
@@ -123,6 +123,7 @@ impl Provider for OllamaProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

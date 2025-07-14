@@ -17,7 +17,7 @@ use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, RequestPurpose};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
@@ -1213,7 +1213,7 @@ impl Agent {
             .await
             .as_ref()
             .unwrap()
-            .complete(&system_prompt, &messages, &tools)
+            .complete(RequestPurpose::Normal, &system_prompt, &messages, &tools)
             .await?;
 
         let content = result.as_concat_text();

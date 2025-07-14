@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage};
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -304,6 +304,7 @@ impl Provider for VeniceProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         _system: &str,
         messages: &[Message],
         tools: &[Tool],

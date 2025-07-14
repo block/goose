@@ -1,4 +1,4 @@
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose, Usage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, get_usage, response_to_message};
@@ -457,6 +457,7 @@ impl Provider for DatabricksProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

@@ -10,6 +10,14 @@ use utoipa::ToSchema;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
+/// Purpose of the completion request
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RequestPurpose {
+    Normal,
+    Summarize,
+    Description,
+}
+
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
@@ -227,6 +235,7 @@ pub trait Provider: Send + Sync {
     /// Generate the next message using the configured model and other parameters
     ///
     /// # Arguments
+    /// * `purpose` - The purpose of this completion request
     /// * `system` - The system prompt that guides the model's behavior
     /// * `messages` - The conversation history as a sequence of messages
     /// * `tools` - Optional list of tools the model can use
@@ -239,6 +248,7 @@ pub trait Provider: Send + Sync {
     ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
     async fn complete(
         &self,
+        purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -279,6 +289,17 @@ pub trait Provider: Send + Sync {
         } else {
             self.get_model_config().model_name
         }
+    }
+
+    /// Summarize messages using a potentially cheaper/faster model
+    /// Default implementation uses the standard complete method
+    /// Providers can override to use more cost-effective models
+    async fn summarize(&self, messages: &[Message]) -> Result<String, ProviderError> {
+        let summary_prompt = "Please summarize the following conversation history, preserving the key points. This summarization will be used for the later conversations.";
+        let (response, _) = self
+            .complete(RequestPurpose::Summarize, summary_prompt, messages, &[])
+            .await?;
+        Ok(response.as_concat_text())
     }
 }
 

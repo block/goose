@@ -1,7 +1,9 @@
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose,
+};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
 use crate::providers::utils::{
     emit_debug_trace, handle_response_google_compat, unescape_json_values,
@@ -171,6 +173,7 @@ impl Provider for GoogleProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

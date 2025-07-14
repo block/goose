@@ -563,6 +563,7 @@ mod final_output_tool_tests {
 
             async fn complete(
                 &self,
+                _purpose: goose::providers::base::RequestPurpose,
                 _system: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -663,6 +664,7 @@ mod max_turns_tests {
     impl Provider for MockToolProvider {
         async fn complete(
             &self,
+            _purpose: goose::providers::base::RequestPurpose,
             _system_prompt: &str,
             _messages: &[Message],
             _tools: &[Tool],

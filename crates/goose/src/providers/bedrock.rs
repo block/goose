@@ -10,7 +10,7 @@ use mcp_core::Tool;
 use serde_json::Value;
 use tokio::time::sleep;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, RequestPurpose};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -101,6 +101,7 @@ impl Provider for BedrockProvider {
     )]
     async fn complete(
         &self,
+        _purpose: RequestPurpose,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
