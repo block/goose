@@ -19,6 +19,7 @@ import SensitiveVisible from './SensitiveVisible';
 import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
+import Langfuse from './Langfuse';
 import { Gear } from './Gear';
 import { Microphone } from './Microphone';
 
@@ -46,4 +47,5 @@ export {
   Send,
   Settings,
   Time,
+  Langfuse,
 };
