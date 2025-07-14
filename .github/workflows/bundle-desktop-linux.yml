@@ -14,7 +14,7 @@ on:
       ref:
         type: string
         required: false
-        default: 'refs/heads/main'
+        default: ''
 
 name: "Bundle Desktop (Linux)"
 

@@ -20,7 +20,7 @@ on:
         description: 'Git ref to checkout'
         required: false
         type: string
-        default: 'refs/heads/main'
+        default: ''
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE:
         required: false
