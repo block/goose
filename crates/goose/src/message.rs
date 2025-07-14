@@ -318,7 +318,7 @@ pub fn push_message(messages: &mut Vec<Message>, message: Message) {
             (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
                 if message.content.len() == 1 =>
             {
-                last.text.push_str(&format!("\n{}", new.text));
+                last.text.push_str(&new.text);
             }
             (_, _) => {
                 last.content.extend(message.content);
