@@ -610,7 +610,7 @@ pub fn read_messages_with_truncation(
         // Log details about corrupted lines (with limited detail for security)
         for (num, line) in &corrupted_lines {
             let preview = if line.len() > 50 {
-                format!("{}... (truncated)", &line[..50])
+                format!("{}... (truncated)", safe_truncate_str(line, 50))
             } else {
                 line.clone()
             };
@@ -675,6 +675,20 @@ fn parse_message_with_truncation(
     }
 }
 
+/// Safely truncate a string at a UTF-8 character boundary
+fn safe_truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    
+    // Find the largest valid UTF-8 char boundary at or before max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Truncate content within a message in place
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
     use crate::message::MessageContent;
@@ -684,9 +698,10 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
         match content {
             MessageContent::Text(text_content) => {
                 if text_content.text.len() > max_content_size {
+                    let truncated_text = safe_truncate_str(&text_content.text, max_content_size);
                     let truncated = format!(
                         "{}\n\n[... content truncated during session loading from {} to {} characters ...]",
-                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                        truncated_text,
                         text_content.text.len(),
                         max_content_size
                     );
@@ -699,9 +714,10 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                         match content_item {
                             Content::Text(ref mut text_content) => {
                                 if text_content.text.len() > max_content_size {
+                                    let truncated_text = safe_truncate_str(&text_content.text, max_content_size);
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
-                                        &text_content.text[..max_content_size.min(text_content.text.len())],
+                                        truncated_text,
                                         text_content.text.len(),
                                         max_content_size
                                     );
@@ -713,9 +729,10 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                     &mut resource_content.resource
                                 {
                                     if text.len() > max_content_size {
+                                        let truncated_text = safe_truncate_str(text, max_content_size);
                                         let truncated = format!(
                                             "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
-                                            &text[..max_content_size.min(text.len())],
+                                            truncated_text,
                                             text.len(),
                                             max_content_size
                                         );
@@ -756,7 +773,7 @@ fn attempt_corruption_recovery(json_str: &str, max_content_size: Option<usize>) 
     // Strategy 4: Create a placeholder message with the raw content
     println!("[SESSION] All recovery strategies failed, creating placeholder message");
     let preview = if json_str.len() > 200 {
-        format!("{}...", &json_str[..200])
+        format!("{}...", safe_truncate_str(json_str, 200))
     } else {
         json_str.to_string()
     };
@@ -973,7 +990,7 @@ fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
             if text_content.len() > max_content_size {
                 let truncated_text = format!(
                     "{}\n\n[... content truncated during JSON parsing from {} to {} characters ...]",
-                    &text_content[..max_content_size.min(text_content.len())],
+                    safe_truncate_str(&text_content, max_content_size),
                     text_content.len(),
                     max_content_size
                 );
@@ -1275,7 +1292,7 @@ pub async fn generate_description_with_schedule_id(
         .map(|m| {
             let text = m.as_concat_text();
             if text.len() > 300 {
-                format!("{}...", &text[..300])
+                format!("{}...", safe_truncate_str(&text, 300))
             } else {
                 text
             }
@@ -1309,7 +1326,7 @@ pub async fn generate_description_with_schedule_id(
     // Validate description length for security
     let sanitized_description = if description.len() > 100 {
         tracing::warn!("Generated description too long, truncating");
-        format!("{}...", &description[..97])
+        format!("{}...", safe_truncate_str(&description, 97))
     } else {
         description
     };
@@ -1384,7 +1401,7 @@ mod tests {
             println!(
                 "[TEST] Input: {}",
                 if corrupt_json.len() > 100 {
-                    &corrupt_json[..100]
+                    safe_truncate_str(corrupt_json, 100)
                 } else {
                     corrupt_json
                 }
@@ -1403,7 +1420,7 @@ mod tests {
                         println!(
                             "[TEST] Recovered content: {}",
                             if text_content.text.len() > 50 {
-                                format!("{}...", &text_content.text[..50])
+                                format!("{}...", safe_truncate_str(&text_content.text, 50))
                             } else {
                                 text_content.text.clone()
                             }
