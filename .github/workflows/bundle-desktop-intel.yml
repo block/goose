@@ -82,8 +82,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
-          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       # Update versions before build
