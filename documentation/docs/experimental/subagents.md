@@ -38,7 +38,7 @@ You can run multiple subagents sequentially or in parallel.
 Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions.
 
 ### Direct Instruction
-Direct instructions provided for one-off tasks using natural language prompts.
+Direct instructions provided for one-off tasks using natural language prompts. The main agent automatically configures the subagent based on your request.
 
 **Goose Prompt:**
 ```
@@ -86,9 +86,9 @@ instructions: |
   4. Update CHANGELOG.md with recent changes
 ```
 
-**Goose Prompt:**
-```
-"Run the create-docs recipe as a subagent"
+**Command:**
+```bash
+goose run --recipe create-docs.yaml
 ```
 
 **Tool Output:**
@@ -197,3 +197,21 @@ Subagents are temporary instances that exist only for task execution. After the 
 :::info
 If a subagent fails or times out (5-minute default), you receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
 :::
+
+## Configuration
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| **Instructions** | Task-specific behavior and context | Auto-generated from user request | `"You are a code reviewer focusing on security"` |
+| **Max Turns** | Conversation limit before auto-completion | 10 | Set higher for complex tasks |
+| **Timeout** | Maximum execution time | 5 minutes | Prevents runaway processes |
+| **Extensions** | Available tools and capabilities | Inherits from main session | Recipe can specify subset |
+
+**How Configuration Works:**
+1. You make requests to the main Goose agent
+2. The main agent decides if a subagent would be helpful
+3. The main agent configures the subagent using either:
+   - **Direct instructions** - Generated from your natural language request
+   - **Recipe files** - Pre-defined configurations (run with `goose run --recipe <recipe_name>`)
+4. The subagent executes the task and reports back
+5. You see the results from the main agent

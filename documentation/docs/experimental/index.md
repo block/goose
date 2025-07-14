@@ -29,6 +29,11 @@ The list of experimental features may change as Goose development progresses. So
       description="An experimental Android automation app that acts as an open agent running on your phone, providing maximal automation of everyday tasks."
       link="/docs/experimental/goose-mobile"
     />
+    <Card 
+      title="Subagents"
+      description="Independent instances that execute tasks while keeping your main conversation clean and focused. Run tasks sequentially or in parallel with process isolation and context preservation."
+      link="/docs/experimental/subagents"
+    />
   </div>
 </div>
 
