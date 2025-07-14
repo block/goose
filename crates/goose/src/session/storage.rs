@@ -681,12 +681,16 @@ fn safe_truncate_str(s: &str, max_bytes: usize) -> &str {
         return s;
     }
 
-    // Find the largest valid UTF-8 char boundary at or before max_bytes
-    let mut end = max_bytes;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
+    // UTF-8 characters are at most 4 bytes, so we only need to check back at most 3 bytes
+    let start = max_bytes.saturating_sub(3);
+    for i in (start..=max_bytes).rev() {
+        if s.is_char_boundary(i) {
+            return &s[..i];
+        }
     }
-    &s[..end]
+
+    // Fallback - should never happen with valid UTF-8
+    &s[..start]
 }
 
 /// Truncate content within a message in place
