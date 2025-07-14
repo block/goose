@@ -386,7 +386,12 @@ impl Provider for GithubCopilotProvider {
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
-            vec![ConfigKey::new_oauth("GITHUB_COPILOT_TOKEN", true, true, None)],
+            vec![ConfigKey::new_oauth(
+                "GITHUB_COPILOT_TOKEN",
+                true,
+                true,
+                None,
+            )],
         )
     }
 
@@ -464,7 +469,7 @@ impl Provider for GithubCopilotProvider {
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         let config = Config::global();
-        
+
         // Check if token already exists and is valid
         if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
             // Try to refresh API info to validate the token
@@ -478,14 +483,16 @@ impl Provider for GithubCopilotProvider {
         }
 
         // Start OAuth device code flow
-        let token = self.get_access_token().await
+        let token = self
+            .get_access_token()
+            .await
             .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
-        
+
         // Save the token
-        config.set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+        config
+            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
-        
+
         Ok(())
-    }
     }
 }

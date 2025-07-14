@@ -191,7 +191,7 @@ impl ConfigKey {
     }
 
     /// Create a new ConfigKey that uses OAuth device code flow for configuration
-    /// 
+    ///
     /// This is used for providers that support OAuth authentication instead of manual API key entry.
     /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
     pub fn new_oauth(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
@@ -409,21 +409,20 @@ pub trait Provider: Send + Sync {
     }
 
     /// Configure OAuth authentication for this provider
-    /// 
+    ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.
     /// Providers that support OAuth should override this method to implement their specific OAuth flow.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if OAuth configuration succeeds and credentials are saved
     /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider
-    /// 
+    ///
     /// # Default Implementation
     /// The default implementation returns an error indicating OAuth is not supported.
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
-    }
     }
 }
 

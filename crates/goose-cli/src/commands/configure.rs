@@ -254,23 +254,24 @@ async fn handle_oauth_configuration(
     use goose::model::ModelConfig;
     use goose::providers::create;
 
-    let _ = cliclack::log::info(format!("Configuring {} using OAuth device code flow...", key_name));
-    
+    let _ = cliclack::log::info(format!(
+        "Configuring {} using OAuth device code flow...",
+        key_name
+    ));
+
     // Create a temporary provider instance to handle OAuth
-    let temp_model = ModelConfig::new("temp".to_string());
+    let temp_model = ModelConfig::new("temp")?;
     match create(provider_name, temp_model) {
-        Ok(provider) => {
-            match provider.configure_oauth().await {
-                Ok(_) => {
-                    let _ = cliclack::log::success("OAuth authentication completed successfully!");
-                    Ok(())
-                }
-                Err(e) => {
-                    let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
-                    Err(format!("OAuth authentication failed for {}: {}", key_name, e).into())
-                }
+        Ok(provider) => match provider.configure_oauth().await {
+            Ok(_) => {
+                let _ = cliclack::log::success("OAuth authentication completed successfully!");
+                Ok(())
             }
-        }
+            Err(e) => {
+                let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
+                Err(format!("OAuth authentication failed for {}: {}", key_name, e).into())
+            }
+        },
         Err(e) => {
             let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
             Err(format!("Failed to create provider for OAuth: {}", e).into())
@@ -355,7 +356,10 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                         .mask('▪')
                                         .interact()?
                                 } else {
-                                    let mut input = cliclack::input(format!("Enter new value for {}", key.name));
+                                    let mut input = cliclack::input(format!(
+                                        "Enter new value for {}",
+                                        key.name
+                                    ));
                                     if key.default.is_some() {
                                         input = input.default_input(&key.default.clone().unwrap());
                                     }
@@ -381,8 +385,8 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                     "Provider {} requires {}, please enter a value",
                                     provider_meta.display_name, key.name
                                 ))
-                                    .mask('▪')
-                                    .interact()?
+                                .mask('▪')
+                                .interact()?
                             } else {
                                 let mut input = cliclack::input(format!(
                                     "Provider {} requires {}, please enter a value",
