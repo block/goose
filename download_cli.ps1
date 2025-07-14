@@ -143,19 +143,6 @@ if (Test-Path $SOURCE_GOOSE) {
     exit 1
 }
 
-# --- 9.1) Install goosed binary (copy of goose.exe for VS Code extension compatibility) ---
-$DEST_GOOSED = Join-Path $env:GOOSE_BIN_DIR "goosed.exe"
-Write-Host "Creating goosed.exe (copy of goose.exe for VS Code extension compatibility)" -ForegroundColor Green
-try {
-    # Remove existing file if it exists to avoid conflicts
-    if (Test-Path $DEST_GOOSED) {
-        Remove-Item -Path $DEST_GOOSED -Force
-    }
-    Copy-Item -Path $DEST_GOOSE -Destination $DEST_GOOSED -Force
-} catch {
-    Write-Warning "Failed to create goosed.exe: $($_.Exception.Message)"
-}
-
 # --- 10) Install temporal-service if it exists ---
 $SOURCE_TEMPORAL_SERVICE = Join-Path $EXTRACT_DIR "temporal-service.exe"
 if (Test-Path $SOURCE_TEMPORAL_SERVICE) {
