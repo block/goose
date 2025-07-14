@@ -1,6 +1,6 @@
 ---
 title: Subagents
-sidebar_position: 3
+sidebar_position: 1
 sidebar_label: Subagents
 ---
 
@@ -10,7 +10,15 @@ Subagents are independent instances that execute tasks while keeping your main c
 Subagents are an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
-:::info Prerequisites
+You can run multiple subagents sequentially or in parallel.
+
+| Type | Description | Trigger Keywords | Example |
+|------|-------------|------------------|---------|
+| **Sequential** (Default) | Tasks execute one after another | "first...then", "after" | `"First analyze the code, then generate documentation"` |
+| **Parallel** | Tasks execute simultaneously | "parallel", "simultaneously", "at the same time", "concurrently" | `"Create three HTML templates in parallel"` |
+
+
+## Prerequisites
 To use subagents, you need to enable alpha features first. You can do this by setting an [environment variable](/docs/guides/environment-variables#experimental-features) or adding it to your [config file](/docs/guides/config-file#experimental-features):
 
 **Environment Variable:**
@@ -22,16 +30,6 @@ export ALPHA_FEATURES=true
 ```yaml
 ALPHA_FEATURES: true
 ```
-:::
-
-## Execution Types
-
-You can run multiple subagents sequentially or in parallel.
-
-| Type | Description | Trigger Keywords | Example |
-|------|-------------|------------------|---------|
-| **Sequential** (Default) | Tasks execute one after another | "first...then", "after" | `"First analyze the code, then generate documentation"` |
-| **Parallel** | Tasks execute simultaneously | "parallel", "simultaneously", "at the same time", "concurrently" | `"Create three HTML templates in parallel"` |
 
 ## Internal Subagents
 
@@ -150,7 +148,8 @@ mode = "workspace-write"
 ```
 
 **Goose Output:**
-```
+
+```md
 Based on my analysis of your codebase, here are the main components:
 
 1. **Core Agent System** (`crates/goose/src/agents/`)
