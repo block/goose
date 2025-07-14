@@ -1,7 +1,6 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
-use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file,
     sanitize_function_name, ImageFormat,
@@ -321,11 +320,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     ))
 }
 
-pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
-    let usage = data
-        .get("usage")
-        .ok_or_else(|| ProviderError::UsageError("No usage data in response".to_string()))?;
-
+pub fn get_usage(usage: &Value) -> Usage {
     let input_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
@@ -345,7 +340,7 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
             _ => None,
         });
 
-    Ok(Usage::new(input_tokens, output_tokens, total_tokens))
+    Usage::new(input_tokens, output_tokens, total_tokens)
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
@@ -423,9 +418,9 @@ where
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
             let model = chunk.model.clone();
 
-            let usage = chunk.usage.as_ref().and_then(|v| get_usage(v).ok()).map(|u| {
+            let usage = chunk.usage.as_ref().map(|u| {
                 ProviderUsage {
-                    usage: u,
+                    usage: get_usage(u),
                     model,
                 }
             });
@@ -457,7 +452,13 @@ where
                     }
                 }
 
-                let content = match serde_json::from_str::<Value>(&arguments) {
+                let parsed = if arguments.is_empty() {
+                    Ok(json!({}))
+                } else {
+                    serde_json::from_str::<Value>(&arguments)
+                };
+
+                let content = match parsed {
                     Ok(params) => MessageContent::tool_request(
                         id,
                         Ok(ToolCall::new(function_name, params)),
@@ -488,7 +489,11 @@ where
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
                     }),
-                    usage,
+                    if chunk.choices[0].finish_reason.is_some() {
+                        usage
+                    } else {
+                        None
+                    },
                 )
             }
         }
