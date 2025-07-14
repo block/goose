@@ -97,7 +97,7 @@ export const CLIHub: React.FC<CLIHubProps> = ({ chat, setChat, setView }) => {
       </div>
 
       {/* CLI Chat View */}
-      <div className="flex flex-col min-w-0 flex-1 overflow-y-scroll relative pl-6 pr-4 pb-16 pt-2">
+      <div className="flex flex-col min-w-0 flex-1 overflow-y-auto relative pl-6 pr-4 pb-16 pt-2">
         <CLIChatView sessionId={sessionId} />
       </div>
 

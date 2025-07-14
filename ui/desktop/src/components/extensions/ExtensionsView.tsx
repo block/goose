@@ -52,7 +52,7 @@ export default function ExtensionsView({
 
   return (
     <MainPanelLayout>
-      <div className="flex flex-col min-w-0 flex-1 overflow-y-scroll relative">
+      <div className="flex flex-col min-w-0 flex-1 overflow-y-auto relative">
         <div className="bg-background-default px-8 pb-4 pt-16">
           <div className="flex flex-col animate-in fade-in duration-500">
             <div className="flex justify-between items-center mb-1">
