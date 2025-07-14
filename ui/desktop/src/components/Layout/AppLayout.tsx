@@ -18,7 +18,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   const { isMobile, openMobile } = useSidebar();
 
   // Calculate padding based on sidebar state and macOS
-  const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-6';
+  const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
   // const headerPadding = '';
 
   // Hide buttons when mobile sheet is showing
