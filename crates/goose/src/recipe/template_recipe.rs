@@ -3,11 +3,9 @@ use std::{
     path::Path,
 };
 
+use crate::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
 use anyhow::Result;
-use goose::recipe::Recipe;
 use minijinja::{Environment, UndefinedBehavior};
-
-use crate::recipes::recipe::BUILT_IN_RECIPE_DIR_PARAM;
 
 const CURRENT_TEMPLATE_NAME: &str = "current_template";
 
@@ -123,7 +121,7 @@ mod tests {
     mod render_content_with_params_tests {
         use std::collections::HashMap;
 
-        use crate::recipes::template_recipe::render_recipe_content_with_params;
+        use crate::recipe::template_recipe::render_recipe_content_with_params;
 
         #[test]
         fn test_render_content_with_params() {

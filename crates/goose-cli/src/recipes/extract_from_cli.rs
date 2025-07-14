@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use goose::recipe::{Response, SubRecipe};
 
 use crate::recipes::search_recipe::retrieve_recipe_file;
-use crate::{cli::InputConfig, recipes::recipe::load_recipe_as_template, session::SessionSettings};
+use crate::{cli::InputConfig, recipes::recipe::load_and_render_recipe, session::SessionSettings};
 
 #[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
@@ -17,7 +17,7 @@ pub fn extract_recipe_info_from_cli(
     Option<Vec<SubRecipe>>,
     Option<Response>,
 )> {
-    let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
+    let recipe = load_and_render_recipe(&recipe_name, params).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
     });

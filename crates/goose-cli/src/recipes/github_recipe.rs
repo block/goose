@@ -9,7 +9,7 @@ use std::process::Stdio;
 use tar::Archive;
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
-use crate::recipes::search_recipe::RecipeFile;
+use goose::recipe::read_recipe_file_content::RecipeFile;
 
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";
 pub fn retrieve_recipe_from_github(

@@ -7,6 +7,12 @@ use crate::agents::extension::ExtensionConfig;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 
+pub mod build_recipe;
+pub mod read_recipe_file_content;
+pub mod template_recipe;
+
+pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
+
 fn default_version() -> String {
     "1.0.0".to_string()
 }
