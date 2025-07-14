@@ -203,6 +203,8 @@ async fn handler(
                                     .track_recipe_execution(recipe_execution.build())
                                     .await;
                             }
+                        } else {
+                            tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
                         }
                         return;
                     }
@@ -515,6 +517,8 @@ async fn ask_handler(
                     .with_result(SessionResult::Error(e.to_string()))
                     .with_duration(start_time.elapsed());
                 let _ = manager.track_session_execution(failed_execution).await;
+            } else {
+                tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
             }
 
             return Err(StatusCode::INTERNAL_SERVER_ERROR);

@@ -36,6 +36,12 @@ use goose::telemetry::{
 };
 use std::collections::HashMap;
 
+fn log_if_telemetry_disabled(tracking_type: &str) {
+  if telemetry_execution.is_none() {
+    tracing::debug!("Telemetry is disabled or not initialized for {} tracking", tracking_type);
+  }
+}
+
 fn extract_telemetry_data_from_session(
     session: &crate::Session,
     params: &[(String, String)],
@@ -199,6 +205,8 @@ where
         SessionExecution::new(session_id, session_type).with_metadata("interface", "cli")
     });
 
+    log_if_telemetry_disabled("session");
+
     let result = execution_fn().await;
 
     if let Some(mut execution) = telemetry_execution {
@@ -266,6 +274,8 @@ where
     let telemetry_execution = goose::telemetry::global_telemetry()
         .map(|_manager| CommandExecution::new(command_name, command_type));
 
+    log_if_telemetry_disabled("command");
+
     let result = execution_fn().await;
 
     if let Some(mut execution) = telemetry_execution {
@@ -312,6 +322,8 @@ where
 
     let telemetry_execution = goose::telemetry::global_telemetry()
         .map(|manager| manager.recipe_execution(recipe_name, recipe_version));
+
+    log_if_telemetry_disabled("recipe");
 
     let result = execution_fn().await;
 
@@ -1339,10 +1351,13 @@ pub async fn cli() -> Result<()> {
                         no_session,
                         extensions,
                         remote_extensions,
+                        streamable_http_extensions,
                         builtins,
                         extensions_override: input_config.extensions_override,
                         additional_system_prompt: input_config.additional_system_prompt,
                         settings: session_settings,
+                        provider,
+                        model,
                         debug,
                         max_tool_repetitions,
                         max_turns,
