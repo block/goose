@@ -115,3 +115,7 @@ path = "examples/async_token_counter_demo.rs"
 [[bench]]
 name = "tokenization_benchmark"
 harness = false
+
+[[bench]]
+name = "connection_pooling"
+harness = false

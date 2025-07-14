@@ -44,12 +44,15 @@ pub struct PricingInfo {
 pub struct PricingCache {
     /// In-memory cache
     memory_cache: Arc<RwLock<Option<CachedPricingData>>>,
+    /// Active model cache for frequently accessed models
+    active_model_cache: Arc<RwLock<Option<(String, String, PricingInfo)>>>,
 }
 
 impl PricingCache {
     pub fn new() -> Self {
         Self {
             memory_cache: Arc::new(RwLock::new(None)),
+            active_model_cache: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -104,6 +107,32 @@ impl PricingCache {
 
         tracing::debug!("Saved pricing data to disk cache");
         Ok(())
+    }
+
+    /// Get pricing for a specific model with active model caching
+    pub async fn get_active_model_pricing(
+        &self,
+        provider: &str,
+        model: &str,
+    ) -> Option<PricingInfo> {
+        // Check active model cache first
+        {
+            let cache = self.active_model_cache.read().await;
+            if let Some((cached_provider, cached_model, info)) = &*cache {
+                if cached_provider == provider && cached_model == model {
+                    return Some(info.clone());
+                }
+            }
+        }
+
+        // Fetch and cache
+        if let Some(info) = self.get_model_pricing(provider, model).await {
+            let mut cache = self.active_model_cache.write().await;
+            *cache = Some((provider.to_string(), model.to_string(), info.clone()));
+            Some(info)
+        } else {
+            None
+        }
     }
 
     /// Get pricing for a specific model
@@ -301,6 +330,13 @@ pub async fn initialize_pricing_cache() -> Result<()> {
 /// Get pricing for a specific model
 pub async fn get_model_pricing(provider: &str, model: &str) -> Option<PricingInfo> {
     PRICING_CACHE.get_model_pricing(provider, model).await
+}
+
+/// Get pricing for the active model with optimized caching
+pub async fn get_active_model_pricing(provider: &str, model: &str) -> Option<PricingInfo> {
+    PRICING_CACHE
+        .get_active_model_pricing(provider, model)
+        .await
 }
 
 /// Force refresh pricing data
