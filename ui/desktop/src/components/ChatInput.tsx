@@ -65,7 +65,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const { inputValue, setInputValue } = useChatInput();
-  const [displayValue, setDisplayValue] = useState(inputValue || initialValue); // For immediate visual feedback
+  const [displayValue, setDisplayValue] = useState(inputValue || initialValue); // Prioritize context value
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [mentionPopover, setMentionPopover] = useState<{
@@ -128,10 +128,12 @@ export default function ChatInput({
     }
   }, [inputValue]);
 
-  // Update internal value when initialValue changes
+  // Initialize display value from context or initialValue on mount
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    // Prioritize context value over initialValue
+    const valueToUse = inputValue || initialValue;
+    setValue(valueToUse);
+    setDisplayValue(valueToUse);
 
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
@@ -198,8 +200,13 @@ export default function ChatInput({
   useEffect(() => {
     if (textAreaRef.current) {
       textAreaRef.current.focus();
+      // Set cursor to end of text if there's persisted content
+      if (displayValue) {
+        const length = displayValue.length;
+        textAreaRef.current.setSelectionRange(length, length);
+      }
     }
-  }, []);
+  }, [displayValue]);
 
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
