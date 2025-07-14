@@ -148,6 +148,10 @@ Context limits are automatically detected based on your model name, but Goose pr
 | **Worker** | Set smaller context for execution in lead/worker mode | Cost optimization during execution phase | `GOOSE_WORKER_CONTEXT_LIMIT` |
 | **Planner** | Set context for [planner models](/docs/guides/creating-plans) | Large planning tasks requiring extensive context | `GOOSE_PLANNER_CONTEXT_LIMIT` |
 
+:::info
+This setting only affects the displayed token usage and progress indicators. Actual context management is handled by your LLM, so you may experience more or less usage than the limit you set, regardless of what the display shows.
+:::
+
 This feature is particularly useful with:
 
 - **LiteLLM Proxy Models**: When using LiteLLM with custom model names that don't match Goose's patterns
@@ -163,13 +167,31 @@ Goose resolves context limits with the following precedence (highest to lowest):
 4. Model-specific default based on name pattern matching
 5. Global default (128,000 tokens)
 
-Session [environment variables](/docs/guides/environment-variables#model-context-limit-overrides) take precedence over the corresponding key in the [configuration file](/docs/guides/config-file).
+**Configuration**
 
-:::info
-These settings cannot be configured through the Desktop app or using `goose configure`. 
-:::
 
-**Scenario 1: LiteLLM proxy with custom model name**
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+
+     Model context limit overrides are not yet available in the Goose Desktop app.
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+
+    Context limit overrides only work as [environment variables](/docs/guides/environment-variables#model-context-limit-overrides), not in the config file.
+
+    ```bash
+    export GOOSE_CONTEXT_LIMIT=1000
+    goose session
+    ```
+
+  </TabItem>
+    
+</Tabs>
+
+**Scenarios**
+
+1. LiteLLM proxy with custom model name
 
 ```bash
 # LiteLLM proxy with custom model name
@@ -178,7 +200,7 @@ export GOOSE_MODEL="my-custom-gpt4-proxy"
 export GOOSE_CONTEXT_LIMIT=200000  # Override the 32k default
 ```
 
-**Scenario 2: Lead/worker setup with different context limits**
+2. Lead/worker setup with different context limits
 
 ```bash
 # Different context limits for planning vs execution
@@ -187,7 +209,7 @@ export GOOSE_LEAD_CONTEXT_LIMIT=500000    # Large context for planning
 export GOOSE_WORKER_CONTEXT_LIMIT=128000  # Smaller context for execution
 ```
 
-**Scenario 3: Planner with large context**
+3. Planner with large context
 
 ```bash
 # Large context for complex planning
