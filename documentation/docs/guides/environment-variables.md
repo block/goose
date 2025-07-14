@@ -107,6 +107,7 @@ These variables control how Goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 
 **Examples**
 
@@ -125,6 +126,9 @@ export GOOSE_MAX_TURNS=25
 
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
+
+# Set the ANSI theme for the session
+export GOOSE_CLI_THEME=ansi
 ```
 
 ### Context Limit Configuration
