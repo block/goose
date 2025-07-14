@@ -10,6 +10,15 @@ Subagents are independent instances that execute tasks while keeping your main c
 Subagents are an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
+## How to Use Subagents
+
+To use subagents, simply ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
+
+1. **Request specialized help**: "Use a code reviewer to analyze this function for security issues"
+2. **Reference specific recipes**: "Use the 'security-auditor' recipe to scan this endpoint"  
+3. **Run parallel tasks**: "Create three HTML templates simultaneously"
+4. **Delegate complex work**: "Research quantum computing developments and summarize findings"
+
 You can run multiple subagents sequentially or in parallel.
 
 | Type | Description | Trigger Keywords | Example |
@@ -33,10 +42,10 @@ ALPHA_FEATURES: true
 
 ## Internal Subagents
 
-Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions.
+Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions. 
 
-### Direct Instruction
-Direct instructions provided for one-off tasks using natural language prompts. The main agent automatically configures the subagent based on your request.
+### Direct Prompts
+Direct prompts provided for one-off tasks using natural language prompts. The main agent automatically configures the subagent based on your request.
 
 **Goose Prompt:**
 ```
@@ -67,45 +76,73 @@ Direct instructions provided for one-off tasks using natural language prompts. T
 }
 ```
 
-### Recipe Configuration
-Use [recipe](/docs/guides/recipes/) files to define specific instructions, extensions, and behavior for the subagent.
+### Recipes
+Use [recipe](/docs/guides/recipes/) files to define specific instructions, extensions, and behavior for subagents. Recipes provide reusable configurations that can be shared and referenced by name.
 
-**Recipe File**: (`create-docs.yaml`)
+**Creating a Recipe File**
+
+`code-reviewer.yaml`
+
 ```yaml
-name: "Documentation Generator"
-description: "Generate project documentation"
-extensions:
-  - developer
-  - memory
+id: code-reviewer
+version: 1.0.0
+title: "Code Review Assistant"
+description: "Specialized subagent for code quality and security analysis"
 instructions: |
-  1. Scan the project structure
-  2. Generate README.md with project overview
-  3. Create API documentation from code comments
-  4. Update CHANGELOG.md with recent changes
+  You are a code review assistant. Analyze code and provide feedback on:
+  - Code quality and readability
+  - Security vulnerabilities
+  - Performance issues
+  - Best practices adherence
+activities:
+  - Analyze code structure
+  - Check for security issues
+  - Review performance patterns
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+parameters:
+  - key: focus_area
+    input_type: string
+    requirement: optional
+    description: "Specific area to focus on (security, performance, readability, etc.)"
+    default: "general"
+prompt: |
+  Please review the following code focusing on {{focus_area}} aspects.
+  Provide specific, actionable feedback with examples.
 ```
 
-**Command:**
-```bash
-goose run --recipe create-docs.yaml
+**Place your recipe file where Goose can find it**
+- Set [`GOOSE_RECIPE_PATH`](/docs/guides/recipes/recipe-reference#recipe-location) environment variable to your recipe directory
+- Or place it in your current working directory
+
+**Goose Prompt**
+```
+Use the "code-reviewer" recipe to analyze the authentication feature I implemented
 ```
 
-**Tool Output:**
-```json
-{
-  "execution_summary": {
-    "total_tasks": 1,
-    "successful_tasks": 1,
-    "failed_tasks": 0,
-    "execution_time_seconds": 45.8
-  },
-  "task_results": [
-    {
-      "task_id": "create_docs_recipe",
-      "status": "success",
-      "result": "Successfully generated project documentation: README.md updated, API docs created, CHANGELOG.md refreshed"
-    }
-  ]
-}
+**Goose Output**
+```
+I'll use your code-reviewer recipe to create a specialized subagent for this analysis.
+
+🤖 Subagent created using code-reviewer recipe
+💭 Analyzing authentication function for security issues...
+🔧 Scanning code structure and patterns...
+⚠️  Security vulnerabilities detected!
+
+## Code Review Results
+
+### Critical Issues Found:
+1. **SQL Injection Vulnerability**: Direct string interpolation in SQL query
+2. **Missing Password Hashing**: Plain text password comparison
+
+### Recommendations:
+- Use parameterized queries or ORM
+- Implement proper password hashing (bcrypt, scrypt)
+- Add input validation and sanitization
 ```
 
 ## External Subagents
@@ -193,19 +230,50 @@ The architecture follows a modular design with clear separation between the core
 
 Subagents are temporary instances that exist only for task execution. After the task is completed, no manual intervention is needed for cleanup.
 
-:::info
-If a subagent fails or times out (5-minute default), you receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
-:::
-
 ## Configuration
 
-Goose automatically configures subagents by looking at environment variables, user prompts, and recipe files to determine the best settings for each task.
+Subagents are automatically have the following pre-configured settings, but you can override any defaults using natural language in your prompts.
+
+### Default Settings
+| Parameter | Default | Source |
+|-----------|---------|--------|
+| **Max Turns** | 10 | Built-in default |
+| **Timeout** | 5 minutes | Built-in default |
 
 
-| Parameter | Description | Default | Example |
-|-----------|-------------|---------|---------|
-| **Instructions** | Task-specific behavior and context | Auto-generated from user request | `"You are a code reviewer focusing on security"` |
-| **Max Turns** | Conversation limit before auto-completion | 10 | Set higher for complex tasks |
-| **Timeout** | Maximum execution time | 5 minutes | Prevents runaway processes |
-| **Extensions** | Available tools and capabilities | Inherits from main session | Recipe can specify subset |
+:::info
+If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
+:::
+
+### Customizing Settings in Prompts
+
+You can override any default by including the setting in your natural language request:
+
+**Examples:**
+
+```
+"Use subagents to write a test and documentation, but make them timeout after 7 minutes"
+```
+
+```
+""Use subagents to analyze code, limit each to 5 turns""
+```
+
+## Security Constraints
+
+Subagents operate with filtered tool access for security:
+
+**Subagents can:**
+✅ Search for extensions (safe platform tool)
+
+✅ Read resources (safe platform tool)
+
+✅ Use inherited/recipe extensions (filtered for safety)
+
+**Subagents cannot:**
+❌ Spawn other subagents (prevents infinite recursion)
+
+❌ Manage extensions (prevents interference with parent)
+
+❌ Manage schedules (prevents interference with parent)
 
