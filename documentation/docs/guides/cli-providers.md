@@ -6,7 +6,7 @@ sidebar_label: CLI Providers
 
 # CLI Providers
 
-Goose supports two special "pass-through" providers that leverage existing CLI tools from Anthropic and Google. These providers allow you to use your existing subscriptions to Claude Code and Google Gemini CLI tools directly through Goose, providing a cost-effective way to access these excellent AI models and tools while maintaining the benefits of Goose's ecosystem, and working with multiple models and extensions.
+Goose supports two special pass-through providers that leverage existing CLI tools and extensions from Anthropic and Google. These providers allow you to use your existing subscriptions to Claude Code and Google Gemini CLI tools directly through Goose, providing a cost-effective way to access these excellent AI models and tools while maintaining the benefits of Goose's ecosystem and working with multiple models and extensions.
 
 ## Overview
 
@@ -19,7 +19,7 @@ CLI providers are different from traditional LLM providers in several key ways:
 
 ## Available CLI Providers
 
-### Claude Code (`claude-code`)
+### Claude Code
 
 The Claude Code provider integrates with Anthropic's [Claude CLI tool](https://claude.ai/cli), allowing you to use Claude models through your existing Claude Code subscription.
 
@@ -34,7 +34,7 @@ The Claude Code provider integrates with Anthropic's [Claude CLI tool](https://c
 - Active Claude Code subscription
 - CLI tool authenticated with your Anthropic account
 
-### Gemini CLI (`gemini-cli`)
+### Gemini CLI
 
 The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.google.dev/gemini-api/docs), providing access to Gemini models through your Google AI subscription.
 
@@ -51,7 +51,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
 
 1. **Install Claude CLI Tool**
    
-   Follow the installation instructions [here](https://docs.anthropic.com/en/docs/claude-code/overview) to install and configure the Claude CLI tool.
+   Follow the [installation instructions for Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) to install and configure the Claude CLI tool.
 
 2. **Authenticate with Claude**
    
@@ -64,18 +64,28 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    export GOOSE_PROVIDER=claude-code
    ```
    
-   Or configure through the Goose CLI:
+   Or configure through the Goose CLI using `goose configure`:
+
    ```bash
-   goose configure
-   # Select "Configure Providers"
-   # Choose "Claude Code" from the list
+   ┌   goose-configure 
+   │
+   ◇  What would you like to configure?
+   │  Configure Providers 
+   │
+   ◇  Which model provider should we use?
+   │  Claude Code 
+   │
+   ◇  Model fetch complete
+   │
+   ◇  Enter a model from that provider:
+   │  default
    ```
 
 ### Setting up Gemini CLI Provider
 
 1. **Install Gemini CLI Tool**
    
-   Follow the installation instructions for [gemini cli]https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/) to install and configure the Gemini CLI tool.
+   Follow the [installation instructions for Gemini CLI](https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/) to install and configure the Gemini CLI tool.
 
 2. **Authenticate with Google**
    
@@ -88,30 +98,36 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    export GOOSE_PROVIDER=gemini-cli
    ```
    
-   Or configure through the Goose CLI:
+   Or configure through the Goose CLI using `goose configure`:
+
    ```bash
-   goose configure
-   # Select "Configure Providers"
-   # Choose "Gemini CLI" from the list
+   ┌   goose-configure 
+   │
+   ◇  What would you like to configure?
+   │  Configure Providers 
+   │
+   ◇  Which model provider should we use?
+   │  Gemini CLI 
+   │
+   ◇  Model fetch complete
+   │
+   ◇  Enter a model from that provider:
+   │  default
    ```
 
 ## Usage Examples
 
 ### Basic Usage
 
-Once configured, use these providers just like any other Goose provider:
+Once configured, you can start a Goose session using these providers just like any others:
 
 ```bash
-# Using Claude Code
-GOOSE_PROVIDER=claude-code goose session start
-
-# Using Gemini CLI
-GOOSE_PROVIDER=gemini-cli goose session start
+goose session
 ```
 
 ### Combining with Other Models
 
-CLI providers work well in combination with other models using Goose's lead/worker pattern:
+CLI providers work well in combination with other models using Goose's [lead/worker pattern](/docs/tutorials/lead-worker):
 
 ```bash
 # Use Claude Code as lead model, GPT-4o as worker
@@ -120,7 +136,7 @@ export GOOSE_PROVIDER=openai
 export GOOSE_MODEL=gpt-4o
 export GOOSE_LEAD_MODEL=default
 
-goose session start
+goose session
 ```
 
 ## Configuration Options
@@ -190,4 +206,4 @@ CLI providers depend on external tools, so ensure:
 
 ---
 
-CLI providers offer a powerful way to integrate Goose with existing AI tool subscriptions while maintaining the benefits of Goose's session management and extension ecosystem. They're particularly valuable for users with existing subscriptions who want to maximize their investment while gaining access to Goose's capabilities.
+CLI providers offer a powerful way to integrate Goose with existing AI tool subscriptions while maintaining the benefits of Goose's session management. They're particularly valuable for users with existing subscriptions who want to maximize their investment while gaining access to Goose's capabilities.
