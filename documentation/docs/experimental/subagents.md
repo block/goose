@@ -62,7 +62,7 @@ Direct instructions provided for one-off tasks using natural language prompts.
 ```
 
 ### Recipe Configuration
-Use recipe files to define specific instructions, extensions, and behavior for the subagent.
+Use [recipe](/docs/guides/recipes/) files to define specific instructions, extensions, and behavior for the subagent.
 
 **Recipe File**: (`create-docs.yaml`)
 ```yaml
@@ -106,7 +106,7 @@ instructions: |
 
 External subagents let you bring in AI agents from other providers and platforms, enabling Goose to coordinate and integrate your workflow with the broader ecosystem. In the below example, we use Codex as a subagent by running it as an MCP server:
 
-**Goose Configuration** (in your Goose config):
+**[Goose Configuration File](/docs/guides/config-file)** (`.~/.config/goose/config.yaml `):
 ```yaml
 subagent:
   args:
