@@ -398,7 +398,7 @@ mod tests {
         assert!(result.starts_with("`"));
         assert!(result.contains("[ ... trimmed : "));
         assert!(result.contains("4900 chars ... ]`"));
-        assert!(result.contains(&"a".repeat(100))); // Should contain the prefix
+        assert!(result.contains(&"a".repeat(97))); // Should contain the prefix (100 - 3 for "...")
     }
 
     #[test]
