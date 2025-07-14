@@ -200,6 +200,9 @@ If a subagent fails or times out (5-minute default), you receive no output from 
 
 ## Configuration
 
+Goose automatically configures subagents by looking at environment variables, user prompts, and recipe files to determine the best settings for each task.
+
+
 | Parameter | Description | Default | Example |
 |-----------|-------------|---------|---------|
 | **Instructions** | Task-specific behavior and context | Auto-generated from user request | `"You are a code reviewer focusing on security"` |
@@ -207,11 +210,3 @@ If a subagent fails or times out (5-minute default), you receive no output from 
 | **Timeout** | Maximum execution time | 5 minutes | Prevents runaway processes |
 | **Extensions** | Available tools and capabilities | Inherits from main session | Recipe can specify subset |
 
-**How Configuration Works:**
-1. You make requests to the main Goose agent
-2. The main agent decides if a subagent would be helpful
-3. The main agent configures the subagent using either:
-   - **Direct instructions** - Generated from your natural language request
-   - **Recipe files** - Pre-defined configurations (run with `goose run --recipe <recipe_name>`)
-4. The subagent executes the task and reports back
-5. You see the results from the main agent
