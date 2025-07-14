@@ -284,7 +284,7 @@ These variables enable experimental features that are in active development. The
 export ALPHA_FEATURES=true
 
 # Or enable for a single session
-ALPHA_FEATURES=true goose session start
+ALPHA_FEATURES=true goose session
 ```
 
 ## Notes
