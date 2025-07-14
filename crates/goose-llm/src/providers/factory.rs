@@ -9,6 +9,7 @@ use super::{
 };
 use crate::model::ModelConfig;
 
+/// Create a new provider instance directly (without pooling)
 pub fn create(
     name: &str,
     provider_config: serde_json::Value,
@@ -27,3 +28,4 @@ pub fn create(
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
+

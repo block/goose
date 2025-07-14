@@ -835,6 +835,33 @@ internal interface UniffiLib : Library {
         `extensions`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
+    
+    fun uniffi_goose_llm_fn_func_create_completion_request_with_pool(
+        `providerName`: RustBuffer.ByValue,
+        `providerConfig`: RustBuffer.ByValue,
+        `modelConfig`: RustBuffer.ByValue,
+        `systemPreamble`: RustBuffer.ByValue,
+        `messages`: RustBuffer.ByValue,
+        `extensions`: RustBuffer.ByValue,
+        `usePool`: Byte?,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    
+    fun uniffi_goose_llm_fn_func_init_provider_pool(
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+    
+    fun uniffi_goose_llm_fn_func_configure_provider_pool(
+        maxSize: Int,       // This is a u32 in Rust
+        maxIdleSec: Long,   // u64 in Rust
+        maxLifetimeSec: Long, // u64 in Rust
+        maxUses: Int,       // This is a u32 in Rust
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+    
+    fun uniffi_goose_llm_fn_func_get_pool_stats(
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
 
     fun uniffi_goose_llm_fn_func_create_tool_config(
         `name`: RustBuffer.ByValue,
@@ -3077,8 +3104,5 @@ suspend fun `generateTooltip`(
 
 fun `printMessages`(`messages`: List<Message>) =
     uniffiRustCall { _status ->
-        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_print_messages(
-            FfiConverterSequenceTypeMessage.lower(`messages`),
-            _status,
-        )
+        UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_print_messages(FfiConverterSequenceTypeMessage.lower(`messages`), _status)
     }

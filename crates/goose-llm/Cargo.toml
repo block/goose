@@ -45,6 +45,10 @@ indoc = "1.0"
 # https://github.com/mozilla/uniffi-rs/blob/c7f6caa3d1bf20f934346cefd8e82b5093f0dc6f/fixtures/futures/Cargo.toml#L22
 uniffi = { version = "0.29", features = ["tokio", "cli", "scaffolding-ffi-buffer-fns"] }
 tokio = { version = "1.43", features = ["time", "sync"] }
+lazy_static = "1.5"
+parking_lot = "0.12"
+futures = "0.3"
+md5 = "0.7"
 
 [dev-dependencies]
 criterion = "0.5"

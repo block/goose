@@ -3597,11 +3597,14 @@ dependencies = [
  "criterion",
  "ctor",
  "dotenv",
+ "futures",
  "include_dir",
  "indoc 1.0.9",
  "lazy_static",
+ "md5",
  "minijinja",
  "once_cell",
+ "parking_lot",
  "regex",
  "reqwest 0.12.12",
  "serde",
@@ -5464,6 +5467,12 @@ dependencies = [
  "cfg-if",
  "digest",
 ]
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "measure_time"

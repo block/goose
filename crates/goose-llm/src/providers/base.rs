@@ -62,7 +62,7 @@ impl ProviderExtractResponse {
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
-pub trait Provider: Send + Sync {
+pub trait Provider: Send + Sync + std::fmt::Debug {
     /// Generate the next message using the configured model and other parameters
     ///
     /// # Arguments
