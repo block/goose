@@ -1,21 +1,44 @@
 ---
-sidebar_position: 25
+sidebar_position: 8
 title: CLI Providers
 sidebar_label: CLI Providers
+description: Use Claude Code or Gemini CLI subscriptions in Goose
 ---
 
 # CLI Providers
 
-Goose supports two special pass-through providers that leverage existing CLI tools and extensions from Anthropic and Google. These providers allow you to use your existing subscriptions to Claude Code and Google Gemini CLI tools directly through Goose, providing a cost-effective way to access these excellent AI models and tools while maintaining the benefits of Goose's ecosystem and working with multiple models and extensions.
+Goose supports pass-through providers that integrate with existing CLI tools from Anthropic and Google. These providers allow you to use your existing Claude Code and Google Gemini CLI subscriptions through Goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
 
-## Overview
+## Why Use CLI Providers?
 
-CLI providers are different from traditional LLM providers in several key ways:
+CLI providers are useful if you:
 
-- **Pass-through architecture**: Instead of making direct API calls, these providers drive the CLI commands
-- **Subscription-based**: Use your existing Claude Code or Google Gemini CLI subscriptions instead of paying per token (usually a flat monthly fee)
-- **Tool integration**: These providers work with their respective CLI tools' built-in capabilities while Goose manages sessions and extensions
-- **Cost-effective**: Leverage unlimited or subscription-based pricing models instead of token-based billing
+- already have a Claude Code or Google Gemini CLI subscription and want to use it through Goose instead of paying per token
+- need session persistence to save, resume, and export conversation history
+- want to use Goose recipes and scheduled tasks to create repeatable workflows
+- prefer unified commands across different AI providers
+- want to [use multiple models together](#combining-with-other-models) in your tasks 
+
+### Benefits
+
+#### Session Management
+- **Persistent conversations**: Save and resume sessions across restarts
+- **Export capabilities**: Export conversation history and artifacts
+- **Session organization**: Manage multiple conversation threads
+
+#### Workflow Integration  
+- **Recipe compatibility**: Use CLI providers in automated Goose recipes
+- **Scheduling support**: Include in scheduled tasks and workflows
+- **Hybrid configurations**: Combine with LLM providers using lead/worker patterns
+
+#### Interface Consistency
+- **Unified commands**: Use the same `goose session` interface across all providers
+- **Consistent configuration**: Manage all providers through Goose's configuration system
+
+:::warning Extensions
+CLI providers do **not** give you access to Goose's extension ecosystem (MCP servers, third-party integrations, etc.). They use their own built-in tools to prevent conflicts. If you need Goose's extensions, use standard [API providers](/docs/getting-started/providers#available-providers) instead.
+:::
+
 
 ## Available CLI Providers
 
@@ -47,7 +70,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
 
 ## Setup Instructions
 
-### Setting up Claude Code Provider
+### Claude Code
 
 1. **Install Claude CLI Tool**
    
@@ -81,7 +104,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
    │  default
    ```
 
-### Setting up Gemini CLI Provider
+### Gemini CLI
 
 1. **Install Gemini CLI Tool**
    
@@ -170,13 +193,7 @@ Both CLI providers automatically filter out Goose's extension information from s
 - **Claude Code**: Parses JSON responses to extract text content and usage information
 - **Gemini CLI**: Processes plain text responses from the CLI tool
 
-## Limitations and Considerations
-
-### Tool Calling
-
-These providers handle tool calling differently than standard API providers as they have their own tool integrations out of the box.
-
-### Error Handling
+## Error Handling
 
 CLI providers depend on external tools, so ensure:
 
@@ -185,25 +202,6 @@ CLI providers depend on external tools, so ensure:
 - Subscription limits are not exceeded
 
 
-## Benefits
-
-### Cost Effectiveness
-
-- **Subscription-based pricing**: Use unlimited or fixed-price subscriptions instead of per-token billing
-- **Existing subscriptions**: Leverage subscriptions you may already have
-
-### Flexibility
-
-- **Hybrid usage**: Combine CLI providers with API-based providers using lead/worker patterns
-- **Session management**: Full Goose session management and extension system
-- **Easy switching**: Switch between CLI and API providers as needed
-
-## Best Practices
-
-1. **Authentication Management**: Keep CLI tools authenticated and monitor subscription status
-2. **Hybrid Approaches**: Consider using CLI providers for heavy workloads and API providers for quick tasks
-3. **Backup Providers**: Configure fallback API providers in case CLI tools are unavailable
-
 ---
 
-CLI providers offer a powerful way to integrate Goose with existing AI tool subscriptions while maintaining the benefits of Goose's session management. They're particularly valuable for users with existing subscriptions who want to maximize their investment while gaining access to Goose's capabilities.
+CLI providers offer a way to use existing AI tool subscriptions through Goose's interface, adding session management and workflow integration capabilities. They're particularly valuable for users with existing CLI subscriptions who want unified session management and recipe integration.
