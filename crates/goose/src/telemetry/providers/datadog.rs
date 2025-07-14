@@ -432,8 +432,7 @@ impl super::TelemetryBackend for DatadogProvider {
         let api_key = config
             .api_key
             .clone()
-            .or_else(|| std::env::var("DD_API_KEY").ok())
-            .ok_or("Datadog API key is required (set GOOSE_TELEMETRY_API_KEY or DD_API_KEY)")?;
+            .ok_or("Datadog API key is required (set GOOSE_TELEMETRY_API_KEY)")?;
 
         let endpoint = config
             .get_endpoint()

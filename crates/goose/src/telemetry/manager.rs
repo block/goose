@@ -467,7 +467,7 @@ mod tests {
     #[ignore = "slow integration test"]
     async fn test_telemetry_manager_disabled_integration() {
         env::remove_var("GOOSE_TELEMETRY_ENABLED");
-        env::remove_var("DD_API_KEY");
+        env::remove_var("GOOSE_TELEMETRY_API_KEY");
         env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
 
         let manager = TelemetryManager::new().await.unwrap();

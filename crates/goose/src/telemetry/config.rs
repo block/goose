@@ -89,9 +89,7 @@ impl TelemetryConfig {
             .ok()
             .or_else(|| env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok());
 
-        let api_key = env::var("GOOSE_TELEMETRY_API_KEY")
-            .ok()
-            .or_else(|| env::var("DD_API_KEY").ok());
+        let api_key = env::var("GOOSE_TELEMETRY_API_KEY").ok();
 
         let usage_type = env::var("GOOSE_USAGE_TYPE")
             .ok()
@@ -122,7 +120,7 @@ impl TelemetryConfig {
             TelemetryProvider::Datadog => {
                 if self.api_key.is_none() {
                     return Err(
-                        "Datadog provider requires GOOSE_TELEMETRY_API_KEY or DD_API_KEY"
+                        "Datadog provider requires GOOSE_TELEMETRY_API_KEY"
                             .to_string(),
                     );
                 }
