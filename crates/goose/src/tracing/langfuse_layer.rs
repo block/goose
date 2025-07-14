@@ -9,6 +9,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use url::Url;
 use uuid::Uuid;
+use crate::config::Config;
 
 const DEFAULT_LANGFUSE_URL: &str = "http://localhost:3000";
 
@@ -153,11 +154,22 @@ impl BatchManager for LangfuseBatchManager {
 }
 
 pub fn create_langfuse_observer() -> Option<ObservationLayer> {
+    let config = Config::global();
+    let public_key_value = config.get_param("LANGFUSE_PUBLIC_KEY");
+    let secret_key_value = config.get_param::<String>("LANGFUSE_SECRET_KEY");
+    let langfuse_url_value = config.get_param("LANGFUSE_URL");
+
+    print!("LANGFUSE_PUBLIC_KEY: {:?}", public_key_value);
+    print!("LANGFUSE_SECRET_KEY: {:?}\n", secret_key_value);
+    print!("LANGFUSE_URL: {:?}", langfuse_url_value);
+
     let public_key = env::var("LANGFUSE_PUBLIC_KEY")
+        .or_else(|_| public_key_value)
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"))
         .unwrap_or_default(); // Use empty string if not found
 
     let secret_key = env::var("LANGFUSE_SECRET_KEY")
+        .or_else(|_| secret_key_value)
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_SECRET_KEY"))
         .unwrap_or_default(); // Use empty string if not found
 
@@ -166,7 +178,9 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
         return None;
     }
 
-    let base_url = env::var("LANGFUSE_URL").unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
+    let base_url = env::var("LANGFUSE_URL")
+        .or_else(|_| langfuse_url_value)
+        .unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
 
     let batch_manager = Arc::new(Mutex::new(LangfuseBatchManager::new(
         public_key, secret_key, base_url,
