@@ -10,11 +10,19 @@ Subagents are independent instances that execute tasks while keeping your main c
 Subagents are an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
-To use subagents, enable alpha features by setting the environment variable:
+:::info Prerequisites
+To use subagents, you need to enable alpha features first. You can do this by setting an [environment variable](/docs/guides/environment-variables#experimental-features) or adding it to your [config file](/docs/guides/config-file#experimental-features):
 
+**Environment Variable:**
 ```bash
 export ALPHA_FEATURES=true
 ```
+
+**Config File** (`~/.config/goose/config.yaml`):
+```yaml
+ALPHA_FEATURES: true
+```
+:::
 
 ## Execution Types
 
