@@ -2,23 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
-// Component to conditionally show sidecar based on route and chat state
-const ConditionalSidecarProvider = ({ children }: { children: React.ReactNode }) => {
-  const location = useLocation();
-  
-  // Only show sidecar on specific chat routes when there are messages
-  const isChatRoute = location.pathname === '/' || location.pathname === '/pair';
-
-  // We'll pass the chat state check to the SidecarProvider
-  // The sidecar will only show the collapsed panel when there are messages with potential actions
-  const showSidecar = isChatRoute;
-  
-  return (
-    <SidecarProvider showSidecar={showSidecar}>
-      {children}
-    </SidecarProvider>
-  );
-};
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
@@ -45,7 +28,6 @@ import RecipesView from './components/RecipesView';
 import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
-import { SidecarProvider } from './components/SidecarLayout';
 import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -63,6 +45,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
+import { Recipe } from './recipe';
 // import ProjectsContainer from './components/projects/ProjectsContainer';
 
 export type View =
@@ -1337,9 +1320,7 @@ export default function App() {
               path="/"
               element={
                 <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                  <ConditionalSidecarProvider>
-                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                  </ConditionalSidecarProvider>
+                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
                 </ChatProvider>
               }
             >
