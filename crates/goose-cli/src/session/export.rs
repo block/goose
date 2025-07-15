@@ -1,4 +1,5 @@
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::utils::safe_truncate;
 use mcp_core::content::Content as McpContent;
 use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
@@ -10,9 +11,9 @@ const REDACTED_PREFIX_LENGTH: usize = 100; // Show first 100 chars before trimmi
 fn value_to_simple_markdown_string(value: &Value, export_full_strings: bool) -> String {
     match value {
         Value::String(s) => {
-            if !export_full_strings && s.len() > MAX_STRING_LENGTH_MD_EXPORT {
-                let prefix = &s[..REDACTED_PREFIX_LENGTH.min(s.len())];
-                let trimmed_chars = s.len() - prefix.len();
+            if !export_full_strings && s.chars().count() > MAX_STRING_LENGTH_MD_EXPORT {
+                let prefix = safe_truncate(s, REDACTED_PREFIX_LENGTH);
+                let trimmed_chars = s.chars().count() - prefix.chars().count();
                 format!("`{}[ ... trimmed : {} chars ... ]`", prefix, trimmed_chars)
             } else {
                 // Escape backticks and newlines for inline code.
@@ -40,7 +41,7 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
                     md_string.push_str(&format!("{}*   **{}**: ", base_indent_str, key));
                     match val {
                         Value::String(s) => {
-                            if s.contains('\n') || s.len() > 80 {
+                            if s.contains('\n') || s.chars().count() > 80 {
                                 // Heuristic for block
                                 md_string.push_str(&format!(
                                     "\n{}    ```\n{}{}\n{}    ```\n",
@@ -74,7 +75,7 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
                     md_string.push_str(&format!("{}*   - ", base_indent_str));
                     match item {
                         Value::String(s) => {
-                            if s.contains('\n') || s.len() > 80 {
+                            if s.contains('\n') || s.chars().count() > 80 {
                                 // Heuristic for block
                                 md_string.push_str(&format!(
                                     "\n{}      ```\n{}{}\n{}      ```\n",
@@ -397,7 +398,7 @@ mod tests {
         assert!(result.starts_with("`"));
         assert!(result.contains("[ ... trimmed : "));
         assert!(result.contains("4900 chars ... ]`"));
-        assert!(result.contains(&"a".repeat(100))); // Should contain the prefix
+        assert!(result.contains(&"a".repeat(97))); // Should contain the prefix (100 - 3 for "...")
     }
 
     #[test]

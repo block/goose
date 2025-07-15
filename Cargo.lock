@@ -3598,6 +3598,7 @@ dependencies = [
  "criterion",
  "ctor",
  "dotenv",
+ "goose",
  "include_dir",
  "indoc 1.0.9",
  "lazy_static",
