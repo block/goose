@@ -14,12 +14,27 @@ Subagents are an experimental feature in active development. Behavior and config
 
 To use subagents, ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
 
-1. **Request specialized help**: "Use a code reviewer to analyze this function for security issues"
-2. **Reference specific recipes**: "Use the 'security-auditor' recipe to scan this endpoint"  
-3. **Run parallel tasks**: "Create three HTML templates simultaneously"
-4. **Delegate complex work**: "Research quantum computing developments and summarize findings"
+**Request specialized help**: 
+```
+Use a code reviewer to analyze this function for security issues
+```
 
-You can run multiple subagents sequentially or in parallel.
+**Reference specific recipes**
+```
+Use the 'security-auditor' recipe to scan this endpoint
+```
+
+**Run parallel tasks**:
+```
+Create three HTML templates simultaneously
+```
+
+**Delegate complex work**:
+```
+Research quantum computing developments and summarize findings
+```
+
+You can run multiple subagents sequentially or in parallel:
 
 | Type | Description | Trigger Keywords | Example |
 |------|-------------|------------------|---------|
@@ -56,7 +71,7 @@ Direct prompts provided for one-off tasks using natural language prompts. The ma
 
 **Goose Prompt:**
 ```
-"Use 2 subagents to create hello.html with 'Hello World' content and goodbye.html with 'Goodbye World' content in parallel"
+Use 2 subagents to create hello.html with 'Hello World' content and goodbye.html with 'Goodbye World' content in parallel
 ```
 
 **Tool Output:**
@@ -265,7 +280,9 @@ You can override any default by including the setting in your natural language r
 
 Subagents operate with restricted tool access to ensure safe execution and prevent interference with the main session.
 
-### Allowed Operations
+**Subagents can:**
+
+✅ Search for extensions (safe platform tool)
 
 Subagents have access to these safe operations:
 
@@ -273,7 +290,9 @@ Subagents have access to these safe operations:
 - **Resource access**: Read and list resources from enabled extensions for context
 - **Extension tools**: Use tools from extensions specified in recipes or inherited from the parent session
 
-### Restricted Operations
+**Subagents cannot:**
+
+❌ Spawn other subagents (prevents infinite recursion)
 
 The following operations are blocked to ensure subagents remain focused on their assigned tasks without affecting the broader system state:
 
