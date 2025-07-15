@@ -1,12 +1,14 @@
-import React, { useState, createContext, useContext } from 'react';
-import { X, GitBranch } from 'lucide-react';
+import React, { useState, createContext, useContext, useEffect } from 'react';
+import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart } from 'lucide-react';
 import { Button } from './ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
 interface SidecarView {
   id: string;
   title: string;
   icon: React.ReactNode;
   content: React.ReactNode;
+  fileName?: string; // Optional fileName for diff viewer
 }
 
 interface SidecarContextType {
@@ -32,7 +34,7 @@ interface SidecarProviderProps {
 }
 
 // Monaco Editor Diff Component
-function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; fileName: string }) {
+function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fileName: string }) {
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
   const [parsedDiff, setParsedDiff] = useState<{
     beforeLines: Array<{
@@ -129,7 +131,7 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     }
 
     setParsedDiff({ beforeLines, afterLines, unifiedLines });
-  }, [diffContent]);
+  }, [diffContent, _fileName]); // Include _fileName in dependencies to satisfy TypeScript
 
   const renderDiffLine = (
     line: { content: string; lineNumber: number; type: 'context' | 'removed' | 'added' },
@@ -252,45 +254,14 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     );
   };
 
+  // Expose the view mode controls to parent
+  useEffect(() => {
+    // Store the setViewMode function in a way the parent can access it
+    (window as unknown as { diffViewerControls?: { viewMode: string; setViewMode: (mode: 'split' | 'unified') => void } }).diffViewerControls = { viewMode, setViewMode };
+  }, [viewMode, setViewMode]);
+
   return (
     <div className="h-full flex flex-col bg-background-default">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
-        <div className="flex items-center space-x-2">
-          <GitBranch size={16} className="text-primary" />
-          <span className="text-textStandard font-medium">{fileName}</span>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="flex items-center space-x-1 bg-background-muted rounded-md p-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('split')}
-            className={`px-3 py-1 text-xs ${
-              viewMode === 'split'
-                ? 'bg-background-subtle text-textStandard'
-                : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
-            }`}
-          >
-            Split
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode('unified')}
-            className={`px-3 py-1 text-xs ${
-              viewMode === 'unified'
-                ? 'bg-background-subtle text-textStandard'
-                : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
-            }`}
-          >
-            Unified
-          </Button>
-        </div>
-      </div>
-
-      {/* Diff Content */}
       {viewMode === 'split' ? (
         /* Split Diff Content */
         <div className="flex-1 overflow-hidden flex">
@@ -349,8 +320,9 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     const diffView: SidecarView = {
       id: 'diff',
       title: 'Diff Viewer',
-      icon: <GitBranch size={16} />,
-      content: <MonacoDiffViewer diffContent={content} fileName={fileName} />,
+      icon: <FileDiff size={16} />,
+      content: <MonacoDiffViewer diffContent={content} _fileName={fileName} />,
+      fileName: fileName, // Store fileName for header display
     };
     showView(diffView);
   };
@@ -383,6 +355,20 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
 // Separate Sidecar component that can be used as a sibling
 export function Sidecar({ className = '' }: { className?: string }) {
   const sidecar = useSidecar();
+  const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
+
+  // Update the diff viewer when view mode changes
+  useEffect(() => {
+    if (sidecar) {
+      const { activeView, views } = sidecar;
+      const currentView = views.find((v) => v.id === activeView);
+      const isDiffViewer = currentView?.id === 'diff';
+      
+      if (isDiffViewer && (window as unknown as { diffViewerControls?: { viewMode: string; setViewMode: (mode: 'split' | 'unified') => void } }).diffViewerControls) {
+        (window as unknown as { diffViewerControls?: { viewMode: string; setViewMode: (mode: 'split' | 'unified') => void } }).diffViewerControls!.setViewMode(viewMode);
+      }
+    }
+  }, [viewMode, sidecar]);
 
   if (!sidecar) return null;
 
@@ -392,6 +378,9 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   if (!isVisible) return null;
 
+  // Check if current view is diff viewer
+  const isDiffViewer = currentView.id === 'diff';
+
   return (
     <div className={`bg-background-default overflow-hidden rounded-2xl m-7 ${className}`}>
       {currentView && (
@@ -400,16 +389,77 @@ export function Sidecar({ className = '' }: { className?: string }) {
           <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0">
             <div className="flex items-center space-x-2">
               {currentView.icon}
-              <span className="text-textStandard font-medium">{currentView.title}</span>
+              <div className="flex flex-col">
+                <span className="text-textStandard font-medium">{currentView.title}</span>
+                {currentView.fileName && (
+                  <span className="text-textSubtle text-sm">{currentView.fileName}</span>
+                )}
+              </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={hideView}
-              className="text-textSubtle hover:text-textStandard"
-            >
-              <X size={16} />
-            </Button>
+
+            <div className="flex items-center space-x-2">
+              {/* View Mode Toggle - Only show for diff viewer */}
+              {isDiffViewer && (
+                <div className="flex items-center space-x-1 bg-background-muted rounded-md p-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setViewMode('split')}
+                        className={`px-2 py-1 ${
+                          viewMode === 'split'
+                            ? 'bg-background-subtle text-textStandard'
+                            : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
+                        }`}
+                      >
+                        <SquareSplitHorizontal size={14} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" sideOffset={8}>
+                      Split View
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setViewMode('unified')}
+                        className={`px-2 py-1 ${
+                          viewMode === 'unified'
+                            ? 'bg-background-subtle text-textStandard'
+                            : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
+                        }`}
+                      >
+                        <BetweenHorizontalStart size={14} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" sideOffset={8}>
+                      Unified View
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={hideView}
+                    className="text-textSubtle hover:text-textStandard"
+                  >
+                    <X size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={8}>
+                  Close
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
           {/* Sidecar Content */}

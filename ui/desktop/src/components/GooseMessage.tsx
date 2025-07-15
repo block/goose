@@ -20,7 +20,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { GitBranch } from 'lucide-react';
+import { FileDiff } from 'lucide-react';
 import { useSidecar } from './SidecarLayout';
 
 interface GooseMessageProps {
@@ -264,7 +264,7 @@ export default function GooseMessage({
             className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 group"
             title="View diff"
           >
-            <GitBranch
+            <FileDiff
               size={16}
               className="text-textSubtle group-hover:text-primary transition-colors"
             />
