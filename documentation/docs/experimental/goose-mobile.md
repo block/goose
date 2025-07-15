@@ -10,7 +10,9 @@ Goose Mobile is an experimental Android project inspired by the Goose applicatio
 Goose Mobile requires deep access to your device. Use at your own risk — best on a spare phone or emulator.
 :::
 
-![Goose Mobile Screenshot](https://github.com/user-attachments/assets/af9d7d83-54f4-4ace-ad66-9e19f86c8fb9)
+<div style={{textAlign: 'center'}}>
+  <img src="https://github.com/user-attachments/assets/af9d7d83-54f4-4ace-ad66-9e19f86c8fb9" alt="Goose Mobile Screenshot" />
+</div>
 
 ## What It Does
 - **Automation:** Orchestrates tasks using your installed apps.
