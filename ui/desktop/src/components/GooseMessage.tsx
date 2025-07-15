@@ -264,14 +264,12 @@ export default function GooseMessage({
                     }
                   }
                 }}
-                className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 text-textSubtle hover:text-primary"
+                className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 text-textSubtle hover:text-primary cursor-pointer"
               >
                 <FileDiff size={16} />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              View diff
-            </TooltipContent>
+            <TooltipContent side="top">View diff</TooltipContent>
           </Tooltip>
         </div>
       )}
