@@ -12,10 +12,6 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
-:::warning Migration Notice
-The GitHub MCP Server has moved from the deprecated NPM package `@modelcontextprotocol/server-github` to GitHub's official repository. The server is now available as a remote hosted service with no local installation required.
-:::
-
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
