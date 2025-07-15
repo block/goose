@@ -55,3 +55,8 @@ do_not_version/
 /temporal.db
 /ui/desktop/src/bin/goose-scheduler-executor
 /ui/desktop/src/bin/goose
+goose-mcp-ui.code-workspace
+examples/standard-ui-server.py
+examples/test-ui-server.py
+examples/test-ui-server.sh
+examples/UI_RESOURCE_TEST.md

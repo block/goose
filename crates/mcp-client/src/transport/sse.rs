@@ -155,6 +155,7 @@ impl SseActor {
             match http_client
                 .post(&post_url)
                 .header("Content-Type", "application/json")
+                .header("Accept", "application/json, application/vnd.mcp-ui.remote-dom+javascript")
                 .body(message_str)
                 .send()
                 .await
