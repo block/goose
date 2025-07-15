@@ -5,6 +5,8 @@ mod tests {
     use crate::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
     use tempfile::TempDir;
 
+    const NO_USER_PROMPT: Option<fn(&str, &str) -> Result<String, anyhow::Error>> = None;
+
     fn setup_recipe_file(instructions_and_parameters: &str) -> (TempDir, RecipeFile) {
         let recipe_content = format!(
             r#"{{
@@ -73,7 +75,10 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let recipe = build_recipe_from_template(recipe_file, params).unwrap();
+        let (recipe_opt, missing_params) =
+            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
+        assert!(missing_params.is_empty());
+        let recipe = recipe_opt.unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -107,7 +112,10 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let recipe = build_recipe_from_template(recipe_file, params).unwrap();
+        let (recipe_opt, missing_params) =
+            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
+        assert!(missing_params.is_empty());
+        let recipe = recipe_opt.unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -137,7 +145,8 @@ mod tests {
                 ]"#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let build_recipe_result = build_recipe_from_template(recipe_file, Vec::new());
+        let build_recipe_result =
+            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -173,7 +182,10 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
         let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-        let recipe = build_recipe_from_template(recipe_file, params).unwrap();
+        let (recipe_opt, missing_params) =
+            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
+        assert!(missing_params.is_empty());
+        let recipe = recipe_opt.unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -199,7 +211,10 @@ mod tests {
                 ]"#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let recipe = build_recipe_from_template(recipe_file, Vec::new()).unwrap();
+        let (recipe_opt, missing_params) =
+            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
+        assert!(missing_params.is_empty());
+        let recipe = recipe_opt.unwrap();
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
         assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
@@ -219,7 +234,8 @@ mod tests {
                 ]"#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let build_recipe_result = build_recipe_from_template(recipe_file, Vec::new());
+        let build_recipe_result =
+            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
         println!("{}", err.to_string());
@@ -241,7 +257,7 @@ mod tests {
         let params = vec![("param".to_string(), "value".to_string())];
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let build_recipe_result = build_recipe_from_template(recipe_file, params);
+        let build_recipe_result = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
         let err_msg = err.to_string();
@@ -256,7 +272,10 @@ mod tests {
                 "#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let recipe = build_recipe_from_template(recipe_file, Vec::new()).unwrap();
+        let (recipe_opt, missing_params) =
+            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
+        assert!(missing_params.is_empty());
+        let recipe = recipe_opt.unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
     }
@@ -303,9 +322,12 @@ mod tests {
             ("is_enabled".to_string(), "true".to_string()),
         ];
 
-        let parent_result = build_recipe_from_template(parent_recipe_file, params.clone());
+        let parent_result =
+            build_recipe_from_template(parent_recipe_file, params.clone(), NO_USER_PROMPT);
         assert!(parent_result.is_ok());
-        let parent_recipe = parent_result.unwrap();
+        let (parent_recipe_opt, parent_missing_params) = parent_result.unwrap();
+        assert!(parent_missing_params.is_empty());
+        let parent_recipe = parent_recipe_opt.unwrap();
         assert_eq!(parent_recipe.description, "Parent recipe");
         assert_eq!(
             parent_recipe.prompt.unwrap(),
@@ -318,9 +340,11 @@ mod tests {
             "is_enabled"
         );
 
-        let child_result = build_recipe_from_template(child_recipe_file, params);
+        let child_result = build_recipe_from_template(child_recipe_file, params, NO_USER_PROMPT);
         assert!(child_result.is_ok());
-        let child_recipe = child_result.unwrap();
+        let (child_recipe_opt, child_missing_params) = child_result.unwrap();
+        assert!(child_missing_params.is_empty());
+        let child_recipe = child_recipe_opt.unwrap();
         assert_eq!(child_recipe.title, "Parent");
         assert_eq!(child_recipe.description, "Parent recipe");
         assert_eq!(
