@@ -131,7 +131,7 @@ export GOOSE_MAX_TURNS=100
 export GOOSE_CLI_THEME=ansi
 ```
 
-### Context Limit Configuration
+### Model Context Limit Overrides
 
 These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match Goose's predefined model patterns.
 
@@ -155,6 +155,8 @@ export GOOSE_WORKER_CONTEXT_LIMIT=128000 # Smaller context for execution
 # Set context limit for planner
 export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
+
+For more details and examples, see [Model Context Limit Overrides](/docs/guides/smart-context-management#model-context-limit-overrides).
 
 ## Tool Configuration
 
