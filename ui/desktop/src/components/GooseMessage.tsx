@@ -264,7 +264,7 @@ export default function GooseMessage({
                     }
                   }
                 }}
-                className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 text-textSubtle hover:text-primary cursor-pointer"
+                className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 text-textSubtle hover:text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-borderProminent"
               >
                 <FileDiff size={16} />
               </button>
