@@ -372,6 +372,7 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
   };
 
   const currentView = views.find((v) => v.id === activeView);
+  const isVisible = activeView && currentView;
 
   // Don't render sidecar if showSidecar is false
   if (!showSidecar) {
@@ -382,38 +383,46 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     <SidecarContext.Provider value={contextValue}>
       <div className="flex h-full relative">
         {/* Main Content */}
-        <div className={`flex-1 transition-all duration-300 ${activeView ? 'mr-[700px]' : ''}`}>
+        <div 
+          className={`flex-1 transition-all duration-300 ease-out ${
+            isVisible ? 'mr-96' : 'mr-0'
+          }`}
+        >
           {children}
         </div>
 
-        {/* Collapsed Sidecar Panel - Only visible when not expanded */}
-        {!activeView && (
-          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle opacity-0 pointer-events-none" />
-        )}
+        {/* Sidecar Panel Container - Fixed positioning similar to sidebar */}
+        <div
+          className={`fixed inset-y-0 right-0 z-10 h-full w-96 transition-transform duration-300 ease-out will-change-transform ${
+            isVisible ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          {/* Sidecar Panel */}
+          <div className="h-full bg-background-default m-4 rounded-lg border border-borderSubtle shadow-lg">
+            {currentView && (
+              <>
+                {/* Sidecar Header */}
+                <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
+                  <div className="flex items-center space-x-2">
+                    {currentView.icon}
+                    <span className="text-textStandard font-medium">{currentView.title}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={hideView}
+                    className="text-textSubtle hover:text-textStandard"
+                  >
+                    <X size={16} />
+                  </Button>
+                </div>
 
-        {/* Expanded Sidecar Panel - Only visible when there's an active view */}
-        {activeView && currentView && (
-          <div className="fixed right-0 top-0 h-full w-[700px] bg-background-default border-l border-borderSubtle transition-transform duration-300">
-            {/* Sidecar Header */}
-            <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
-              <div className="flex items-center space-x-2">
-                {currentView.icon}
-                <span className="text-textStandard font-medium">{currentView.title}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={hideView}
-                className="text-textSubtle hover:text-textStandard"
-              >
-                <X size={16} />
-              </Button>
-            </div>
-
-            {/* Sidecar Content */}
-            <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
+                {/* Sidecar Content */}
+                <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </SidecarContext.Provider>
   );
