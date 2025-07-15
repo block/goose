@@ -22,7 +22,10 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
-  changeModel: (model: Model) => Promise<void>;
+  changeModel: (
+    model: Model,
+    options?: { showToast?: boolean; persist?: boolean }
+  ) => Promise<void>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getCurrentModelAndProviderForDisplay: () => Promise<{ model: string; provider: string }>;
@@ -41,7 +44,10 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   const { read, upsert, getProviders } = useConfig();
 
   const changeModel = useCallback(
-    async (model: Model) => {
+    async (
+      model: Model,
+      options: { showToast?: boolean; persist?: boolean } = { showToast: true, persist: true }
+    ) => {
       const modelName = model.name;
       const providerName = model.provider;
       try {
@@ -60,24 +66,28 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         return;
       }
 
-      try {
-        await upsert('GOOSE_PROVIDER', providerName, false);
-        await upsert('GOOSE_MODEL', modelName, false);
+      // Update local state for UI display
+      setCurrentProvider(providerName);
+      setCurrentModel(modelName);
 
-        // Update local state
-        setCurrentProvider(providerName);
-        setCurrentModel(modelName);
-      } catch (error) {
-        console.error(`Failed to change model at config step -- ${modelName} ${providerName}}`);
-        toastError({
-          title: CHANGE_MODEL_ERROR_TITLE,
-          msg: CONFIG_UPDATE_ERROR_MSG,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
-        // agent and config will be out of sync at this point
-        // TODO: reset agent to use current config settings
-      } finally {
-        // show toast
+      // Only persist to config if requested (default: true for user changes, false for recipe overrides)
+      if (options.persist) {
+        try {
+          await upsert('GOOSE_PROVIDER', providerName, false);
+          await upsert('GOOSE_MODEL', modelName, false);
+        } catch (error) {
+          console.error(`Failed to change model at config step -- ${modelName} ${providerName}}`);
+          toastError({
+            title: CHANGE_MODEL_ERROR_TITLE,
+            msg: CONFIG_UPDATE_ERROR_MSG,
+            traceback: error instanceof Error ? error.message : String(error),
+          });
+          // agent and config will be out of sync at this point
+          // TODO: reset agent to use current config settings
+        }
+      }
+
+      if (options.showToast) {
         toastSuccess({
           title: CHANGE_MODEL_TOAST_TITLE,
           msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model.alias ?? modelName} from ${model.subtext ?? providerName}`,
@@ -101,7 +111,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     return { model: model, provider: provider };
   }, [upsert]);
 
-  const getCurrentModelAndProvider = useCallback(async () => {
+  const getModelAndProviderFromConfig = useCallback(async () => {
     let model: string;
     let provider: string;
 
@@ -114,11 +124,21 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       throw error;
     }
     if (!model || !provider) {
-      console.log('[getCurrentModelAndProvider] Checking app environment as fallback');
+      console.log('[getModelAndProviderFromConfig] Checking app environment as fallback');
       return getFallbackModelAndProvider();
     }
     return { model: model, provider: provider };
   }, [read, getFallbackModelAndProvider]);
+
+  const getCurrentModelAndProvider = useCallback(async () => {
+    // Use current context state if available (which reflects any runtime overrides like recipe settings)
+    // Otherwise fall back to reading from config
+    if (currentModel && currentProvider) {
+      return { model: currentModel, provider: currentProvider };
+    }
+
+    return getModelAndProviderFromConfig();
+  }, [currentModel, currentProvider, getModelAndProviderFromConfig]);
 
   const getCurrentModelAndProviderForDisplay = useCallback(async () => {
     const modelProvider = await getCurrentModelAndProvider();
@@ -140,13 +160,13 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
   const refreshCurrentModelAndProvider = useCallback(async () => {
     try {
-      const { model, provider } = await getCurrentModelAndProvider();
+      const { model, provider } = await getModelAndProviderFromConfig();
       setCurrentModel(model);
       setCurrentProvider(provider);
     } catch (error) {
       console.error('Failed to refresh current model and provider:', error);
     }
-  }, [getCurrentModelAndProvider]);
+  }, [getModelAndProviderFromConfig]);
 
   // Load initial model and provider on mount
   useEffect(() => {

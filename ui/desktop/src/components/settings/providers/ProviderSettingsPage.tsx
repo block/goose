@@ -3,6 +3,7 @@ import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
+import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
@@ -16,6 +17,7 @@ interface ProviderSettingsProps {
 
 export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
   const { getProviders, upsert, getExtensions, addExtension } = useConfig();
+  const { changeModel } = useModelAndProvider();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -73,6 +75,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         await initializeSystem(provider.name, model, {
           getExtensions,
           addExtension,
+          changeModel,
         });
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
@@ -84,7 +87,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       });
       onClose();
     },
-    [onClose, upsert, getExtensions, addExtension]
+    [onClose, upsert, getExtensions, addExtension, changeModel]
   );
 
   return (
