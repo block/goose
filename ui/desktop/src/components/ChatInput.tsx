@@ -11,6 +11,7 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import { useChatInput } from './ChatInputContext';
 
 interface PastedImage {
   id: string;
@@ -63,7 +64,8 @@ export default function ChatInput({
   sessionCosts,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  const { inputValue, setInputValue } = useChatInput();
+  const [displayValue, setDisplayValue] = useState(inputValue || initialValue); // Prioritize context value
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [mentionPopover, setMentionPopover] = useState<{
@@ -114,10 +116,24 @@ export default function ChatInput({
     },
   });
 
-  // Update internal value when initialValue changes
+  // Update context when display value changes
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    setInputValue(displayValue);
+  }, [displayValue, setInputValue]);
+
+  // Update display value when context value changes
+  useEffect(() => {
+    if (inputValue !== displayValue) {
+      setDisplayValue(inputValue);
+    }
+  }, [inputValue]);
+
+  // Initialize display value from context or initialValue on mount
+  useEffect(() => {
+    // Prioritize context value over initialValue
+    const valueToUse = inputValue || initialValue;
+    setValue(valueToUse);
+    setDisplayValue(valueToUse);
 
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
@@ -186,8 +202,13 @@ export default function ChatInput({
   useEffect(() => {
     if (textAreaRef.current) {
       textAreaRef.current.focus();
+      // Set cursor to end of text if there's persisted content
+      if (displayValue) {
+        const length = displayValue.length;
+        textAreaRef.current.setSelectionRange(length, length);
+      }
     }
-  }, []);
+  }, [displayValue]);
 
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
@@ -486,6 +507,7 @@ export default function ChatInput({
 
       setDisplayValue('');
       setValue('');
+      setInputValue('');
       setPastedImages([]);
       setHistoryIndex(-1);
       setSavedInput('');
