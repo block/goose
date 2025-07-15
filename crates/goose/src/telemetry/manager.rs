@@ -1,6 +1,6 @@
 use crate::telemetry::{
     config::TelemetryConfig,
-    events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent},
+    events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent, TelemetryExecution, SessionMetadataSupport},
     providers::{create_backend, TelemetryBackend},
     user::UserIdentity,
 };
@@ -262,6 +262,11 @@ impl RecipeExecutionBuilder {
 
     pub fn with_turn_count(mut self, count: u64) -> Self {
         self.execution = self.execution.with_turn_count(count);
+        self
+    }
+
+    pub fn with_session_metadata(mut self, session_metadata: &crate::session::storage::SessionMetadata) -> Self {
+        self.execution = self.execution.with_session_metadata(session_metadata);
         self
     }
 

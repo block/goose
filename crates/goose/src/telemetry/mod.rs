@@ -12,6 +12,7 @@ pub use {
     events::{
         CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution,
         SessionExecution, SessionResult, SessionType, TelemetryEvent, TokenUsage, ToolUsage,
+        TelemetryExecution, SessionMetadataSupport,
     },
     manager::{
         global_telemetry, init_global_telemetry, shutdown_global_telemetry, RecipeExecutionBuilder,

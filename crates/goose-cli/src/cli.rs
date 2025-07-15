@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use goose::message::MessageContent;
 use goose::telemetry::{
     detect_environment, CommandExecution, CommandResult, CommandType, SessionExecution,
-    SessionResult, SessionType, TokenUsage, ToolUsage,
+    SessionResult, SessionType, ToolUsage, TelemetryExecution, SessionMetadataSupport,
 };
 use std::collections::HashMap;
 
@@ -45,28 +45,7 @@ fn log_if_telemetry_disabled(tracking_type: &str) {
     }
 }
 
-fn extract_telemetry_data_from_session(
-    session: &crate::Session,
-    params: &[(String, String)],
-) -> (
-    Option<TokenUsage>,
-    Vec<ToolUsage>,
-    HashMap<String, String>,
-    Option<String>,
-) {
-    let token_usage = if let Ok(metadata) = session.get_metadata() {
-        let input_tokens = metadata.input_tokens.unwrap_or(0) as u64;
-        let output_tokens = metadata.output_tokens.unwrap_or(0) as u64;
-
-        if input_tokens > 0 || output_tokens > 0 {
-            Some(TokenUsage::new(input_tokens, output_tokens))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
+fn extract_tool_usage_from_session(session: &crate::Session) -> Vec<ToolUsage> {
     let messages = session.message_history();
     let mut tool_usage_map: HashMap<String, ToolUsage> = HashMap::new();
     let mut tool_call_times: HashMap<String, i64> = HashMap::new();
@@ -81,7 +60,6 @@ fn extract_telemetry_data_from_session(
                         let tool_id = &tool_request.id;
 
                         tool_id_to_name.insert(tool_id.clone(), tool_name.clone());
-
                         tool_call_times.insert(tool_id.clone(), message.created);
 
                         tool_usage_map
@@ -102,7 +80,6 @@ fn extract_telemetry_data_from_session(
                             };
 
                             let success = tool_response.tool_result.is_ok();
-
                             entry.add_call(duration, success);
                         }
                     }
@@ -112,30 +89,7 @@ fn extract_telemetry_data_from_session(
         }
     }
 
-    let tool_usage: Vec<ToolUsage> = tool_usage_map.into_values().collect();
-
-    let mut metadata = HashMap::new();
-    for (key, value) in params {
-        metadata.insert(key.clone(), value.clone());
-    }
-
-    if let Ok(session_metadata) = session.get_metadata() {
-        metadata.insert(
-            "working_dir".to_string(),
-            session_metadata.working_dir.to_string_lossy().to_string(),
-        );
-        metadata.insert(
-            "message_count".to_string(),
-            session_metadata.message_count.to_string(),
-        );
-        if let Some(schedule_id) = session_metadata.schedule_id {
-            metadata.insert("schedule_id".to_string(), schedule_id);
-        }
-    }
-
-    let environment = detect_environment();
-
-    (token_usage, tool_usage, metadata, environment)
+    tool_usage_map.into_values().collect()
 }
 
 async fn track_session_execution<F, Fut, T>(
@@ -162,34 +116,24 @@ where
 
         match &result {
             Ok((_, session)) => {
-                let (token_usage, tool_usage, metadata, environment) =
-                    extract_telemetry_data_from_session(session, &[]);
-
-                execution = execution
-                    .with_result(SessionResult::Success)
-                    .with_duration(duration);
-
-                if let Some(tokens) = token_usage {
-                    execution = execution.with_token_usage(tokens);
+                if let Ok(session_metadata) = session.get_metadata() {
+                    execution = execution.with_session_metadata(&session_metadata);
                 }
 
+                let tool_usage = extract_tool_usage_from_session(session);
                 for tool in tool_usage {
                     execution.add_tool_usage(tool);
                 }
 
-                for (key, value) in metadata {
-                    execution = execution.with_metadata(&key, &value);
-                }
-
-                if let Some(env) = environment {
+                if let Some(env) = detect_environment() {
                     execution = execution.with_environment(&env);
                 }
 
-                if let Ok(session_metadata) = session.get_metadata() {
-                    execution = execution.with_message_count(session_metadata.message_count as u64);
-                }
                 let messages = session.message_history();
-                execution = execution.with_turn_count(messages.len() as u64);
+                execution = execution
+                    .with_turn_count(messages.len() as u64)
+                    .with_result(SessionResult::Success)
+                    .with_duration(duration);
             }
             Err(e) => {
                 execution = execution
@@ -279,44 +223,39 @@ where
         let duration = start_time.elapsed();
         let execution = match &result {
             Ok((_, session)) => {
-                let (token_usage, tool_usage, metadata, environment) =
-                    extract_telemetry_data_from_session(session, &params);
                 let mut builder = execution_builder
                     .with_result(goose::telemetry::SessionResult::Success)
                     .with_duration(duration);
 
-                if let Some(tokens) = token_usage {
-                    builder = builder.with_token_usage(tokens);
+                if let Ok(session_metadata) = session.get_metadata() {
+                    builder = builder.with_session_metadata(&session_metadata);
                 }
 
+                let tool_usage = extract_tool_usage_from_session(session);
                 for tool in tool_usage {
                     builder = builder.add_tool_usage(tool);
                 }
 
-                for (key, value) in metadata {
-                    builder = builder.with_metadata(&key, &value);
+                for (key, value) in &params {
+                    builder = builder.with_metadata(key, value);
                 }
 
-                if let Some(env) = environment {
+                if let Some(env) = detect_environment() {
                     builder = builder.with_environment(&env);
                 }
 
-                if let Ok(session_metadata) = session.get_metadata() {
-                    builder = builder.with_message_count(session_metadata.message_count as u64);
-                }
                 let messages = session.message_history();
                 builder = builder.with_turn_count(messages.len() as u64);
 
                 builder.build()
             }
             Err(e) => {
-                let metadata: HashMap<String, String> = params.iter().cloned().collect();
                 let mut builder = execution_builder
                     .with_result(goose::telemetry::SessionResult::Error(e.to_string()))
                     .with_duration(duration);
 
-                for (key, value) in metadata {
-                    builder = builder.with_metadata(&key, &value);
+                for (key, value) in &params {
+                    builder = builder.with_metadata(key, value);
                 }
 
                 builder.build()

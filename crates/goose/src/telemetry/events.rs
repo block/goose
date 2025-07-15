@@ -1,7 +1,151 @@
 use crate::telemetry::config::UsageType;
+use crate::session::storage::SessionMetadata;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+
+pub trait TelemetryExecution {
+    type ResultType: Clone;
+    
+    fn start_time(&self) -> u64;
+    fn end_time(&self) -> Option<u64>;
+    fn set_end_time(&mut self, time: u64);
+    fn duration_ms(&self) -> Option<u64>;
+    fn set_duration_ms(&mut self, duration: u64);
+    fn result(&self) -> Option<&Self::ResultType>;
+    fn set_result(&mut self, result: Self::ResultType);
+    fn user_id(&self) -> &str;
+    fn set_user_id(&mut self, user_id: String);
+    fn usage_type(&self) -> &UsageType;
+    fn set_usage_type(&mut self, usage_type: UsageType);
+    fn environment(&self) -> Option<&String>;
+    fn set_environment(&mut self, environment: String);
+    fn metadata(&self) -> &HashMap<String, String>;
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String>;
+    fn error_details(&self) -> Option<&ErrorDetails>;
+    fn set_error_details(&mut self, error_details: ErrorDetails);
+    
+    fn with_result(mut self, result: Self::ResultType) -> Self
+    where
+        Self: Sized,
+    {
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.set_end_time(end_time);
+        self.set_duration_ms((end_time - self.start_time()) * 1000);
+        self.set_result(result);
+        self
+    }
+
+    fn with_duration(mut self, duration: Duration) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_duration_ms(duration.as_millis() as u64);
+        self
+    }
+
+    fn with_metadata(mut self, key: &str, value: &str) -> Self
+    where
+        Self: Sized,
+    {
+        self.metadata_mut().insert(key.to_string(), value.to_string());
+        self
+    }
+
+    fn with_environment(mut self, environment: &str) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_environment(environment.to_string());
+        self
+    }
+
+    fn with_error_details(mut self, error_details: ErrorDetails) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_error_details(error_details);
+        self
+    }
+
+    fn complete(&mut self) {
+        if self.end_time().is_none() {
+            let end_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            self.set_end_time(end_time);
+            self.set_duration_ms((end_time - self.start_time()) * 1000);
+        }
+    }
+}
+
+pub trait SessionMetadataSupport {
+    fn token_usage(&self) -> Option<&TokenUsage>;
+    fn set_token_usage(&mut self, token_usage: TokenUsage);
+    fn tool_usage(&self) -> &Vec<ToolUsage>;
+    fn tool_usage_mut(&mut self) -> &mut Vec<ToolUsage>;
+    fn message_count(&self) -> u64;
+    fn set_message_count(&mut self, count: u64);
+    fn turn_count(&self) -> u64;
+    fn set_turn_count(&mut self, count: u64);
+
+    fn with_token_usage(mut self, token_usage: TokenUsage) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_token_usage(token_usage);
+        self
+    }
+
+    fn add_tool_usage(&mut self, tool_usage: ToolUsage) {
+        self.tool_usage_mut().push(tool_usage);
+    }
+
+    fn with_message_count(mut self, count: u64) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_message_count(count);
+        self
+    }
+
+    fn with_turn_count(mut self, count: u64) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_turn_count(count);
+        self
+    }
+
+    fn with_session_metadata(mut self, session_metadata: &SessionMetadata) -> Self
+    where
+        Self: Sized + TelemetryExecution,
+    {
+        self.set_message_count(session_metadata.message_count as u64);
+        
+        self.metadata_mut().insert(
+            "working_dir".to_string(),
+            session_metadata.working_dir.to_string_lossy().to_string(),
+        );
+        
+        if let Some(schedule_id) = &session_metadata.schedule_id {
+            self.metadata_mut().insert("schedule_id".to_string(), schedule_id.clone());
+        }
+        
+        if let (Some(input), Some(output)) = (session_metadata.input_tokens, session_metadata.output_tokens) {
+            self.set_token_usage(TokenUsage::new(input as u64, output as u64));
+        }
+        
+        self
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeExecution {
@@ -47,68 +191,39 @@ impl RecipeExecution {
             error_details: None,
         }
     }
+}
 
-    pub fn with_result(mut self, result: SessionResult) -> Self {
-        let end_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+impl TelemetryExecution for RecipeExecution {
+    type ResultType = SessionResult;
+    
+    fn start_time(&self) -> u64 { self.start_time }
+    fn end_time(&self) -> Option<u64> { self.end_time }
+    fn set_end_time(&mut self, time: u64) { self.end_time = Some(time); }
+    fn duration_ms(&self) -> Option<u64> { self.duration_ms }
+    fn set_duration_ms(&mut self, duration: u64) { self.duration_ms = Some(duration); }
+    fn result(&self) -> Option<&Self::ResultType> { self.result.as_ref() }
+    fn set_result(&mut self, result: Self::ResultType) { self.result = Some(result); }
+    fn user_id(&self) -> &str { &self.user_id }
+    fn set_user_id(&mut self, user_id: String) { self.user_id = user_id; }
+    fn usage_type(&self) -> &UsageType { &self.usage_type }
+    fn set_usage_type(&mut self, usage_type: UsageType) { self.usage_type = usage_type; }
+    fn environment(&self) -> Option<&String> { self.environment.as_ref() }
+    fn set_environment(&mut self, environment: String) { self.environment = Some(environment); }
+    fn metadata(&self) -> &HashMap<String, String> { &self.metadata }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { &mut self.metadata }
+    fn error_details(&self) -> Option<&ErrorDetails> { self.error_details.as_ref() }
+    fn set_error_details(&mut self, error_details: ErrorDetails) { self.error_details = Some(error_details); }
+}
 
-        self.end_time = Some(end_time);
-        self.duration_ms = Some((end_time - self.start_time) * 1000);
-        self.result = Some(result);
-        self
-    }
-
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration_ms = Some(duration.as_millis() as u64);
-        self
-    }
-
-    pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
-        self.metadata.insert(key.to_string(), value.to_string());
-        self
-    }
-
-    pub fn with_token_usage(mut self, token_usage: TokenUsage) -> Self {
-        self.token_usage = Some(token_usage);
-        self
-    }
-
-    pub fn add_tool_usage(&mut self, tool_usage: ToolUsage) {
-        self.tool_usage.push(tool_usage);
-    }
-
-    pub fn with_error_details(mut self, error_details: ErrorDetails) -> Self {
-        self.error_details = Some(error_details);
-        self
-    }
-
-    pub fn with_environment(mut self, environment: &str) -> Self {
-        self.environment = Some(environment.to_string());
-        self
-    }
-
-    pub fn with_message_count(mut self, count: u64) -> Self {
-        self.message_count = count;
-        self
-    }
-
-    pub fn with_turn_count(mut self, count: u64) -> Self {
-        self.turn_count = count;
-        self
-    }
-    pub fn complete(&mut self) {
-        if self.end_time.is_none() {
-            let end_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-
-            self.end_time = Some(end_time);
-            self.duration_ms = Some((end_time - self.start_time) * 1000);
-        }
-    }
+impl SessionMetadataSupport for RecipeExecution {
+    fn token_usage(&self) -> Option<&TokenUsage> { self.token_usage.as_ref() }
+    fn set_token_usage(&mut self, token_usage: TokenUsage) { self.token_usage = Some(token_usage); }
+    fn tool_usage(&self) -> &Vec<ToolUsage> { &self.tool_usage }
+    fn tool_usage_mut(&mut self) -> &mut Vec<ToolUsage> { &mut self.tool_usage }
+    fn message_count(&self) -> u64 { self.message_count }
+    fn set_message_count(&mut self, count: u64) { self.message_count = count; }
+    fn turn_count(&self) -> u64 { self.turn_count }
+    fn set_turn_count(&mut self, count: u64) { self.turn_count = count; }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -335,69 +450,39 @@ impl SessionExecution {
             error_details: None,
         }
     }
+}
 
-    pub fn with_result(mut self, result: SessionResult) -> Self {
-        let end_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+impl TelemetryExecution for SessionExecution {
+    type ResultType = SessionResult;
+    
+    fn start_time(&self) -> u64 { self.start_time }
+    fn end_time(&self) -> Option<u64> { self.end_time }
+    fn set_end_time(&mut self, time: u64) { self.end_time = Some(time); }
+    fn duration_ms(&self) -> Option<u64> { self.duration_ms }
+    fn set_duration_ms(&mut self, duration: u64) { self.duration_ms = Some(duration); }
+    fn result(&self) -> Option<&Self::ResultType> { self.result.as_ref() }
+    fn set_result(&mut self, result: Self::ResultType) { self.result = Some(result); }
+    fn user_id(&self) -> &str { &self.user_id }
+    fn set_user_id(&mut self, user_id: String) { self.user_id = user_id; }
+    fn usage_type(&self) -> &UsageType { &self.usage_type }
+    fn set_usage_type(&mut self, usage_type: UsageType) { self.usage_type = usage_type; }
+    fn environment(&self) -> Option<&String> { self.environment.as_ref() }
+    fn set_environment(&mut self, environment: String) { self.environment = Some(environment); }
+    fn metadata(&self) -> &HashMap<String, String> { &self.metadata }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { &mut self.metadata }
+    fn error_details(&self) -> Option<&ErrorDetails> { self.error_details.as_ref() }
+    fn set_error_details(&mut self, error_details: ErrorDetails) { self.error_details = Some(error_details); }
+}
 
-        self.end_time = Some(end_time);
-        self.duration_ms = Some((end_time - self.start_time) * 1000);
-        self.result = Some(result);
-        self
-    }
-
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration_ms = Some(duration.as_millis() as u64);
-        self
-    }
-
-    pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
-        self.metadata.insert(key.to_string(), value.to_string());
-        self
-    }
-
-    pub fn with_token_usage(mut self, token_usage: TokenUsage) -> Self {
-        self.token_usage = Some(token_usage);
-        self
-    }
-
-    pub fn add_tool_usage(&mut self, tool_usage: ToolUsage) {
-        self.tool_usage.push(tool_usage);
-    }
-
-    pub fn with_error_details(mut self, error_details: ErrorDetails) -> Self {
-        self.error_details = Some(error_details);
-        self
-    }
-
-    pub fn with_environment(mut self, environment: &str) -> Self {
-        self.environment = Some(environment.to_string());
-        self
-    }
-
-    pub fn with_message_count(mut self, count: u64) -> Self {
-        self.message_count = count;
-        self
-    }
-
-    pub fn with_turn_count(mut self, count: u64) -> Self {
-        self.turn_count = count;
-        self
-    }
-
-    pub fn complete(&mut self) {
-        if self.end_time.is_none() {
-            let end_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-
-            self.end_time = Some(end_time);
-            self.duration_ms = Some((end_time - self.start_time) * 1000);
-        }
-    }
+impl SessionMetadataSupport for SessionExecution {
+    fn token_usage(&self) -> Option<&TokenUsage> { self.token_usage.as_ref() }
+    fn set_token_usage(&mut self, token_usage: TokenUsage) { self.token_usage = Some(token_usage); }
+    fn tool_usage(&self) -> &Vec<ToolUsage> { &self.tool_usage }
+    fn tool_usage_mut(&mut self) -> &mut Vec<ToolUsage> { &mut self.tool_usage }
+    fn message_count(&self) -> u64 { self.message_count }
+    fn set_message_count(&mut self, count: u64) { self.message_count = count; }
+    fn turn_count(&self) -> u64 { self.turn_count }
+    fn set_turn_count(&mut self, count: u64) { self.turn_count = count; }
 }
 
 impl CommandExecution {
@@ -423,54 +508,32 @@ impl CommandExecution {
         }
     }
 
-    pub fn with_result(mut self, result: CommandResult) -> Self {
-        let end_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        self.end_time = Some(end_time);
-        self.duration_ms = Some((end_time - self.start_time) * 1000);
-        self.result = Some(result);
-        self
-    }
-
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration_ms = Some(duration.as_millis() as u64);
-        self
-    }
-
-    pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
-        self.metadata.insert(key.to_string(), value.to_string());
-        self
-    }
-
     pub fn with_argument(mut self, key: &str, value: &str) -> Self {
         self.arguments.insert(key.to_string(), value.to_string());
         self
     }
+}
 
-    pub fn with_error_details(mut self, error_details: ErrorDetails) -> Self {
-        self.error_details = Some(error_details);
-        self
-    }
-
-    pub fn with_environment(mut self, environment: &str) -> Self {
-        self.environment = Some(environment.to_string());
-        self
-    }
-
-    pub fn complete(&mut self) {
-        if self.end_time.is_none() {
-            let end_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-
-            self.end_time = Some(end_time);
-            self.duration_ms = Some((end_time - self.start_time) * 1000);
-        }
-    }
+impl TelemetryExecution for CommandExecution {
+    type ResultType = CommandResult;
+    
+    fn start_time(&self) -> u64 { self.start_time }
+    fn end_time(&self) -> Option<u64> { self.end_time }
+    fn set_end_time(&mut self, time: u64) { self.end_time = Some(time); }
+    fn duration_ms(&self) -> Option<u64> { self.duration_ms }
+    fn set_duration_ms(&mut self, duration: u64) { self.duration_ms = Some(duration); }
+    fn result(&self) -> Option<&Self::ResultType> { self.result.as_ref() }
+    fn set_result(&mut self, result: Self::ResultType) { self.result = Some(result); }
+    fn user_id(&self) -> &str { &self.user_id }
+    fn set_user_id(&mut self, user_id: String) { self.user_id = user_id; }
+    fn usage_type(&self) -> &UsageType { &self.usage_type }
+    fn set_usage_type(&mut self, usage_type: UsageType) { self.usage_type = usage_type; }
+    fn environment(&self) -> Option<&String> { self.environment.as_ref() }
+    fn set_environment(&mut self, environment: String) { self.environment = Some(environment); }
+    fn metadata(&self) -> &HashMap<String, String> { &self.metadata }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { &mut self.metadata }
+    fn error_details(&self) -> Option<&ErrorDetails> { self.error_details.as_ref() }
+    fn set_error_details(&mut self, error_details: ErrorDetails) { self.error_details = Some(error_details); }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -606,5 +669,94 @@ mod tests {
             }
             _ => panic!("Expected RecipeExecution event"),
         }
+    }
+
+    #[test]
+    fn test_telemetry_execution_trait() {
+        use crate::telemetry::config::UsageType;
+        
+        let mut execution = RecipeExecution::new("test-recipe", "1.0.0");
+        
+        // Test trait methods
+        assert!(execution.start_time() > 0);
+        assert!(execution.end_time().is_none());
+        assert_eq!(execution.user_id(), "");
+        assert_eq!(execution.usage_type(), &UsageType::Human);
+        
+        // Test builder methods from trait
+        let execution = execution
+            .with_metadata("key1", "value1")
+            .with_environment("test-env")
+            .with_result(SessionResult::Success);
+            
+        assert_eq!(execution.metadata().get("key1"), Some(&"value1".to_string()));
+        assert_eq!(execution.environment(), Some(&"test-env".to_string()));
+        assert_eq!(execution.result(), Some(&SessionResult::Success));
+        assert!(execution.end_time().is_some());
+    }
+
+    #[test]
+    fn test_session_metadata_support_trait() {
+        let mut execution = RecipeExecution::new("test-recipe", "1.0.0");
+        
+        // Test session metadata support methods
+        assert_eq!(execution.message_count(), 0);
+        assert_eq!(execution.turn_count(), 0);
+        assert!(execution.token_usage().is_none());
+        assert!(execution.tool_usage().is_empty());
+        
+        // Test builder methods from trait
+        let token_usage = TokenUsage::new(100, 50);
+        let execution = execution
+            .with_message_count(10)
+            .with_turn_count(5)
+            .with_token_usage(token_usage);
+            
+        assert_eq!(execution.message_count(), 10);
+        assert_eq!(execution.turn_count(), 5);
+        assert!(execution.token_usage().is_some());
+        assert_eq!(execution.token_usage().unwrap().total_tokens, 150);
+    }
+
+    #[test]
+    fn test_command_execution_trait() {
+        let mut execution = CommandExecution::new("test-command", CommandType::Configure);
+        
+        // Test trait methods
+        assert!(execution.start_time() > 0);
+        assert!(execution.end_time().is_none());
+        assert_eq!(execution.user_id(), "");
+        
+        // Test builder methods from trait
+        let execution = execution
+            .with_metadata("key1", "value1")
+            .with_environment("test-env")
+            .with_result(CommandResult::Success);
+            
+        assert_eq!(execution.metadata().get("key1"), Some(&"value1".to_string()));
+        assert_eq!(execution.environment(), Some(&"test-env".to_string()));
+        assert_eq!(execution.result(), Some(&CommandResult::Success));
+        assert!(execution.end_time().is_some());
+    }
+
+    #[test]
+    fn test_session_execution_trait() {
+        let mut execution = SessionExecution::new("test-session", SessionType::Interactive);
+        
+        // Test trait methods
+        assert!(execution.start_time() > 0);
+        assert!(execution.end_time().is_none());
+        assert_eq!(execution.user_id(), "");
+        
+        // Test builder methods from trait
+        let execution = execution
+            .with_metadata("key1", "value1")
+            .with_environment("test-env")
+            .with_result(SessionResult::Success);
+            
+        assert_eq!(execution.metadata().get("key1"), Some(&"value1".to_string()));
+        assert_eq!(execution.environment(), Some(&"test-env".to_string()));
+        assert_eq!(execution.result(), Some(&SessionResult::Success));
+        assert!(execution.end_time().is_some());
     }
 }

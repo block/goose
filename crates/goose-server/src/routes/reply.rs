@@ -13,7 +13,7 @@ use goose::{
     agents::{AgentEvent, SessionConfig},
     message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
-    telemetry::{global_telemetry, SessionExecution, SessionResult, SessionType},
+    telemetry::{global_telemetry, SessionExecution, SessionResult, SessionType, TelemetryExecution, SessionMetadataSupport},
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},
