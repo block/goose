@@ -31,7 +31,7 @@ use std::path::PathBuf;
 
 use goose::message::MessageContent;
 use goose::telemetry::{
-    CommandExecution, CommandResult, CommandType, SessionExecution, SessionResult, SessionType,
+    detect_environment, CommandExecution, CommandResult, CommandType, SessionExecution, SessionResult, SessionType,
     TokenUsage, ToolUsage,
 };
 use std::collections::HashMap;
@@ -133,74 +133,6 @@ fn extract_telemetry_data_from_session(
     let environment = detect_environment();
 
     (token_usage, tool_usage, metadata, environment)
-}
-
-fn detect_environment() -> Option<String> {
-    let mut env_indicators = Vec::new();
-
-    if std::env::var("CI").is_ok() {
-        env_indicators.push("ci");
-    }
-    if std::env::var("GITHUB_ACTIONS").is_ok() {
-        env_indicators.push("github-actions");
-    }
-    if std::env::var("JENKINS_URL").is_ok() {
-        env_indicators.push("jenkins");
-    }
-    if std::env::var("GITLAB_CI").is_ok() {
-        env_indicators.push("gitlab-ci");
-    }
-
-    if std::env::var("DOCKER_CONTAINER").is_ok() || std::path::Path::new("/.dockerenv").exists() {
-        env_indicators.push("docker");
-    }
-    if std::env::var("KUBERNETES_SERVICE_HOST").is_ok() {
-        env_indicators.push("kubernetes");
-    }
-
-    if std::env::var("AWS_LAMBDA_FUNCTION_NAME").is_ok() {
-        env_indicators.push("aws-lambda");
-    }
-    if std::env::var("GOOGLE_CLOUD_PROJECT").is_ok() {
-        env_indicators.push("gcp");
-    }
-    if std::env::var("AZURE_FUNCTIONS_ENVIRONMENT").is_ok() {
-        env_indicators.push("azure-functions");
-    }
-
-    if std::env::var("VSCODE_INJECTION").is_ok() {
-        env_indicators.push("vscode");
-    }
-    if std::env::var("TERM_PROGRAM").as_deref() == Ok("iTerm.app") {
-        env_indicators.push("iterm");
-    }
-    if std::env::var("TERM_PROGRAM").as_deref() == Ok("Apple_Terminal") {
-        env_indicators.push("terminal-app");
-    }
-
-    if std::env::var("GOOSE_JOB_ID").is_ok() {
-        env_indicators.push("scheduled");
-    }
-
-    #[cfg(target_os = "macos")]
-    env_indicators.push("macos");
-    #[cfg(target_os = "linux")]
-    env_indicators.push("linux");
-    #[cfg(target_os = "windows")]
-    env_indicators.push("windows");
-
-    #[cfg(target_arch = "x86_64")]
-    env_indicators.push("x86_64");
-    #[cfg(target_arch = "aarch64")]
-    env_indicators.push("aarch64");
-    #[cfg(target_arch = "arm")]
-    env_indicators.push("arm");
-
-    if env_indicators.is_empty() {
-        None
-    } else {
-        Some(env_indicators.join(","))
-    }
 }
 
 async fn track_session_execution<F, Fut, T>(

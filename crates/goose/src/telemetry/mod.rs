@@ -1,5 +1,6 @@
 mod config;
 mod datadog_metrics;
+mod environment;
 mod events;
 mod manager;
 mod providers;
@@ -7,6 +8,7 @@ mod user;
 
 pub use {
     config::{TelemetryConfig, TelemetryProvider, UsageType},
+    environment::detect_environment,
     events::{
         CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution, RecipeResult,
         SessionExecution, SessionResult, SessionType, TelemetryEvent, TokenUsage, ToolUsage,
