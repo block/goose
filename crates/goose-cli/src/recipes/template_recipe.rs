@@ -6,6 +6,7 @@ use std::{
 use anyhow::Result;
 use goose::recipe::Recipe;
 use minijinja::{Environment, UndefinedBehavior};
+use regex::Regex;
 
 use crate::recipes::recipe::BUILT_IN_RECIPE_DIR_PARAM;
 
@@ -15,8 +16,13 @@ pub fn render_recipe_content_with_params(
     content: &str,
     params: &HashMap<String, String>,
 ) -> Result<String> {
+    // Pre-process content to replace empty double quotes with single quotes
+    // This prevents MiniJinja from escaping "" to "\"\"" which would break YAML parsing
+    let re = Regex::new(r#":\s*"""#).unwrap();
+    let processed_content = re.replace_all(content, ": ''");
+
     let env = add_template_in_env(
-        content,
+        &processed_content,
         params.get(BUILT_IN_RECIPE_DIR_PARAM).unwrap().clone(),
         UndefinedBehavior::Strict,
     )?;
@@ -167,6 +173,22 @@ mod tests {
             let params = HashMap::from([("recipe_dir".to_string(), "some_dir".to_string())]);
             let err = render_recipe_content_with_params(content, &params).unwrap_err();
             assert!(err.to_string().contains("unexpected end of input"));
+        }
+
+        #[test]
+        fn test_empty_prompt() {
+            let content = r#"
+prompt: ""
+name: "Simple Recipe"
+description: "A test recipe"
+"#;
+            let params = HashMap::from([("recipe_dir".to_string(), "test_dir".to_string())]);
+            let result = render_recipe_content_with_params(content, &params).unwrap();
+
+            assert!(result.contains("prompt: ''"));
+            assert!(!result.contains(r#"prompt: "\"\"""#)); // Should not contain escaped quotes
+
+            assert!(result.contains(r#"name: "Simple Recipe""#));
         }
     }
 }

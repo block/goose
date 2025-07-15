@@ -117,7 +117,6 @@ fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
 
     let content = fs::read_to_string(&path)
         .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
-
     let canonical = path.canonicalize().map_err(|e| {
         anyhow!(
             "Failed to resolve absolute path for {}: {}",
