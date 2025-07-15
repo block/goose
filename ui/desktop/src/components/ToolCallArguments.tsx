@@ -28,7 +28,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
       if (!needsExpansion) {
         return (
-          <div className="text-sm mb-2">
+          <div className="text-xs mb-2">
             <div className="flex flex-row">
               <span className="text-textSubtle min-w-[140px]">{key}</span>
               <span className="text-textPlaceholder">{value}</span>
@@ -78,7 +78,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
     return (
       <div className="mb-2">
-        <div className="flex flex-row">
+        <div className="flex flex-row text-xs">
           <span className="text-textSubtle min-w-[140px]">{key}</span>
           <pre className="whitespace-pre-wrap text-textPlaceholder overflow-x-auto max-w-full">
             {content}

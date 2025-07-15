@@ -450,7 +450,7 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
       label={<span className="pl-4 font-medium">Tool Details</span>}
       isStartExpanded={isStartExpanded}
     >
-      <div className="px-4">
+      <div className="pr-4 pl-8">
         {toolCall.arguments && (
           <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
         )}
