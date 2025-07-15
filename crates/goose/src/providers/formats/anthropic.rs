@@ -414,6 +414,175 @@ pub fn create_request(
     Ok(payload)
 }
 
+/// Process streaming response from Anthropic's API
+pub fn response_to_streaming_message<S>(
+    mut stream: S,
+) -> impl futures::Stream<
+    Item = anyhow::Result<(
+        Option<Message>,
+        Option<crate::providers::base::ProviderUsage>,
+    )>,
+> + 'static
+where
+    S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    use async_stream::try_stream;
+    use futures::StreamExt;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct StreamingEvent {
+        #[serde(rename = "type")]
+        event_type: String,
+        #[serde(flatten)]
+        data: Value,
+    }
+
+    try_stream! {
+        let mut accumulated_text = String::new();
+        let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+        let mut current_tool_id: Option<String> = None;
+        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+
+        while let Some(line_result) = stream.next().await {
+            let line = line_result?;
+
+            // Skip empty lines and non-data lines
+            if line.trim().is_empty() || !line.starts_with("data: ") {
+                continue;
+            }
+
+            let data_part = line.strip_prefix("data: ").unwrap_or(&line);
+
+            // Handle end of stream
+            if data_part.trim() == "[DONE]" {
+                break;
+            }
+
+            // Parse the JSON event
+            let event: StreamingEvent = match serde_json::from_str(data_part) {
+                Ok(event) => event,
+                Err(e) => {
+                    tracing::debug!("Failed to parse streaming event: {} - Line: {}", e, data_part);
+                    continue;
+                }
+            };
+
+            match event.event_type.as_str() {
+                "message_start" => {
+                    // Message started, we can extract initial metadata if needed
+                    continue;
+                }
+                "content_block_start" => {
+                    // A new content block started
+                    if let Some(content_block) = event.data.get("content_block") {
+                        if content_block.get("type") == Some(&json!("tool_use")) {
+                            if let Some(id) = content_block.get("id").and_then(|v| v.as_str()) {
+                                current_tool_id = Some(id.to_string());
+                                if let Some(name) = content_block.get("name").and_then(|v| v.as_str()) {
+                                    accumulated_tool_calls.insert(id.to_string(), (name.to_string(), String::new()));
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
+                "content_block_delta" => {
+                    if let Some(delta) = event.data.get("delta") {
+                        if delta.get("type") == Some(&json!("text_delta")) {
+                            // Text content delta
+                            if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
+                                accumulated_text.push_str(text);
+
+                                // Yield partial text message
+                                let message = Message::new(
+                                    mcp_core::role::Role::Assistant,
+                                    chrono::Utc::now().timestamp(),
+                                    vec![MessageContent::text(text)],
+                                );
+                                yield (Some(message), None);
+                            }
+                        } else if delta.get("type") == Some(&json!("input_json_delta")) {
+                            // Tool input delta
+                            if let Some(tool_id) = &current_tool_id {
+                                if let Some(partial_json) = delta.get("partial_json").and_then(|v| v.as_str()) {
+                                    if let Some((_name, args)) = accumulated_tool_calls.get_mut(tool_id) {
+                                        args.push_str(partial_json);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
+                "content_block_stop" => {
+                    // Content block finished
+                    if let Some(tool_id) = current_tool_id.take() {
+                        // Tool call finished, yield complete tool call
+                        if let Some((name, args)) = accumulated_tool_calls.remove(&tool_id) {
+                            let parsed_args = if args.is_empty() {
+                                json!({})
+                            } else {
+                                match serde_json::from_str::<Value>(&args) {
+                                    Ok(parsed) => parsed,
+                                    Err(_) => {
+                                        // If parsing fails, create an error tool request
+                                        let error = mcp_core::handler::ToolError::InvalidParameters(
+                                            format!("Could not parse tool arguments: {}", args)
+                                        );
+                                        let message = Message::new(
+                                            mcp_core::role::Role::Assistant,
+                                            chrono::Utc::now().timestamp(),
+                                            vec![MessageContent::tool_request(tool_id, Err(error))],
+                                        );
+                                        yield (Some(message), None);
+                                        continue;
+                                    }
+                                }
+                            };
+
+                            let tool_call = ToolCall::new(&name, parsed_args);
+                            let message = Message::new(
+                                mcp_core::role::Role::Assistant,
+                                chrono::Utc::now().timestamp(),
+                                vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
+                            );
+                            yield (Some(message), None);
+                        }
+                    }
+                    continue;
+                }
+                "message_delta" => {
+                    // Message metadata delta (like stop_reason)
+                    continue;
+                }
+                "message_stop" => {
+                    // Message finished, extract final usage if available
+                    if let Some(usage_data) = event.data.get("usage") {
+                        let usage = get_usage(usage_data).unwrap_or_default();
+                        let model = event.data.get("model")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+                        final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                    }
+                    break;
+                }
+                _ => {
+                    // Unknown event type, log and continue
+                    tracing::debug!("Unknown streaming event type: {}", event.event_type);
+                    continue;
+                }
+            }
+        }
+
+        // Yield final usage information if available
+        if let Some(usage) = final_usage {
+            yield (None, Some(usage));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
