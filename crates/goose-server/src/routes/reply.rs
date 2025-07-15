@@ -84,7 +84,9 @@ async fn track_failed_session(
 
         let _ = manager.track_session_execution(failed_execution).await;
     } else {
-        tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
+        tracing::warn!(
+            "Telemetry is disabled or not initialized - failed to track session failure"
+        );
     }
 }
 
@@ -260,7 +262,8 @@ async fn handler(
                             start_time,
                             None,
                             None,
-                        ).await;
+                        )
+                        .await;
 
                         if let (Some(recipe_name), Some(recipe_version)) =
                             (&request.recipe_name, &request.recipe_version)
@@ -271,7 +274,8 @@ async fn handler(
                                 SessionResult::Error("No provider configured".to_string()),
                                 start_time,
                                 "streaming",
-                            ).await;
+                            )
+                            .await;
                         }
                         return;
                     }
@@ -300,7 +304,8 @@ async fn handler(
                     start_time,
                     None,
                     None,
-                ).await;
+                )
+                .await;
                 return;
             }
         };
@@ -345,7 +350,8 @@ async fn handler(
                     start_time,
                     None,
                     None,
-                ).await;
+                )
+                .await;
                 return;
             }
         };
@@ -373,7 +379,8 @@ async fn handler(
                     start_time,
                     None,
                     None,
-                ).await;
+                )
+                .await;
                 return;
             }
         };
@@ -486,7 +493,8 @@ async fn handler(
             start_time,
             message_count as u64,
             turn_count as u64,
-        ).await;
+        )
+        .await;
 
         if let (Some(recipe_name), Some(recipe_version)) =
             (&request.recipe_name, &request.recipe_version)
@@ -497,7 +505,8 @@ async fn handler(
                 SessionResult::Success,
                 start_time,
                 "streaming",
-            ).await;
+            )
+            .await;
         }
     });
 
@@ -531,12 +540,7 @@ async fn ask_handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    let mut session_execution = create_session_execution(
-        &session_id,
-        "ask",
-        None,
-        None,
-    );
+    let mut session_execution = create_session_execution(&session_id, "ask", None, None);
 
     let agent = state
         .get_agent()
@@ -566,13 +570,7 @@ async fn ask_handler(
             tracing::error!("Failed to start reply stream: {:?}", e);
 
             // Track failed session
-            track_failed_session(
-                session_execution,
-                e.to_string(),
-                start_time,
-                None,
-                None,
-            ).await;
+            track_failed_session(session_execution, e.to_string(), start_time, None, None).await;
 
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -617,7 +615,8 @@ async fn ask_handler(
                     start_time,
                     Some(message_count as u64),
                     Some(turn_count as u64),
-                ).await;
+                )
+                .await;
 
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
@@ -641,7 +640,8 @@ async fn ask_handler(
                 start_time,
                 Some(message_count as u64),
                 Some(turn_count as u64),
-            ).await;
+            )
+            .await;
 
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -664,7 +664,8 @@ async fn ask_handler(
         start_time,
         message_count as u64,
         turn_count as u64,
-    ).await;
+    )
+    .await;
 
     Ok(Json(AskResponse {
         response: response_text.trim().to_string(),

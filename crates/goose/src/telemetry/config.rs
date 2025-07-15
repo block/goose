@@ -119,10 +119,7 @@ impl TelemetryConfig {
         match self.provider {
             TelemetryProvider::Datadog => {
                 if self.api_key.is_none() {
-                    return Err(
-                        "Datadog provider requires GOOSE_TELEMETRY_API_KEY"
-                            .to_string(),
-                    );
+                    return Err("Datadog provider requires GOOSE_TELEMETRY_API_KEY".to_string());
                 }
             }
             TelemetryProvider::Otlp => {

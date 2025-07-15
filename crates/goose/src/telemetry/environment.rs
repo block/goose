@@ -76,20 +76,29 @@ mod tests {
     #[test]
     fn test_detect_environment_with_no_indicators() {
         let vars_to_clear = [
-            "CI", "GITHUB_ACTIONS", "JENKINS_URL", "GITLAB_CI",
-            "DOCKER_CONTAINER", "KUBERNETES_SERVICE_HOST",
-            "AWS_LAMBDA_FUNCTION_NAME", "GOOGLE_CLOUD_PROJECT", "AZURE_FUNCTIONS_ENVIRONMENT",
-            "VSCODE_INJECTION", "TERM_PROGRAM", "GOOSE_JOB_ID"
+            "CI",
+            "GITHUB_ACTIONS",
+            "JENKINS_URL",
+            "GITLAB_CI",
+            "DOCKER_CONTAINER",
+            "KUBERNETES_SERVICE_HOST",
+            "AWS_LAMBDA_FUNCTION_NAME",
+            "GOOGLE_CLOUD_PROJECT",
+            "AZURE_FUNCTIONS_ENVIRONMENT",
+            "VSCODE_INJECTION",
+            "TERM_PROGRAM",
+            "GOOSE_JOB_ID",
         ];
-        
-        let original_values: Vec<_> = vars_to_clear.iter()
+
+        let original_values: Vec<_> = vars_to_clear
+            .iter()
             .map(|var| (var, env::var(var).ok()))
             .collect();
 
         for var in &vars_to_clear {
             env::remove_var(var);
         }
-        
+
         let result = detect_environment();
 
         for (var, original_value) in original_values {
@@ -107,7 +116,7 @@ mod tests {
         assert!(env_string.contains("linux"));
         #[cfg(target_os = "windows")]
         assert!(env_string.contains("windows"));
-        
+
         #[cfg(target_arch = "x86_64")]
         assert!(env_string.contains("x86_64"));
         #[cfg(target_arch = "aarch64")]

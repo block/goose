@@ -31,15 +31,18 @@ use std::path::PathBuf;
 
 use goose::message::MessageContent;
 use goose::telemetry::{
-    detect_environment, CommandExecution, CommandResult, CommandType, SessionExecution, SessionResult, SessionType,
-    TokenUsage, ToolUsage,
+    detect_environment, CommandExecution, CommandResult, CommandType, SessionExecution,
+    SessionResult, SessionType, TokenUsage, ToolUsage,
 };
 use std::collections::HashMap;
 
 fn log_if_telemetry_disabled(tracking_type: &str) {
-  if goose::telemetry::global_telemetry().is_none() {
-    tracing::debug!("Telemetry is disabled or not initialized for {} tracking", tracking_type);
-  }
+    if goose::telemetry::global_telemetry().is_none() {
+        tracing::debug!(
+            "Telemetry is disabled or not initialized for {} tracking",
+            tracking_type
+        );
+    }
 }
 
 fn extract_telemetry_data_from_session(
@@ -80,7 +83,7 @@ fn extract_telemetry_data_from_session(
                         tool_id_to_name.insert(tool_id.clone(), tool_name.clone());
 
                         tool_call_times.insert(tool_id.clone(), message.created);
-                        
+
                         tool_usage_map
                             .entry(tool_name.clone())
                             .or_insert_with(|| ToolUsage::new(tool_name));
@@ -88,7 +91,7 @@ fn extract_telemetry_data_from_session(
                 }
                 MessageContent::ToolResponse(tool_response) => {
                     let tool_id = &tool_response.id;
-                    
+
                     if let Some(tool_name) = tool_id_to_name.get(tool_id) {
                         if let Some(entry) = tool_usage_map.get_mut(tool_name) {
                             let duration = if let Some(start_time) = tool_call_times.get(tool_id) {
@@ -97,9 +100,9 @@ fn extract_telemetry_data_from_session(
                             } else {
                                 std::time::Duration::from_millis(0)
                             };
-                            
+
                             let success = tool_response.tool_result.is_ok();
-                            
+
                             entry.add_call(duration, success);
                         }
                     }
@@ -1009,6 +1012,9 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
+            if let Err(e) = goose::telemetry::shutdown_global_telemetry().await {
+                eprintln!("⚠️ Failed to shutdown telemetry for MCP process: {}", e);
+            }
             let _ = run_server(&name).await;
         }
         Some(Command::Session {
@@ -1071,12 +1077,13 @@ pub async fn cli() -> Result<()> {
                             no_session: false,
                             extensions,
                             remote_extensions,
-                            streamable_http_extensions,builtins,
+                            streamable_http_extensions,
+                            builtins,
                             extensions_override: None,
                             additional_system_prompt: None,
                             settings: None,
-                        provider: None,
-                        model:None,
+                            provider: None,
+                            model: None,
                             debug,
                             max_tool_repetitions,
                             max_turns,
@@ -1240,11 +1247,13 @@ pub async fn cli() -> Result<()> {
                             no_session,
                             extensions,
                             remote_extensions,
-                            streamable_http_extensions,builtins,
+                            streamable_http_extensions,
+                            builtins,
                             extensions_override: input_config.extensions_override,
                             additional_system_prompt: input_config.additional_system_prompt,
-                            settings: session_settings,provider,
-                model,
+                            settings: session_settings,
+                            provider,
+                            model,
                             debug,
                             max_tool_repetitions,
                             max_turns,
