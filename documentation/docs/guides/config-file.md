@@ -31,8 +31,17 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_TOOLSHIM` | Enable tool interpretation | true/false | false | No |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
 | `GOOSE_CLI_MIN_PRIORITY` | Tool output verbosity | Float between 0.0 and 1.0 | 0.0 | No |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" | No |
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
+
+## Experimental Features
+
+These settings enable experimental features that are in active development. These may change or be removed in future releases.
+
+| Setting | Purpose | Values | Default | Required |
+|---------|---------|---------|---------|-----------|
+| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | true/false | false | No |
 
 Additional [environment variables](/docs/guides/environment-variables) may also be supported in config.yaml.
 
@@ -57,6 +66,9 @@ GOOSE_CLI_MIN_PRIORITY: 0.2
 
 # Recipe Configuration
 GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
+
+# Experimental Features
+ALPHA_FEATURES: true
 
 # Extensions Configuration
 extensions:

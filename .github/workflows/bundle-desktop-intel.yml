@@ -24,7 +24,7 @@ on:
       ref:
         type: string
         required: false
-        default: 'refs/heads/main'
+        default: ''
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'

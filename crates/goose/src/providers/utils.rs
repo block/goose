@@ -319,12 +319,15 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace(
+pub fn emit_debug_trace<T1, T2>(
     model_config: &ModelConfig,
-    payload: &Value,
-    response: &Value,
+    payload: &T1,
+    response: &T2,
     usage: &Usage,
-) {
+) where
+    T1: ?Sized + Serialize,
+    T2: ?Sized + Serialize,
+{
     tracing::debug!(
         model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
         input = %serde_json::to_string_pretty(payload).unwrap_or_default(),

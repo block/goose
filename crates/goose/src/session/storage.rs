@@ -1526,7 +1526,7 @@ mod tests {
             "]}}\"\\n\\\"{[",
             "Edge case: } ] some text",
             "{\"foo\": \"} ]\"}",
-            "}]",   
+            "}]",
         ];
 
         let mut messages = Vec::new();

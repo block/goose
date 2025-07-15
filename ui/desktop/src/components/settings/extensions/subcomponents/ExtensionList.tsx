@@ -19,9 +19,14 @@ export default function ExtensionList({
   isStatic,
   disableConfiguration: _disableConfiguration,
 }: ExtensionListProps) {
+  // Sort extensions alphabetically by their friendly title
+  const sortedExtensions = [...extensions].sort((a, b) =>
+    getFriendlyTitle(a).localeCompare(getFriendlyTitle(b))
+  );
+
   return (
     <div className="grid grid-cols-2 gap-2 mb-2">
-      {extensions.map((extension) => (
+      {sortedExtensions.map((extension) => (
         <ExtensionItem
           key={extension.name}
           extension={extension}

@@ -786,7 +786,7 @@ function ChatContent({
               <SearchView>
                 {filteredMessages.map((message, index) => (
                   <div
-                    key={message.id || index}
+                    key={(message.id && `${message.id}-${message.content.length}`) || index}
                     className="mt-4 px-4"
                     data-testid="message-container"
                   >

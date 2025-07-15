@@ -47,7 +47,7 @@ pub fn extract_recipe_info_from_cli(
     }
     Ok((
         InputConfig {
-            contents: recipe.prompt,
+            contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
             extensions_override: recipe.extensions,
             additional_system_prompt: recipe.instructions,
         },

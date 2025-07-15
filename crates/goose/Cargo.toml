@@ -81,6 +81,7 @@ fs2 = "0.4.3"
 tokio-stream = "0.1.17"
 dashmap = "6.1"
 ahash = "0.8"
+tokio-util = "0.7.15"
 
 # Vector database for tool selection
 lancedb = "0.13"

@@ -589,7 +589,8 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/prompts [--extension <n>]` - List all available prompts, optionally filtered by extension
 - `/recipe <recipe file name>` - Generate and save a session recipe to `recipe.yaml` or the filename specified by the command parameter.
 - `/summarize` - Summarize the current session to reduce context length while preserving key information
-- `/t` - Toggle between Light/Dark/Ansi themes
+- `/t` - Toggle between `light`, `dark`, and `ansi` themes
+- `/t <theme>` - Set the `light`, `dark`, or `ansi` theme
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
@@ -619,6 +620,40 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 ### Slash Commands
 - **`/exit` or `/quit`** - Exit the session
-- **`/t`** - Toggle between Light/Dark/Ansi themes
-- **`/t <theme>`** - Set theme directly (`/t light`, `/t dark`, or `/t ansi`)
+- **`/t`** - Toggle between `light`, `dark`, and `ansi` themes
+- **`/t <theme>`** - Set the `light`, `dark`, or `ansi` theme
 - **`/?` or `/help`** - Display the help menu
+
+### Themes
+
+The `/t` command controls the syntax highlighting theme for markdown content in Goose CLI responses. This affects the styles used for headers, code blocks, bold/italic text, and other markdown elements in the response output.
+
+**Commands:**
+- `/t` - Cycles through themes: `light` → `dark` → `ansi` → `light`
+- `/t light` - Sets `light` theme (subtle light colors)
+- `/t dark` - Sets `dark` theme (subtle darker colors)
+- `/t ansi` - Sets `ansi` theme (most visually distinct option with brighter colors)
+
+**Configuration:**
+- The default theme is `dark`
+- The theme setting is saved to the [configuration file](/docs/guides/config-file) as `GOOSE_CLI_THEME` and persists between sessions
+- The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
+
+:::info
+Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
+
+The Goose CLI theme is independent from the Goose Desktop theme.
+:::
+
+**Examples:**
+```bash
+# Set ANSI theme for the session via environment variable
+export GOOSE_CLI_THEME=ansi
+goose session --name use-custom-theme
+
+# Toggle theme during a session
+/t
+
+# Set the light theme during a session
+/t light
+```
