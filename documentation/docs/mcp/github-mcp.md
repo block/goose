@@ -41,18 +41,19 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click the gear icon `⚙️` in the top right corner
-    2. Click `Advanced settings`
-    3. Under `Extensions`, click `Add custom extension`
-    4. On the `Add custom extension` modal, enter the following:
+    1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
+    2. Click the gear icon `⚙️` in the top right corner
+    3. Click `Advanced settings`
+    4. Under `Extensions`, click `Add custom extension`
+    5. On the `Add custom extension` modal, enter the following:
        - **Extension Name**: GitHub
        - **Type**: Streamable HTTP
        - **Endpoint**: `https://api.githubcopilot.com/mcp/`
        - **Request Headers**: 
          - **Header name**: `Authorization`
          - **Value**: `Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` 
-    5. Click `+ Add` to save the header
-    6. Click `Add Extension` to save the extension
+    6. Click `+ Add` to save the header
+    7. Click `Add Extension` to save the extension
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
