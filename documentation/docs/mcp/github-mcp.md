@@ -301,9 +301,6 @@ These steps configure the Remote MCP Server. For other deployment options, see t
   </TabItem>
 </Tabs>
   
- :::info Get Your Access Token
- Replace `<YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` with your actual token from [GitHub Settings](https://github.com/settings/personal-access-tokens). When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.
- :::
 
 ## Example Usage
 
