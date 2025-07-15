@@ -6,7 +6,7 @@ description: Add GitHub MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import CLIStreamExtensionInstructions from '@site/src/components/CLIStreamExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
@@ -53,251 +53,22 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    1. Run the `configure` command:
-    ```sh
-    goose configure
-    ```
+    <CLIStreamExtensionInstructions
+      name="github"
+      endpointUri="https://api.githubcopilot.com/mcp/"
+      timeout={300}
+      headers={[
+        { key: "Authorization", value: "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+      ]}
+      infoNote={
+        <>
+          Obtain your <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub Personal Access Token</a> and paste it in
+        </>
+      }
+    />
 
-    2. Choose to add a `Remote Extension (Streaming HTTP)`
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◆  What type of extension would you like to add?
-        │  ○ Built-in Extension 
-        │  ○ Command-line Extension (Run a local command or script)
-        │  ○ Remote Extension (SSE) 
-        // highlight-start    
-        │  ● Remote Extension (Streaming HTTP) 
-        // highlight-end    
-        └ 
-    ```
-
-    3. Give your extension a name
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        // highlight-start
-        ◆  What would you like to call this extension?
-        │  github
-        // highlight-end
-        └ 
-    ```
-
-    4. Enter the Streaming HTTP endpoint URI
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        // highlight-start
-        ◆  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        // highlight-end
-        └ 
-    ``` 
-
-    5. Set the timeout
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        // highlight-start
-        ◆  Please set the timeout for this tool (in secs):
-        │  300
-        // highlight-end
-        └ 
-    ``` 
-
-    6. Choose whether to add a description
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        // highlight-start
-        ◆  Would you like to add a description?
-        │  No
-        // highlight-end
-        └ 
-    ```
-
-    7. Add a custom header for authentication
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        ◇  Would you like to add a description?
-        │  No
-        │
-        // highlight-start
-        ◆  Would you like to add custom headers?
-        │  Yes
-        // highlight-end
-        └ 
-    ```
-
-    8. Enter the Authorization header
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        ◇  Would you like to add a description?
-        │  No
-        │
-        ◇  Would you like to add custom headers?
-        │  Yes
-        │
-        // highlight-start
-        ◆  Header name:
-        │  Authorization
-        // highlight-end
-        └ 
-    ```
-
-    9. Enter your [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  300
-        │
-        ◇  Would you like to add a description?
-        │  No
-        │
-        ◇  Would you like to add custom headers?
-        │  Yes
-        │
-        ◇  Header name:
-        │  Authorization
-        │
-        // highlight-start
-        ◆  Header value:
-        │  Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-        // highlight-end
-        └ 
-    ```
-
-    10. Choose not to add another header
-    ```sh
-        ┌   goose-configure 
-        │
-        ◇  What would you like to configure?
-        │  Add Extension 
-        │
-        ◇  What type of extension would you like to add?
-        │  Remote Extension (Streaming HTTP) 
-        │
-        ◇  What would you like to call this extension?
-        │  github
-        │
-        ◇  What is the Streaming HTTP endpoint URI?
-        │  https://api.githubcopilot.com/mcp/
-        │
-        ◇  Please set the timeout for this tool (in secs):
-        │  100
-        │
-        ◇  Would you like to add a description?
-        │  No
-        │
-        ◇  Would you like to add custom headers?
-        │  Yes
-        │
-        ◇  Header name:
-        │  Authorization
-        │
-        ◇  Header value:
-        │  Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-        │
-        // highlight-start
-        ◆  Add another header?
-        │  No 
-        │
-        // highlight-end
-        └  Added github extension
-    ```  
   </TabItem>
 </Tabs>
-  
 
 ## Example Usage
 
