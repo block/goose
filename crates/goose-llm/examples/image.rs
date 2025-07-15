@@ -1,15 +1,13 @@
-use std::{vec, fs};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use goose_llm::{
     completion,
-    types::completion::{
-        CompletionRequest, CompletionResponse
-    },
     message::MessageContent,
-    Message, ModelConfig, 
+    types::completion::{CompletionRequest, CompletionResponse},
+    Message, ModelConfig,
 };
 use serde_json::json;
+use std::{fs, vec};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,7 +16,7 @@ async fn main() -> Result<()> {
         "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
-    let model_name = "kgoose-claude-4-sonnet"; // "gpt-4o";
+    let model_name = "goose-claude-4-sonnet"; // "gpt-4o";
     let model_config = ModelConfig::new(model_name.to_string());
 
     let system_preamble = "You are a helpful assistant.";
@@ -33,15 +31,18 @@ async fn main() -> Result<()> {
 
     let messages = vec![user_msg];
 
-    let completion_response: CompletionResponse = completion(CompletionRequest::new(
-        provider.to_string(),
-        provider_config.clone(),
-        model_config.clone(),
-        Some(system_preamble.to_string()),
-        None,
-        messages,
-        vec![],
-    ))
+    let completion_response: CompletionResponse = completion(
+        CompletionRequest::new(
+            provider.to_string(),
+            provider_config.clone(),
+            model_config.clone(),
+            Some(system_preamble.to_string()),
+            None,
+            messages,
+            vec![],
+        )
+        .with_request_id("test-image-1".to_string()),
+    )
     .await?;
 
     // Print the response
