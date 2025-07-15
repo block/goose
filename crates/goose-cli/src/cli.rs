@@ -298,6 +298,12 @@ where
                     builder = builder.with_environment(&env);
                 }
 
+                if let Ok(session_metadata) = session.get_metadata() {
+                    builder = builder.with_message_count(session_metadata.message_count as u64);
+                }
+                let messages = session.message_history();
+                builder = builder.with_turn_count(messages.len() as u64);
+
                 builder.build()
             }
             Err(e) => {

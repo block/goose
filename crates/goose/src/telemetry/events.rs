@@ -25,6 +25,8 @@ pub struct RecipeExecution {
     pub metadata: HashMap<String, String>,
     pub token_usage: Option<TokenUsage>,
     pub tool_usage: Vec<ToolUsage>,
+    pub message_count: u64,
+    pub turn_count: u64,
     pub error_details: Option<ErrorDetails>,
 }
 
@@ -48,6 +50,8 @@ impl RecipeExecution {
             metadata: HashMap::new(),
             token_usage: None,
             tool_usage: Vec::new(),
+            message_count: 0,
+            turn_count: 0,
             error_details: None,
         }
     }
@@ -93,6 +97,15 @@ impl RecipeExecution {
         self
     }
 
+    pub fn with_message_count(mut self, count: u64) -> Self {
+        self.message_count = count;
+        self
+    }
+
+    pub fn with_turn_count(mut self, count: u64) -> Self {
+        self.turn_count = count;
+        self
+    }
     pub fn complete(&mut self) {
         if self.end_time.is_none() {
             let end_time = SystemTime::now()

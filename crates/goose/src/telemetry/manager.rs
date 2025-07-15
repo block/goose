@@ -255,6 +255,16 @@ impl RecipeExecutionBuilder {
         self
     }
 
+    pub fn with_message_count(mut self, count: u64) -> Self {
+        self.execution = self.execution.with_message_count(count);
+        self
+    }
+
+    pub fn with_turn_count(mut self, count: u64) -> Self {
+        self.execution = self.execution.with_turn_count(count);
+        self
+    }
+
     pub fn build(self) -> RecipeExecution {
         self.execution
     }
