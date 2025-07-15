@@ -51,7 +51,8 @@ impl CompletionRequest {
     }
 }
 
-#[uniffi::export(default(system_preamble = None,  system_prompt_override = None, request_id = None))]
+#[allow(clippy::too_many_arguments)]
+#[uniffi::export(default(system_preamble = None,  system_prompt_override = None))]
 pub fn create_completion_request(
     provider_name: &str,
     provider_config: JsonValueFfi,
