@@ -30,62 +30,6 @@ impl SubAgentManager {
         }
     }
 
-    /// Spawn a new interactive subagent
-    #[instrument(skip(self, args, provider, extension_manager))]
-    pub async fn spawn_interactive_subagent(
-        &self,
-        args: SpawnSubAgentArgs,
-        provider: Arc<dyn Provider>,
-        extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
-    ) -> Result<String> {
-        debug!("Spawning interactive subagent");
-
-        // Create subagent config based on whether we have a recipe or instructions
-        let mut config = if let Some(recipe_name) = args.recipe_name {
-            debug!("Using recipe: {}", recipe_name);
-            // Load the recipe
-            let recipe = self.load_recipe(&recipe_name).await?;
-            SubAgentConfig::new_with_recipe(recipe)
-        } else if let Some(instructions) = args.instructions {
-            debug!("Using direct instructions");
-            SubAgentConfig::new_with_instructions(instructions)
-        } else {
-            return Err(anyhow!(
-                "Either recipe_name or instructions must be provided"
-            ));
-        };
-
-        if let Some(max_turns) = args.max_turns {
-            config = config.with_max_turns(max_turns);
-        }
-        if let Some(timeout) = args.timeout_seconds {
-            config = config.with_timeout(timeout);
-        }
-
-        // Create the subagent with the parent agent's provider
-        let (subagent, handle) = SubAgent::new(
-            config,
-            Arc::clone(&provider),
-            Arc::clone(&extension_manager),
-            self.mcp_notification_tx.clone(),
-        )
-        .await?;
-        let subagent_id = subagent.id.clone();
-
-        // Store the subagent and its handle
-        {
-            let mut subagents = self.subagents.write().await;
-            subagents.insert(subagent_id.clone(), Arc::clone(&subagent));
-        }
-        {
-            let mut handles = self.handles.lock().await;
-            handles.insert(subagent_id.clone(), handle);
-        }
-
-        // Return immediately - no initial message processing
-        Ok(subagent_id)
-    }
-
     /// Get a subagent by ID
     pub async fn get_subagent(&self, id: &str) -> Option<Arc<SubAgent>> {
         let subagents = self.subagents.read().await;
@@ -120,34 +64,6 @@ impl SubAgentManager {
         }
 
         progress_map
-    }
-
-    /// Send a message to a specific subagent
-    #[instrument(skip(self, message, provider, extension_manager))]
-    pub async fn send_message_to_subagent(
-        &self,
-        subagent_id: &str,
-        message: String,
-        provider: Arc<dyn Provider>,
-        extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
-    ) -> Result<String> {
-        let subagent = self
-            .get_subagent(subagent_id)
-            .await
-            .ok_or_else(|| anyhow!("Subagent {} not found", subagent_id))?;
-
-        // Process the message and get a reply
-        match subagent
-            .reply_subagent(message, provider, extension_manager)
-            .await
-        {
-            Ok(response) => Ok(format!(
-                "Message sent to subagent {}. Response:\n{}",
-                subagent_id,
-                response.as_concat_text()
-            )),
-            Err(e) => Err(anyhow!("Failed to process message in subagent: {}", e)),
-        }
     }
 
     /// Terminate a specific subagent
@@ -292,7 +208,7 @@ impl SubAgentManager {
         &self,
         args: SpawnSubAgentArgs,
         provider: Arc<dyn Provider>,
-        extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
+        extension_manager: Arc<RwLock<ExtensionManager>>,
     ) -> Result<String> {
         debug!("Running complete subagent task");
 
@@ -348,11 +264,12 @@ impl SubAgentManager {
         // for the subagent to continue autonomously without user input
         // In a future iteration, we could add logic for the subagent to continue
         // working on multi-step tasks with proper turn management
+        let extension_manager_guard = extension_manager.read().await;
         match subagent
             .reply_subagent(
                 current_message,
                 Arc::clone(&provider),
-                Arc::clone(&extension_manager),
+                Arc::new(extension_manager_guard),
             )
             .await
         {
