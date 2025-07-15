@@ -36,6 +36,96 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use utoipa::ToSchema;
 
+fn create_session_execution(
+    session_id: &str,
+    session_type: &str,
+    recipe_name: Option<&str>,
+    recipe_version: Option<&str>,
+) -> SessionExecution {
+    let mut session_execution = SessionExecution::new(session_id, SessionType::Interactive)
+        .with_metadata("execution_mode", "server")
+        .with_metadata("session_type", session_type)
+        .with_metadata("interface", "ui");
+
+    if let Some(recipe_name) = recipe_name {
+        session_execution = session_execution
+            .with_metadata("recipe_name", recipe_name)
+            .with_metadata("session_mode", "recipe");
+    }
+    if let Some(recipe_version) = recipe_version {
+        session_execution = session_execution.with_metadata("recipe_version", recipe_version);
+    }
+
+    if recipe_name.is_none() {
+        session_execution = session_execution.with_metadata("session_mode", "chat");
+    }
+
+    session_execution
+}
+
+async fn track_failed_session(
+    session_execution: SessionExecution,
+    error_message: String,
+    start_time: Instant,
+    message_count: Option<u64>,
+    turn_count: Option<u64>,
+) {
+    if let Some(manager) = global_telemetry() {
+        let mut failed_execution = session_execution
+            .with_result(SessionResult::Error(error_message))
+            .with_duration(start_time.elapsed());
+
+        if let Some(count) = message_count {
+            failed_execution = failed_execution.with_message_count(count);
+        }
+        if let Some(count) = turn_count {
+            failed_execution = failed_execution.with_turn_count(count);
+        }
+
+        let _ = manager.track_session_execution(failed_execution).await;
+    } else {
+        tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
+    }
+}
+
+async fn track_successful_session(
+    session_execution: SessionExecution,
+    start_time: Instant,
+    message_count: u64,
+    turn_count: u64,
+) {
+    if let Some(manager) = global_telemetry() {
+        let successful_execution = session_execution
+            .with_result(SessionResult::Success)
+            .with_message_count(message_count)
+            .with_turn_count(turn_count)
+            .with_duration(start_time.elapsed());
+        let _ = manager.track_session_execution(successful_execution).await;
+    }
+}
+
+async fn track_recipe_execution(
+    recipe_name: &str,
+    recipe_version: &str,
+    result: RecipeResult,
+    start_time: Instant,
+    session_type: &str,
+) {
+    if let Some(manager) = global_telemetry() {
+        let recipe_execution = manager
+            .recipe_execution(recipe_name, recipe_version)
+            .with_result(result)
+            .with_duration(start_time.elapsed())
+            .with_metadata("interface", "ui")
+            .with_metadata("execution_mode", "server")
+            .with_metadata("session_type", session_type);
+
+        let _ = manager
+            .track_recipe_execution(recipe_execution.build())
+            .await;
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
     messages: Vec<Message>,
@@ -134,25 +224,12 @@ async fn handler(
 
     tokio::spawn(async move {
         let start_time = Instant::now();
-        let mut session_execution = SessionExecution::new(&session_id, SessionType::Interactive)
-            .with_metadata("execution_mode", "server")
-            .with_metadata("session_type", "streaming")
-            .with_metadata("interface", "ui");
-
-        // Add recipe metadata if available
-        if let Some(recipe_name) = &request.recipe_name {
-            session_execution = session_execution
-                .with_metadata("recipe_name", recipe_name)
-                .with_metadata("session_mode", "recipe");
-        }
-        if let Some(recipe_version) = &request.recipe_version {
-            session_execution = session_execution.with_metadata("recipe_version", recipe_version);
-        }
-
-        // If no recipe, mark as regular chat
-        if request.recipe_name.is_none() {
-            session_execution = session_execution.with_metadata("session_mode", "chat");
-        }
+        let mut session_execution = create_session_execution(
+            &session_id,
+            "streaming",
+            request.recipe_name.as_deref(),
+            request.recipe_version.as_deref(),
+        );
 
         let agent = state.get_agent().await;
         let agent = match agent {
@@ -176,35 +253,25 @@ async fn handler(
                         )
                         .await;
 
-                        // Track failed session
-                        if let Some(manager) = global_telemetry() {
-                            let failed_execution = session_execution
-                                .clone()
-                                .with_result(SessionResult::Error(
-                                    "No provider configured".to_string(),
-                                ))
-                                .with_duration(start_time.elapsed());
-                            let _ = manager.track_session_execution(failed_execution).await;
+                        // Track failed session and recipe execution
+                        track_failed_session(
+                            session_execution.clone(),
+                            "No provider configured".to_string(),
+                            start_time,
+                            None,
+                            None,
+                        ).await;
 
-                            // Also track as failed recipe execution if this is a recipe session
-                            if let (Some(recipe_name), Some(recipe_version)) =
-                                (&request.recipe_name, &request.recipe_version)
-                            {
-                                let recipe_execution = manager
-                                    .recipe_execution(recipe_name, recipe_version)
-                                    .with_result(RecipeResult::Error(
-                                        "No provider configured".to_string(),
-                                    ))
-                                    .with_duration(start_time.elapsed())
-                                    .with_metadata("interface", "ui")
-                                    .with_metadata("execution_mode", "server")
-                                    .with_metadata("session_type", "streaming");
-                                let _ = manager
-                                    .track_recipe_execution(recipe_execution.build())
-                                    .await;
-                            }
-                        } else {
-                            tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
+                        if let (Some(recipe_name), Some(recipe_version)) =
+                            (&request.recipe_name, &request.recipe_version)
+                        {
+                            track_recipe_execution(
+                                recipe_name,
+                                recipe_version,
+                                RecipeResult::Error("No provider configured".to_string()),
+                                start_time,
+                                "streaming",
+                            ).await;
                         }
                         return;
                     }
@@ -227,13 +294,13 @@ async fn handler(
                 .await;
 
                 // Track failed session
-                if let Some(manager) = global_telemetry() {
-                    let failed_execution = session_execution
-                        .clone()
-                        .with_result(SessionResult::Error("No agent configured".to_string()))
-                        .with_duration(start_time.elapsed());
-                    let _ = manager.track_session_execution(failed_execution).await;
-                }
+                track_failed_session(
+                    session_execution.clone(),
+                    "No agent configured".to_string(),
+                    start_time,
+                    None,
+                    None,
+                ).await;
                 return;
             }
         };
@@ -272,13 +339,13 @@ async fn handler(
                 .await;
 
                 // Track failed session
-                if let Some(manager) = global_telemetry() {
-                    let failed_execution = session_execution
-                        .clone()
-                        .with_result(SessionResult::Error(e.to_string()))
-                        .with_duration(start_time.elapsed());
-                    let _ = manager.track_session_execution(failed_execution).await;
-                }
+                track_failed_session(
+                    session_execution.clone(),
+                    e.to_string(),
+                    start_time,
+                    None,
+                    None,
+                ).await;
                 return;
             }
         };
@@ -300,16 +367,13 @@ async fn handler(
                 .await;
 
                 // Track failed session
-                if let Some(manager) = global_telemetry() {
-                    let failed_execution = session_execution
-                        .clone()
-                        .with_result(SessionResult::Error(format!(
-                            "Failed to get session path: {}",
-                            e
-                        )))
-                        .with_duration(start_time.elapsed());
-                    let _ = manager.track_session_execution(failed_execution).await;
-                }
+                track_failed_session(
+                    session_execution.clone(),
+                    format!("Failed to get session path: {}", e),
+                    start_time,
+                    None,
+                    None,
+                ).await;
                 return;
             }
         };
@@ -374,14 +438,13 @@ async fn handler(
                             ).await;
 
                             // Track failed session
-                            if let Some(manager) = global_telemetry() {
-                                let failed_execution = session_execution.clone()
-                                    .with_result(SessionResult::Error(e.to_string()))
-                                    .with_message_count(message_count as u64)
-                                    .with_turn_count(turn_count as u64)
-                                    .with_duration(start_time.elapsed());
-                                let _ = manager.track_session_execution(failed_execution).await;
-                            }
+                            track_failed_session(
+                                session_execution.clone(),
+                                e.to_string(),
+                                start_time,
+                                Some(message_count as u64),
+                                Some(turn_count as u64),
+                            ).await;
                             break;
                         }
                         Ok(None) => {
@@ -417,35 +480,24 @@ async fn handler(
         )
         .await;
 
-        // Track successful session
-        if let Some(manager) = global_telemetry() {
-            let successful_execution = session_execution
-                .with_result(SessionResult::Success)
-                .with_message_count(message_count as u64)
-                .with_turn_count(turn_count as u64)
-                .with_duration(start_time.elapsed());
-            let _ = manager.track_session_execution(successful_execution).await;
+        // Track successful session and recipe execution
+        track_successful_session(
+            session_execution.clone(),
+            start_time,
+            message_count as u64,
+            turn_count as u64,
+        ).await;
 
-            // Also track as recipe execution if this is a recipe session
-            if let (Some(recipe_name), Some(recipe_version)) =
-                (&request.recipe_name, &request.recipe_version)
-            {
-                let recipe_execution = manager
-                    .recipe_execution(recipe_name, recipe_version)
-                    .with_result(RecipeResult::Success)
-                    .with_duration(start_time.elapsed())
-                    .with_metadata("interface", "ui")
-                    .with_metadata("execution_mode", "server")
-                    .with_metadata("session_type", "streaming");
-
-                // Add tool usage and token usage if available from session
-                // Note: For UI recipe sessions, we track the session but recipe metrics
-                // focus on the recipe completion rather than individual tool calls
-
-                let _ = manager
-                    .track_recipe_execution(recipe_execution.build())
-                    .await;
-            }
+        if let (Some(recipe_name), Some(recipe_version)) =
+            (&request.recipe_name, &request.recipe_version)
+        {
+            track_recipe_execution(
+                recipe_name,
+                recipe_version,
+                RecipeResult::Success,
+                start_time,
+                "streaming",
+            ).await;
         }
     });
 
@@ -479,10 +531,12 @@ async fn ask_handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    let mut session_execution = SessionExecution::new(&session_id, SessionType::Interactive)
-        .with_metadata("execution_mode", "server")
-        .with_metadata("session_type", "ask")
-        .with_metadata("interface", "ui");
+    let mut session_execution = create_session_execution(
+        &session_id,
+        "ask",
+        None,
+        None,
+    );
 
     let agent = state
         .get_agent()
@@ -512,14 +566,13 @@ async fn ask_handler(
             tracing::error!("Failed to start reply stream: {:?}", e);
 
             // Track failed session
-            if let Some(manager) = global_telemetry() {
-                let failed_execution = session_execution
-                    .with_result(SessionResult::Error(e.to_string()))
-                    .with_duration(start_time.elapsed());
-                let _ = manager.track_session_execution(failed_execution).await;
-            } else {
-                tracing::warn!("Telemetry is disabled or not initialized - failed to track session failure");
-            }
+            track_failed_session(
+                session_execution,
+                e.to_string(),
+                start_time,
+                None,
+                None,
+            ).await;
 
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -558,14 +611,13 @@ async fn ask_handler(
                 tracing::error!("Error processing as_ai message: {}", e);
 
                 // Track failed session
-                if let Some(manager) = global_telemetry() {
-                    let failed_execution = session_execution
-                        .with_result(SessionResult::Error(e.to_string()))
-                        .with_message_count(message_count as u64)
-                        .with_turn_count(turn_count as u64)
-                        .with_duration(start_time.elapsed());
-                    let _ = manager.track_session_execution(failed_execution).await;
-                }
+                track_failed_session(
+                    session_execution,
+                    e.to_string(),
+                    start_time,
+                    Some(message_count as u64),
+                    Some(turn_count as u64),
+                ).await;
 
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
@@ -583,17 +635,13 @@ async fn ask_handler(
             tracing::error!("Failed to get session path: {}", e);
 
             // Track failed session
-            if let Some(manager) = global_telemetry() {
-                let failed_execution = session_execution
-                    .with_result(SessionResult::Error(format!(
-                        "Failed to get session path: {}",
-                        e
-                    )))
-                    .with_message_count(message_count as u64)
-                    .with_turn_count(turn_count as u64)
-                    .with_duration(start_time.elapsed());
-                let _ = manager.track_session_execution(failed_execution).await;
-            }
+            track_failed_session(
+                session_execution,
+                format!("Failed to get session path: {}", e),
+                start_time,
+                Some(message_count as u64),
+                Some(turn_count as u64),
+            ).await;
 
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -611,14 +659,12 @@ async fn ask_handler(
     });
 
     // Track successful session
-    if let Some(manager) = global_telemetry() {
-        let successful_execution = session_execution
-            .with_result(SessionResult::Success)
-            .with_message_count(message_count as u64)
-            .with_turn_count(turn_count as u64)
-            .with_duration(start_time.elapsed());
-        let _ = manager.track_session_execution(successful_execution).await;
-    }
+    track_successful_session(
+        session_execution,
+        start_time,
+        message_count as u64,
+        turn_count as u64,
+    ).await;
 
     Ok(Json(AskResponse {
         response: response_text.trim().to_string(),
