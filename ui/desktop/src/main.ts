@@ -1,19 +1,21 @@
+import type { OpenDialogReturnValue } from 'electron';
+import * as electron from 'electron';
 import {
   app,
-  session,
+  App,
   BrowserWindow,
   dialog,
+  Event,
+  globalShortcut,
   ipcMain,
   Menu,
   MenuItem,
   Notification,
   powerSaveBlocker,
+  session,
   Tray,
-  App,
-  globalShortcut,
-  Event,
 } from 'electron';
-import type { OpenDialogReturnValue } from 'electron';
+import './utils/recipeHash';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -32,20 +34,19 @@ import {
   EnvToggles,
   loadSettings,
   saveSettings,
+  SchedulingEngine,
   updateEnvironmentVariables,
   updateSchedulingEngineEnvironment,
-  SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
-import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
-  setupAutoUpdater,
+  getUpdateAvailable,
   registerUpdateIpcHandlers,
   setTrayRef,
+  setupAutoUpdater,
   updateTrayMenu,
-  getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 
@@ -1390,8 +1391,7 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 
 // Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
-  const result = await dialog.showMessageBox(options);
-  return result;
+  return await dialog.showMessageBox(options);
 });
 
 // Handle allowed extensions list fetching
@@ -1819,6 +1819,11 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.on('close-window', () => {
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    currentWindow?.close();
+  });
+
   ipcMain.on('reload-app', (event) => {
     // Get the window that sent the event
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -1938,11 +1943,11 @@ app.whenReady().then(async () => {
  *
  ```yaml:
  extensions:
-  - id: slack
-    command: uvx mcp_slack
-  - id: knowledge_graph_memory
-    command: npx -y @modelcontextprotocol/server-memory
-  ```
+ - id: slack
+ command: uvx mcp_slack
+ - id: knowledge_graph_memory
+ command: npx -y @modelcontextprotocol/server-memory
+ ```
  *
  * @returns A promise that resolves to an array of extension commands that are allowed.
  */

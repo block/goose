@@ -59,6 +59,7 @@ type ElectronAPI = {
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
+  closeWindow: () => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
   openInChrome: (url: string) => void;
@@ -106,6 +107,8 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  hasAcceptedRecipeBefore: (recipeConfig: RecipeConfig) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: RecipeConfig) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -137,6 +140,7 @@ const electronAPI: ElectronAPI = {
       viewType
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
+  closeWindow: () => ipcRenderer.send('close-window'),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
@@ -209,6 +213,10 @@ const electronAPI: ElectronAPI = {
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
   },
+  hasAcceptedRecipeBefore: (recipeConfig: unknown) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
+  recordRecipeHash: (recipeConfig: unknown) =>
+    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
 };
 
 const appConfigAPI: AppConfigAPI = {
