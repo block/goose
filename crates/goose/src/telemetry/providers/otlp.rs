@@ -124,7 +124,7 @@ impl OtlpProvider {
                     execution
                         .result
                         .as_ref()
-                        .unwrap_or(&crate::telemetry::events::RecipeResult::Success)
+                        .unwrap_or(&crate::telemetry::events::SessionResult::Success)
                 ),
             ),
         ];

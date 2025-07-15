@@ -10,7 +10,7 @@ pub use {
     config::{TelemetryConfig, TelemetryProvider, UsageType},
     environment::detect_environment,
     events::{
-        CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution, RecipeResult,
+        CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution,
         SessionExecution, SessionResult, SessionType, TelemetryEvent, TokenUsage, ToolUsage,
     },
     manager::{

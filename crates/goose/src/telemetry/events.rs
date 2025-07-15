@@ -3,13 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RecipeResult {
-    Success,
-    Error(String),
-    Cancelled,
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeExecution {
@@ -18,7 +12,7 @@ pub struct RecipeExecution {
     pub start_time: u64,
     pub end_time: Option<u64>,
     pub duration_ms: Option<u64>,
-    pub result: Option<RecipeResult>,
+    pub result: Option<SessionResult>,
     pub user_id: String,
     pub usage_type: UsageType,
     pub environment: Option<String>,
@@ -56,7 +50,7 @@ impl RecipeExecution {
         }
     }
 
-    pub fn with_result(mut self, result: RecipeResult) -> Self {
+    pub fn with_result(mut self, result: SessionResult) -> Self {
         let end_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -520,11 +514,11 @@ mod tests {
     #[test]
     fn test_recipe_execution_completion() {
         let execution =
-            RecipeExecution::new("test-recipe", "1.0.0").with_result(RecipeResult::Success);
+            RecipeExecution::new("test-recipe", "1.0.0").with_result(SessionResult::Success);
 
         assert!(execution.end_time.is_some());
         assert!(execution.duration_ms.is_some());
-        assert_eq!(execution.result, Some(RecipeResult::Success));
+        assert_eq!(execution.result, Some(SessionResult::Success));
     }
 
     #[test]

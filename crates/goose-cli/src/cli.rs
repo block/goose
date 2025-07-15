@@ -279,7 +279,7 @@ where
                 let (token_usage, tool_usage, metadata, environment) =
                     extract_telemetry_data_from_session(session, &params);
                 let mut builder = execution_builder
-                    .with_result(goose::telemetry::RecipeResult::Success)
+                    .with_result(goose::telemetry::SessionResult::Success)
                     .with_duration(duration);
 
                 if let Some(tokens) = token_usage {
@@ -309,7 +309,7 @@ where
             Err(e) => {
                 let metadata: HashMap<String, String> = params.iter().cloned().collect();
                 let mut builder = execution_builder
-                    .with_result(goose::telemetry::RecipeResult::Error(e.to_string()))
+                    .with_result(goose::telemetry::SessionResult::Error(e.to_string()))
                     .with_duration(duration);
 
                 for (key, value) in metadata {

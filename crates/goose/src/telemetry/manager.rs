@@ -240,7 +240,7 @@ impl RecipeExecutionBuilder {
         self
     }
 
-    pub fn with_result(mut self, result: crate::telemetry::events::RecipeResult) -> Self {
+    pub fn with_result(mut self, result: crate::telemetry::events::SessionResult) -> Self {
         self.execution = self.execution.with_result(result);
         self
     }
@@ -315,7 +315,7 @@ mod tests {
     use super::*;
     use crate::telemetry::{
         config::{TelemetryConfig, TelemetryProvider},
-        events::{RecipeResult, TokenUsage},
+        events::{SessionResult, TokenUsage},
         providers::TelemetryBackend,
     };
     use std::env;
@@ -392,14 +392,14 @@ mod tests {
         let execution = builder
             .with_metadata("key1", "value1")
             .with_token_usage(TokenUsage::new(100, 50))
-            .with_result(RecipeResult::Success)
+            .with_result(SessionResult::Success)
             .build();
 
         assert_eq!(execution.recipe_name, "test-recipe");
         assert_eq!(execution.recipe_version, "1.0.0");
         assert_eq!(execution.metadata.get("key1"), Some(&"value1".to_string()));
         assert!(execution.token_usage.is_some());
-        assert_eq!(execution.result, Some(RecipeResult::Success));
+        assert_eq!(execution.result, Some(SessionResult::Success));
     }
 
     #[tokio::test]
@@ -429,7 +429,7 @@ mod tests {
         };
 
         let execution =
-            RecipeExecution::new("test-recipe", "1.0.0").with_result(RecipeResult::Success);
+            RecipeExecution::new("test-recipe", "1.0.0").with_result(SessionResult::Success);
 
         let result = manager.track_recipe_execution(execution).await;
         assert!(result.is_ok());
@@ -459,10 +459,10 @@ mod tests {
         };
 
         let executions = vec![
-            RecipeExecution::new("recipe1", "1.0.0").with_result(RecipeResult::Success),
+            RecipeExecution::new("recipe1", "1.0.0").with_result(SessionResult::Success),
             RecipeExecution::new("recipe2", "1.0.0")
-                .with_result(RecipeResult::Error("test error".to_string())),
-            RecipeExecution::new("recipe3", "1.0.0").with_result(RecipeResult::Cancelled),
+                .with_result(SessionResult::Error("test error".to_string())),
+            RecipeExecution::new("recipe3", "1.0.0").with_result(SessionResult::Cancelled),
         ];
 
         let result = manager.track_recipe_executions(executions).await;
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(manager.get_config().provider, TelemetryProvider::Console);
 
         let execution = RecipeExecution::new("test-recipe", "1.0.0")
-            .with_result(RecipeResult::Success)
+            .with_result(SessionResult::Success)
             .with_token_usage(TokenUsage::new(100, 50));
 
         let result = manager.track_recipe_execution(execution).await;
@@ -522,14 +522,14 @@ mod tests {
             .recipe_execution("test-recipe", "1.0.0")
             .with_metadata("key1", "value1")
             .with_token_usage(TokenUsage::new(100, 50))
-            .with_result(RecipeResult::Success)
+            .with_result(SessionResult::Success)
             .build();
 
         assert_eq!(execution.recipe_name, "test-recipe");
         assert_eq!(execution.recipe_version, "1.0.0");
         assert_eq!(execution.metadata.get("key1"), Some(&"value1".to_string()));
         assert!(execution.token_usage.is_some());
-        assert_eq!(execution.result, Some(RecipeResult::Success));
+        assert_eq!(execution.result, Some(SessionResult::Success));
 
         let result = manager.track_recipe_execution(execution).await;
         assert!(result.is_ok());
@@ -559,10 +559,10 @@ mod tests {
         let manager = TelemetryManager::new().await.unwrap();
 
         let executions = vec![
-            RecipeExecution::new("recipe1", "1.0.0").with_result(RecipeResult::Success),
+            RecipeExecution::new("recipe1", "1.0.0").with_result(SessionResult::Success),
             RecipeExecution::new("recipe2", "1.0.0")
-                .with_result(RecipeResult::Error("test error".to_string())),
-            RecipeExecution::new("recipe3", "1.0.0").with_result(RecipeResult::Cancelled),
+                .with_result(SessionResult::Error("test error".to_string())),
+            RecipeExecution::new("recipe3", "1.0.0").with_result(SessionResult::Cancelled),
         ];
 
         let result = manager.track_recipe_executions(executions).await;
