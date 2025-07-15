@@ -13,7 +13,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
 :::warning Migration Notice
-The GitHub MCP Server has moved from the deprecated NPM package `@modelcontextprotocol/server-github` to GitHub's official repository. The server is now available as a remote hosted service (recommended) with no local installation required.
+The GitHub MCP Server has moved from the deprecated NPM package `@modelcontextprotocol/server-github` to GitHub's official repository. The server is now available as a remote hosted service with no local installation required.
 :::
 
 :::tip TLDR
@@ -42,16 +42,17 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
     1. Click the gear icon `⚙️` in the top right corner
-    2. Under `Extensions`, click `Add custom extension`
-    3. On the `Add custom extension` modal, enter the following:
+    2. Click `Advanced settings`
+    3. Under `Extensions`, click `Add custom extension`
+    4. On the `Add custom extension` modal, enter the following:
        - **Extension Name**: GitHub
        - **Type**: Streamable HTTP
        - **Endpoint**: `https://api.githubcopilot.com/mcp/`
        - **Request Headers**: 
          - **Header name**: `Authorization`
          - **Value**: `Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` 
-    4. Click `+ Add` to save the header
-    5. Click `Add Extension` to save the extension
+    5. Click `+ Add` to save the header
+    6. Click `Add Extension` to save the extension
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -114,7 +115,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
         └ 
     ``` 
 
-    5. Set the timeout (recommended: 100 seconds)
+    5. Set the timeout
     ```sh
         ┌   goose-configure 
         │
@@ -163,7 +164,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
         └ 
     ```
 
-    7. Add custom headers for authentication
+    7. Add a custom header for authentication
     ```sh
         ┌   goose-configure 
         │
@@ -258,9 +259,6 @@ These steps configure the Remote MCP Server. For other deployment options, see t
         // highlight-end
         └ 
     ```
-    :::tip Get Your Token
-    Replace `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` with your actual [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens).
-    :::
 
     10. Choose not to add another header
     ```sh
@@ -303,7 +301,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
   </TabItem>
 </Tabs>
   
- :::info
+ :::info Get Your Access Token
  Replace `<YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` with your actual token from [GitHub Settings](https://github.com/settings/personal-access-tokens). When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.
  :::
 
