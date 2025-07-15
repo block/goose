@@ -53,12 +53,19 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
     } else {
         let config = Config::global();
 
-        let provider_name: String = config
-            .get_param("GOOSE_PROVIDER")
-            .expect("No provider configured. Run 'goose configure' first");
-        let model_name = config
-            .get_param("GOOSE_MODEL")
-            .expect("No model configured. Run 'goose configure' first");
+        let (provider_name, model_name): (String, String) = match (
+            config.get_param::<String>("GOOSE_PROVIDER"),
+            config.get_param::<String>("GOOSE_MODEL"),
+        ) {
+            (Ok(provider), Ok(model)) => (provider, model),
+            _ => {
+                if std::env::var("GITHUB_ACTIONS").is_ok() {
+                    panic!("You forgot to add the file {} to the repository. This file is required when running tests in CI.", file_path);
+                } else {
+                    panic!("Provider or model not configured. Run 'goose configure' first");
+                }
+            }
+        };
 
         let model_config = ModelConfig::new(model_name);
 
