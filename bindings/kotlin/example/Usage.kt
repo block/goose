@@ -134,18 +134,10 @@ suspend fun runImageExample(
     val now         = System.currentTimeMillis() / 1000
 
     val msgs = listOf(
-        Message(Role.USER, now, listOf(MessageContent.Text(TextContent("Read the image at ./test_image.png please")))),
-        Message(Role.ASSISTANT, now + 1, listOf(MessageContent.ToolReq(
-            ToolRequest("img1", """
-                { "status":"success","value":{ "name":"view_image","arguments":{"path":"./test_image.png"},"needsApproval":false } }
-            """.trimIndent())))),
-        Message(Role.USER, now + 2, listOf(MessageContent.ToolResp(
-            ToolResponse("img1", """
-                {
-                  "status":"success",
-                  "value":[ { "type":"image", "data":"$base64Image", "mimeType":"image/png" } ]
-                }
-            """.trimIndent()))))
+        Message(Role.USER, now, listOf(
+                MessageContent.Text(TextContent("What is in this image?")), 
+                MessageContent.Image(ImageContent(base64Image, "image/png"))
+        )),
     )
 
     val req = createCompletionRequest(
@@ -219,18 +211,18 @@ fun main() = runBlocking {
 
     /* --- run demos for each model --- */
     // NOTE: `claude-3-5-haiku` does NOT support images 
-    val modelNames = listOf("goose-claude-4-sonnet", "goose-gpt-4-1")
+    val modelNames = listOf("kgoose-gpt-4o") // "goose-claude-4-sonnet",
 
     for (name in modelNames) {
         val modelConfig = ModelConfig(name, 100000u, 0.1f, 200)
         println("\n=====  Running demos for model: $name  =====")
 
-        runCalculatorDemo(modelConfig, providerName, providerConfig)
+        // runCalculatorDemo(modelConfig, providerName, providerConfig)
         runImageExample(modelConfig,    providerName, providerConfig)
-        runPromptOverride(modelConfig,  providerName, providerConfig)
+        // runPromptOverride(modelConfig,  providerName, providerConfig)
         println("=====  End demos for $name  =====\n")
     }
 
     /* UI extraction is model-agnostic, so run it once */
-    runUiExtraction(providerName, providerConfig)
+    // runUiExtraction(providerName, providerConfig)
 }
