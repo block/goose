@@ -1,13 +1,10 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use async_stream::try_stream;
-use futures::Stream;
 use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
 use serde::{Deserialize, Serialize};
@@ -402,140 +399,6 @@ struct StreamingChunk {
     id: Option<String>,
     usage: Option<Value>,
     model: String,
-}
-
-fn strip_data_prefix(line: &str) -> Option<&str> {
-    line.strip_prefix("data: ").map(|s| s.trim())
-}
-
-pub fn response_to_streaming_message<S>(
-    mut stream: S,
-) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
-where
-    S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
-{
-    try_stream! {
-        use futures::StreamExt;
-
-        'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                break 'outer;
-            }
-            let response_str = response?;
-            let line = strip_data_prefix(&response_str);
-
-            if line.is_none() || line.is_some_and(|l| l.is_empty()) {
-                continue
-            }
-
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-            let model = chunk.model.clone();
-
-            let usage = chunk.usage.as_ref().map(|u| {
-                ProviderUsage {
-                    usage: get_usage(u),
-                    model,
-                }
-            });
-
-            if chunk.choices.is_empty() {
-                yield (None, usage)
-            } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                let tool_call = &tool_calls[0];
-                let id = tool_call.id.clone().ok_or(anyhow!("No tool call ID"))?;
-                let function_name = tool_call.function.name.clone().ok_or(anyhow!("No function name"))?;
-                let mut arguments = tool_call.function.arguments.clone();
-
-                while let Some(response_chunk) = stream.next().await {
-                    if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                        break 'outer;
-                    }
-                    let response_str = response_chunk?;
-                    if let Some(line) = strip_data_prefix(&response_str) {
-                        let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                            .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-                        let more_args = tool_chunk.choices[0].delta.tool_calls.as_ref()
-                            .and_then(|calls| calls.first())
-                            .map(|call| call.function.arguments.as_str());
-                        if let Some(more_args) = more_args {
-                            arguments.push_str(more_args);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-
-                let parsed = if arguments.is_empty() {
-                    Ok(json!({}))
-                } else {
-                    serde_json::from_str::<Value>(&arguments)
-                };
-
-                let content = match parsed {
-                    Ok(params) => MessageContent::tool_request(
-                        id,
-                        Ok(ToolCall::new(function_name, params)),
-                    ),
-                    Err(e) => {
-                        let error = ToolError::InvalidParameters(format!(
-                            "Could not interpret tool use parameters for id {}: {}",
-                            id, e
-                        ));
-                        MessageContent::tool_request(id, Err(error))
-                    }
-                };
-
-                yield (
-                    Some(Message {
-                        id: chunk.id,
-                        role: Role::Assistant,
-                        created: chrono::Utc::now().timestamp(),
-                        content: vec![content],
-                    }),
-                    usage,
-                )
-            } else if let Some(text) = &chunk.choices[0].delta.content {
-                yield (
-                    Some(Message {
-                        id: chunk.id,
-                        role: Role::Assistant,
-                        created: chrono::Utc::now().timestamp(),
-                        content: vec![MessageContent::text(text)],
-                    }),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
-                )
-            }
-        }
-    }
-}
-
-pub fn get_usage(usage: &Value) -> Usage {
-    let input_tokens = usage
-        .get("prompt_tokens")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32);
-
-    let output_tokens = usage
-        .get("completion_tokens")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32);
-
-    let total_tokens = usage
-        .get("total_tokens")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32)
-        .or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input + output),
-            _ => None,
-        });
-
-    Usage::new(input_tokens, output_tokens, total_tokens)
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
