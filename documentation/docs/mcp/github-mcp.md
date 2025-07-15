@@ -225,7 +225,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
         └ 
     ```
 
-    9. Enter your GitHub Personal Access Token
+    9. Enter your [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
     ```sh
         ┌   goose-configure 
         │
