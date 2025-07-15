@@ -3,7 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use reqwest::{Client, Response};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io;
 use std::time::Duration;
@@ -254,6 +254,9 @@ impl Provider for OpenAiProvider {
         let mut payload =
             create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
         payload["stream"] = serde_json::Value::Bool(true);
+        payload["stream_options"] = json!({
+            "include_usage": true,
+        });
 
         let response = handle_status_openai_compat(self.post(payload.clone()).await?).await?;
 
