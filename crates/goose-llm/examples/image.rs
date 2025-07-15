@@ -1,15 +1,13 @@
-use std::{vec, fs};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use goose_llm::{
     completion,
-    types::completion::{
-        CompletionRequest, CompletionResponse
-    },
     message::MessageContent,
-    Message, ModelConfig, 
+    types::completion::{CompletionRequest, CompletionResponse},
+    Message, ModelConfig,
 };
 use serde_json::json;
+use std::{fs, vec};
 
 #[tokio::main]
 async fn main() -> Result<()> {
