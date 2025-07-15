@@ -23,7 +23,9 @@ pub async fn generate_structured_outputs(
     let model_cfg = ModelConfig::new(model_name.to_string()).with_temperature(Some(0.0));
     let provider = create(provider_name, provider_config, model_cfg)?;
 
-    let resp = provider.extract(system_prompt, messages, &schema, None).await?;
+    let resp = provider
+        .extract(system_prompt, messages, &schema, None)
+        .await?;
 
     Ok(resp)
 }

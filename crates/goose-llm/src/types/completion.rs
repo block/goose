@@ -71,11 +71,11 @@ pub fn create_completion_request(
         messages,
         extensions,
     );
-    
+
     if let Some(req_id) = request_id {
         request = request.with_request_id(req_id);
     }
-    
+
     request
 }
 

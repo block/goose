@@ -224,13 +224,16 @@ impl Provider for DatabricksProvider {
             .as_object_mut()
             .expect("payload should have model key")
             .remove("model");
-        
+
         // Add client_request_id if provided
         if let Some(req_id) = request_id {
             payload
                 .as_object_mut()
                 .expect("payload should be an object")
-                .insert("client_request_id".to_string(), serde_json::Value::String(req_id.to_string()));
+                .insert(
+                    "client_request_id".to_string(),
+                    serde_json::Value::String(req_id.to_string()),
+                );
         }
 
         let response = self.post(payload.clone()).await?;
@@ -276,13 +279,16 @@ impl Provider for DatabricksProvider {
                     }
                 }),
             );
-        
+
         // Add client_request_id if provided
         if let Some(req_id) = request_id {
             payload
                 .as_object_mut()
                 .expect("payload should be an object")
-                .insert("client_request_id".to_string(), serde_json::Value::String(req_id.to_string()));
+                .insert(
+                    "client_request_id".to_string(),
+                    serde_json::Value::String(req_id.to_string()),
+                );
         }
 
         // 3. Call OpenAI
