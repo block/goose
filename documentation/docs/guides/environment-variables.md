@@ -273,6 +273,23 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
+## Experimental Features
+
+These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | "true", "1" (case insensitive) to enable | false |
+
+**Examples**
+
+```bash
+# Enable alpha features
+export ALPHA_FEATURES=true
+
+# Or enable for a single session
+ALPHA_FEATURES=true goose session
+```
 
 ## Notes
 
