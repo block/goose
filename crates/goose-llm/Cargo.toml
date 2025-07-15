@@ -65,5 +65,9 @@ name = "simple"
 path = "examples/simple.rs"
 
 [[example]]
+name = "image"
+path = "examples/image.rs"
+
+[[example]]
 name = "prompt_override"
 path = "examples/prompt_override.rs"
