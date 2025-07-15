@@ -211,18 +211,18 @@ fun main() = runBlocking {
 
     /* --- run demos for each model --- */
     // NOTE: `claude-3-5-haiku` does NOT support images 
-    val modelNames = listOf("kgoose-gpt-4o") // "goose-claude-4-sonnet",
+    val modelNames = listOf("kgoose-gpt-4o", "goose-claude-4-sonnet")
 
     for (name in modelNames) {
         val modelConfig = ModelConfig(name, 100000u, 0.1f, 200)
         println("\n=====  Running demos for model: $name  =====")
 
-        // runCalculatorDemo(modelConfig, providerName, providerConfig)
+        runCalculatorDemo(modelConfig, providerName, providerConfig)
         runImageExample(modelConfig,    providerName, providerConfig)
-        // runPromptOverride(modelConfig,  providerName, providerConfig)
+        runPromptOverride(modelConfig,  providerName, providerConfig)
         println("=====  End demos for $name  =====\n")
     }
 
     /* UI extraction is model-agnostic, so run it once */
-    // runUiExtraction(providerName, providerConfig)
+    runUiExtraction(providerName, providerConfig)
 }
