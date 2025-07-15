@@ -7,7 +7,7 @@ export default function Dot({
   loadingStatus: LoadingStatus;
 }) {
   const backgroundColorClasses = {
-    loading: 'bg-background-accent',
+    loading: 'bg-blue-500',
     success: 'bg-green-600',
     error: 'bg-red-600',
   };
