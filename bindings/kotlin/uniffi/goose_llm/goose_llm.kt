@@ -833,6 +833,7 @@ internal interface UniffiLib : Library {
         `systemPromptOverride`: RustBuffer.ByValue,
         `messages`: RustBuffer.ByValue,
         `extensions`: RustBuffer.ByValue,
+        `requestId`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
@@ -1101,7 +1102,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_goose_llm_checksum_func_completion() != 47457.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_create_completion_request() != 50798.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_create_completion_request() != 15391.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_create_tool_config() != 49910.toShort()) {
@@ -2960,6 +2961,7 @@ fun `createCompletionRequest`(
     `systemPromptOverride`: kotlin.String? = null,
     `messages`: List<Message>,
     `extensions`: List<ExtensionConfig>,
+    `requestId`: kotlin.String? = null,
 ): CompletionRequest =
     FfiConverterTypeCompletionRequest.lift(
         uniffiRustCall { _status ->
@@ -2971,6 +2973,7 @@ fun `createCompletionRequest`(
                 FfiConverterOptionalString.lower(`systemPromptOverride`),
                 FfiConverterSequenceTypeMessage.lower(`messages`),
                 FfiConverterSequenceTypeExtensionConfig.lower(`extensions`),
+                FfiConverterOptionalString.lower(`requestId`),
                 _status,
             )
         },
