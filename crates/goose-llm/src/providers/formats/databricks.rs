@@ -168,12 +168,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 }
                 MessageContent::Image(image) => {
                     // Handle direct image content
-                    content_array.push(json!({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": convert_image(image, image_format)
-                        }
-                    }));
+                    let converted_image = convert_image(image, image_format);
+                    content_array.push(converted_image);
                 }
             }
         }

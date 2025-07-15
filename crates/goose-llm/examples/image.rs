@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         "host": std::env::var("DATABRICKS_HOST").expect("Missing DATABRICKS_HOST"),
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
-    let model_name = "gpt-4o";
+    let model_name = "kgoose-claude-4-sonnet"; // "gpt-4o";
     let model_config = ModelConfig::new(model_name.to_string());
 
     let system_preamble = "You are a helpful assistant.";
@@ -47,8 +47,6 @@ async fn main() -> Result<()> {
     // Print the response
     println!("\nCompletion Response:");
     println!("{}", serde_json::to_string_pretty(&completion_response)?);
-
-
 
     Ok(())
 }
