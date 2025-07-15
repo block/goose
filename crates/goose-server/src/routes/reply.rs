@@ -11,7 +11,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{Message, MessageContent},
+    message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -232,7 +232,7 @@ async fn handler(
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                            all_messages.push(message.clone());
+                            push_message(&mut all_messages, message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
                                 let _ = stream_event(
@@ -406,7 +406,7 @@ async fn ask_handler(
     }
 
     if !response_message.content.is_empty() {
-        all_messages.push(response_message);
+        push_message(&mut all_messages, response_message);
     }
 
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
