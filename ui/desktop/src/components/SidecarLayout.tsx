@@ -371,59 +371,51 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideDiffViewer,
   };
 
-  const currentView = views.find((v) => v.id === activeView);
-  const isVisible = activeView && currentView;
-
   // Don't render sidecar if showSidecar is false
   if (!showSidecar) {
     return <SidecarContext.Provider value={contextValue}>{children}</SidecarContext.Provider>;
   }
 
+  // Just provide context, layout will be handled by MainPanelLayout
+  return <SidecarContext.Provider value={contextValue}>{children}</SidecarContext.Provider>;
+}
+
+// Separate Sidecar component that can be used as a sibling
+export function Sidecar({ className = '' }: { className?: string }) {
+  const sidecar = useSidecar();
+
+  if (!sidecar) return null;
+
+  const { activeView, views, hideView } = sidecar;
+  const currentView = views.find((v) => v.id === activeView);
+  const isVisible = activeView && currentView;
+
+  if (!isVisible) return null;
+
   return (
-    <SidecarContext.Provider value={contextValue}>
-      <div className="flex h-full relative">
-        {/* Main Content */}
-        <div 
-          className={`flex-1 transition-all duration-300 ease-out ${
-            isVisible ? 'mr-96' : 'mr-0'
-          }`}
-        >
-          {children}
-        </div>
-
-        {/* Sidecar Panel Container - Fixed positioning similar to sidebar */}
-        <div
-          className={`fixed inset-y-0 right-0 z-10 h-full w-96 transition-transform duration-300 ease-out will-change-transform ${
-            isVisible ? 'translate-x-0' : 'translate-x-full'
-          }`}
-        >
-          {/* Sidecar Panel */}
-          <div className="h-full bg-background-default m-4 rounded-lg border border-borderSubtle shadow-lg">
-            {currentView && (
-              <>
-                {/* Sidecar Header */}
-                <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
-                  <div className="flex items-center space-x-2">
-                    {currentView.icon}
-                    <span className="text-textStandard font-medium">{currentView.title}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={hideView}
-                    className="text-textSubtle hover:text-textStandard"
-                  >
-                    <X size={16} />
-                  </Button>
-                </div>
-
-                {/* Sidecar Content */}
-                <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
-              </>
-            )}
+    <div className={`bg-background-default overflow-hidden rounded-2xl m-7 ${className}`}>
+      {currentView && (
+        <>
+          {/* Sidecar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0">
+            <div className="flex items-center space-x-2">
+              {currentView.icon}
+              <span className="text-textStandard font-medium">{currentView.title}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={hideView}
+              className="text-textSubtle hover:text-textStandard"
+            >
+              <X size={16} />
+            </Button>
           </div>
-        </div>
-      </div>
-    </SidecarContext.Provider>
+
+          {/* Sidecar Content */}
+          <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
+        </>
+      )}
+    </div>
   );
 }
