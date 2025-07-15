@@ -2,7 +2,7 @@ import React from 'react';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
-export default function CLIRemoteStreamingExtensionInstructions({
+export default function CLIStreamExtensionInstructions({
   name,
   endpointUri,
   timeout = 300,
