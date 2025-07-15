@@ -57,7 +57,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       });
 
       if (response.ok) {
-        await response.json(); // Consume the response
+        await response.json();
         setPricingStatus('success');
         setLastFetchTime(new Date());
       } else {

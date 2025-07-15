@@ -1,6 +1,7 @@
 import { Message } from '../types/message';
 import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
+import { safeJsonParse } from '../utils/jsonUtils';
 
 export interface Parameter {
   key: string;
@@ -70,5 +71,5 @@ export async function createRecipe(request: CreateRecipeRequest): Promise<Create
     throw new Error(`Failed to create recipe: ${response.statusText} (${errorText})`);
   }
 
-  return response.json();
+  return safeJsonParse<CreateRecipeResponse>(response, 'Server failed to create recipe:');
 }
