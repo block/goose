@@ -849,6 +849,7 @@ internal interface UniffiLib : Library {
         `providerName`: RustBuffer.ByValue,
         `providerConfig`: RustBuffer.ByValue,
         `messages`: RustBuffer.ByValue,
+        `requestId`: RustBuffer.ByValue,
     ): Long
 
     fun uniffi_goose_llm_fn_func_generate_structured_outputs(
@@ -857,12 +858,14 @@ internal interface UniffiLib : Library {
         `systemPrompt`: RustBuffer.ByValue,
         `messages`: RustBuffer.ByValue,
         `schema`: RustBuffer.ByValue,
+        `requestId`: RustBuffer.ByValue,
     ): Long
 
     fun uniffi_goose_llm_fn_func_generate_tooltip(
         `providerName`: RustBuffer.ByValue,
         `providerConfig`: RustBuffer.ByValue,
         `messages`: RustBuffer.ByValue,
+        `requestId`: RustBuffer.ByValue,
     ): Long
 
     fun uniffi_goose_llm_fn_func_print_messages(
@@ -1108,13 +1111,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_goose_llm_checksum_func_create_tool_config() != 49910.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 64087.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_generate_session_name() != 34350.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_generate_structured_outputs() != 43426.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_generate_structured_outputs() != 4576.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 41121.toShort()) {
+    if (lib.uniffi_goose_llm_checksum_func_generate_tooltip() != 36439.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_goose_llm_checksum_func_print_messages() != 30278.toShort()) {
@@ -3006,12 +3009,14 @@ suspend fun `generateSessionName`(
     `providerName`: kotlin.String,
     `providerConfig`: Value,
     `messages`: List<Message>,
+    `requestId`: kotlin.String? = null,
 ): kotlin.String =
     uniffiRustCallAsync(
         UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_session_name(
             FfiConverterString.lower(`providerName`),
             FfiConverterTypeValue.lower(`providerConfig`),
             FfiConverterSequenceTypeMessage.lower(`messages`),
+            FfiConverterOptionalString.lower(`requestId`),
         ),
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
@@ -3034,6 +3039,7 @@ suspend fun `generateStructuredOutputs`(
     `systemPrompt`: kotlin.String,
     `messages`: List<Message>,
     `schema`: Value,
+    `requestId`: kotlin.String? = null,
 ): ProviderExtractResponse =
     uniffiRustCallAsync(
         UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_structured_outputs(
@@ -3042,6 +3048,7 @@ suspend fun `generateStructuredOutputs`(
             FfiConverterString.lower(`systemPrompt`),
             FfiConverterSequenceTypeMessage.lower(`messages`),
             FfiConverterTypeValue.lower(`schema`),
+            FfiConverterOptionalString.lower(`requestId`),
         ),
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
@@ -3062,12 +3069,14 @@ suspend fun `generateTooltip`(
     `providerName`: kotlin.String,
     `providerConfig`: Value,
     `messages`: List<Message>,
+    `requestId`: kotlin.String? = null,
 ): kotlin.String =
     uniffiRustCallAsync(
         UniffiLib.INSTANCE.uniffi_goose_llm_fn_func_generate_tooltip(
             FfiConverterString.lower(`providerName`),
             FfiConverterTypeValue.lower(`providerConfig`),
             FfiConverterSequenceTypeMessage.lower(`messages`),
+            FfiConverterOptionalString.lower(`requestId`),
         ),
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.INSTANCE.ffi_goose_llm_rust_future_complete_rust_buffer(future, continuation) },
