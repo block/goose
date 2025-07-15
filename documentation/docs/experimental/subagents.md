@@ -12,7 +12,7 @@ Subagents are an experimental feature in active development. Behavior and config
 
 ## How to Use Subagents
 
-To use subagents, simply ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
+To use subagents, ask Goose to delegate tasks using natural language. Goose automatically decides when to spawn subagents and handles their lifecycle. You can:
 
 1. **Request specialized help**: "Use a code reviewer to analyze this function for security issues"
 2. **Reference specific recipes**: "Use the 'security-auditor' recipe to scan this endpoint"  
@@ -25,6 +25,10 @@ You can run multiple subagents sequentially or in parallel.
 |------|-------------|------------------|---------|
 | **Sequential** (Default) | Tasks execute one after another | "first...then", "after" | `"First analyze the code, then generate documentation"` |
 | **Parallel** | Tasks execute simultaneously | "parallel", "simultaneously", "at the same time", "concurrently" | `"Create three HTML templates in parallel"` |
+
+:::info
+If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
+:::
 
 
 ## Prerequisites
@@ -42,7 +46,10 @@ ALPHA_FEATURES: true
 
 ## Internal Subagents
 
-Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions. 
+Internal subagents spawn Goose instances to handle tasks using your current session's context and extensions. There are two ways to configure and execute internal subagents:
+
+1. **Direct Prompts** - Quick, one-off tasks using natural language instructions
+2. **Recipes** - Reusable, structured configurations for specialized subagent behavior
 
 ### Direct Prompts
 Direct prompts provided for one-off tasks using natural language prompts. The main agent automatically configures the subagent based on your request.
@@ -240,11 +247,6 @@ Subagents are automatically have the following pre-configured settings, but you 
 | **Max Turns** | 10 | Built-in default |
 | **Timeout** | 5 minutes | Built-in default |
 
-
-:::info
-If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
-:::
-
 ### Customizing Settings in Prompts
 
 You can override any default by including the setting in your natural language request:
@@ -261,19 +263,24 @@ You can override any default by including the setting in your natural language r
 
 ## Security Constraints
 
-Subagents operate with filtered tool access for security:
+Subagents operate with restricted tool access to ensure safe execution and prevent interference with the main session.
 
-**Subagents can:**
-✅ Search for extensions (safe platform tool)
+### Allowed Operations
 
-✅ Read resources (safe platform tool)
+Subagents have access to these safe operations:
 
-✅ Use inherited/recipe extensions (filtered for safety)
+- **Extension discovery**: Search for available extensions to understand what tools are available
+- **Resource access**: Read and list resources from enabled extensions for context
+- **Extension tools**: Use tools from extensions specified in recipes or inherited from the parent session
 
-**Subagents cannot:**
-❌ Spawn other subagents (prevents infinite recursion)
+### Restricted Operations
 
-❌ Manage extensions (prevents interference with parent)
+The following operations are blocked to ensure subagents remain focused on their assigned tasks without affecting the broader system state:
 
-❌ Manage schedules (prevents interference with parent)
+- **Subagent spawning**: Cannot create additional subagents to prevent infinite recursion
+- **Extension management**: Cannot enable, disable, or modify extensions to avoid conflicts with the main session
+- **Schedule management**: Cannot create, modify, or delete scheduled tasks to prevent interference with parent workflows
 
+:::info
+Subagents can browse extensions for suggestions but cannot enable them to avoid modifying the parent session.
+:::
