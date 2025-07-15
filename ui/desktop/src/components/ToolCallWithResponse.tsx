@@ -6,7 +6,7 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, LoaderCircle } from 'lucide-react';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -373,8 +373,14 @@ function ToolCallView({
       isForceExpand={isShouldExpand}
       label={
         <>
-          <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
+          <div className="w-2 flex items-center justify-center">
+            {loadingStatus === 'loading' ? (
+              <LoaderCircle className="animate-spin text-text-muted" size={3} />
+            ) : (
+              <Dot size={2} loadingStatus={loadingStatus} />
+            )}
+          </div>
+          <span className="ml-2">
             {(() => {
               const description = getToolDescription();
               if (description) {
