@@ -1,0 +1,27 @@
+name: Send API Key on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  send-api-key:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Send API key via email
+        env:
+          OPENROUTER_ADMIN_KEY: ${{ secrets.OPENROUTER_ADMIN_KEY }}
+          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+        run: |
+          pip install requests
+          python .github/scripts/send_key.py "${{ github.event.pull_request.user.login }}"
