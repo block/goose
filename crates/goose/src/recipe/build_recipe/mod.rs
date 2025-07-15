@@ -12,7 +12,7 @@ pub fn render_recipe_template<F>(
     user_prompt_fn: Option<F>,
 ) -> Result<(String, Vec<String>)>
 where
-    F: Fn(&str, &str) -> Result<String, anyhow::Error>, 
+    F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
     let RecipeFile {
         content: recipe_file_content,
@@ -56,7 +56,8 @@ pub fn build_recipe_from_template<F>(
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
-    let (rendered_content, missing_params) = render_recipe_template(recipe_file, params.clone(), user_prompt_fn)?;
+    let (rendered_content, missing_params) =
+        render_recipe_template(recipe_file, params.clone(), user_prompt_fn)?;
     if missing_params.is_empty() {
         let recipe = Recipe::from_content(&rendered_content)?;
         return Ok((Some(recipe), missing_params));

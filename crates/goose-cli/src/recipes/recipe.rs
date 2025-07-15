@@ -5,10 +5,10 @@ use crate::recipes::print_recipe::{
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use anyhow::Result;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters
+    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters,
 };
 use goose::recipe::read_recipe_file_content::RecipeFile;
-use goose::recipe::template_recipe::{render_recipe_for_preview};
+use goose::recipe::template_recipe::render_recipe_for_preview;
 use goose::recipe::Recipe;
 use std::collections::HashMap;
 
@@ -16,35 +16,34 @@ pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
-        let input_value = cliclack::input(format!("Please enter {} ({})", key, description))
-            .interact()?;
+        let input_value =
+            cliclack::input(format!("Please enter {} ({})", key, description)).interact()?;
         Ok(input_value)
     }
 }
 
 fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> {
     let recipe_file = retrieve_recipe_file(recipe_name)?;
-    let recipe_dir_str = recipe_file.parent_dir
+    let recipe_dir_str = recipe_file
+        .parent_dir
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?
         .to_string();
     Ok((recipe_file, recipe_dir_str))
 }
 
-pub fn load_recipe(
-    recipe_name: &str,
-    params: Vec<(String, String)>,
-) -> Result<Recipe> {
+pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
     let recipe_file = retrieve_recipe_file(recipe_name)?;
-    let (recipe_opt, missing_params) = build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback()))?;
-    
+    let (recipe_opt, missing_params) =
+        build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback()))?;
+
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
             missing_parameters_command_line(missing_params)
         ));
     }
-    
+
     recipe_opt.ok_or_else(|| anyhow::anyhow!("Failed to build recipe"))
 }
 
@@ -81,10 +80,7 @@ pub fn load_recipe_for_validation(recipe_name: &str) -> Result<Recipe> {
     Ok(recipe)
 }
 
-pub fn explain_recipe(
-    recipe_name: &str,
-    params: Vec<(String, String)>,
-) -> Result<()> {
+pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {
     let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
     let recipe_file_content = &recipe_file.content;
     let recipe_parameters = validate_recipe_parameters(recipe_file_content, &recipe_dir_str)?;
@@ -112,3 +108,6 @@ fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
         Err(err) => Err(anyhow::anyhow!("JSON schema validation failed: {}", err)),
     }
 }
+
+#[cfg(test)]
+mod tests;
