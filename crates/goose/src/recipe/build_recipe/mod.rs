@@ -168,13 +168,5 @@ where
     Ok((param_map, missing_params))
 }
 
-pub fn missing_parameters_command_line(missing_params: Vec<String>) -> String {
-    missing_params
-        .iter()
-        .map(|key| format!("--params {}=your_value", key))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 #[cfg(test)]
 mod tests;

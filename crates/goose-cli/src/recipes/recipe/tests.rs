@@ -5,7 +5,7 @@ mod tests {
     use goose::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
     use tempfile::TempDir;
 
-    use crate::recipes::recipe::load_and_render_recipe;
+    use crate::recipes::recipe::load_recipe;
 
     fn setup_recipe_file(instructions_and_parameters: &str) -> (TempDir, PathBuf) {
         let recipe_content = format!(
@@ -42,7 +42,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let params = vec![("my_name".to_string(), "value".to_string())];
-            let recipe = load_and_render_recipe(recipe_path.to_str().unwrap(), params).unwrap();
+            let recipe = load_recipe(recipe_path.to_str().unwrap(), params).unwrap();
 
             assert_eq!(recipe.title, "Test Recipe");
             assert_eq!(recipe.description, "A test recipe");
@@ -76,7 +76,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let params = vec![("my_name".to_string(), "value".to_string())];
-            let recipe = load_and_render_recipe(recipe_path.to_str().unwrap(), params).unwrap();
+            let recipe = load_recipe(recipe_path.to_str().unwrap(), params).unwrap();
 
             assert_eq!(recipe.title, "Test Recipe");
             assert_eq!(recipe.description, "A test recipe");
@@ -107,7 +107,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let load_recipe_result =
-                load_and_render_recipe(recipe_path.to_str().unwrap(), Vec::new());
+                load_recipe(recipe_path.to_str().unwrap(), Vec::new());
             assert!(load_recipe_result.is_err());
             let err = load_recipe_result.unwrap_err();
             println!("{}", err.to_string());
@@ -143,7 +143,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
             let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-            let recipe = load_and_render_recipe(recipe_path.to_str().unwrap(), params).unwrap();
+            let recipe = load_recipe(recipe_path.to_str().unwrap(), params).unwrap();
 
             assert_eq!(recipe.title, "Test Recipe");
             assert_eq!(recipe.description, "A test recipe");
@@ -170,7 +170,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let recipe =
-                load_and_render_recipe(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
+                load_recipe(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
             assert_eq!(recipe.title, "Test Recipe");
             assert_eq!(recipe.description, "A test recipe");
             assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
@@ -192,7 +192,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let load_recipe_result =
-                load_and_render_recipe(recipe_path.to_str().unwrap(), Vec::new());
+                load_recipe(recipe_path.to_str().unwrap(), Vec::new());
             assert!(load_recipe_result.is_err());
             let err = load_recipe_result.unwrap_err();
             println!("{}", err.to_string());
@@ -214,7 +214,7 @@ mod tests {
             let params = vec![("param".to_string(), "value".to_string())];
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
-            let load_recipe_result = load_and_render_recipe(recipe_path.to_str().unwrap(), params);
+            let load_recipe_result = load_recipe(recipe_path.to_str().unwrap(), params);
             assert!(load_recipe_result.is_err());
             let err = load_recipe_result.unwrap_err();
             let err_msg = err.to_string();
@@ -230,7 +230,7 @@ mod tests {
             let (_temp_dir, recipe_path) = setup_recipe_file(instructions_and_parameters);
 
             let recipe =
-                load_and_render_recipe(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
+                load_recipe(recipe_path.to_str().unwrap(), Vec::new()).unwrap();
             assert_eq!(recipe.instructions.unwrap(), "Test instructions");
             assert!(recipe.parameters.is_none());
         }
@@ -280,7 +280,7 @@ mod tests {
                 ("is_enabled".to_string(), "true".to_string()),
             ];
             let parent_result =
-                load_and_render_recipe(parent_path.to_str().unwrap(), params.clone());
+                load_recipe(parent_path.to_str().unwrap(), params.clone());
             assert!(parent_result.is_ok());
             let parent_recipe = parent_result.unwrap();
             assert_eq!(parent_recipe.description, "Parent recipe");
@@ -295,7 +295,7 @@ mod tests {
                 "is_enabled"
             );
 
-            let child_result = load_and_render_recipe(child_path.to_str().unwrap(), params);
+            let child_result = load_recipe(child_path.to_str().unwrap(), params);
             assert!(child_result.is_ok());
             let child_recipe = child_result.unwrap();
             assert_eq!(child_recipe.title, "Parent");

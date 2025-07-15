@@ -1,19 +1,17 @@
 use crate::recipes::print_recipe::{
-    missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
+    missing_parameters_command_line, print_recipe_explanation,
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use anyhow::Result;
-use console::style;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters, render_recipe_template
+    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters
 };
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::recipe::template_recipe::{render_recipe_for_preview};
 use goose::recipe::Recipe;
 use std::collections::HashMap;
 
-pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
 
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
@@ -24,12 +22,21 @@ fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     }
 }
 
-pub fn render_recipe_template_content(
+fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> {
+    let recipe_file = retrieve_recipe_file(recipe_name)?;
+    let recipe_dir_str = recipe_file.parent_dir
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?
+        .to_string();
+    Ok((recipe_file, recipe_dir_str))
+}
+
+pub fn load_recipe(
     recipe_name: &str,
     params: Vec<(String, String)>,
-) -> Result<String> {
+) -> Result<Recipe> {
     let recipe_file = retrieve_recipe_file(recipe_name)?;
-    let (rendered_content, missing_params) = render_recipe_template(recipe_file, params, Some(create_user_prompt_callback()))?;
+    let (recipe_opt, missing_params) = build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback()))?;
     
     if !missing_params.is_empty() {
         return Err(anyhow::anyhow!(
@@ -38,41 +45,29 @@ pub fn render_recipe_template_content(
         ));
     }
     
-    Ok(rendered_content)
+    recipe_opt.ok_or_else(|| anyhow::anyhow!("Failed to build recipe"))
 }
 
-pub fn load_and_render_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
-    let rendered_content = render_recipe_template_content(&recipe_name, params.clone())?;
-    
-    let recipe = Recipe::from_content(&rendered_content)?;
-    // Display information about the loaded recipe
-    println!(
-        "{} {}",
-        style("Loading recipe:").green().bold(),
-        style(&recipe.title).green()
-    );
-    println!("{} {}", style("Description:").bold(), &recipe.description);
-
-    if !params.is_empty() {
-        println!("{}", style("Parameters used to load this recipe:").bold());
-        print_parameters_with_values(params.into_iter().collect());
+pub fn render_recipe_as_yaml(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {
+    let recipe = load_recipe(recipe_name, params)?;
+    match serde_yaml::to_string(&recipe) {
+        Ok(yaml_content) => {
+            println!("{}", yaml_content);
+            Ok(())
+        }
+        Err(_) => {
+            eprintln!("Failed to serialize recipe to YAML");
+            std::process::exit(1);
+        }
     }
-    println!();
-    Ok(recipe)
 }
 
 pub fn load_recipe_for_validation(recipe_name: &str) -> Result<Recipe> {
-    let RecipeFile {
-        content: recipe_file_content,
-        parent_dir: recipe_parent_dir,
-        ..
-    } = retrieve_recipe_file(recipe_name)?;
-    let recipe_dir_str = recipe_parent_dir
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
-    validate_recipe_parameters(&recipe_file_content, recipe_dir_str)?;
+    let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
+    let recipe_file_content = &recipe_file.content;
+    validate_recipe_parameters(recipe_file_content, &recipe_dir_str)?;
     let recipe = render_recipe_for_preview(
-        &recipe_file_content,
+        recipe_file_content,
         recipe_dir_str.to_string(),
         &HashMap::new(),
     )?;
@@ -86,28 +81,22 @@ pub fn load_recipe_for_validation(recipe_name: &str) -> Result<Recipe> {
     Ok(recipe)
 }
 
-pub fn explain_recipe_with_parameters(
+pub fn explain_recipe(
     recipe_name: &str,
     params: Vec<(String, String)>,
 ) -> Result<()> {
-    let RecipeFile {
-        content: recipe_file_content,
-        parent_dir: recipe_parent_dir,
-        ..
-    } = retrieve_recipe_file(recipe_name)?;
-    let recipe_dir_str = recipe_parent_dir
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Error getting recipe directory"))?;
-    let recipe_parameters = validate_recipe_parameters(&recipe_file_content, recipe_dir_str)?;
+    let (recipe_file, recipe_dir_str) = load_recipe_file_with_dir(recipe_name)?;
+    let recipe_file_content = &recipe_file.content;
+    let recipe_parameters = validate_recipe_parameters(recipe_file_content, &recipe_dir_str)?;
 
     let (params_for_template, missing_params) = apply_values_to_parameters(
         &params,
         recipe_parameters,
-        recipe_dir_str,
+        &recipe_dir_str,
         None::<fn(&str, &str) -> Result<String>>,
     )?;
     let recipe = render_recipe_for_preview(
-        &recipe_file_content,
+        recipe_file_content,
         recipe_dir_str.to_string(),
         &params_for_template,
     )?;
