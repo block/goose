@@ -7,7 +7,6 @@ import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
 import { toastService } from '../../../toasts';
-import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -89,8 +88,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
 
   return (
     <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
       <ScrollArea className="flex-1 w-full">
         {isOnboarding && (
           <div className="group/logo flex justify-left pl-8">
@@ -99,7 +96,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         )}
         <div className="px-8 pt-6 pb-4">
           {/* Only show back button if not in onboarding mode */}
-          {!isOnboarding && <BackButton onClick={onClose} />}
+          {!isOnboarding && <BackButton className={'mt-[42px]'} onClick={onClose} />}
           <h1
             className="text-3xl font-medium text-textStandard mt-1"
             data-testid="provider-selection-heading"
