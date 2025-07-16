@@ -412,7 +412,6 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           </div>
         </form>
 
-        {/* Actions */}
         <div className="mt-[8px] ml-[-24px] mr-[-24px] pt-[16px]">
           <Button
             type="button"
