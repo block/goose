@@ -269,11 +269,9 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 
 /// Extract usage information from Anthropic's API response
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    println!("🔍 Anthropic get_usage called with data: {}", serde_json::to_string_pretty(data).unwrap_or_else(|_| format!("{:?}", data)));
     
     // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        println!("🔍 Anthropic found usage field in data");
         // Get all token fields for analysis
         let input_tokens = usage
             .get("input_tokens")
@@ -295,46 +293,18 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-        println!("🔍 Anthropic raw token values: input={}, cache_creation={}, cache_read={}, output={}", 
-                input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens);
 
-        // IMPORTANT: Based on the API responses, when caching is used:
-        // - input_tokens is ONLY the new/fresh tokens (can be very small, like 7)
-        // - cache_creation_input_tokens and cache_read_input_tokens are the cached content
-        // - These cached tokens are charged at different rates:
-        //   * Fresh input tokens: 100% of regular price
-        //   * Cache creation tokens: 125% of regular price
-        //   * Cache read tokens: 10% of regular price
-        //
-        // Calculate effective input tokens for cost calculation based on Anthropic's pricing:
-        // - Fresh input tokens: 100% of regular price (1.0x)
-        // - Cache creation tokens: 125% of regular price (1.25x)
-        // - Cache read tokens: 10% of regular price (0.10x)
-        //
-        // The effective input tokens represent the cost-equivalent tokens when multiplied
-        // by the regular input price, ensuring accurate cost calculations in the frontend.
-        let effective_input_tokens = input_tokens as f64 * 1.0
-            + cache_creation_tokens as f64 * 1.25
-            + cache_read_tokens as f64 * 0.10;
-
-        println!("🔍 Anthropic effective input tokens calculation: {} * 1.0 + {} * 1.25 + {} * 0.10 = {}", 
-                input_tokens, cache_creation_tokens, cache_read_tokens, effective_input_tokens);
-
-        // For token counting purposes, we still want to show the actual total count
-        let _total_actual_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-        // Return the effective input tokens for cost calculation
-        // This ensures the frontend cost calculation is accurate when multiplying by regular prices
-        let effective_input_i32 = effective_input_tokens.round().clamp(0.0, i32::MAX as f64) as i32;
+        // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
+        // The cache pricing should only affect cost calculation, not token count display
+        let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
+        
+        // Convert to i32 with bounds checking
+        let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
         let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 =
-            (effective_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-        println!("🔍 Anthropic final calculated values: effective_input={}, output={}, total={}", 
-                effective_input_i32, output_tokens_i32, total_tokens_i32);
+        let total_tokens_i32 = (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
         Ok(Usage::new(
-            Some(effective_input_i32),
+            Some(total_input_i32),
             Some(output_tokens_i32),
             Some(total_tokens_i32),
         ))
@@ -362,32 +332,25 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 
         // If we found any token data, process it
         if input_tokens > 0 || cache_creation_tokens > 0 || cache_read_tokens > 0 || output_tokens > 0 {
-            println!("🔍 Anthropic found token data directly in object: input={}, cache_creation={}, cache_read={}, output={}", 
-                    input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens);
-
-            let effective_input_tokens = input_tokens as f64 * 1.0
-                + cache_creation_tokens as f64 * 1.25
-                + cache_read_tokens as f64 * 0.10;
-
-            let effective_input_i32 = effective_input_tokens.round().clamp(0.0, i32::MAX as f64) as i32;
+            let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
+            
+            let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
             let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 =
-                (effective_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+            let total_tokens_i32 = (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
-            println!("🔍 Anthropic final calculated values from direct object: effective_input={}, output={}, total={}", 
-                    effective_input_i32, output_tokens_i32, total_tokens_i32);
+            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
+                    total_input_i32, output_tokens_i32, total_tokens_i32);
 
             Ok(Usage::new(
-                Some(effective_input_i32),
+                Some(total_input_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
             ))
         } else {
-            println!("🔍 Anthropic no token data found in object");
+            tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
         }
     } else {
-        println!("🔍 Anthropic no usage data found and data is not an object");
         tracing::debug!(
             "Failed to get usage data: {}",
             ProviderError::UsageError("No usage data found in response".to_string())
@@ -508,8 +471,6 @@ where
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
             
-            println!("🔍 Anthropic streaming line: {}", line.trim());
-
             // Skip empty lines and non-data lines
             if line.trim().is_empty() || !line.starts_with("data: ") {
                 continue;
@@ -531,27 +492,21 @@ where
                 }
             };
 
-            println!("🔍 Anthropic streaming event: type={}, data_keys={:?}", 
-                    event.event_type, 
-                    event.data.as_object().map(|obj| obj.keys().collect::<Vec<_>>()).unwrap_or_default());
-
             match event.event_type.as_str() {
                 "message_start" => {
                     // Message started, we can extract initial metadata and usage if needed
                     if let Some(message_data) = event.data.get("message") {
                         if let Some(usage_data) = message_data.get("usage") {
-                            println!("🔍 Anthropic message_start usage data: {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
                             let usage = get_usage(usage_data).unwrap_or_default();
-                            println!("🔍 Anthropic message_start parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
+                            tracing::debug!("🔍 Anthropic message_start parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                                     usage.input_tokens, usage.output_tokens, usage.total_tokens);
                             let model = message_data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
                             final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
-                            println!("🔍 Anthropic initial final_usage created from message_start with model: {}", final_usage.as_ref().unwrap().model);
                         } else {
-                            println!("🔍 Anthropic message_start has no usage data");
+                            tracing::debug!("🔍 Anthropic message_start has no usage data");
                         }
                     }
                     continue;
@@ -637,42 +592,58 @@ where
                 }
                 "message_delta" => {
                     // Message metadata delta (like stop_reason) and cumulative usage
-                    println!("🔍 Anthropic message_delta event data: {}", serde_json::to_string_pretty(&event.data).unwrap_or_else(|_| format!("{:?}", event.data)));
+                    tracing::debug!("🔍 Anthropic message_delta event data: {}", serde_json::to_string_pretty(&event.data).unwrap_or_else(|_| format!("{:?}", event.data)));
                     if let Some(usage_data) = event.data.get("usage") {
-                        println!("🔍 Anthropic message_delta usage data (cumulative): {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
-                        let usage = get_usage(usage_data).unwrap_or_default();
-                        println!("🔍 Anthropic message_delta parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
-                                usage.input_tokens, usage.output_tokens, usage.total_tokens);
-                        // Update final_usage with cumulative values from message_delta
-                        let model = event.data.get("model")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_else(|| {
-                                // If no model in message_delta, try to get it from existing final_usage
-                                final_usage.as_ref().map(|u| u.model.as_str()).unwrap_or("unknown")
-                            })
-                            .to_string();
-                        final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
-                        println!("🔍 Anthropic updated final_usage from message_delta with model: {}", final_usage.as_ref().unwrap().model);
+                        tracing::debug!("🔍 Anthropic message_delta usage data (cumulative): {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
+                        let delta_usage = get_usage(usage_data).unwrap_or_default();
+                        tracing::debug!("🔍 Anthropic message_delta parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
+                                delta_usage.input_tokens, delta_usage.output_tokens, delta_usage.total_tokens);
+                        
+                        // IMPORTANT: message_delta usage should be MERGED with existing usage, not replace it
+                        // message_start has input tokens, message_delta has output tokens
+                        if let Some(existing_usage) = &final_usage {
+                            let merged_input = existing_usage.usage.input_tokens.or(delta_usage.input_tokens);
+                            let merged_output = delta_usage.output_tokens.or(existing_usage.usage.output_tokens);
+                            let merged_total = match (merged_input, merged_output) {
+                                (Some(input), Some(output)) => Some(input + output),
+                                (Some(input), None) => Some(input),
+                                (None, Some(output)) => Some(output),
+                                (None, None) => None,
+                            };
+                            
+                            let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
+                            final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
+                            tracing::debug!("🔍 Anthropic MERGED usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
+                                    merged_input, merged_output, merged_total);
+                        } else {
+                            // No existing usage, just use delta usage
+                            let model = event.data.get("model")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, delta_usage));
+                            tracing::debug!("🔍 Anthropic no existing usage, using delta usage");
+                        }
                     } else {
-                        println!("🔍 Anthropic message_delta event has no usage field");
+                        tracing::debug!("🔍 Anthropic message_delta event has no usage field");
                     }
                     continue;
                 }
                 "message_stop" => {
                     // Message finished, extract final usage if available
                     if let Some(usage_data) = event.data.get("usage") {
-                        println!("🔍 Anthropic streaming usage data: {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
+                        tracing::debug!("🔍 Anthropic streaming usage data: {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
                         let usage = get_usage(usage_data).unwrap_or_default();
-                        println!("🔍 Anthropic parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
+                        tracing::debug!("🔍 Anthropic parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
                                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
                         let model = event.data.get("model")
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        println!("🔍 Anthropic final_usage created with model: {}", model);
+                        tracing::debug!("🔍 Anthropic final_usage created with model: {}", model);
                         final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
                     } else {
-                        println!("🔍 Anthropic message_stop event has no usage data");
+                        tracing::debug!("🔍 Anthropic message_stop event has no usage data");
                     }
                     break;
                 }
@@ -686,10 +657,9 @@ where
 
         // Yield final usage information if available
         if let Some(usage) = final_usage {
-            println!("🔍 Anthropic yielding final usage: {:?}", usage);
             yield (None, Some(usage));
         } else {
-            println!("🔍 Anthropic no final usage to yield");
+            tracing::debug!("🔍 Anthropic no final usage to yield");
         }
     }
 }
@@ -729,9 +699,9 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(27)); // 12 * 1.0 + 12 * 1.25 = 27 effective tokens
+        assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
         assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(42)); // 27 + 15
+        assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
 
         Ok(())
     }
@@ -772,9 +742,9 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(34)); // 15 * 1.0 + 15 * 1.25 = 33.75 → 34 effective tokens
+        assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
         assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(54)); // 34 + 20
+        assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
 
         Ok(())
     }
@@ -998,11 +968,11 @@ mod tests {
 
         let usage = get_usage(&response)?;
 
-        // Effective input tokens should be:
-        // 7 * 1.0 + 10000 * 1.25 + 5000 * 0.10 = 7 + 12500 + 500 = 13007
-        assert_eq!(usage.input_tokens, Some(13007));
+        // ACTUAL input tokens should be:
+        // 7 + 10000 + 5000 = 15007 total actual tokens
+        assert_eq!(usage.input_tokens, Some(15007));
         assert_eq!(usage.output_tokens, Some(50));
-        assert_eq!(usage.total_tokens, Some(13057)); // 13007 + 50
+        assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
 
         Ok(())
     }
