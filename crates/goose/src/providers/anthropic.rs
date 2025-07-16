@@ -203,10 +203,14 @@ impl Provider for AnthropicProvider {
         // Parse response
         let message = response_to_message(response.clone())?;
         let usage = get_usage(&response)?;
+        println!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
+                usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let provider_usage = ProviderUsage::new(model, usage);
+        println!("🔍 Anthropic non-streaming returning ProviderUsage: {:?}", provider_usage);
+        Ok((message, provider_usage))
     }
 
     /// Fetch supported models from Anthropic; returns Err on failure, Ok(None) if not present
