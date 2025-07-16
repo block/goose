@@ -76,7 +76,7 @@ export async function fetchSessions(): Promise<Session[]> {
       const sessions = response.data.sessions
         .filter(
           (sessionInfo: SessionInfo) =>
-            sessionInfo.metadata && sessionInfo.metadata.description !== ''
+            sessionInfo.metadata && sessionInfo.metadata.message_count > 0
         )
         .map(
           (sessionInfo: SessionInfo): Session => ({

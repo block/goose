@@ -56,7 +56,8 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

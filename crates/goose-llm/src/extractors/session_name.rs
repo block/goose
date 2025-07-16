@@ -3,6 +3,7 @@ use crate::providers::errors::ProviderError;
 use crate::types::core::Role;
 use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
 use anyhow::Result;
+use goose::utils::safe_truncate;
 use indoc::indoc;
 use serde_json::{json, Value};
 
@@ -47,11 +48,12 @@ fn build_system_prompt() -> String {
 }
 
 /// Generates a short (≤4 words) session name
-#[uniffi::export(async_runtime = "tokio")]
+#[uniffi::export(async_runtime = "tokio", default(request_id = None))]
 pub async fn generate_session_name(
     provider_name: &str,
     provider_config: JsonValueFfi,
     messages: &[Message],
+    request_id: Option<String>,
 ) -> Result<String, ProviderError> {
     // Collect up to the first 3 user messages (truncated to 300 chars each)
     let context: Vec<String> = messages
@@ -60,11 +62,7 @@ pub async fn generate_session_name(
         .take(3)
         .map(|m| {
             let text = m.content.concat_text_str();
-            if text.len() > 300 {
-                text.chars().take(300).collect()
-            } else {
-                text
-            }
+            safe_truncate(&text, 300)
         })
         .collect();
 
@@ -93,6 +91,7 @@ pub async fn generate_session_name(
         &system_prompt,
         &[Message::user().with_text(&user_msg_text)],
         schema,
+        request_id,
     )
     .await?;
 

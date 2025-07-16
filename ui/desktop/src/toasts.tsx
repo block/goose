@@ -114,12 +114,7 @@ export function toastError({ title, msg, traceback, toastOptions }: ToastErrorPr
       </div>
       <div className="flex-none flex items-center">
         {traceback ? (
-          <Button
-            className="text-textProminentInverse font-medium rt-variant-outline dark:bg-gray-300 bg-slate"
-            onClick={() => navigator.clipboard.writeText(traceback)}
-          >
-            Copy error
-          </Button>
+          <Button onClick={() => navigator.clipboard.writeText(traceback)}>Copy error</Button>
         ) : null}
       </div>
     </div>,

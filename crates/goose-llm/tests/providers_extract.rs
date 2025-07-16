@@ -125,7 +125,7 @@ where
     let provider = provider_type.create_provider(cfg)?;
 
     let msg = Message::user().with_text(user_text);
-    let resp = provider.extract(system, &[msg], &schema).await?;
+    let resp = provider.extract(system, &[msg], &schema, None).await?;
 
     println!("[{:?}] extract => {}", provider_type, resp.data);
 

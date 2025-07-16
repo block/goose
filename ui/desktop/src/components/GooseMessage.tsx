@@ -29,6 +29,7 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
+  isStreaming?: boolean; // Whether this message is currently being streamed
 }
 
 export default function GooseMessage({
@@ -39,8 +40,11 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   appendMessage,
+  isStreaming = false,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  // Track which tool confirmations we've already handled to prevent infinite loops
+  const handledToolConfirmations = useRef<Set<string>>(new Set());
 
   // Extract text content from the message
   let textContent = getTextContent(message);
@@ -115,22 +119,34 @@ export default function GooseMessage({
     if (
       messageIndex === messageHistoryIndex - 1 &&
       hasToolConfirmation &&
-      toolConfirmationContent
+      toolConfirmationContent &&
+      !handledToolConfirmations.current.has(toolConfirmationContent.id)
     ) {
-      appendMessage(
-        createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
+      // Only append the error message if there isn't already a response for this tool confirmation
+      const hasExistingResponse = messages.some((msg) =>
+        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.id)
       );
+
+      if (!hasExistingResponse) {
+        // Mark this tool confirmation as handled to prevent infinite loop
+        handledToolConfirmations.current.add(toolConfirmationContent.id);
+
+        appendMessage(
+          createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
+        );
+      }
     }
   }, [
     messageIndex,
     messageHistoryIndex,
     hasToolConfirmation,
     toolConfirmationContent,
+    messages,
     appendMessage,
   ]);
 
   return (
-    <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="goose-message flex w-[90%] justify-start">
       <div className="flex flex-col w-full">
         {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
@@ -147,7 +163,7 @@ export default function GooseMessage({
         {/* Visible assistant response */}
         {displayText && (
           <div className="flex flex-col group">
-            <div className={`goose-message-content pt-2`}>
+            <div className={`goose-message-content py-2`}>
               <div ref={contentRef}>{<MarkdownContent content={displayText} />}</div>
             </div>
 
@@ -160,18 +176,20 @@ export default function GooseMessage({
               </div>
             )}
 
-            {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
+            {/* Only show timestamp and copy link when not streaming */}
             <div className="relative flex justify-start">
-              {toolRequests.length === 0 && (
-                <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              {toolRequests.length === 0 && !isStreaming && (
+                <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                   {timestamp}
                 </div>
               )}
-              {displayText && message.content.every((content) => content.type === 'text') && (
-                <div className="absolute left-0 pt-1">
-                  <MessageCopyLink text={displayText} contentRef={contentRef} />
-                </div>
-              )}
+              {displayText &&
+                message.content.every((content) => content.type === 'text') &&
+                !isStreaming && (
+                  <div className="absolute left-0 pt-1">
+                    <MessageCopyLink text={displayText} contentRef={contentRef} />
+                  </div>
+                )}
             </div>
           </div>
         )}
@@ -179,10 +197,7 @@ export default function GooseMessage({
         {toolRequests.length > 0 && (
           <div className="relative flex flex-col w-full">
             {toolRequests.map((toolRequest) => (
-              <div
-                className={`goose-message-tool bg-bgSubtle rounded px-2 py-2 mb-2`}
-                key={toolRequest.id}
-              >
+              <div className={`goose-message-tool pb-2`} key={toolRequest.id}>
                 <ToolCallWithResponse
                   // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
                   isCancelledMessage={
@@ -192,11 +207,12 @@ export default function GooseMessage({
                   toolRequest={toolRequest}
                   toolResponse={toolResponsesMap.get(toolRequest.id)}
                   notifications={toolCallNotifications.get(toolRequest.id)}
+                  isStreamingMessage={isStreaming}
                 />
               </div>
             ))}
-            <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-              {timestamp}
+            <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              {!isStreaming && timestamp}
             </div>
           </div>
         )}

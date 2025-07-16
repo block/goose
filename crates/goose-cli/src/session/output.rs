@@ -2,13 +2,15 @@ use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::providers::pricing::get_model_pricing;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
+use regex::Regex;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Error;
+use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -164,7 +166,8 @@ pub fn render_message(message: &Message, debug: bool) {
             }
         }
     }
-    println!();
+
+    let _ = std::io::stdout().flush();
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
@@ -666,6 +669,68 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
         "Context: {} {}% ({}/{} tokens)",
         colored_dots, percentage, total_tokens, context_limit
     );
+}
+
+fn normalize_model_name(model: &str) -> String {
+    let mut result = model.to_string();
+
+    // Remove "-latest" suffix
+    if result.ends_with("-latest") {
+        result = result.strip_suffix("-latest").unwrap().to_string();
+    }
+
+    // Remove date-like suffixes: -YYYYMMDD
+    let re_date = Regex::new(r"-\d{8}$").unwrap();
+    if re_date.is_match(&result) {
+        result = re_date.replace(&result, "").to_string();
+    }
+
+    // Convert version numbers like -3-5- to -3.5- (e.g., claude-3-5-haiku -> claude-3.5-haiku)
+    let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
+    if re_version.is_match(&result) {
+        result = re_version.replace(&result, "-$1.$2-").to_string();
+    }
+
+    result
+}
+
+async fn estimate_cost_usd(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+) -> Option<f64> {
+    // Use the pricing module's get_model_pricing which handles model name mapping internally
+    let cleaned_model = normalize_model_name(model);
+    let pricing_info = get_model_pricing(provider, &cleaned_model).await;
+
+    match pricing_info {
+        Some(pricing) => {
+            let input_cost = pricing.input_cost * input_tokens as f64;
+            let output_cost = pricing.output_cost * output_tokens as f64;
+            Some(input_cost + output_cost)
+        }
+        None => None,
+    }
+}
+
+/// Display cost information, if price data is available.
+pub async fn display_cost_usage(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+) {
+    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
+        use console::style;
+        println!(
+            "Cost: {} USD ({} tokens: in {}, out {})",
+            style(format!("${:.4}", cost)).cyan(),
+            input_tokens + output_tokens,
+            input_tokens,
+            output_tokens
+        );
+    }
 }
 
 pub struct McpSpinners {

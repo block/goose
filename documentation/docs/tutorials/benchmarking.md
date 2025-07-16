@@ -196,4 +196,4 @@ RUST_LOG=debug goose bench bench-config.json
 Tool shimming allows you to use a non-tool-capable models with Goose, provided Ollama is installed on the
 system.
 
-See this guide for important details on [tool shimming](/docs/guides/experimental-features).
+See this guide for important details on [tool shimming](/docs/experimental/ollama).
