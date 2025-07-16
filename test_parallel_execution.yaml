@@ -1,0 +1,18 @@
+version: "1.0.0"
+title: "Test Parallel Execution"
+description: "Test that executions.parallel=true is respected even with sequential prompt"
+
+parameters:
+  - key: city
+    input_type: string
+    requirement: required
+    description: "City name"
+
+sub_recipes:
+  - name: weather
+    path: "./weather_sub.yaml"
+    executions:
+      parallel: true
+
+prompt: |
+  Get weather for Sydney, Melbourne, and Brisbane in sequential order

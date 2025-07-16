@@ -1,0 +1,12 @@
+version: "1.0.0"
+title: "Weather Sub-Recipe"
+description: "Get weather for a city"
+
+parameters:
+  - key: city
+    input_type: string
+    requirement: required
+    description: "City name"
+
+prompt: |
+  Get weather information for {{ city }}

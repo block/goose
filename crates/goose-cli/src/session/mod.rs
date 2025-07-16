@@ -1009,7 +1009,7 @@ impl Session {
                                 match method.as_str() {
                                     "notifications/message" => {
                                         let data = o.get("data").unwrap_or(&Value::Null);
-                                        let (formatted_message, subagent_id, _notification_type) = match data {
+                                        let (formatted_message, subagent_id, message_notification_type) = match data {
                                             Value::String(s) => (s.clone(), None, None),
                                             Value::Object(o) => {
                                                 // Check for subagent notification structure first
@@ -1080,7 +1080,7 @@ impl Session {
                                             } else {
                                                 progress_bars.log(&formatted_message);
                                             }
-                                        } else if let Some(ref notification_type) = _notification_type {
+                                        } else if let Some(ref notification_type) = message_notification_type {
                                             if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
                                                 if interactive {
                                                     let _ = progress_bars.hide();
