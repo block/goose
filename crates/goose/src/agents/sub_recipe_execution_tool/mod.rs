@@ -5,5 +5,6 @@ pub mod sub_recipe_execute_task_tool;
 mod task_execution_tracker;
 mod task_types;
 mod tasks;
+pub mod tasks_manager;
 pub mod utils;
 mod workers;

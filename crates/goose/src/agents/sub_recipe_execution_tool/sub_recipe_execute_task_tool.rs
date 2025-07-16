@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::agents::{
     sub_recipe_execution_tool::lib::execute_tasks,
-    sub_recipe_execution_tool::task_types::ExecutionMode, tool_execution::ToolCallResult,
+    sub_recipe_execution_tool::task_types::ExecutionMode,
+    sub_recipe_execution_tool::tasks_manager::TasksManager, tool_execution::ToolCallResult,
 };
 use mcp_core::protocol::JsonRpcMessage;
 use tokio::sync::mpsc;
@@ -47,55 +48,15 @@ Pre-created Task Based:
                     "default": "sequential",
                     "description": "Execution strategy for multiple tasks. For pre-created tasks, respect the execution_mode from task creation. For user intent, use 'sequential' (default) unless user explicitly requests parallel execution with words like 'parallel', 'simultaneously', 'at the same time', or 'concurrently'."
                 },
-                "tasks": {
+                "task_ids": {
                     "type": "array",
                     "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {
-                                "type": "string",
-                                "description": "Unique identifier for the task"
-                            },
-                            "task_type": {
-                                "type": "string",
-                                "enum": ["sub_recipe", "text_instruction"],
-                                "default": "sub_recipe",
-                                "description": "the type of task to execute, can be one of: sub_recipe, text_instruction"
-                            },
-                            "payload": {
-                                "type": "object",
-                                "properties": {
-                                    "sub_recipe": {
-                                        "type": "object",
-                                        "description": "sub recipe to execute",
-                                        "properties": {
-                                            "name": {
-                                                "type": "string",
-                                                "description": "name of the sub recipe to execute"
-                                            },
-                                            "recipe_path": {
-                                                "type": "string",
-                                                "description": "path of the sub recipe file"
-                                            },
-                                            "command_parameters": {
-                                                "type": "object",
-                                                "description": "parameters to pass to run recipe command with sub recipe file"
-                                            }
-                                        }
-                                    },
-                                    "text_instruction": {
-                                        "type": "string",
-                                        "description": "text instruction to execute"
-                                    }
-                                }
-                            }
-                        },
-                        "required": ["id", "payload"]
-                    },
-                    "description": "The tasks to run in parallel"
+                        "type": "string",
+                        "description": "Unique identifier for the task"
+                    }
                 }
             },
-            "required": ["tasks"]
+            "required": ["task_ids"]
         }),
         Some(ToolAnnotations {
             title: Some("Run tasks in parallel".to_string()),
@@ -107,9 +68,10 @@ Pre-created Task Based:
     )
 }
 
-pub async fn run_tasks(execute_data: Value) -> ToolCallResult {
+pub async fn run_tasks(execute_data: Value, tasks_manager: &TasksManager) -> ToolCallResult {
     let (notification_tx, notification_rx) = mpsc::channel::<JsonRpcMessage>(100);
 
+    let tasks_manager_clone = tasks_manager.clone();
     let result_future = async move {
         let execute_data_clone = execute_data.clone();
         let execution_mode = execute_data_clone
@@ -117,7 +79,14 @@ pub async fn run_tasks(execute_data: Value) -> ToolCallResult {
             .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
             .unwrap_or_default();
 
-        match execute_tasks(execute_data, execution_mode, notification_tx).await {
+        match execute_tasks(
+            execute_data,
+            execution_mode,
+            notification_tx,
+            &tasks_manager_clone,
+        )
+        .await
+        {
             Ok(result) => {
                 let output = serde_json::to_string(&result).unwrap();
                 Ok(vec![Content::text(output)])

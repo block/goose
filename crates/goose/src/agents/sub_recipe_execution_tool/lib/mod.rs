@@ -4,6 +4,7 @@ use crate::agents::sub_recipe_execution_tool::executor::{
 pub use crate::agents::sub_recipe_execution_tool::task_types::{
     ExecutionMode, ExecutionResponse, ExecutionStats, SharedState, Task, TaskResult, TaskStatus,
 };
+use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
 
 #[cfg(test)]
 mod tests;
@@ -16,10 +17,28 @@ pub async fn execute_tasks(
     input: Value,
     execution_mode: ExecutionMode,
     notifier: mpsc::Sender<JsonRpcMessage>,
+    tasks_manager: &TasksManager,
 ) -> Result<Value, String> {
-    let tasks: Vec<Task> =
-        serde_json::from_value(input.get("tasks").ok_or("Missing tasks field")?.clone())
-            .map_err(|e| format!("Failed to parse tasks: {}", e))?;
+    let task_ids: Vec<String> = serde_json::from_value(
+        input
+            .get("task_ids")
+            .ok_or("Missing task_ids field")?
+            .clone(),
+    )
+    .map_err(|e| format!("Failed to parse task_ids: {}", e))?;
+
+    let mut tasks = Vec::new();
+    for task_id in &task_ids {
+        match tasks_manager.get_task(task_id).await {
+            Some(task) => tasks.push(task),
+            None => {
+                return Err(format!(
+                    "Task with ID '{}' not found in TasksManager",
+                    task_id
+                ))
+            }
+        }
+    }
 
     let task_count = tasks.len();
     match execution_mode {

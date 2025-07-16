@@ -110,8 +110,14 @@ mod prepare_command_params_tests {
         #[test]
         fn test_merge_base_values_with_tool_parameters() {
             let parameter_array = vec![
-                json!(HashMap::from([("key2".to_string(), "override_value1".to_string())])),
-                json!(HashMap::from([("key2".to_string(), "override_value2".to_string())])),
+                json!(HashMap::from([(
+                    "key2".to_string(),
+                    "override_value1".to_string()
+                )])),
+                json!(HashMap::from([(
+                    "key2".to_string(),
+                    "override_value2".to_string()
+                )])),
             ];
             let mut sub_recipe = setup_default_sub_recipe();
             sub_recipe.values = Some(HashMap::from([

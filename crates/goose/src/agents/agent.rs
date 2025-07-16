@@ -12,6 +12,7 @@ use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_
 use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
     self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
 };
+use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{push_message, Message};
@@ -63,6 +64,7 @@ pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: RwLock<ExtensionManager>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
+    pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -137,6 +139,7 @@ impl Agent {
             provider: Mutex::new(None),
             extension_manager: RwLock::new(ExtensionManager::new()),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
+            tasks_manager: TasksManager::new(),
             final_output_tool: Mutex::new(None),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -291,10 +294,18 @@ impl Agent {
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    tool_call.arguments.clone(),
+                    &self.tasks_manager,
+                )
                 .await
         } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
-            sub_recipe_execute_task_tool::run_tasks(tool_call.arguments.clone()).await
+            sub_recipe_execute_task_tool::run_tasks(
+                tool_call.arguments.clone(),
+                &self.tasks_manager,
+            )
+            .await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(

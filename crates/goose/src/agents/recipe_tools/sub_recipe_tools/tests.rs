@@ -2,7 +2,7 @@
 mod tests {
     use std::collections::HashMap;
 
-    use crate::recipe::{Execution, SubRecipe};
+    use crate::recipe::SubRecipe;
     use serde_json::json;
     use serde_json::Value;
     use tempfile::TempDir;
@@ -15,12 +15,6 @@ mod tests {
             executions: None,
         };
         sub_recipe
-    }
-
-    fn create_execution() -> Execution {
-        Execution {
-            parallel: true,
-        }
     }
 
     mod get_input_schema {
@@ -50,10 +44,7 @@ mod tests {
             assert_eq!(&expected_task_parameters_items, task_parameters_items);
         }
 
-        mod without_execution_runs {
-            use super::*;
-
-            const SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS: &str = r#"{
+        const SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS: &str = r#"{
                 "version": "1.0.0",
                 "title": "Test Recipe",
                 "description": "A test recipe",
@@ -74,167 +65,67 @@ mod tests {
                 ]
             }"#;
 
-            #[test]
-            fn test_with_one_param_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
-                sub_recipe.values =
-                    Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
+        #[test]
+        fn test_with_one_param_in_tool_input() {
+            let (mut sub_recipe, _temp_dir) =
+                prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
+            sub_recipe.values = Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
 
-                let result = get_input_schema(&sub_recipe).unwrap();
+            let result = get_input_schema(&sub_recipe).unwrap();
 
-                verify_task_parameters(
-                    result,
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "key2": { "type": "number", "description": "An optional parameter" }
-                        },
-                        "required": []
-                    }),
-                );
-            }
-
-            #[test]
-            fn test_without_param_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
-                sub_recipe.values = Some(HashMap::from([
-                    ("key1".to_string(), "value1".to_string()),
-                    ("key2".to_string(), "value2".to_string()),
-                ]));
-
-                let result = get_input_schema(&sub_recipe).unwrap();
-
-                assert_eq!(
-                    None,
-                    result
-                        .get("properties")
-                        .unwrap()
-                        .as_object()
-                        .unwrap()
-                        .get("task_parameters")
-                );
-            }
-
-            #[test]
-            fn test_with_all_params_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
-                sub_recipe.values = None;
-
-                let result = get_input_schema(&sub_recipe).unwrap();
-
-                verify_task_parameters(
-                    result,
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "key1": { "type": "string", "description": "A test parameter" },
-                            "key2": { "type": "number", "description": "An optional parameter" }
-                        },
-                        "required": ["key1"]
-                    }),
-                );
-            }
+            verify_task_parameters(
+                result,
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "key2": { "type": "number", "description": "An optional parameter" }
+                    },
+                    "required": []
+                }),
+            );
         }
 
-        mod execution_runs {
-            use super::*;
+        #[test]
+        fn test_without_param_in_tool_input() {
+            let (mut sub_recipe, _temp_dir) =
+                prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
+            sub_recipe.values = Some(HashMap::from([
+                ("key1".to_string(), "value1".to_string()),
+                ("key2".to_string(), "value2".to_string()),
+            ]));
 
-            const SUB_RECIPE_FILE_CONTENT_WITH_THREE_PARAMS: &str = r#"{
-                "version": "1.0.0",
-                "title": "Test Recipe",
-                "description": "A test recipe",
-                "prompt": "Test prompt",
-                "parameters": [
-                    {
-                        "key": "key1",
-                        "input_type": "string",
-                        "requirement": "required",
-                        "description": "A required string parameter"
+            let result = get_input_schema(&sub_recipe).unwrap();
+
+            assert_eq!(
+                None,
+                result
+                    .get("properties")
+                    .unwrap()
+                    .as_object()
+                    .unwrap()
+                    .get("task_parameters")
+            );
+        }
+
+        #[test]
+        fn test_with_all_params_in_tool_input() {
+            let (mut sub_recipe, _temp_dir) =
+                prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_TWO_PARAMS);
+            sub_recipe.values = None;
+
+            let result = get_input_schema(&sub_recipe).unwrap();
+
+            verify_task_parameters(
+                result,
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "key1": { "type": "string", "description": "A test parameter" },
+                        "key2": { "type": "number", "description": "An optional parameter" }
                     },
-                    {
-                        "key": "key2",
-                        "input_type": "number",
-                        "requirement": "optional",
-                        "description": "An optional parameter"
-                    },
-                    {
-                        "key": "key3",
-                        "input_type": "date",
-                        "requirement": "required",
-                        "description": "A required date parameter"
-                    }
-                ]
-            }"#;
-
-            #[test]
-            fn test_with_one_param_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_THREE_PARAMS);
-                sub_recipe.values =
-                    Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
-                sub_recipe.executions = Some(create_execution());
-
-                let result = get_input_schema(&sub_recipe).unwrap();
-
-                verify_task_parameters(
-                    result,
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "key3": { "type": "date", "description": "A required date parameter" }
-                        },
-                        "required": ["key3"]
-                    }),
-                );
-            }
-
-            #[test]
-            fn test_without_param_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_THREE_PARAMS);
-                sub_recipe.values = Some(HashMap::from([
-                    ("key1".to_string(), "value1".to_string()),
-                    ("key3".to_string(), "value3".to_string()),
-                ]));
-                sub_recipe.executions = Some(create_execution());
-
-                let result = get_input_schema(&sub_recipe).unwrap();
-
-                assert_eq!(
-                    None,
-                    result
-                        .get("properties")
-                        .unwrap()
-                        .as_object()
-                        .unwrap()
-                        .get("task_parameters")
-                );
-            }
-
-            #[test]
-            fn test_with_all_params_in_tool_input() {
-                let (mut sub_recipe, _temp_dir) =
-                    prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_THREE_PARAMS);
-                sub_recipe.values = None;
-
-                let result = get_input_schema(&sub_recipe).unwrap();
-
-                verify_task_parameters(
-                    result,
-                    json!({
-                        "type": "object",
-                        "properties": {
-                            "key1": { "type": "string", "description": "A required string parameter" },
-                            "key2": { "type": "number", "description": "An optional parameter" },
-                            "key3": { "type": "date", "description": "A required date parameter" }
-                        },
-                        "required": ["key1", "key3"]
-                    }),
-                );
-            }
+                    "required": ["key1"]
+                }),
+            );
         }
     }
 }
