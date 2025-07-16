@@ -17,7 +17,9 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
+use crate::recipes::recipe::{
+    explain_recipe_with_parameters, load_recipe_as_template, load_recipe_content_as_template,
+};
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
@@ -643,46 +645,42 @@ pub async fn cli() -> Result<()> {
                     Ok(())
                 }
                 None => {
-                    // Run session command by default
-                    let session_id = format!(
-                        "session_{}",
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs()
-                    );
+                    let mut session: crate::Session = build_session(SessionBuilderConfig {
+                        identifier: identifier.map(extract_identifier),
+                        resume,
+                        no_session: false,
+                        extensions,
+                        remote_extensions,
+                        streamable_http_extensions,
+                        builtins,
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                        settings: None,
+                        provider: None,
+                        model: None,
+                        debug,
+                        max_tool_repetitions,
+                        max_turns,
+                        scheduled_job_id: None,
+                        interactive: true,
+                        quiet: false,
+                        sub_recipes: None,
+                        final_output_response: None,
+                    })
+                    .await;
+
+                    let session_id = session
+                        .session_file()
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown_session")
+                        .to_string();
 
                     goose::track_telemetry! {
-                        session: (&session_id, SessionType::Interactive) => {
-                            let mut session: crate::Session = build_session(SessionBuilderConfig {
-                                identifier: identifier.map(extract_identifier),
-                                resume,
-                                no_session: false,
-                                extensions,
-                                remote_extensions,
-                                streamable_http_extensions,
-                                builtins,
-                                extensions_override: None,
-                                additional_system_prompt: None,
-                                settings: None,
-                                provider: None,
-                                model: None,
-                                debug,
-                                max_tool_repetitions,
-                                max_turns,
-                                scheduled_job_id: None,
-                                interactive: true,
-                                quiet: false,
-                                sub_recipes: None,
-                                final_output_response: None,
-                            })
-                            .await;
+                        session: (session_id.as_str(), SessionType::Interactive) => {
                             setup_logging(
-                                session
-                                    .session_file()
-                                    .as_ref()
-                                    .and_then(|p| p.file_stem())
-                                    .and_then(|s| s.to_str()),
+                                Some(session_id.as_str()),
                                 None,
                             )?;
 
@@ -817,10 +815,14 @@ pub async fn cli() -> Result<()> {
             };
 
             if is_recipe_execution {
-                let recipe_version = "1.0.0";
+                let recipe_version =
+                    match load_recipe_as_template(&recipe_name_for_telemetry, params.clone()) {
+                        Ok(recipe) => recipe.version,
+                        Err(_) => "unknown".to_string(),
+                    };
 
                 goose::track_telemetry! {
-                    recipe: (&recipe_name_for_telemetry, recipe_version, params) => {
+                    recipe: (&recipe_name_for_telemetry, &recipe_version, params) => {
                         let mut session = build_session(SessionBuilderConfig {
                             identifier: identifier.map(extract_identifier),
                             resume,
@@ -868,14 +870,38 @@ pub async fn cli() -> Result<()> {
                     }
                 }?;
             } else {
-                // Use session tracking for non-recipe runs (--text, --instructions, stdin)
-                let session_id = format!(
-                    "run_{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                );
+                let mut session = build_session(SessionBuilderConfig {
+                    identifier: identifier.map(extract_identifier),
+                    resume,
+                    no_session,
+                    extensions,
+                    remote_extensions,
+                    streamable_http_extensions,
+                    builtins,
+                    extensions_override: input_config.extensions_override,
+                    additional_system_prompt: input_config.additional_system_prompt,
+                    settings: session_settings,
+                    provider,
+                    model,
+                    debug,
+                    max_tool_repetitions,
+                    max_turns,
+                    scheduled_job_id,
+                    interactive,
+                    quiet,
+                    sub_recipes,
+                    final_output_response,
+                })
+                .await;
+
+                let session_id = session
+                    .session_file()
+                    .as_ref()
+                    .and_then(|p| p.file_stem())
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown_run")
+                    .to_string();
+
                 let session_type = if interactive {
                     SessionType::Interactive
                 } else {
@@ -883,37 +909,9 @@ pub async fn cli() -> Result<()> {
                 };
 
                 goose::track_telemetry! {
-                    session: (&session_id, session_type) => {
-                        let mut session = build_session(SessionBuilderConfig {
-                            identifier: identifier.map(extract_identifier),
-                            resume,
-                            no_session,
-                            extensions,
-                            remote_extensions,
-                            streamable_http_extensions,
-                            builtins,
-                            extensions_override: input_config.extensions_override,
-                            additional_system_prompt: input_config.additional_system_prompt,
-                            settings: session_settings,
-                            provider,
-                            model,
-                            debug,
-                            max_tool_repetitions,
-                            max_turns,
-                            scheduled_job_id,
-                            interactive,
-                            quiet,
-                            sub_recipes,
-                            final_output_response,
-                        })
-                        .await;
-
+                    session: (session_id.as_str(), session_type) => {
                         setup_logging(
-                            session
-                                .session_file()
-                                .as_ref()
-                                .and_then(|p| p.file_stem())
-                                .and_then(|s| s.to_str()),
+                            Some(session_id.as_str()),
                             None,
                         )?;
 
