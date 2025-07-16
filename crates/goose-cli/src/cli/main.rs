@@ -3,8 +3,7 @@ use clap::{Parser, Subcommand};
 
 use goose::config::Config;
 
-use super::{extract_identifier, parse_key_val, track_command_execution, track_recipe_execution,
-    track_session_execution, Identifier, InputConfig};
+use super::{extract_identifier, parse_key_val, Identifier, InputConfig};
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
@@ -12,9 +11,8 @@ use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 use crate::commands::schedule::{
-    handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
-    handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
-    handle_schedule_sessions,
+    handle_schedule_add, handle_schedule_list, handle_schedule_remove,
+    handle_schedule_run_now, handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
@@ -582,12 +580,13 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Configure {}) => {
-            track_command_execution("configure", CommandType::Configure, || async {
-                handle_configure()
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Configure failed: {}", e))
-            })
-            .await?;
+            goose::track_telemetry! {
+                command: ("configure", CommandType::Configure) => {
+                    handle_configure()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Configure failed: {}", e))
+                }
+            }?;
             return Ok(());
         }
         Some(Command::Info { verbose }) => {
@@ -653,48 +652,48 @@ pub async fn cli() -> Result<()> {
                             .as_secs()
                     );
 
-                    track_session_execution(&session_id, SessionType::Interactive, || async {
-                        let mut session: crate::Session = build_session(SessionBuilderConfig {
-                            identifier: identifier.map(extract_identifier),
-                            resume,
-                            no_session: false,
-                            extensions,
-                            remote_extensions,
-                            streamable_http_extensions,
-                            builtins,
-                            extensions_override: None,
-                            additional_system_prompt: None,
-                            settings: None,
-                            provider: None,
-                            model: None,
-                            debug,
-                            max_tool_repetitions,
-                            max_turns,
-                            scheduled_job_id: None,
-                            interactive: true,
-                            quiet: false,
-                            sub_recipes: None,
-                            final_output_response: None,
-                        })
-                        .await;
-                        setup_logging(
-                            session
-                                .session_file()
-                                .as_ref()
-                                .and_then(|p| p.file_stem())
-                                .and_then(|s| s.to_str()),
-                            None,
-                        )?;
+                    goose::track_telemetry! {
+                        session: (&session_id, SessionType::Interactive) => {
+                            let mut session: crate::Session = build_session(SessionBuilderConfig {
+                                identifier: identifier.map(extract_identifier),
+                                resume,
+                                no_session: false,
+                                extensions,
+                                remote_extensions,
+                                streamable_http_extensions,
+                                builtins,
+                                extensions_override: None,
+                                additional_system_prompt: None,
+                                settings: None,
+                                provider: None,
+                                model: None,
+                                debug,
+                                max_tool_repetitions,
+                                max_turns,
+                                scheduled_job_id: None,
+                                interactive: true,
+                                quiet: false,
+                                sub_recipes: None,
+                                final_output_response: None,
+                            })
+                            .await;
+                            setup_logging(
+                                session
+                                    .session_file()
+                                    .as_ref()
+                                    .and_then(|p| p.file_stem())
+                                    .and_then(|s| s.to_str()),
+                                None,
+                            )?;
 
-                        // Render previous messages if resuming a session and history flag is set
-                        if resume && history {
-                            session.render_message_history();
+                            if resume && history {
+                                session.render_message_history();
+                            }
+
+                            let result = session.interactive(None).await;
+                            result.map(|r| (r, session))
                         }
-
-                        let result = session.interactive(None).await;
-                        result.map(|r| (r, session))
-                    })
-                    .await?;
+                    }?;
                     Ok(())
                 }
             };
@@ -820,10 +819,8 @@ pub async fn cli() -> Result<()> {
             if is_recipe_execution {
                 let recipe_version = "1.0.0";
 
-                track_recipe_execution(
-                    &recipe_name_for_telemetry,
-                    recipe_version,
-                    || async {
+                goose::track_telemetry! {
+                    recipe: (&recipe_name_for_telemetry, recipe_version, params) => {
                         let mut session = build_session(SessionBuilderConfig {
                             identifier: identifier.map(extract_identifier),
                             resume,
@@ -868,10 +865,8 @@ pub async fn cli() -> Result<()> {
                         };
 
                         result.map(|r| (r, session))
-                    },
-                    params,
-                )
-                .await?;
+                    }
+                }?;
             } else {
                 // Use session tracking for non-recipe runs (--text, --instructions, stdin)
                 let session_id = format!(
@@ -887,53 +882,54 @@ pub async fn cli() -> Result<()> {
                     SessionType::Headless
                 };
 
-                track_session_execution(&session_id, session_type, || async {
-                    let mut session = build_session(SessionBuilderConfig {
-                        identifier: identifier.map(extract_identifier),
-                        resume,
-                        no_session,
-                        extensions,
-                        remote_extensions,
-                        streamable_http_extensions,
-                        builtins,
-                        extensions_override: input_config.extensions_override,
-                        additional_system_prompt: input_config.additional_system_prompt,
-                        settings: session_settings,
-                        provider,
-                        model,
-                        debug,
-                        max_tool_repetitions,
-                        max_turns,
-                        scheduled_job_id,
-                        interactive,
-                        quiet,
-                        sub_recipes,
-                        final_output_response,
-                    })
-                    .await;
+                goose::track_telemetry! {
+                    session: (&session_id, session_type) => {
+                        let mut session = build_session(SessionBuilderConfig {
+                            identifier: identifier.map(extract_identifier),
+                            resume,
+                            no_session,
+                            extensions,
+                            remote_extensions,
+                            streamable_http_extensions,
+                            builtins,
+                            extensions_override: input_config.extensions_override,
+                            additional_system_prompt: input_config.additional_system_prompt,
+                            settings: session_settings,
+                            provider,
+                            model,
+                            debug,
+                            max_tool_repetitions,
+                            max_turns,
+                            scheduled_job_id,
+                            interactive,
+                            quiet,
+                            sub_recipes,
+                            final_output_response,
+                        })
+                        .await;
 
-                    setup_logging(
-                        session
-                            .session_file()
-                            .as_ref()
-                            .and_then(|p| p.file_stem())
-                            .and_then(|s| s.to_str()),
-                        None,
-                    )?;
+                        setup_logging(
+                            session
+                                .session_file()
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str()),
+                            None,
+                        )?;
 
-                    let result = if interactive {
-                        session.interactive(input_config.contents).await
-                    } else if let Some(contents) = input_config.contents {
-                        session.headless(contents).await
-                    } else {
-                        Err(anyhow::anyhow!(
-                            "Error: no text provided for prompt in headless mode"
-                        ))
-                    };
+                        let result = if interactive {
+                            session.interactive(input_config.contents).await
+                        } else if let Some(contents) = input_config.contents {
+                            session.headless(contents).await
+                        } else {
+                            Err(anyhow::anyhow!(
+                                "Error: no text provided for prompt in headless mode"
+                            ))
+                        };
 
-                    result.map(|r| (r, session))
-                })
-                .await?;
+                        result.map(|r| (r, session))
+                    }
+                }?;
             }
 
             return Ok(());
@@ -960,15 +956,6 @@ pub async fn cli() -> Result<()> {
                 SchedulerCommand::RunNow { id } => {
                     // New arm
                     handle_schedule_run_now(id).await?;
-                }
-                SchedulerCommand::ServicesStatus {} => {
-                    handle_schedule_services_status().await?;
-                }
-                SchedulerCommand::ServicesStop {} => {
-                    handle_schedule_services_stop().await?;
-                }
-                SchedulerCommand::CronHelp {} => {
-                    handle_schedule_cron_help().await?;
                 }
             }
             return Ok(());

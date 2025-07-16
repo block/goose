@@ -2,6 +2,7 @@ mod config;
 mod datadog_metrics;
 mod environment;
 mod events;
+mod macros;
 mod manager;
 mod providers;
 mod user;
