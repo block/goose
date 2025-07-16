@@ -5,6 +5,9 @@ description: Add Cloudinary Asset Management MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/4diEvoRFVrQ" />
 
 This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary-community/cloudinary-mcp) as a Goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
 
