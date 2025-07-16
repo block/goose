@@ -1,15 +1,16 @@
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
-use goose::config::{Config, ExtensionConfig};
+use goose::config::Config;
 
+use super::{extract_identifier, parse_key_val, track_command_execution, track_recipe_execution,
+    track_session_execution, Identifier, InputConfig};
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
-// Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
     handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
@@ -19,7 +20,6 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
-use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
@@ -29,294 +29,13 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 
-use goose::message::MessageContent;
-use goose::telemetry::{
-    detect_environment, CommandExecution, CommandResult, CommandType, SessionExecution,
-    SessionResult, SessionType, ToolUsage, TelemetryExecution, SessionMetadataSupport,
-};
-use std::collections::HashMap;
-
-fn log_if_telemetry_disabled(tracking_type: &str) {
-    if goose::telemetry::global_telemetry().is_none() {
-        tracing::debug!(
-            "Telemetry is disabled or not initialized for {} tracking",
-            tracking_type
-        );
-    }
-}
-
-fn extract_tool_usage_from_session(session: &crate::Session) -> Vec<ToolUsage> {
-    let messages = session.message_history();
-    let mut tool_usage_map: HashMap<String, ToolUsage> = HashMap::new();
-    let mut tool_call_times: HashMap<String, i64> = HashMap::new();
-    let mut tool_id_to_name: HashMap<String, String> = HashMap::new();
-
-    for message in &messages {
-        for content in &message.content {
-            match content {
-                MessageContent::ToolRequest(tool_request) => {
-                    if let Ok(tool_call) = &tool_request.tool_call {
-                        let tool_name = &tool_call.name;
-                        let tool_id = &tool_request.id;
-
-                        tool_id_to_name.insert(tool_id.clone(), tool_name.clone());
-                        tool_call_times.insert(tool_id.clone(), message.created);
-
-                        tool_usage_map
-                            .entry(tool_name.clone())
-                            .or_insert_with(|| ToolUsage::new(tool_name));
-                    }
-                }
-                MessageContent::ToolResponse(tool_response) => {
-                    let tool_id = &tool_response.id;
-
-                    if let Some(tool_name) = tool_id_to_name.get(tool_id) {
-                        if let Some(entry) = tool_usage_map.get_mut(tool_name) {
-                            let duration = if let Some(start_time) = tool_call_times.get(tool_id) {
-                                let duration_ms = (message.created - start_time).max(0) as u64;
-                                std::time::Duration::from_millis(duration_ms)
-                            } else {
-                                std::time::Duration::from_millis(0)
-                            };
-
-                            let success = tool_response.tool_result.is_ok();
-                            entry.add_call(duration, success);
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    tool_usage_map.into_values().collect()
-}
-
-async fn track_session_execution<F, Fut, T>(
-    session_id: &str,
-    session_type: SessionType,
-    execution_fn: F,
-) -> Result<T>
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = Result<(T, crate::Session)>>,
-{
-    let start_time = std::time::Instant::now();
-
-    let telemetry_execution = goose::telemetry::global_telemetry().map(|_manager| {
-        SessionExecution::new(session_id, session_type).with_metadata("interface", "cli")
-    });
-
-    log_if_telemetry_disabled("session");
-
-    let result = execution_fn().await;
-
-    if let Some(mut execution) = telemetry_execution {
-        let duration = start_time.elapsed();
-
-        match &result {
-            Ok((_, session)) => {
-                if let Ok(session_metadata) = session.get_metadata() {
-                    execution = execution.with_session_metadata(&session_metadata);
-                }
-
-                let tool_usage = extract_tool_usage_from_session(session);
-                for tool in tool_usage {
-                    execution.add_tool_usage(tool);
-                }
-
-                if let Some(env) = detect_environment() {
-                    execution = execution.with_environment(&env);
-                }
-
-                let messages = session.message_history();
-                execution = execution
-                    .with_turn_count(messages.len() as u64)
-                    .with_result(SessionResult::Success)
-                    .with_duration(duration);
-            }
-            Err(e) => {
-                execution = execution
-                    .with_result(SessionResult::Error(e.to_string()))
-                    .with_duration(duration);
-            }
-        }
-
-        if let Some(manager) = goose::telemetry::global_telemetry() {
-            if let Err(e) = manager.track_session_execution(execution).await {
-                tracing::warn!("Failed to track session execution: {}", e);
-            }
-        }
-    }
-
-    result.map(|(result, _)| result)
-}
-
-async fn track_command_execution<F, Fut, T>(
-    command_name: &str,
-    command_type: CommandType,
-    execution_fn: F,
-) -> Result<T>
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
-{
-    let start_time = std::time::Instant::now();
-
-    let telemetry_execution = goose::telemetry::global_telemetry()
-        .map(|_manager| CommandExecution::new(command_name, command_type));
-
-    log_if_telemetry_disabled("command");
-
-    let result = execution_fn().await;
-
-    if let Some(mut execution) = telemetry_execution {
-        let duration = start_time.elapsed();
-
-        match &result {
-            Ok(_) => {
-                execution = execution
-                    .with_result(CommandResult::Success)
-                    .with_duration(duration);
-            }
-            Err(e) => {
-                execution = execution
-                    .with_result(CommandResult::Error(e.to_string()))
-                    .with_duration(duration);
-            }
-        }
-
-        if let Some(env) = detect_environment() {
-            execution = execution.with_environment(&env);
-        }
-
-        if let Some(manager) = goose::telemetry::global_telemetry() {
-            if let Err(e) = manager.track_command_execution(execution).await {
-                tracing::warn!("Failed to track command execution: {}", e);
-            }
-        }
-    }
-
-    result
-}
-
-async fn track_recipe_execution<F, Fut, T>(
-    recipe_name: &str,
-    recipe_version: &str,
-    execution_fn: F,
-    params: Vec<(String, String)>,
-) -> Result<T>
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = Result<(T, crate::Session)>>,
-{
-    let start_time = std::time::Instant::now();
-
-    let telemetry_execution = goose::telemetry::global_telemetry()
-        .map(|manager| manager.recipe_execution(recipe_name, recipe_version));
-
-    log_if_telemetry_disabled("recipe");
-
-    let result = execution_fn().await;
-
-    if let Some(execution_builder) = telemetry_execution {
-        let duration = start_time.elapsed();
-        let execution = match &result {
-            Ok((_, session)) => {
-                let mut builder = execution_builder
-                    .with_result(goose::telemetry::SessionResult::Success)
-                    .with_duration(duration);
-
-                if let Ok(session_metadata) = session.get_metadata() {
-                    builder = builder.with_session_metadata(&session_metadata);
-                }
-
-                let tool_usage = extract_tool_usage_from_session(session);
-                for tool in tool_usage {
-                    builder = builder.add_tool_usage(tool);
-                }
-
-                for (key, value) in &params {
-                    builder = builder.with_metadata(key, value);
-                }
-
-                if let Some(env) = detect_environment() {
-                    builder = builder.with_environment(&env);
-                }
-
-                let messages = session.message_history();
-                builder = builder.with_turn_count(messages.len() as u64);
-
-                builder.build()
-            }
-            Err(e) => {
-                let mut builder = execution_builder
-                    .with_result(goose::telemetry::SessionResult::Error(e.to_string()))
-                    .with_duration(duration);
-
-                for (key, value) in &params {
-                    builder = builder.with_metadata(key, value);
-                }
-
-                builder.build()
-            }
-        };
-
-        if let Some(manager) = goose::telemetry::global_telemetry() {
-            if let Err(e) = manager.track_recipe_execution(execution).await {
-                tracing::warn!("Failed to track recipe execution: {}", e);
-            }
-        }
-    }
-
-    result.map(|(result, _)| result)
-}
+use goose::telemetry::{CommandType, SessionType};
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-}
-
-#[derive(Args, Debug)]
-#[group(required = false, multiple = false)]
-struct Identifier {
-    #[arg(
-        short,
-        long,
-        value_name = "NAME",
-        help = "Name for the chat session (e.g., 'project-x')",
-        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
-        alias = "id"
-    )]
-    name: Option<String>,
-
-    #[arg(
-        short,
-        long,
-        value_name = "PATH",
-        help = "Path for the chat session (e.g., './playground.jsonl')",
-        long_help = "Specify a path for your chat session. When used with --resume, will resume this specific session if it exists."
-    )]
-    path: Option<PathBuf>,
-}
-
-fn extract_identifier(identifier: Identifier) -> session::Identifier {
-    if let Some(name) = identifier.name {
-        session::Identifier::Name(name)
-    } else if let Some(path) = identifier.path {
-        session::Identifier::Path(path)
-    } else {
-        unreachable!()
-    }
-}
-
-fn parse_key_val(s: &str) -> Result<(String, String), String> {
-    match s.split_once('=') {
-        Some((key, value)) => Ok((key.to_string(), value.to_string())),
-        None => Err(format!("invalid KEY=VALUE: {}", s)),
-    }
 }
 
 #[derive(Subcommand)]
@@ -385,35 +104,21 @@ enum SchedulerCommand {
     List {},
     #[command(about = "Remove a scheduled job by ID")]
     Remove {
-        #[arg(long, help = "ID of the job to remove")] // Changed from positional to named --id
+        #[arg(long, help = "ID of the job to remove")]
         id: String,
     },
-    /// List sessions created by a specific schedule
     #[command(about = "List sessions created by a specific schedule")]
     Sessions {
-        /// ID of the schedule
-        #[arg(long, help = "ID of the schedule")] // Explicitly make it --id
+        #[arg(long, help = "ID of the schedule")]
         id: String,
-        /// Maximum number of sessions to return
         #[arg(long, help = "Maximum number of sessions to return")]
         limit: Option<u32>,
     },
-    /// Run a scheduled job immediately
     #[command(about = "Run a scheduled job immediately")]
     RunNow {
-        /// ID of the schedule to run
-        #[arg(long, help = "ID of the schedule to run")] // Explicitly make it --id
+        #[arg(long, help = "ID of the schedule to run")]
         id: String,
     },
-    /// Check status of Temporal services (temporal scheduler only)
-    #[command(about = "Check status of Temporal services")]
-    ServicesStatus {},
-    /// Stop Temporal services (temporal scheduler only)
-    #[command(about = "Stop Temporal services")]
-    ServicesStop {},
-    /// Show cron expression examples and help
-    #[command(about = "Show cron expression examples and help")]
-    CronHelp {},
 }
 
 #[derive(Subcommand)]
@@ -472,18 +177,14 @@ pub enum BenchCommand {
 
 #[derive(Subcommand)]
 enum RecipeCommand {
-    /// Validate a recipe file
     #[command(about = "Validate a recipe")]
     Validate {
-        /// Recipe name to get recipe file to validate
         #[arg(help = "recipe name to get recipe file or full path to the recipe file to validate")]
         recipe_name: String,
     },
 
-    /// Generate a deeplink for a recipe file
     #[command(about = "Generate a deeplink for a recipe")]
     Deeplink {
-        /// Recipe name to get recipe file to generate deeplink
         #[arg(
             help = "recipe name to get recipe file or full path to the recipe file to generate deeplink"
         )]
@@ -514,23 +215,18 @@ enum RecipeCommand {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
     Configure {},
 
-    /// Display Goose configuration information
     #[command(about = "Display Goose information")]
     Info {
-        /// Show verbose information including current configuration
         #[arg(short, long, help = "Show verbose information including config.yaml")]
         verbose: bool,
     },
 
-    /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
     Mcp { name: String },
 
-    /// Start or resume interactive chat sessions
     #[command(
         about = "Start or resume interactive chat sessions",
         visible_alias = "s"
@@ -538,11 +234,9 @@ enum Command {
     Session {
         #[command(subcommand)]
         command: Option<SessionCommand>,
-        /// Identifier for the chat session
         #[command(flatten)]
         identifier: Option<Identifier>,
 
-        /// Resume a previous session
         #[arg(
             short,
             long,
@@ -551,7 +245,6 @@ enum Command {
         )]
         resume: bool,
 
-        /// Show message history when resuming
         #[arg(
             long,
             help = "Show previous messages when resuming a session",
@@ -559,7 +252,6 @@ enum Command {
         )]
         history: bool,
 
-        /// Enable debug output mode
         #[arg(
             long,
             help = "Enable debug output mode with full content and no truncation",
@@ -567,7 +259,6 @@ enum Command {
         )]
         debug: bool,
 
-        /// Maximum number of consecutive identical tool calls allowed
         #[arg(
             long = "max-tool-repetitions",
             value_name = "NUMBER",
@@ -576,7 +267,6 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
-        /// Maximum number of turns (iterations) allowed in a single response
         #[arg(
             long = "max-turns",
             value_name = "NUMBER",
@@ -585,7 +275,6 @@ enum Command {
         )]
         max_turns: Option<u32>,
 
-        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
@@ -595,7 +284,6 @@ enum Command {
         )]
         extensions: Vec<String>,
 
-        /// Add remote extensions with a URL
         #[arg(
             long = "with-remote-extension",
             value_name = "URL",
@@ -605,7 +293,6 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
-        /// Add streamable HTTP extensions with a URL
         #[arg(
             long = "with-streamable-http-extension",
             value_name = "URL",
@@ -615,7 +302,6 @@ enum Command {
         )]
         streamable_http_extensions: Vec<String>,
 
-        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -626,18 +312,14 @@ enum Command {
         builtins: Vec<String>,
     },
 
-    /// Open the last project directory
     #[command(about = "Open the last project directory", visible_alias = "p")]
     Project {},
 
-    /// List recent project directories
     #[command(about = "List recent project directories", visible_alias = "ps")]
     Projects,
 
-    /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
-        /// Path to instruction file containing commands
         #[arg(
             short,
             long,
@@ -648,7 +330,6 @@ enum Command {
         )]
         instructions: Option<String>,
 
-        /// Input text containing commands
         #[arg(
             short = 't',
             long = "text",
@@ -660,7 +341,6 @@ enum Command {
         )]
         input_text: Option<String>,
 
-        /// Additional system prompt to customize agent behavior
         #[arg(
             long = "system",
             value_name = "TEXT",
@@ -670,7 +350,6 @@ enum Command {
         )]
         system: Option<String>,
 
-        /// Recipe name or full path to the recipe file
         #[arg(
             short = None,
             long = "recipe",
@@ -692,7 +371,6 @@ enum Command {
         )]
         params: Vec<(String, String)>,
 
-        /// Continue in interactive mode after processing input
         #[arg(
             short = 's',
             long = "interactive",
@@ -700,7 +378,6 @@ enum Command {
         )]
         interactive: bool,
 
-        /// Run without storing a session file
         #[arg(
             long = "no-session",
             help = "Run without storing a session file",
@@ -709,21 +386,18 @@ enum Command {
         )]
         no_session: bool,
 
-        /// Show the recipe title, description, and parameters
         #[arg(
             long = "explain",
             help = "Show the recipe title, description, and parameters"
         )]
         explain: bool,
 
-        /// Print the rendered recipe instead of running it
         #[arg(
             long = "render-recipe",
             help = "Print the rendered recipe instead of running it."
         )]
         render_recipe: bool,
 
-        /// Maximum number of consecutive identical tool calls allowed
         #[arg(
             long = "max-tool-repetitions",
             value_name = "NUMBER",
@@ -732,7 +406,6 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
-        /// Maximum number of turns (iterations) allowed in a single response
         #[arg(
             long = "max-turns",
             value_name = "NUMBER",
@@ -741,11 +414,9 @@ enum Command {
         )]
         max_turns: Option<u32>,
 
-        /// Identifier for this run session
         #[command(flatten)]
         identifier: Option<Identifier>,
 
-        /// Resume a previous run
         #[arg(
             short,
             long,
@@ -755,7 +426,6 @@ enum Command {
         )]
         resume: bool,
 
-        /// Enable debug output mode
         #[arg(
             long,
             help = "Enable debug output mode with full content and no truncation",
@@ -763,7 +433,6 @@ enum Command {
         )]
         debug: bool,
 
-        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
@@ -773,7 +442,6 @@ enum Command {
         )]
         extensions: Vec<String>,
 
-        /// Add remote extensions
         #[arg(
             long = "with-remote-extension",
             value_name = "URL",
@@ -783,7 +451,6 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
-        /// Add streamable HTTP extensions
         #[arg(
             long = "with-streamable-http-extension",
             value_name = "URL",
@@ -793,7 +460,6 @@ enum Command {
         )]
         streamable_http_extensions: Vec<String>,
 
-        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -803,7 +469,6 @@ enum Command {
         )]
         builtins: Vec<String>,
 
-        /// Quiet mode - suppress non-response output
         #[arg(
             short = 'q',
             long = "quiet",
@@ -811,7 +476,6 @@ enum Command {
         )]
         quiet: bool,
 
-        /// Scheduled job ID (used internally for scheduled executions)
         #[arg(
             long = "scheduled-job-id",
             value_name = "ID",
@@ -821,7 +485,6 @@ enum Command {
         )]
         scheduled_job_id: Option<String>,
 
-        /// Additional sub-recipe file paths
         #[arg(
             long = "sub-recipe",
             value_name = "RECIPE",
@@ -831,7 +494,6 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
-        /// Provider to use for this run (overrides environment variable)
         #[arg(
             long = "provider",
             value_name = "PROVIDER",
@@ -840,7 +502,6 @@ enum Command {
         )]
         provider: Option<String>,
 
-        /// Model to use for this run (overrides environment variable)
         #[arg(
             long = "model",
             value_name = "MODEL",
@@ -850,24 +511,20 @@ enum Command {
         model: Option<String>,
     },
 
-    /// Recipe utilities for validation and deeplinking
     #[command(about = "Recipe utilities for validation and deeplinking")]
     Recipe {
         #[command(subcommand)]
         command: RecipeCommand,
     },
 
-    /// Manage scheduled jobs
     #[command(about = "Manage scheduled jobs", visible_alias = "sched")]
     Schedule {
         #[command(subcommand)]
         command: SchedulerCommand,
     },
 
-    /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
     Update {
-        /// Update to canary version
         #[arg(
             short,
             long,
@@ -876,22 +533,18 @@ enum Command {
         )]
         canary: bool,
 
-        /// Enforce to re-configure Goose during update
         #[arg(short, long, help = "Enforce to re-configure goose during update")]
         reconfigure: bool,
     },
 
-    /// Evaluate system configuration across a range of practical tasks
     #[command(about = "Evaluate system configuration across a range of practical tasks")]
     Bench {
         #[command(subcommand)]
         cmd: BenchCommand,
     },
 
-    /// Start a web server with a chat interface
     #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
-        /// Port to run the web server on
         #[arg(
             short,
             long,
@@ -900,7 +553,6 @@ enum Command {
         )]
         port: u16,
 
-        /// Host to bind the web server to
         #[arg(
             long,
             default_value = "127.0.0.1",
@@ -908,24 +560,16 @@ enum Command {
         )]
         host: String,
 
-        /// Open browser automatically
         #[arg(long, help = "Open browser automatically when server starts")]
         open: bool,
     },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
-enum CliProviderVariant {
+pub enum CliProviderVariant {
     OpenAi,
     Databricks,
     Ollama,
-}
-
-#[derive(Debug)]
-pub struct InputConfig {
-    pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
-    pub additional_system_prompt: Option<String>,
 }
 
 pub async fn cli() -> Result<()> {
