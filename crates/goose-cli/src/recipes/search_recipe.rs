@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Result};
 use goose::config::Config;
 use goose::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
+use goose::recipe::template_recipe::parse_recipe_content;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
@@ -95,7 +97,7 @@ fn configured_github_recipe_repo() -> Option<String> {
     match config.get_param(GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY) {
         Ok(Some(recipe_repo_full_name)) => Some(recipe_repo_full_name),
         _ => None,
-    }convert_path_with_tilde_expansion
+    }
 }
 
 /// Lists all available recipes from local paths and GitHub repositories
@@ -172,7 +174,7 @@ fn create_local_recipe_info(path: &Path) -> Result<RecipeInfo> {
         .unwrap_or_else(|| Path::new("."))
         .to_string_lossy()
         .to_string();
-    let (recipe, _) = crate::recipes::template_recipe::parse_recipe_content(&content, recipe_dir)?;
+    let (recipe, _) = parse_recipe_content(&content, recipe_dir)?;
 
     let name = path
         .file_stem()
