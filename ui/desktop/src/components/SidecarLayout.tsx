@@ -152,9 +152,9 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
     const getTextColor = () => {
       switch (line.type) {
         case 'removed':
-          return 'text-red-400';
+          return 'text-red-500';
         case 'added':
-          return 'text-green-400';
+          return 'text-green-500';
         case 'context':
         default:
           return 'text-textStandard';
@@ -215,9 +215,9 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
     const getTextColor = () => {
       switch (line.type) {
         case 'removed':
-          return 'text-red-400';
+          return 'text-red-500';
         case 'added':
-          return 'text-green-400';
+          return 'text-green-500';
         case 'context':
         default:
           return 'text-textStandard';
@@ -268,25 +268,21 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
     <div className="h-full flex flex-col bg-background-default ">
       {viewMode === 'split' ? (
         /* Split Diff Content */
-        <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-auto flex">
           {/* Before (Left Side) */}
           <div className="flex-1 border-r border-borderSubtle">
-            <div className="bg-background-muted text-textStandard px-4 py-2 text-xs font-medium border-b border-borderSubtle">
+            <div className="py-2  text-textStandard text-xs font-mono text-center border-b-1 border-borderSubtle">
               Before
             </div>
-            <div className="h-[calc(100%-40px)] overflow-auto">
-              {parsedDiff.beforeLines.map((line) => renderDiffLine(line, 'before'))}
-            </div>
+            <div>{parsedDiff.beforeLines.map((line) => renderDiffLine(line, 'before'))}</div>
           </div>
 
           {/* After (Right Side) */}
           <div className="flex-1">
-            <div className="bg-background-muted text-textStandard px-4 py-2 text-xs font-medium border-b border-borderSubtle">
+            <div className="py-2  text-textStandard text-xs font-mono text-center border-b-1 border-borderSubtle">
               After
             </div>
-            <div className="h-[calc(100%-40px)] overflow-auto">
-              {parsedDiff.afterLines.map((line) => renderDiffLine(line, 'after'))}
-            </div>
+            <div>{parsedDiff.afterLines.map((line) => renderDiffLine(line, 'after'))}</div>
           </div>
         </div>
       ) : (
