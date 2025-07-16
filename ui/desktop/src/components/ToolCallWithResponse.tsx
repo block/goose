@@ -346,7 +346,7 @@ function ToolCallView({
         if (args.window_title) {
           return `capturing window "${truncate(getStringValue(args.window_title))}"`;
         }
-        return 'capturing screen';
+        return `capturing screen`;
 
       case 'automation_script':
         if (args.language) {
@@ -358,23 +358,29 @@ function ToolCallView({
         return 'final output';
 
       case 'computer_control':
-        return 'poking around...';
+        return `poking around...`;
 
       default: {
-        // Fallback to showing key parameters for unknown tools
+        // Generic fallback for unknown tools: ToolName + CompactArguments
+        // This ensures any MCP tool works without explicit handling
+        const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        if (entries.length === 0) return null;
+        
+        if (entries.length === 0) {
+          return `${toolDisplayName}`;
+        }
 
         // For a single parameter, show key and truncated value
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
           const truncatedValue = truncate(stringValue, 30);
-          return `${key}: ${truncatedValue}`;
+          return `${toolDisplayName} ${key}: ${truncatedValue}`;
         }
 
-        // For multiple parameters, just show the keys
-        return entries.map(([key]) => key).join(', ');
+        // For multiple parameters, show tool name and keys
+        const keys = entries.map(([key]) => key).join(', ');
+        return `${toolDisplayName} ${keys}`;
       }
     }
 
@@ -400,7 +406,7 @@ function ToolCallView({
               if (description) {
                 return description;
               }
-              // Fallback to the original tool name formatting
+              // Fallback tool name formatting
               return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
             })()}
           </span>
