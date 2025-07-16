@@ -159,10 +159,6 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
     let secret_key_value = config.get_param::<String>("LANGFUSE_SECRET_KEY");
     let langfuse_url_value = config.get_param("LANGFUSE_URL");
 
-    print!("LANGFUSE_PUBLIC_KEY: {:?}", public_key_value);
-    print!("LANGFUSE_SECRET_KEY: {:?}\n", secret_key_value);
-    print!("LANGFUSE_URL: {:?}", langfuse_url_value);
-
     let public_key = env::var("LANGFUSE_PUBLIC_KEY")
         .or_else(|_| public_key_value)
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"))
