@@ -32,6 +32,7 @@ pub fn extract_recipe_info_from_cli(
                         path: recipe_file_path.to_string_lossy().to_string(),
                         name,
                         values: None,
+                        sequential_when_repeated: true,
                     };
                     all_sub_recipes.push(additional_sub_recipe);
                 }
