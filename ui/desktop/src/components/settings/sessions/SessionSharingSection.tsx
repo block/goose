@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '../../ui/input';
 import { Check, Lock } from 'lucide-react';
 import { Switch } from '../../ui/switch';
+import { Button } from '../../ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
@@ -82,73 +84,77 @@ export default function SessionSharingSection() {
   };
 
   return (
-    <section id="session-sharing" className="px-8">
-      {/*Title*/}
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-medium text-textStandard">Session sharing</h2>
-      </div>
+    <section id="session-sharing" className="space-y-4 pr-4 mt-1">
+      <Card className="pb-2">
+        <CardHeader className="pb-0">
+          <CardTitle>Session Sharing</CardTitle>
+          <CardDescription>
+            {envBaseUrlShare
+              ? 'Session sharing is configured but fully opt-in — your sessions are only shared when you explicitly click the share button.'
+              : 'You can enable session sharing to share your sessions with others.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-4 py-2">
+          <div className="space-y-4">
+            {/* Toggle for enabling session sharing */}
+            <div className="flex items-center gap-3">
+              <label className="text-sm cursor-pointer">
+                {envBaseUrlShare
+                  ? 'Session sharing has already been configured'
+                  : 'Enable session sharing'}
+              </label>
 
-      <div className="border-b border-borderSubtle pb-8">
-        {envBaseUrlShare ? (
-          <p className="text-sm text-textStandard mb-4">
-            Session sharing is configured but fully opt-in — your sessions are only shared when you
-            explicitly click the share button.
-          </p>
-        ) : (
-          <p className="text-sm text-textStandard mb-4">
-            You can enable session sharing to share your sessions with others. You'll then need to
-            enter the base URL for the session sharing API endpoint. Anyone with access to the same
-            API and sharing session enabled will be able to see your sessions.
-          </p>
-        )}
+              {envBaseUrlShare ? (
+                <Lock className="w-5 h-5 text-text-muted" />
+              ) : (
+                <Switch
+                  checked={sessionSharingConfig.enabled}
+                  disabled={!!envBaseUrlShare}
+                  onCheckedChange={toggleSharing}
+                  variant="mono"
+                />
+              )}
+            </div>
 
-        <div className="space-y-4">
-          {/* Toggle for enabling session sharing */}
-          <div className="flex items-center justify-between">
-            <label className="text-textStandard cursor-pointer">
-              {envBaseUrlShare
-                ? 'Session sharing has already been configured'
-                : 'Enable session sharing'}
-            </label>
-            {envBaseUrlShare ? (
-              <Lock className="w-5 h-5 text-gray-600" />
-            ) : (
-              <Switch
-                checked={sessionSharingConfig.enabled}
-                disabled={!!envBaseUrlShare}
-                onCheckedChange={toggleSharing}
-                variant="mono"
-              />
+            {/* Base URL field (only visible if enabled) */}
+            {sessionSharingConfig.enabled && (
+              <div className="space-y-2 relative">
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="session-sharing-url" className="text-sm text-text-default">
+                    Base URL
+                  </label>
+                  {isUrlConfigured && <Check className="w-5 h-5 text-green-500" />}
+                </div>
+                <div className="flex items-center">
+                  <Input
+                    id="session-sharing-url"
+                    type="url"
+                    placeholder="https://example.com/api"
+                    value={sessionSharingConfig.baseUrl}
+                    disabled={!!envBaseUrlShare}
+                    {...(envBaseUrlShare ? {} : { onChange: handleBaseUrlChange })}
+                  />
+                </div>
+                {urlError && <p className="text-red-500 text-sm">{urlError}</p>}
+                {isUrlConfigured && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      // Test the connection to the configured URL
+                      console.log('Testing connection to:', sessionSharingConfig.baseUrl);
+                      // TODO: Implement actual connection test
+                    }}
+                  >
+                    Test Connection
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-
-          {/* Base URL field (only visible if enabled) */}
-          {sessionSharingConfig.enabled && (
-            <div className="space-y-2 relative">
-              <div className="flex items-center space-x-2">
-                <label
-                  htmlFor="session-sharing-url"
-                  className="text-sm font-medium text-textStandard"
-                >
-                  Base URL
-                </label>
-                {isUrlConfigured && <Check className="w-5 h-5 text-green-500" />}
-              </div>
-              <div className="flex items-center">
-                <Input
-                  id="session-sharing-url"
-                  type="url"
-                  placeholder="https://example.com/api"
-                  value={sessionSharingConfig.baseUrl}
-                  disabled={!!envBaseUrlShare}
-                  {...(envBaseUrlShare ? {} : { onChange: handleBaseUrlChange })}
-                />
-              </div>
-              {urlError && <p className="text-red-500 text-sm">{urlError}</p>}
-            </div>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }

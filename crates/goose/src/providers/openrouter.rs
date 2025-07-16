@@ -266,16 +266,103 @@ impl Provider for OpenRouterProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    /// Fetch supported models from OpenRouter API (only models with tool support)
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("api/v1/models").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct models URL: {e}"))
+        })?;
+
+        // Handle request failures gracefully
+        // If the request fails, fall back to manual entry
+        let response = match self
+            .client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("HTTP-Referer", "https://block.github.io/goose")
+            .header("X-Title", "Goose")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
+                return Ok(None);
+            }
+        };
+
+        // Handle JSON parsing failures gracefully
+        let json: serde_json::Value = match response.json().await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry", e);
+                return Ok(None);
+            }
+        };
+
+        // Check for error in response
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            tracing::warn!("OpenRouter API returned an error: {}", msg);
+            return Ok(None);
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+
+        let mut models: Vec<String> = data
+            .iter()
+            .filter_map(|model| {
+                // Get the model ID
+                let id = model.get("id").and_then(|v| v.as_str())?;
+
+                // Check if the model supports tools
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
+                        Some(params) => params,
+                        None => {
+                            // If supported_parameters is missing, skip this model (assume no tool support)
+                            tracing::debug!(
+                                "Model '{}' missing supported_parameters field, skipping",
+                                id
+                            );
+                            return None;
+                        }
+                    };
+
+                let has_tool_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"));
+
+                if has_tool_support {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // If no models with tool support were found, fall back to manual entry
+        if models.is_empty() {
+            tracing::warn!("No models with tool support found in OpenRouter API response, falling back to manual model entry");
+            return Ok(None);
+        }
+
+        models.sort();
+        Ok(Some(models))
     }
 }

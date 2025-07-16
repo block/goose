@@ -13,9 +13,9 @@ export default function LayingEggLoader() {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-bgApp">
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-background-default">
       <div className="flex flex-col items-center max-w-3xl w-full px-6 pt-10">
-        <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
+        <div className="w-16 h-16 bg-background-default rounded-full flex items-center justify-center mb-4">
           <Geese className="w-12 h-12 text-iconProminent" />
         </div>
         <h1 className="text-2xl font-medium text-center mb-2 text-textProminent">

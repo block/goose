@@ -127,25 +127,24 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let config = crate::config::Config::global();
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
+
         let payload = create_request(
             &self.model,
             system,
             messages,
-            tools,
+            filtered_tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
-
         let response = self.post(payload.clone()).await?;
         let message = response_to_message(response.clone())?;
 
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

@@ -1,10 +1,10 @@
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
-pub mod keyring;
 pub mod message;
 pub mod model;
 pub mod permission;
+pub mod project;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
@@ -16,6 +16,7 @@ pub mod temporal_scheduler;
 pub mod token_counter;
 pub mod tool_monitor;
 pub mod tracing;
+pub mod utils;
 
 #[cfg(test)]
 mod cron_test;

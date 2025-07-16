@@ -177,32 +177,12 @@ run-server:
     @echo "Running server..."
     cargo run -p goose-server
 
-# Run tests across all crates with keyring disabled
-test:
-    @echo "Running tests with keyring disabled..."
-    GOOSE_DISABLE_KEYRING=1 cargo test --workspace
-
-# Run linting checks across all crates
-lint:
-    @echo "Running linting checks..."
-    cargo clippy --workspace --all-features -- -D warnings
-
-# Run comprehensive linting checks (includes tests, examples, benchmarks)
-lint-all:
-    @echo "Running comprehensive linting checks..."
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-# Format code across all crates
-format:
-    @echo "Formatting code..."
-    cargo fmt --all
-
-# Quality assurance: format, lint, and test everything
-qa:
-    @echo "Running quality assurance: format, lint, and test..."
-    @just format
-    @just lint
-    @just test
+# Generate OpenAPI specification without starting the UI
+generate-openapi:
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+    @echo "Generating frontend API..."
+    cd ui/desktop && npm run generate-api
 
 # make GUI with latest binary
 lint-ui:
@@ -382,16 +362,16 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### Build the core code
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
-win-bld profile allparam:
+win-bld profile allparam: 
   cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug
-win-bld-dbg:
+win-bld-dbg: 
   just win-bld " " " "
 
 ### Build debug and test, examples,...
-win-bld-dbg-all:
+win-bld-dbg-all: 
   just win-bld " " "--workspace --all-targets --all-features"
 
 ### Build just release
@@ -454,8 +434,8 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-### Build and run the Kotlin example with
-### auto-generated bindings for goose-llm
+### Build and run the Kotlin example with 
+### auto-generated bindings for goose-llm 
 kotlin-example:
     # Build Rust dylib and generate Kotlin bindings
     cargo build -p goose-llm

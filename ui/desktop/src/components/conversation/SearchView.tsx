@@ -1,4 +1,4 @@
-import React, { useState, useEffect, PropsWithChildren, useCallback } from 'react';
+import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } from 'react';
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { debounce } from 'lodash';
@@ -189,32 +189,76 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     [internalSearchResults, onNavigate]
   );
 
+  // Create stable refs for the handlers to avoid memory leaks
+  const handlersRef = useRef({
+    handleFindCommand: () => {
+      if (isSearchVisible && searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      } else {
+        setIsSearchVisible(true);
+      }
+    },
+    handleFindNext: () => {
+      if (isSearchVisible) {
+        handleNavigate('next');
+      }
+    },
+    handleFindPrevious: () => {
+      if (isSearchVisible) {
+        handleNavigate('prev');
+      }
+    },
+    handleUseSelectionFind: () => {
+      const selection = window.getSelection()?.toString().trim();
+      if (selection) {
+        setInitialSearchTerm(selection);
+      }
+    },
+  });
+
+  // Update the refs with current values
+  useEffect(() => {
+    handlersRef.current.handleFindCommand = () => {
+      if (isSearchVisible && searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      } else {
+        setIsSearchVisible(true);
+      }
+    };
+    handlersRef.current.handleFindNext = () => {
+      if (isSearchVisible) {
+        handleNavigate('next');
+      }
+    };
+    handlersRef.current.handleFindPrevious = () => {
+      if (isSearchVisible) {
+        handleNavigate('prev');
+      }
+    };
+    handlersRef.current.handleUseSelectionFind = () => {
+      const selection = window.getSelection()?.toString().trim();
+      if (selection) {
+        setInitialSearchTerm(selection);
+      }
+    };
+  });
+
   const handleFindCommand = useCallback(() => {
-    if (isSearchVisible && searchInputRef.current) {
-      searchInputRef.current.focus();
-      searchInputRef.current.select();
-    } else {
-      setIsSearchVisible(true);
-    }
-  }, [isSearchVisible]);
+    handlersRef.current.handleFindCommand();
+  }, []);
 
   const handleFindNext = useCallback(() => {
-    if (isSearchVisible) {
-      handleNavigate('next');
-    }
-  }, [isSearchVisible, handleNavigate]);
+    handlersRef.current.handleFindNext();
+  }, []);
 
   const handleFindPrevious = useCallback(() => {
-    if (isSearchVisible) {
-      handleNavigate('prev');
-    }
-  }, [isSearchVisible, handleNavigate]);
+    handlersRef.current.handleFindPrevious();
+  }, []);
 
   const handleUseSelectionFind = useCallback(() => {
-    const selection = window.getSelection()?.toString().trim();
-    if (selection) {
-      setInitialSearchTerm(selection);
-    }
+    handlersRef.current.handleUseSelectionFind();
   }, []);
 
   /**
@@ -308,7 +352,8 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       window.electron.off('find-previous', handleFindPrevious);
       window.electron.off('use-selection-find', handleUseSelectionFind);
     };
-  }, [handleFindCommand, handleFindNext, handleFindPrevious, handleUseSelectionFind]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - handlers are stable due to useCallback and useRef
 
   return (
     <div

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Recipe } from '../recipe';
 import { Parameter } from '../recipe/index';
 
@@ -16,6 +17,7 @@ import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
 import ParameterInput from './parameter/ParameterInput';
 import { saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../toasts';
+import { Button } from './ui/button';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -30,6 +32,7 @@ function generateDeepLink(recipe: Recipe): string {
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
   const { getExtensions } = useConfig();
+  const navigate = useNavigate();
   const [recipeConfig] = useState<Recipe | undefined>(config);
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
@@ -321,10 +324,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   }
 
   return (
-    <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
+    <div className="flex flex-col w-full h-screen bg-background-default">
       {activeSection === 'none' && (
         <div className="flex flex-col items-center mb-2 px-6 pt-10">
-          <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-background-default rounded-full flex items-center justify-center mb-4">
             <Geese className="w-12 h-12 text-iconProminent" />
           </div>
           <h1 className="text-2xl font-medium text-center text-textProminent">{page_title}</h1>
@@ -349,7 +352,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   setErrors({ ...errors, title: undefined });
                 }
               }}
-              className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent ${
+              className={`w-full max-w-full p-3 border rounded-lg bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent overflow-hidden ${
                 errors.title ? 'border-red-500' : 'border-borderSubtle'
               }`}
               placeholder="Agent Recipe Title (required)"
@@ -372,7 +375,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   setErrors({ ...errors, description: undefined });
                 }
               }}
-              className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent ${
+              className={`w-full max-w-full p-3 border rounded-lg bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent overflow-hidden ${
                 errors.description ? 'border-red-500' : 'border-borderSubtle'
               }`}
               placeholder="Description (required)"
@@ -420,19 +423,21 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
 
           {/* Deep Link Display */}
-          <div className="w-full p-4 bg-bgSubtle rounded-lg">
+          <div className="w-full p-4 bg-bgSubtle rounded-lg overflow-hidden">
             {!requiredFieldsAreFilled() ? (
               <div className="text-sm text-textSubtle text-xs text-textSubtle">
                 Fill in required fields to generate link
               </div>
             ) : (
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-textSubtle text-xs text-textSubtle">
+              <div className="flex items-center justify-between mb-2 gap-4">
+                <div className="text-sm text-textSubtle text-xs text-textSubtle flex-shrink-0">
                   Copy this link to share with friends or paste directly in Chrome to open
                 </div>
-                <button
+                <Button
                   onClick={() => validateForm() && handleCopy()}
-                  className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
+                  variant="ghost"
+                  size="sm"
+                  className="p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent flex-shrink-0"
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-500" />
@@ -442,15 +447,18 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   <span className="ml-1 text-sm text-textSubtle">
                     {copied ? 'Copied!' : 'Copy'}
                   </span>
-                </button>
+                </Button>
               </div>
             )}
             {requiredFieldsAreFilled() && (
-              <div
-                onClick={() => validateForm() && handleCopy()}
-                className={`text-sm truncate dark:text-white font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
-              >
-                {deeplink}
+              <div className="w-full overflow-hidden">
+                <div
+                  onClick={() => validateForm() && handleCopy()}
+                  className={`text-sm dark:text-white font-mono cursor-pointer hover:bg-background-default p-2 rounded transition-colors overflow-x-auto whitespace-nowrap ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
+                  style={{ maxWidth: '500px', width: '100%' }}
+                >
+                  {deeplink}
+                </div>
               </div>
             )}
           </div>
@@ -465,24 +473,27 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : 'Save Recipe'}
               </button>
-              <button
+              <Button
                 onClick={() => setIsScheduleModalOpen(true)}
                 disabled={!requiredFieldsAreFilled()}
+                variant="outline"
+                size="lg"
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Calendar className="w-4 h-4" />
                 Create Schedule
-              </button>
+              </Button>
             </div>
-            <button
+            <Button
               onClick={() => {
                 localStorage.removeItem('recipe_editor_extensions');
-                window.close();
+                navigate(-1);
               }}
+              variant="ghost"
               className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle transition-colors"
             >
               Close
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -499,24 +510,16 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         onClose={() => setIsScheduleModalOpen(false)}
         recipe={getCurrentConfig()}
         onCreateSchedule={(deepLink) => {
-          // Open the schedules view with the deep link pre-filled
-          window.electron.createChatWindow(
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            'schedules'
-          );
-          // Store the deep link in localStorage for the schedules view to pick up
+          // Navigate to the schedules view with the deep link pre-filled
           localStorage.setItem('pendingScheduleDeepLink', deepLink);
+          navigate('/schedules');
         }}
       />
 
       {/* Save Recipe Dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-bgApp border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+          <div className="bg-background-default border border-borderSubtle rounded-lg p-6 w-96 max-w-[90vw]">
             <h3 className="text-lg font-medium text-textProminent mb-4">Save Recipe</h3>
 
             <div className="space-y-4">
@@ -532,7 +535,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   type="text"
                   value={saveRecipeName}
                   onChange={(e) => setSaveRecipeName(e.target.value)}
-                  className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+                  className="w-full p-3 border border-borderSubtle rounded-lg bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
                   placeholder="Enter recipe name"
                   autoFocus
                 />

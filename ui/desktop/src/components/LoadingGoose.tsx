@@ -1,14 +1,18 @@
 import GooseLogo from './GooseLogo';
 
-const LoadingGoose = () => {
+interface LoadingGooseProps {
+  message?: string;
+}
+
+const LoadingGoose = ({ message = 'goose is working on it…' }: LoadingGooseProps) => {
   return (
-    <div className="w-full pb-[2px]">
+    <div className="w-full animate-fade-slide-up">
       <div
         data-testid="loading-indicator"
-        className="flex items-center text-xs text-textStandard mb-2 mt-2 animate-[appear_250ms_ease-in_forwards]"
+        className="flex items-center gap-2 text-xs text-textStandard py-2"
       >
-        <GooseLogo className="mr-2" size="small" hover={false} />
-        goose is working on it…
+        <GooseLogo size="small" hover={false} />
+        {message}
       </div>
     </div>
   );

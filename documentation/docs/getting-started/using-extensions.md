@@ -54,7 +54,8 @@ Here are the built-in extensions:
     3. Choose the type of extension you'd like to add:
         - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
         - `Command-Line Extension`: Add a local command or script to run as an extension.
-        - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+        - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
+        - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
     4. Follow the prompts based on the type of extension you selected.
 
     **Example: Adding Built-in Extension**
@@ -143,7 +144,8 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
   3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
-      - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+      - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
+      - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
 
   4. Follow the prompts based on the type of extension you selected.
 
@@ -289,6 +291,26 @@ For example, a deeplink for a URL like `http://localhost:8080/sse` would look li
 
 ```
 goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&timeout=<timeout>&id=<id>&name=<name>&description=<description>>
+```
+
+  </TabItem>
+  <TabItem value="streamable_http" label="Streaming HTTP">
+```
+goose://extension?url=<remote-streamable-http-url>&type=streamable_http&id=<id>&name=<n>&description=<description>
+```
+
+Parameters:
+- `url`: The URL of the remote Streaming HTTP server
+- `type`: Must be set to `streamable_http` to specify the protocol type
+- `timeout`: Maximum time (in seconds) to wait for extension responses
+- `id`: Unique identifier for the extension
+- `name`: Display name for the extension
+- `description`: Brief description of the extension's functionality
+
+For example, a deeplink for a URL like `https://example.com/streamable` would look like this when URL-encoded:
+
+```
+goose://extension?url=https%3A%2F%2Fexample.com%2Fstreamable&type=streamable_http&timeout=<timeout>&id=<id>&name=<n>&description=<description>
 ```
 
   </TabItem>
@@ -590,10 +612,24 @@ To enable a remote extension over SSE while starting a session, run the followin
 goose session --with-remote-extension "{extension URL}" --with-remote-extension "{another extension URL}"
 ```
 
-For example, to start a session with a remote extension running on localhost on port 8080, you'd run:
+For example, to start a session with a remote extension over SSE running on localhost on port 8080, you'd run:
 
 ```bash
 goose session --with-remote-extension "http://localhost:8080/sse"
+```
+
+### Remote Extensions over Streaming HTTP
+
+To enable a remote extension over Streaming HTTP while starting a session, run the following command:
+
+```bash
+goose session --with-streamable-http-extension "{extension URL}" --with-streamable-http-extension "{another extension URL}"
+```
+
+For example, to start a session with a Streaming HTTP extension, you'd run:
+
+```bash
+goose session --with-streamable-http-extension "https://example.com/streamable"
 ```
 
 ## Developing Extensions

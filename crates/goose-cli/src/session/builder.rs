@@ -7,6 +7,7 @@ use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
+use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
 
@@ -29,6 +30,8 @@ pub struct SessionBuilderConfig {
     pub extensions: Vec<String>,
     /// List of remote extension commands to add
     pub remote_extensions: Vec<String>,
+    /// List of streamable HTTP extension commands to add
+    pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
     /// List of extensions to enable, enable only this set and ignore configured ones
@@ -37,6 +40,10 @@ pub struct SessionBuilderConfig {
     pub additional_system_prompt: Option<String>,
     /// Settings to override the global Goose settings
     pub settings: Option<SessionSettings>,
+    /// Provider override from CLI arguments
+    pub provider: Option<String>,
+    /// Model override from CLI arguments
+    pub model: Option<String>,
     /// Enable debug printing
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
@@ -130,6 +137,7 @@ async fn offer_extension_debugging_help(
         false,
         None,
         None,
+        None,
     );
 
     // Process the debugging request
@@ -167,16 +175,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let config = Config::global();
 
     let provider_name = session_config
-        .settings
-        .as_ref()
-        .and_then(|s| s.goose_provider.clone())
+        .provider
+        .or_else(|| {
+            session_config
+                .settings
+                .as_ref()
+                .and_then(|s| s.goose_provider.clone())
+        })
         .or_else(|| config.get_param("GOOSE_PROVIDER").ok())
         .expect("No provider configured. Run 'goose configure' first");
 
     let model_name = session_config
-        .settings
-        .as_ref()
-        .and_then(|s| s.goose_model.clone())
+        .model
+        .or_else(|| {
+            session_config
+                .settings
+                .as_ref()
+                .and_then(|s| s.goose_model.clone())
+        })
         .or_else(|| config.get_param("GOOSE_MODEL").ok())
         .expect("No model configured. Run 'goose configure' first");
 
@@ -369,6 +385,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         }
     }
 
+    // Determine editor mode
+    let edit_mode = config
+        .get_param::<String>("EDIT_MODE")
+        .ok()
+        .and_then(|edit_mode| match edit_mode.to_lowercase().as_str() {
+            "emacs" => Some(EditMode::Emacs),
+            "vi" => Some(EditMode::Vi),
+            _ => {
+                eprintln!("Invalid EDIT_MODE specified, defaulting to Emacs");
+                None
+            }
+        });
+
     // Create new session
     let mut session = Session::new(
         agent,
@@ -376,6 +405,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.debug,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
+        edit_mode,
     );
 
     // Add extensions if provided
@@ -423,6 +453,43 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 "{}",
                 style(format!(
                     "Continuing without remote extension '{}'",
+                    extension_str
+                ))
+                .yellow()
+            );
+
+            // Offer debugging help
+            if let Err(debug_err) = offer_extension_debugging_help(
+                &extension_str,
+                &e.to_string(),
+                Arc::clone(&provider_for_display),
+                session_config.interactive,
+            )
+            .await
+            {
+                eprintln!("Note: Could not start debugging session: {}", debug_err);
+            }
+        }
+    }
+
+    // Add streamable HTTP extensions if provided
+    for extension_str in session_config.streamable_http_extensions {
+        if let Err(e) = session
+            .add_streamable_http_extension(extension_str.clone())
+            .await
+        {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Failed to start streamable HTTP extension '{}': {}",
+                    extension_str, e
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Continuing without streamable HTTP extension '{}'",
                     extension_str
                 ))
                 .yellow()
@@ -519,10 +586,13 @@ mod tests {
             no_session: false,
             extensions: vec!["echo test".to_string()],
             remote_extensions: vec!["http://example.com".to_string()],
+            streamable_http_extensions: vec!["http://example.com/streamable".to_string()],
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             settings: None,
+            provider: None,
+            model: None,
             debug: true,
             max_tool_repetitions: Some(5),
             max_turns: None,
@@ -535,6 +605,7 @@ mod tests {
 
         assert_eq!(config.extensions.len(), 1);
         assert_eq!(config.remote_extensions.len(), 1);
+        assert_eq!(config.streamable_http_extensions.len(), 1);
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
@@ -553,6 +624,7 @@ mod tests {
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());
         assert!(config.remote_extensions.is_empty());
+        assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
         assert!(config.extensions_override.is_none());
         assert!(config.additional_system_prompt.is_none());

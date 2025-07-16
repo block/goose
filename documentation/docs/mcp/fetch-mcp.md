@@ -58,7 +58,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

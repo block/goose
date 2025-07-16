@@ -1,5 +1,5 @@
 ---
-title: Alby MCP
+title: Alby Bitcoin Payments MCP
 
 description: Connect Goose to your Bitcoin Lightning Wallet
 ---
@@ -11,7 +11,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 
 
-This tutorial covers how to add the [Alby MCP Server](https://github.com/getalby/mcp) as a Goose extension to interact with your lightning wallet, make and receive payments, list transactions, convert fiat amounts to sats, request invoices from lightning addresses, and interact with paid MCP tools (such as ones built with [LMCP](https://github.com/getAlby/lmcp)).
+This tutorial covers how to add the [Alby Bitcoin Payments MCP Server](https://github.com/getalby/mcp) as a Goose extension to interact with your lightning wallet, make and receive payments, list transactions, convert fiat amounts to sats, request invoices from lightning addresses, and interact with paid MCP tools (such as ones built with [PaidMCP](https://github.com/getAlby/paidmcp)).
 
 :::info
 You'll need a lightning wallet that supports [NWC](https://nwc.dev). If you don't have one yet, consider trying [Alby Hub](https://albyhub.com).
@@ -56,14 +56,16 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
       <TabItem value="remote" label="Remote">
         1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20Goose%20to%20your%20Bitcoin%20Lightning%20Wallet)
         2. Press `Yes` to confirm the installation
-        3. Change the type to "Server-Sent Events (SSE)"
-        4. Change the endpoint. To get your endpoint URL, open browser devtools (right click -> inspect) and enter this in the console, with your own NWC connection secret set:
-            ```js
-            "https://mcp.getalby.com/sse?nwc=" + encodeURIComponent("nostr+walletconnect://...");
-            ```
-        5. Copy the value, and paste it into the endpoint field.
-        6. Click `Add Extension`
-        7. Scroll to the top and click `Exit` from the upper left corner
+        3. Change the type to "Streamable HTTP"
+        4. Change the endpoint to `https://mcp.getalby.com/mcp`
+        5. Add a request header with Header name = `Authorization` and Value:
+```
+Bearer nostr+walletconnect://...
+```
+
+        6. Press the `+Add` button to finish adding the request header
+        7. Click `Add Extension`
+        8. Scroll to the top and click `Exit` from the upper left corner
       </TabItem>
     </Tabs>
   </TabItem>
@@ -219,12 +221,12 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
         ```
       </TabItem>
       <TabItem value="remote" label="Remote">
-        1. Run the `configure` command:
+        8. Run the `configure` command:
         ```sh
         goose configure
         ```
 
-        2. Choose to add a `Remote Extension`
+        9. Choose to add a `Remote Extension`
         ```sh
           ┌   goose-configure 
           │
@@ -234,13 +236,14 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           ◆  What type of extension would you like to add?
           │  ○ Built-in Extension 
           │  ○ Command-line Extension (Run a local command or script)
+          │  ○ Remote Extension (SSE)
           // highlight-start    
-          │  ● Remote Extension 
+          │  ● Remote Extension (Streaming HTTP) 
           // highlight-end    
           └ 
         ```
 
-        3. Give your extension a name
+        10. Give your extension a name
         ```sh
           ┌   goose-configure 
           │
@@ -257,15 +260,7 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           └ 
         ```
 
-        4. Enter the SSE endpoint URI
-
-        :::info SSE Endpoint URI
-        _To get the endpoint URL, open browser devtools (right click -> inspect) and enter this in the console, with your own NWC connection secret set:_
-          ```js
-          "https://mcp.getalby.com/sse?nwc=" + encodeURIComponent("nostr+walletconnect://...");
-          ```
-        Copy the value that was outputted to the console.
-        :::
+        11. Enter the Streaming HTTP endpoint URI
 
         ```sh
           ┌   goose-configure 
@@ -280,13 +275,13 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           │  Alby
           │
           // highlight-start
-          ◆  What is the SSE endpoint URI?
-          │  https://mcp.getalby.com/sse?nwc=YOUR_ENCODED_CONNECTION_SECRET
+          ◆  What is the Streaming HTTP URI?
+          │  https://mcp.getalby.com/mcp
           // highlight-end
           └ 
         ```
 
-        5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+        12. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
           ```sh
           ┌   goose-configure 
           │
@@ -299,8 +294,8 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           ◇  What would you like to call this extension?
           │  Alby
           │
-          ◇  What is the SSE endpoint URI?
-          │  https://mcp.getalby.com/sse?nwc=YOUR_ENCODED_CONNECTION_SECRET
+          ◇  What is the Streaming HTTP endpoint URI?
+          │  https://mcp.getalby.com/mcp
           │
           // highlight-start
           ◆  Please set the timeout for this tool (in secs):
@@ -310,7 +305,7 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           └ 
         ``` 
 
-        6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+        13. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
           ```sh
           ┌   goose-configure 
           │
@@ -323,18 +318,60 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
           ◇  What would you like to call this extension?
           │  Alby
           │
-          ◇  What is the SSE endpoint URI?
-          │  https://mcp.getalby.com/sse?nwc=YOUR_ENCODED_CONNECTION_SECRET
+          ◇  What is the Streaming HTTP endpoint URI?
+          │  https://mcp.getalby.com/mcp
           │
           ◇  Please set the timeout for this tool (in secs):
           │  300
           │
           // highlight-start
-          ◇  Would you like to add a description?
+          ◆  Would you like to add a description?
           │  No
           // highlight-end
           │
           └ 
+        ```
+
+        14. Add a custom header containing `Bearer YOUR_CONNECTIONSECRET`.
+          ```sh
+          ┌   goose-configure 
+          │
+          ◇  What would you like to configure?
+          │  Add Extension (Connect to a new extension) 
+          │
+          ◇  What type of extension would you like to add?
+          │  Remote Extension 
+          │
+          ◇  What would you like to call this extension?
+          │  Alby
+          │
+          ◇  What is the Streaming HTTP endpoint URI?
+          │  https://mcp.getalby.com/mcp
+          │
+          ◇  Please set the timeout for this tool (in secs):
+          │  300
+          │
+          ◇  Would you like to add a description?
+          │  No
+          │
+          ◆  Would you like to add custom headers?
+          // highlight-start
+          │  ● Yes  / ○ No 
+          // highlight-end
+          │
+          ◆  Header name:
+          // highlight-start
+          │  Authorization 
+          // highlight-end
+          │
+          ◆  Header name:
+          // highlight-start
+          │  Bearer nostr+walletconnect://...
+          // highlight-end
+          │
+          ◆  Add another header?
+          │  ○ Yes  / ● No
+          └
         ```
       </TabItem>  
     </Tabs>

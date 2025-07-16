@@ -14,7 +14,7 @@ This tutorial covers how to add the [YouTube Transcript MCP Server](https://gith
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fjkawamoto%2Fmcp-youtube-transcript&arg=mcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
@@ -27,13 +27,14 @@ This tutorial covers how to add the [YouTube Transcript MCP Server](https://gith
 
 ## Configuration
 
+
 :::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jkawamoto%2Fmcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fjkawamoto%2Fmcp-youtube-transcript&arg=mcp-youtube-transcript&id=youtube-transcript&name=YouTube%20Transcript&description=Access%20YouTube%20video%20transcripts)
   2. Press `Yes` to confirm the installation
   3. Click `Save Configuration`
   4. Scroll to the top and click `Exit` from the upper left corner
@@ -56,7 +57,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 
@@ -92,7 +94,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y @jkawamoto/mcp-youtube-transcript
+    │  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
     // highlight-end
     └ 
   ```  
@@ -111,7 +113,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx -y @jkawamoto/mcp-youtube-transcript
+    │  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):
@@ -132,10 +134,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  Command-line Extension 
     │
     ◇  What would you like to call this extension?
-    │  knowledge graph memory
+    │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-memory
+    │  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
     │
     ◆  Please set the timeout for this tool (in secs):
     │  300
@@ -162,7 +164,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  youtube-transcript
     │
     ◇  What command should be run?
-    │  npx -y @jkawamoto/mcp-youtube-transcript
+    │  uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript
     │
     ◇  Please set the timeout for this tool (in secs):
     │  300

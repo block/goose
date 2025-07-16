@@ -52,11 +52,12 @@ fn build_system_prompt() -> String {
 
 /// Generates a tooltip summarizing the last two messages in the session,
 /// including any tool calls or results.
-#[uniffi::export(async_runtime = "tokio")]
+#[uniffi::export(async_runtime = "tokio", default(request_id = None))]
 pub async fn generate_tooltip(
     provider_name: &str,
     provider_config: JsonValueFfi,
     messages: &[Message],
+    request_id: Option<String>,
 ) -> Result<String, ProviderError> {
     // Need at least two messages to generate a tooltip
     if messages.len() < 2 {
@@ -148,6 +149,7 @@ pub async fn generate_tooltip(
         &system_prompt,
         &[Message::user().with_text(&user_msg_text)],
         schema,
+        request_id,
     )
     .await?;
 
