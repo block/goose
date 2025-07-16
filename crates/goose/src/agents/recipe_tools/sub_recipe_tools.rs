@@ -72,16 +72,10 @@ fn create_tasks_from_params(
 }
 
 fn get_execution_mode(sub_recipe: &SubRecipe) -> ExecutionMode {
-    let is_parallel = sub_recipe
-        .executions
-        .as_ref()
-        .map(|e| e.parallel)
-        .unwrap_or(false);
-
-    if is_parallel {
-        ExecutionMode::Parallel
-    } else {
+    if sub_recipe.sequential_when_repeated {
         ExecutionMode::Sequential
+    } else {
+        ExecutionMode::Parallel
     }
 }
 

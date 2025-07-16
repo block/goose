@@ -137,8 +137,8 @@ pub struct SubRecipe {
     pub path: String,
     #[serde(default, deserialize_with = "deserialize_value_map_as_string")]
     pub values: Option<HashMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub executions: Option<Execution>,
+    #[serde(default)]
+    pub sequential_when_repeated: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Execution {

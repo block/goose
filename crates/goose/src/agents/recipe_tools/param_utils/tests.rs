@@ -10,7 +10,6 @@ fn setup_default_sub_recipe() -> SubRecipe {
         name: "test_sub_recipe".to_string(),
         path: "test_sub_recipe.yaml".to_string(),
         values: Some(HashMap::from([("key1".to_string(), "value1".to_string())])),
-        executions: None,
     };
     sub_recipe
 }
