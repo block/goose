@@ -892,7 +892,7 @@ export default function ChatInput({
     >
       <form onSubmit={onFormSubmit} className="flex flex-col">
         {/* Input row with inline action buttons */}
-        <div className="relative flex items-center">
+        <div className="relative flex items-end">
           <div className="relative flex-1">
             <textarea
               data-testid="chat-input"
