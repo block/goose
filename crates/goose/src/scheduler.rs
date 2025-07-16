@@ -1267,6 +1267,7 @@ async fn run_scheduled_job_internal(
                             working_dir: current_dir.clone(),
                             description: String::new(),
                             schedule_id: Some(job.id.clone()),
+                            project_id: None,
                             message_count: all_session_messages.len(),
                             total_tokens: None,
                             input_tokens: None,
@@ -1370,14 +1371,14 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(TextContent {
                         text: "Mocked scheduled response".to_string(),
                         annotations: None,
                     })],
-                },
+                ),
                 ProviderUsage::new("mock-scheduler-test".to_string(), Usage::default()),
             ))
         }

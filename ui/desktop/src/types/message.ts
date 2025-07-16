@@ -211,7 +211,7 @@ export function getTextContent(message: Message): string {
       }
       return '';
     })
-    .join('\n');
+    .join('');
 }
 
 export function getToolRequests(message: Message): ToolRequestMessageContent[] {

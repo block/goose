@@ -57,11 +57,11 @@ export interface SessionHeaderCardProps {
  */
 export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, children }) => {
   return (
-    <Card className="rounded-none px-8 pt-6 pb-4 bg-bgAppInverse text-textProminentInverse flex items-center">
+    <Card className="rounded-none px-8 pt-6 pb-4 bg-background-defaultInverse text-textProminentInverse flex items-center">
       <BackButton
         showText={false}
         onClick={onBack}
-        iconSize="w-7 h-7"
+        size="lg"
         className="!text-textProminentInverse dark:!text-textStandardInverse"
       />
       {children}
@@ -186,7 +186,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                         {/* Tool requests and responses */}
                         {toolRequests.length > 0 && (
-                          <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                          <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                             {toolRequests.map((toolRequest) => (
                               <ToolCallWithResponse
                                 // In the session history page, if no tool response found for given request, it means the tool call

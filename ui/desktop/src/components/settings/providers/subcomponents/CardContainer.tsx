@@ -50,7 +50,7 @@ export default function CardContainer({
     >
       {!grayedOut && <GlowingRing />}
       <div
-        className={`relative bg-bgApp rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col justify-between
+        className={`relative bg-background-default rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col justify-between
                    ${
                      grayedOut
                        ? 'border border-borderSubtle'

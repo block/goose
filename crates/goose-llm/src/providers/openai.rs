@@ -149,6 +149,7 @@ impl Provider for OpenAiProvider {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
+        _request_id: Option<&str>, // OpenAI doesn't use request_id, so we ignore it
     ) -> Result<ProviderCompleteResponse, ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
@@ -175,6 +176,7 @@ impl Provider for OpenAiProvider {
         system: &str,
         messages: &[Message],
         schema: &Value,
+        _request_id: Option<&str>, // OpenAI doesn't use request_id, so we ignore it
     ) -> Result<ProviderExtractResponse, ProviderError> {
         // 1. Build base payload (no tools)
         let mut payload = create_request(&self.model, system, messages, &[], &ImageFormat::OpenAi)?;

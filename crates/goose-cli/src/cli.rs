@@ -8,7 +8,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_validate};
+use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -246,6 +246,27 @@ enum RecipeCommand {
         )]
         recipe_name: String,
     },
+
+    /// List available recipes
+    #[command(about = "List available recipes")]
+    List {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Show verbose information including recipe descriptions
+        #[arg(
+            short,
+            long,
+            help = "Show verbose information including recipe descriptions"
+        )]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -341,6 +362,16 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
+        /// Add streamable HTTP extensions with a URL
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -431,7 +462,7 @@ enum Command {
             long = "no-session",
             help = "Run without storing a session file",
             long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-            conflicts_with_all = ["resume", "name", "path"] 
+            conflicts_with_all = ["resume", "name", "path"]
         )]
         no_session: bool,
 
@@ -508,6 +539,16 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         remote_extensions: Vec<String>,
+
+        /// Add streamable HTTP extensions
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
@@ -674,6 +715,7 @@ pub async fn cli() -> Result<()> {
             max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
         }) => {
             return match command {
@@ -714,6 +756,7 @@ pub async fn cli() -> Result<()> {
                         no_session: false,
                         extensions,
                         remote_extensions,
+                        streamable_http_extensions,
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
@@ -774,6 +817,7 @@ pub async fn cli() -> Result<()> {
             max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
             params,
             explain,
@@ -863,6 +907,7 @@ pub async fn cli() -> Result<()> {
                 no_session,
                 extensions,
                 remote_extensions,
+                streamable_http_extensions,
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
@@ -971,6 +1016,9 @@ pub async fn cli() -> Result<()> {
                 RecipeCommand::Deeplink { recipe_name } => {
                     handle_deeplink(&recipe_name)?;
                 }
+                RecipeCommand::List { format, verbose } => {
+                    handle_list(&format, verbose)?;
+                }
             }
             return Ok(());
         }
@@ -990,6 +1038,7 @@ pub async fn cli() -> Result<()> {
                     no_session: false,
                     extensions: Vec::new(),
                     remote_extensions: Vec::new(),
+                    streamable_http_extensions: Vec::new(),
                     builtins: Vec::new(),
                     extensions_override: None,
                     additional_system_prompt: None,

@@ -37,6 +37,7 @@ pub async fn agent_generator(
         no_session: false,
         extensions: requirements.external,
         remote_extensions: requirements.remote,
+        streamable_http_extensions: Vec::new(),
         builtins: requirements.builtin,
         extensions_override: None,
         additional_system_prompt: None,

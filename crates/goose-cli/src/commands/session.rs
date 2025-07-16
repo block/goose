@@ -1,9 +1,9 @@
 use crate::session::message_to_markdown;
-use crate::utils::safe_truncate;
 use anyhow::{Context, Result};
 use cliclack::{confirm, multiselect, select};
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::{self, Identifier};
+use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};

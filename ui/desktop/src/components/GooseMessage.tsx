@@ -18,7 +18,6 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { UIResourceRenderer, isUIResource, extractUIResource } from './UIResourceRenderer';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -30,6 +29,7 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
+  isStreaming?: boolean; // Whether this message is currently being streamed
 }
 
 export default function GooseMessage({
@@ -40,8 +40,11 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   appendMessage,
+  isStreaming = false,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  // Track which tool confirmations we've already handled to prevent infinite loops
+  const handledToolConfirmations = useRef<Set<string>>(new Set());
 
   // Extract text content from the message
   let textContent = getTextContent(message);
@@ -81,84 +84,6 @@ export default function GooseMessage({
   // 2. The link wasn't also present in the previous message
   // 3. The message contains the explicit http:// or https:// protocol at the beginning
   const messageIndex = messages?.findIndex((msg) => msg.id === message.id);
-
-  // Extract UI resources from the message content and tool responses
-  const uiResources = useMemo(() => {
-    const potentialUIResources: NonNullable<ReturnType<typeof extractUIResource>>[] = [];
-    
-    // Check current message content for UI resources
-    for (const content of message.content) {
-      if (content.type === 'text' || content.type === 'image' || content.type === 'resource') {
-        if (isUIResource(content)) {
-          const extractedResource = extractUIResource(content);
-          if (extractedResource) {
-            potentialUIResources.push(extractedResource);
-          }
-        }
-      }
-    }
-    
-    // Check current message tool responses for UI resources
-    const toolResponses = getToolResponses(message);
-    for (const toolResponse of toolResponses) {
-      if (
-        toolResponse.toolResult.status === 'success' &&
-        Array.isArray(toolResponse.toolResult.value)
-      ) {
-        for (const item of toolResponse.toolResult.value) {
-          if (isUIResource(item)) {
-            const extractedResource = extractUIResource(item);
-            if (extractedResource) {
-              potentialUIResources.push(extractedResource);
-            }
-          }
-        }
-      }
-    }
-    
-    // Also check tool responses from subsequent messages (for tool calls in this message)
-    if (messageIndex !== undefined && messageIndex >= 0 && messages) {
-      for (let i = messageIndex + 1; i < Math.min(messageIndex + 5, messages.length); i++) {
-        const subsequentMessage = messages[i];
-        
-        // Check message content
-        for (const content of subsequentMessage.content) {
-          if (content.type === 'text' || content.type === 'image' || content.type === 'resource') {
-            if (isUIResource(content)) {
-              const extractedResource = extractUIResource(content);
-              if (extractedResource) {
-                potentialUIResources.push(extractedResource);
-              }
-            }
-          }
-        }
-        
-        // Check tool responses
-        const responses = getToolResponses(subsequentMessage);
-        for (const response of responses) {
-          if (
-            response.toolResult.status === 'success' &&
-            Array.isArray(response.toolResult.value)
-          ) {
-            for (const item of response.toolResult.value) {
-              if (isUIResource(item)) {
-                const extractedResource = extractUIResource(item);
-                if (extractedResource) {
-                  potentialUIResources.push(extractedResource);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    if (potentialUIResources.length > 0) {
-      console.log(`Found ${potentialUIResources.length} UI resource(s) in message`);
-    }
-    
-    return potentialUIResources;
-  }, [message, messages, messageIndex]);
   const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(displayText, previousUrls) : [];
@@ -194,64 +119,34 @@ export default function GooseMessage({
     if (
       messageIndex === messageHistoryIndex - 1 &&
       hasToolConfirmation &&
-      toolConfirmationContent
+      toolConfirmationContent &&
+      !handledToolConfirmations.current.has(toolConfirmationContent.id)
     ) {
-      appendMessage(
-        createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
+      // Only append the error message if there isn't already a response for this tool confirmation
+      const hasExistingResponse = messages.some((msg) =>
+        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.id)
       );
+
+      if (!hasExistingResponse) {
+        // Mark this tool confirmation as handled to prevent infinite loop
+        handledToolConfirmations.current.add(toolConfirmationContent.id);
+
+        appendMessage(
+          createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
+        );
+      }
     }
   }, [
     messageIndex,
     messageHistoryIndex,
     hasToolConfirmation,
     toolConfirmationContent,
+    messages,
     appendMessage,
   ]);
 
-  // Create a handler for UI actions that connects to the message stream
-  const handleUIAction = async (action: {
-    type: string;
-    payload: {
-      toolName?: string;
-      params?: Record<string, unknown>;
-      intent?: string;
-      prompt?: string;
-      url?: string;
-    };
-  }): Promise<Record<string, unknown>> => {
-    console.log('UI Action:', action.type, action.payload);
-    
-    if (action.type === 'tool') {
-      const { toolName, params } = action.payload;
-      
-      // Create a message asking the assistant to call the specific tool
-      const toolCallMessage = `Call the ${toolName || 'tool'} tool with these parameters: ${JSON.stringify(params || {})}`;
-      
-      // Send the message through the normal chat flow
-      append(toolCallMessage);
-      
-      return { status: 'tool_call_requested' };
-    }
-    
-    if (action.type === 'intent') {
-      // Handle intent actions by sending them as regular messages
-      const intentMessage = action.payload.prompt || `Execute intent: ${action.payload.intent || 'unknown'}`;
-      append(intentMessage);
-      return { status: 'intent_sent' };
-    }
-    
-    if (action.type === 'prompt') {
-      // Handle prompt actions by sending them directly
-      append(action.payload.prompt || 'Unknown prompt');
-      return { status: 'prompt_sent' };
-    }
-    
-    // For other action types, return unhandled
-    return { status: 'unhandled' };
-  };
-
   return (
-    <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="goose-message flex w-[90%] justify-start">
       <div className="flex flex-col w-full">
         {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
@@ -268,7 +163,7 @@ export default function GooseMessage({
         {/* Visible assistant response */}
         {displayText && (
           <div className="flex flex-col group">
-            <div className={`goose-message-content pt-2`}>
+            <div className={`goose-message-content py-2`}>
               <div ref={contentRef}>{<MarkdownContent content={displayText} />}</div>
             </div>
 
@@ -281,33 +176,20 @@ export default function GooseMessage({
               </div>
             )}
 
-            {/* Render UI resources if any */}
-            {uiResources.length > 0 && (
-              <div className="flex flex-col gap-4 mt-2 mb-2">
-                {uiResources.map((resource, index) => (
-                  <div key={index} className="border border-borderSubtle rounded-lg p-4 bg-bgApp">
-                    <div className="text-sm text-gray-600 mb-2">MCP UI Resource: {resource.uri}</div>
-                    <UIResourceRenderer
-                      resource={resource}
-                      onUIAction={handleUIAction}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
+            {/* Only show timestamp and copy link when not streaming */}
             <div className="relative flex justify-start">
-              {toolRequests.length === 0 && (
-                <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              {toolRequests.length === 0 && !isStreaming && (
+                <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                   {timestamp}
                 </div>
               )}
-              {displayText && message.content.every((content) => content.type === 'text') && (
-                <div className="absolute left-0 pt-1">
-                  <MessageCopyLink text={displayText} contentRef={contentRef} />
-                </div>
-              )}
+              {displayText &&
+                message.content.every((content) => content.type === 'text') &&
+                !isStreaming && (
+                  <div className="absolute left-0 pt-1">
+                    <MessageCopyLink text={displayText} contentRef={contentRef} />
+                  </div>
+                )}
             </div>
           </div>
         )}
@@ -315,10 +197,7 @@ export default function GooseMessage({
         {toolRequests.length > 0 && (
           <div className="relative flex flex-col w-full">
             {toolRequests.map((toolRequest) => (
-              <div
-                className={`goose-message-tool bg-bgSubtle rounded px-2 py-2 mb-2`}
-                key={toolRequest.id}
-              >
+              <div className={`goose-message-tool pb-2`} key={toolRequest.id}>
                 <ToolCallWithResponse
                   // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
                   isCancelledMessage={
@@ -328,11 +207,12 @@ export default function GooseMessage({
                   toolRequest={toolRequest}
                   toolResponse={toolResponsesMap.get(toolRequest.id)}
                   notifications={toolCallNotifications.get(toolRequest.id)}
+                  isStreamingMessage={isStreaming}
                 />
               </div>
             ))}
-            <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-              {timestamp}
+            <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              {!isStreaming && timestamp}
             </div>
           </div>
         )}

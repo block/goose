@@ -24,7 +24,7 @@ async fn _generate_tooltip(messages: &[Message]) -> Result<String, ProviderError
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
 
-    generate_tooltip(provider_name, provider_config, messages).await
+    generate_tooltip(provider_name, provider_config, messages, None).await
 }
 
 #[tokio::test]
