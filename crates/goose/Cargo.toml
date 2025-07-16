@@ -88,13 +88,13 @@ lancedb = "0.13"
 arrow = "52.2"
 
 # OpenTelemetry telemetry
-opentelemetry = "0.27"
-opentelemetry-otlp = { version = "0.27", features = ["http-proto", "reqwest-client"] }
-opentelemetry-datadog = "0.15"
-opentelemetry-stdout = "0.27"
-opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
-opentelemetry-semantic-conventions = "0.27"
-tonic = "0.12"
+opentelemetry = "0.30"
+opentelemetry-otlp = { version = "0.30", features = ["http-proto", "reqwest-client", "grpc-tonic"] }
+opentelemetry-datadog = "0.18"
+opentelemetry-stdout = "0.30"
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio"] }
+opentelemetry-semantic-conventions = "0.30"
+tonic = "0.13"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

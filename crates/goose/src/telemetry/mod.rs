@@ -12,8 +12,8 @@ pub use {
     environment::detect_environment,
     events::{
         CommandExecution, CommandResult, CommandType, ErrorDetails, RecipeExecution,
-        SessionExecution, SessionResult, SessionType, TelemetryEvent, TokenUsage, ToolUsage,
-        TelemetryExecution, SessionMetadataSupport,
+        SessionExecution, SessionMetadataSupport, SessionResult, SessionType, TelemetryEvent,
+        TelemetryExecution, TokenUsage, ToolUsage,
     },
     manager::{
         global_telemetry, init_global_telemetry, shutdown_global_telemetry, RecipeExecutionBuilder,

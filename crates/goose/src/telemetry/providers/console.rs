@@ -3,22 +3,20 @@ use crate::telemetry::{
     events::{RecipeExecution, TelemetryEvent},
 };
 use opentelemetry::{
-    global,
     metrics::{Counter, Histogram, MeterProvider},
     trace::{Span, Tracer, TracerProvider as OtelTracerProvider},
     KeyValue,
 };
 use opentelemetry_sdk::{
     metrics::{PeriodicReader, SdkMeterProvider},
-    runtime,
-    trace::TracerProvider,
+    trace::SdkTracerProvider,
     Resource,
 };
 use opentelemetry_semantic_conventions as semconv;
 use std::time::Duration;
 
 pub struct ConsoleProvider {
-    tracer_provider: Option<TracerProvider>,
+    tracer_provider: Option<SdkTracerProvider>,
     meter_provider: Option<SdkMeterProvider>,
     recipe_counter: Option<Counter<u64>>,
     recipe_duration: Option<Histogram<f64>>,
@@ -205,25 +203,25 @@ impl super::TelemetryBackend for ConsoleProvider {
             return Ok(());
         }
 
-        let resource = Resource::new(vec![
-            KeyValue::new(semconv::resource::SERVICE_NAME, config.service_name.clone()),
-            KeyValue::new(
-                semconv::resource::SERVICE_VERSION,
-                config.service_version.clone(),
-            ),
-            KeyValue::new(
-                "goose.usage_type",
-                format!(
-                    "{:?}",
-                    config
-                        .usage_type
-                        .as_ref()
-                        .unwrap_or(&crate::telemetry::config::UsageType::Human)
+        let resource = Resource::builder()
+            .with_attributes(vec![
+                KeyValue::new(semconv::resource::SERVICE_NAME, config.service_name.clone()),
+                KeyValue::new(
+                    semconv::resource::SERVICE_VERSION,
+                    config.service_version.clone(),
                 ),
-            ),
-        ]);
-
-        use opentelemetry_sdk::trace::TracerProvider as SdkTracerProvider;
+                KeyValue::new(
+                    "goose.usage_type",
+                    format!(
+                        "{:?}",
+                        config
+                            .usage_type
+                            .as_ref()
+                            .unwrap_or(&crate::telemetry::config::UsageType::Human)
+                    ),
+                ),
+            ])
+            .build();
 
         let tracer_provider = SdkTracerProvider::builder()
             .with_resource(resource.clone())
@@ -235,12 +233,9 @@ impl super::TelemetryBackend for ConsoleProvider {
         let meter_provider = SdkMeterProvider::builder()
             .with_resource(resource)
             .with_reader(
-                PeriodicReader::builder(
-                    opentelemetry_stdout::MetricExporter::default(),
-                    runtime::Tokio,
-                )
-                .with_interval(Duration::from_secs(30))
-                .build(),
+                PeriodicReader::builder(opentelemetry_stdout::MetricExporter::default())
+                    .with_interval(Duration::from_secs(30))
+                    .build(),
             )
             .build();
 
@@ -281,7 +276,7 @@ impl super::TelemetryBackend for ConsoleProvider {
 
     async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if self.initialized {
-            global::shutdown_tracer_provider();
+            // In OpenTelemetry 0.30, shutdown is handled by dropping the provider
             tracing::info!("Console telemetry provider shutdown successfully");
         }
         Ok(())

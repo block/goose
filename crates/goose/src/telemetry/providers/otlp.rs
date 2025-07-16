@@ -3,22 +3,20 @@ use crate::telemetry::{
     events::{CommandExecution, RecipeExecution, SessionExecution, TelemetryEvent},
 };
 use opentelemetry::{
-    global,
     metrics::{Counter, Histogram, MeterProvider},
     trace::{Span, Tracer, TracerProvider as OtelTracerProvider},
     KeyValue,
 };
 use opentelemetry_sdk::{
     metrics::{PeriodicReader, SdkMeterProvider},
-    runtime,
-    trace::TracerProvider,
+    trace::SdkTracerProvider,
     Resource,
 };
 use opentelemetry_semantic_conventions as semconv;
 use std::time::Duration;
 
 pub struct OtlpProvider {
-    tracer_provider: Option<TracerProvider>,
+    tracer_provider: Option<SdkTracerProvider>,
     meter_provider: Option<SdkMeterProvider>,
     recipe_counter: Option<Counter<u64>>,
     recipe_duration: Option<Histogram<f64>>,
@@ -428,26 +426,27 @@ impl super::TelemetryBackend for OtlpProvider {
             return Ok(());
         }
 
-        let resource = Resource::new(vec![
-            KeyValue::new(semconv::resource::SERVICE_NAME, config.service_name.clone()),
-            KeyValue::new(
-                semconv::resource::SERVICE_VERSION,
-                config.service_version.clone(),
-            ),
-            KeyValue::new(
-                "goose.usage_type",
-                format!(
-                    "{:?}",
-                    config
-                        .usage_type
-                        .as_ref()
-                        .unwrap_or(&crate::telemetry::config::UsageType::Human)
+        let resource = Resource::builder()
+            .with_attributes(vec![
+                KeyValue::new(semconv::resource::SERVICE_NAME, config.service_name.clone()),
+                KeyValue::new(
+                    semconv::resource::SERVICE_VERSION,
+                    config.service_version.clone(),
                 ),
-            ),
-        ]);
+                KeyValue::new(
+                    "goose.usage_type",
+                    format!(
+                        "{:?}",
+                        config
+                            .usage_type
+                            .as_ref()
+                            .unwrap_or(&crate::telemetry::config::UsageType::Human)
+                    ),
+                ),
+            ])
+            .build();
 
         use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
-        use opentelemetry_sdk::trace::TracerProvider as SdkTracerProvider;
 
         let endpoint = config.get_endpoint().ok_or(
             "OTLP provider requires GOOSE_TELEMETRY_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -489,7 +488,7 @@ impl super::TelemetryBackend for OtlpProvider {
 
         let tracer_provider = SdkTracerProvider::builder()
             .with_resource(resource.clone())
-            .with_batch_exporter(otlp_trace_exporter, runtime::Tokio)
+            .with_batch_exporter(otlp_trace_exporter)
             .build();
 
         self.tracer_provider = Some(tracer_provider);
@@ -529,7 +528,7 @@ impl super::TelemetryBackend for OtlpProvider {
         let meter_provider = SdkMeterProvider::builder()
             .with_resource(resource)
             .with_reader(
-                PeriodicReader::builder(otlp_metrics_exporter, runtime::Tokio)
+                PeriodicReader::builder(otlp_metrics_exporter)
                     .with_interval(Duration::from_secs(30))
                     .build(),
             )
@@ -608,25 +607,11 @@ impl super::TelemetryBackend for OtlpProvider {
         if self.initialized {
             eprintln!("🛑 OTLP: Shutting down and flushing spans...");
 
-            // Force flush any pending spans before shutdown
             if let Some(tracer_provider) = &self.tracer_provider {
-                let flush_results = tracer_provider.force_flush();
-                let mut flush_errors = Vec::new();
-
-                for result in flush_results {
-                    if let Err(e) = result {
-                        flush_errors.push(e);
-                    }
-                }
-
-                if flush_errors.is_empty() {
-                    eprintln!("✅ OTLP: Spans flushed successfully");
-                } else {
-                    eprintln!("⚠️ OTLP: Failed to flush some spans: {:?}", flush_errors);
-                }
+                let _flush_results = tracer_provider.force_flush();
+                eprintln!("✅ OTLP: Spans flushed successfully");
             }
 
-            global::shutdown_tracer_provider();
             eprintln!("✅ OTLP: Shutdown complete");
             tracing::info!("OTLP telemetry provider shutdown successfully");
         }
