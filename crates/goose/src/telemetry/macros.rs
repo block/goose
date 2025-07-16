@@ -25,7 +25,7 @@ macro_rules! track_telemetry {
                         execution = execution.with_session_metadata(&session_metadata);
                     }
 
-                    let tool_usage = crate::cli::telemetry::extract_tool_usage_from_session(session);
+                    let tool_usage = $crate::cli::telemetry::extract_tool_usage_from_session(session);
                     for tool in tool_usage {
                         execution.add_tool_usage(tool);
                     }
@@ -127,7 +127,7 @@ macro_rules! track_telemetry {
                         builder = builder.with_session_metadata(&session_metadata);
                     }
 
-                    let tool_usage = crate::cli::telemetry::extract_tool_usage_from_session(session);
+                    let tool_usage = $crate::cli::telemetry::extract_tool_usage_from_session(session);
                     for tool in tool_usage {
                         builder = builder.add_tool_usage(tool);
                     }
