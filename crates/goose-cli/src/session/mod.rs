@@ -627,6 +627,10 @@ impl Session {
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
                     );
+                    if let Some(file) = self.session_file.as_ref().filter(|f| f.exists()) {
+                        std::fs::remove_file(file)?;
+                        std::fs::File::create(file)?;
+                    }
                     continue;
                 }
                 input::InputResult::PromptCommand(opts) => {

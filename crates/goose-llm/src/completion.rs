@@ -46,7 +46,12 @@ pub async fn completion(req: CompletionRequest) -> Result<CompletionResponse, Co
     // Call the LLM provider
     let start_provider = Instant::now();
     let mut response = provider
-        .complete(&system_prompt, &req.messages, &tools)
+        .complete(
+            &system_prompt,
+            &req.messages,
+            &tools,
+            req.request_id.as_deref(),
+        )
         .await?;
     let provider_elapsed_sec = start_provider.elapsed().as_secs_f32();
     let usage_tokens = response.usage.total_tokens;

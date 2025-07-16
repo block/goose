@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 declare module '*.json' {
   const value: Record<string, unknown>;
   export default value;
@@ -49,3 +51,12 @@ declare namespace React {
     WebkitAppRegion?: 'drag' | 'no-drag';
   }
 }
+
+// Extend Window interface to include global recipe creation flag
+declare global {
+  interface Window {
+    isCreatingRecipe?: boolean;
+  }
+}
+
+export {};

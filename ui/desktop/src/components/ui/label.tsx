@@ -1,9 +1,21 @@
-import React from 'react';
+'use client';
 
-export const Label = ({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) => {
+import * as React from 'react';
+import * as LabelPrimitive from '@radix-ui/react-label';
+
+import { cn } from '../../utils';
+
+function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (
-    <label htmlFor={htmlFor} className="block text-sm font-medium mb-1">
-      {children}
-    </label>
+    <LabelPrimitive.Root
+      data-slot="label"
+      className={cn(
+        'flex gap-2 text-sm leading-none select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
+        className
+      )}
+      {...props}
+    />
   );
-};
+}
+
+export { Label };

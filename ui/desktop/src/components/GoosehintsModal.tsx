@@ -1,25 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { Card } from './ui/card';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Check } from './icons';
-
-const Modal = ({ children }: { children: React.ReactNode }) => (
-  <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] z-[1000]">
-    <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col min-w-[80%] min-h-[80%] bg-bgApp rounded-xl overflow-hidden shadow-none px-8 pt-[24px] pb-0">
-      <div className="flex flex-col flex-1 space-y-8 text-base text-textStandard h-full">
-        {children}
-      </div>
-    </Card>
-  </div>
-);
-
-const ModalHeader = () => (
-  <div className="space-y-8">
-    <div className="flex">
-      <h2 className="text-2xl font-regular text-textStandard">Configure .goosehints</h2>
-    </div>
-  </div>
-);
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 const ModalHelpText = () => (
   <div className="text-sm flex-col space-y-4">
@@ -66,27 +55,6 @@ const ModalFileInfo = ({ filePath, found }: { filePath: string; found: boolean }
   </div>
 );
 
-const ModalButtons = ({ onSubmit, onCancel }: { onSubmit: () => void; onCancel: () => void }) => (
-  <div className="-ml-8 -mr-8">
-    <Button
-      type="submit"
-      variant="ghost"
-      onClick={onSubmit}
-      className="w-full h-[60px] rounded-none border-t border-borderSubtle text-base hover:bg-bgSubtle text-textProminent font-regular"
-    >
-      Save
-    </Button>
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onCancel}
-      className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-base font-regular"
-    >
-      Cancel
-    </Button>
-  </div>
-);
-
 const getGoosehintsFile = async (filePath: string) => await window.electron.readFile(filePath);
 
 type GoosehintsModalProps = {
@@ -122,26 +90,45 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
     setIsGoosehintsModalOpen(false);
   };
 
+  const handleClose = () => {
+    setIsGoosehintsModalOpen(false);
+  };
+
   return (
-    <Modal>
-      <ModalHeader />
-      <ModalHelpText />
-      <div className="flex flex-col flex-1">
-        {goosehintsFileReadError ? (
-          <ModalError error={new Error(goosehintsFileReadError)} />
-        ) : (
-          <div className="flex flex-col flex-1 space-y-2 h-full">
-            <ModalFileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />
-            <textarea
-              defaultValue={goosehintsFile}
-              autoFocus
-              className="w-full flex-1 border rounded-md min-h-20 p-2 text-sm resize-none bg-bgApp text-textStandard border-borderStandard focus:outline-none"
-              onChange={(event) => setGoosehintsFile(event.target.value)}
-            />
-          </div>
-        )}
-      </div>
-      <ModalButtons onSubmit={writeFile} onCancel={() => setIsGoosehintsModalOpen(false)} />
-    </Modal>
+    <Dialog open={true} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[80%] sm:max-h-[80%] overflow-auto">
+        <DialogHeader>
+          <DialogTitle>Configure .goosehints</DialogTitle>
+          <DialogDescription>
+            Configure your project's .goosehints file to provide additional context to Goose.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ModalHelpText />
+
+        <div className="py-4">
+          {goosehintsFileReadError ? (
+            <ModalError error={new Error(goosehintsFileReadError)} />
+          ) : (
+            <div className="space-y-2">
+              <ModalFileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />
+              <textarea
+                defaultValue={goosehintsFile}
+                autoFocus
+                className="w-full h-80 border rounded-md p-2 text-sm resize-none bg-background-default text-textStandard border-borderStandard focus:outline-none"
+                onChange={(event) => setGoosehintsFile(event.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={writeFile}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

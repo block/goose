@@ -41,6 +41,8 @@ pub struct SessionMetadata {
     pub description: String,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
+    /// ID of the project this session belongs to, if any
+    pub project_id: Option<String>,
     /// Number of messages in the session
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
@@ -68,6 +70,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: String,
             message_count: usize,
             schedule_id: Option<String>, // For backward compatibility
+            project_id: Option<String>,  // For backward compatibility
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
@@ -89,6 +92,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
             schedule_id: helper.schedule_id,
+            project_id: helper.project_id,
             total_tokens: helper.total_tokens,
             input_tokens: helper.input_tokens,
             output_tokens: helper.output_tokens,
@@ -113,6 +117,7 @@ impl SessionMetadata {
             working_dir,
             description: String::new(),
             schedule_id: None,
+            project_id: None,
             message_count: 0,
             total_tokens: None,
             input_tokens: None,

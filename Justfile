@@ -177,6 +177,13 @@ run-server:
     @echo "Running server..."
     cargo run -p goose-server
 
+# Generate OpenAPI specification without starting the UI
+generate-openapi:
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+    @echo "Generating frontend API..."
+    cd ui/desktop && npm run generate-api
+
 # make GUI with latest binary
 lint-ui:
     cd ui/desktop && npm run lint:check

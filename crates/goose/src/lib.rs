@@ -4,6 +4,7 @@ pub mod context_mgmt;
 pub mod message;
 pub mod model;
 pub mod permission;
+pub mod project;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
