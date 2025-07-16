@@ -10,6 +10,7 @@ fn setup_default_sub_recipe() -> SubRecipe {
         name: "test_sub_recipe".to_string(),
         path: "test_sub_recipe.yaml".to_string(),
         values: Some(HashMap::from([("key1".to_string(), "value1".to_string())])),
+        sequential_when_repeated: true,
     };
     sub_recipe
 }
@@ -17,59 +18,55 @@ fn setup_default_sub_recipe() -> SubRecipe {
 mod prepare_command_params_tests {
     use super::*;
 
-    mod without_execution_runs {
-        use super::*;
+    #[test]
+    fn test_return_command_param() {
+        let parameter_array = vec![json!(HashMap::from([(
+            "key2".to_string(),
+            "value2".to_string()
+        )]))];
+        let mut sub_recipe = setup_default_sub_recipe();
+        sub_recipe.values = Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
 
-        #[test]
-        fn test_return_command_param() {
-            let parameter_array = vec![json!(HashMap::from([(
-                "key2".to_string(),
-                "value2".to_string()
-            )]))];
-            let mut sub_recipe = setup_default_sub_recipe();
-            sub_recipe.values = Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
-
-            let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
-            assert_eq!(
-                vec![HashMap::from([
-                    ("key1".to_string(), "value1".to_string()),
-                    ("key2".to_string(), "value2".to_string())
-                ]),],
-                result
-            );
-        }
-
-        #[test]
-        fn test_return_command_param_when_value_override_passed_param_value() {
-            let parameter_array = vec![json!(HashMap::from([(
-                "key2".to_string(),
-                "different_value".to_string()
-            )]))];
-            let mut sub_recipe = setup_default_sub_recipe();
-            sub_recipe.values = Some(HashMap::from([
+        let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
+        assert_eq!(
+            vec![HashMap::from([
                 ("key1".to_string(), "value1".to_string()),
-                ("key2".to_string(), "value2".to_string()),
-            ]));
+                ("key2".to_string(), "value2".to_string())
+            ]),],
+            result
+        );
+    }
 
-            let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
-            assert_eq!(
-                vec![HashMap::from([
-                    ("key1".to_string(), "value1".to_string()),
-                    ("key2".to_string(), "value2".to_string())
-                ]),],
-                result
-            );
-        }
+    #[test]
+    fn test_return_command_param_when_value_override_passed_param_value() {
+        let parameter_array = vec![json!(HashMap::from([(
+            "key2".to_string(),
+            "different_value".to_string()
+        )]))];
+        let mut sub_recipe = setup_default_sub_recipe();
+        sub_recipe.values = Some(HashMap::from([
+            ("key1".to_string(), "value1".to_string()),
+            ("key2".to_string(), "value2".to_string()),
+        ]));
 
-        #[test]
-        fn test_return_empty_command_param() {
-            let parameter_array = vec![];
-            let mut sub_recipe = setup_default_sub_recipe();
-            sub_recipe.values = None;
+        let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
+        assert_eq!(
+            vec![HashMap::from([
+                ("key1".to_string(), "value1".to_string()),
+                ("key2".to_string(), "value2".to_string())
+            ]),],
+            result
+        );
+    }
 
-            let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
-            assert_eq!(result, vec![HashMap::new()]);
-        }
+    #[test]
+    fn test_return_empty_command_param() {
+        let parameter_array = vec![];
+        let mut sub_recipe = setup_default_sub_recipe();
+        sub_recipe.values = None;
+
+        let result = prepare_command_params(&sub_recipe, parameter_array).unwrap();
+        assert_eq!(result, vec![HashMap::new()]);
     }
 
     mod multiple_tool_parameters {

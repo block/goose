@@ -28,6 +28,12 @@ impl Task {
             .flatten()
     }
 
+    pub fn get_sequential_when_repeated(&self) -> bool {
+        self.get_sub_recipe()
+            .and_then(|sr| sr.get("sequential_when_repeated").and_then(|v| v.as_bool()))
+            .unwrap_or_default()
+    }
+
     pub fn get_command_parameters(&self) -> Option<&Map<String, Value>> {
         self.get_sub_recipe()
             .and_then(|sr| sr.get("command_parameters"))

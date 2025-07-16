@@ -24,7 +24,7 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
             - For multiple tasks: provide an array with multiple parameter sets, each with different values\n\n\
             Each task will run the same sub recipe but with different parameter values. \
             This is useful when you need to execute the same sub recipe multiple times with varying inputs. \
-            After creating the task list with execution_mode, pass them to the task executor to run all tasks.",
+            After creating the tasks and execution_mode is provided, pass them to the task executor to run these tasks",
             sub_recipe.name
         ),
         input_schema,
@@ -58,6 +58,7 @@ fn create_tasks_from_params(
                     "name": sub_recipe.name.clone(),
                     "command_parameters": task_command_param,
                     "recipe_path": sub_recipe.path.clone(),
+                    "sequential_when_repeated": sub_recipe.sequential_when_repeated
                 }
             });
             Task {
@@ -71,19 +72,11 @@ fn create_tasks_from_params(
     tasks
 }
 
-fn get_execution_mode(sub_recipe: &SubRecipe) -> ExecutionMode {
-    if sub_recipe.sequential_when_repeated {
-        ExecutionMode::Sequential
-    } else {
-        ExecutionMode::Parallel
-    }
-}
-
-fn create_task_execution_payload(tasks: &[Task], execution_mode: ExecutionMode) -> Value {
+fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
     let task_ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
     json!({
         "task_ids": task_ids,
-        "execution_mode": execution_mode
+        "execution_mode": if sub_recipe.sequential_when_repeated { ExecutionMode::Sequential } else { ExecutionMode::Parallel },
     })
 }
 
@@ -95,8 +88,7 @@ pub async fn create_sub_recipe_task(
     let task_params_array = extract_task_parameters(&params);
     let command_params = prepare_command_params(sub_recipe, task_params_array.clone())?;
     let tasks = create_tasks_from_params(sub_recipe, &command_params);
-    let execution_mode = get_execution_mode(sub_recipe);
-    let task_execution_payload = create_task_execution_payload(&tasks, execution_mode);
+    let task_execution_payload = create_task_execution_payload(&tasks, sub_recipe);
 
     let tasks_json = serde_json::to_string(&task_execution_payload)
         .map_err(|e| anyhow::anyhow!("Failed to serialize task list: {}", e))?;
