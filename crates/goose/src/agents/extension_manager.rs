@@ -15,7 +15,7 @@ use tracing::{error, warn};
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::Envs;
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{Config, ConfigError, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
@@ -155,6 +155,13 @@ impl ExtensionManager {
                                 "Secret value is not a string; skipping."
                             );
                         }
+                    }
+                    Err(ConfigError::NotFound(_)) => {
+                        return Err(ExtensionError::SetupError(format!(
+                            "Missing required secret '{}' for extension '{}'. {}",
+                            key, ext_name,
+                            "Run 'goose configure' to set up credentials, set via environment variable, or run a recipe interactively to be prompted for credentials."
+                        )));
                     }
                     Err(e) => {
                         error!(
