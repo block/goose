@@ -120,7 +120,6 @@ export const useChatEngine = ({
       // If this is the first message in a new session, trigger a refresh immediately
       // Only trigger if we're starting a completely new session (no existing messages)
       if (messages.length === 0 && chat.messages.length === 0) {
-        console.log('ChatEngine: New session detected, emitting session-created event');
         // Emit event to indicate a new session is being created
         window.dispatchEvent(new CustomEvent('session-created'));
       }

@@ -287,10 +287,7 @@ export function useMessageStream({
                           : parsedEvent.message.sendToLLM,
                     };
 
-                    console.log('New message:', JSON.stringify(newMessage, null, 2));
-
                     // Update messages with the new message
-
                     if (
                       newMessage.id &&
                       currentMessages.length > 0 &&

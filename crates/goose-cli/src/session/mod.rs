@@ -627,9 +627,9 @@ impl Session {
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
                     );
-                    if self.session_file.exists() {
-                        std::fs::remove_file(&self.session_file)?;
-                        std::fs::File::create(&self.session_file)?;
+                    if let Some(file) = self.session_file.as_ref().filter(|f| f.exists()) {
+                        std::fs::remove_file(file)?;
+                        std::fs::File::create(file)?;
                     }
                     continue;
                 }
