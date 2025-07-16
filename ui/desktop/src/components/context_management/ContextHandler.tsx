@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../../types/message';
 import { useChatContextManager } from './ChatContextManager';
+import { Button } from '../ui/button';
 
 interface ContextHandlerProps {
   messages: Message[];
@@ -8,6 +9,7 @@ interface ContextHandlerProps {
   chatId: string;
   workingDir: string;
   contextType: 'contextLengthExceeded' | 'summarizationRequested';
+  onSummaryComplete?: () => void; // Add callback for when summary is complete
 }
 
 export const ContextHandler: React.FC<ContextHandlerProps> = ({
@@ -16,6 +18,7 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
   chatId,
   workingDir,
   contextType,
+  onSummaryComplete,
 }) => {
   const {
     summaryContent,
@@ -39,6 +42,33 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
 
   // Use a ref to track if we've started the fetch
   const fetchStartedRef = useRef(false);
+  const hasCalledSummaryComplete = useRef(false);
+
+  // Call onSummaryComplete when summary is ready
+  useEffect(() => {
+    if (summaryContent && shouldAllowSummaryInteraction && !hasCalledSummaryComplete.current) {
+      hasCalledSummaryComplete.current = true;
+      // Delay the scroll slightly to ensure the content is rendered
+      setTimeout(() => {
+        onSummaryComplete?.();
+      }, 100);
+    }
+
+    // Reset the flag when summary is cleared
+    if (!summaryContent) {
+      hasCalledSummaryComplete.current = false;
+    }
+  }, [summaryContent, shouldAllowSummaryInteraction, onSummaryComplete]);
+
+  // Scroll when summarization starts (loading state)
+  useEffect(() => {
+    if (isLoadingSummary && shouldAllowSummaryInteraction) {
+      // Delay the scroll slightly to ensure the loading content is rendered
+      setTimeout(() => {
+        onSummaryComplete?.();
+      }, 100);
+    }
+  }, [isLoadingSummary, shouldAllowSummaryInteraction, onSummaryComplete]);
 
   // Function to trigger the async operation properly
   const triggerContextLengthExceeded = () => {
@@ -122,12 +152,9 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           ? `This conversation has too much information to continue. Extension data often takes up significant space.`
           : `Summarization failed. Continue chatting or start a new session.`}
       </span>
-      <button
-        onClick={openNewSession}
-        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-      >
+      <Button onClick={openNewSession} className="text-xs transition-colors mt-1 flex items-center">
         Click here to start a new session
-      </button>
+      </Button>
     </>
   );
 
@@ -138,12 +165,9 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           ? `Your conversation has exceeded the model's context capacity`
           : `Summarization requested`}
       </span>
-      <button
-        onClick={handleRetry}
-        className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
-      >
+      <Button onClick={handleRetry} className="text-xs transition-colors mt-1 flex items-center">
         Retry loading summary
-      </button>
+      </Button>
     </>
   );
 
@@ -160,15 +184,15 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
           : `This summary includes key points from your conversation.`}
       </span>
       {shouldAllowSummaryInteraction && (
-        <button
+        <Button
           onClick={openSummaryModal}
-          className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+          className="text-xs transition-colors mt-1 flex items-center"
         >
           View or edit summary{' '}
           {isContextLengthExceeded
             ? '(you may continue your conversation based on the summary)'
             : ''}
-        </button>
+        </Button>
       )}
     </>
   );

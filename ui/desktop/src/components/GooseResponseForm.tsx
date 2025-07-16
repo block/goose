@@ -147,11 +147,7 @@ export default function GooseResponseForm({
     <div className="space-y-4">
       {isQuestion && !isOptions && !isForm(dynamicForm) && (
         <div className="flex items-center gap-4 p-4 rounded-lg bg-tool-card dark:bg-tool-card-dark border dark:border-dark-border">
-          <Button
-            onClick={handleAccept}
-            variant="default"
-            className="w-full sm:w-auto dark:bg-button-dark"
-          >
+          <Button onClick={handleAccept} className="w-full sm:w-auto">
             <Send className="h-[14px] w-[14px]" />
             Take flight with this plan
           </Button>
@@ -230,11 +226,7 @@ export default function GooseResponseForm({
             </div>
           ))}
 
-          <Button
-            type="submit"
-            variant="default"
-            className="w-full sm:w-auto mt-4 dark:bg-button-dark"
-          >
+          <Button type="submit" className="w-full sm:w-auto mt-4">
             <Send className="h-[14px] w-[14px]" />
             Submit Form
           </Button>

@@ -89,7 +89,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     <div className="fixed inset-0 backdrop-blur-sm z-50 flex justify-center items-center animate-[fadein_200ms_ease-in]">
       {showCancelOptions ? (
         // Cancel options modal
-        <div className="bg-bgApp border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-md">
+        <div className="bg-background-default border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-md">
           <h2 className="text-xl font-bold text-textProminent mb-4">Cancel Recipe Setup</h2>
           <p className="text-textStandard mb-6">What would you like to do?</p>
           <div className="flex flex-col gap-3">
@@ -113,7 +113,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         </div>
       ) : (
         // Main parameter form
-        <div className="bg-bgApp border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-lg">
+        <div className="bg-background-default border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-lg">
           <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             {parameters.map((param) => (

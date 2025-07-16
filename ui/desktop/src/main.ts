@@ -11,6 +11,7 @@ import {
   Tray,
   App,
   globalShortcut,
+  shell,
   Event,
 } from 'electron';
 import type { OpenDialogReturnValue } from 'electron';
@@ -37,7 +38,7 @@ import {
   SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
-import * as electron from 'electron';
+// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -132,7 +133,28 @@ async function ensureTempDirExists(): Promise<string> {
 
 if (started) app.quit();
 
-app.setAsDefaultProtocolClient('goose');
+// In development mode, force registration as the default protocol client
+// In production, register normally
+if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  // Development mode - force registration
+  console.log('[Main] Development mode: Forcing protocol registration for goose://');
+  app.setAsDefaultProtocolClient('goose');
+
+  if (process.platform === 'darwin') {
+    try {
+      // Reset the default handler to ensure dev version takes precedence
+      spawn('open', ['-a', process.execPath, '--args', '--reset-protocol-handler', 'goose'], {
+        detached: true,
+        stdio: 'ignore',
+      });
+    } catch (error) {
+      console.warn('[Main] Could not reset protocol handler:', error);
+    }
+  }
+} else {
+  // Production mode - normal registration
+  app.setAsDefaultProtocolClient('goose');
+}
 
 // Only apply single instance lock on Windows where it's needed for deep links
 let gotTheLock = true;
@@ -422,7 +444,11 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [process.env.GOOSE_DEFAULT_PROVIDER, process.env.GOOSE_DEFAULT_MODEL];
+  return [
+    process.env.GOOSE_DEFAULT_PROVIDER,
+    process.env.GOOSE_DEFAULT_MODEL,
+    process.env.GOOSE_PREDEFINED_MODELS,
+  ];
 };
 
 const generateSecretKey = () => {
@@ -446,7 +472,7 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-let [provider, model] = getGooseProvider();
+let [provider, model, predefinedModels] = getGooseProvider();
 
 let sharingUrl = getSharingUrl();
 
@@ -455,6 +481,7 @@ let gooseVersion = getVersion();
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
   GOOSE_DEFAULT_MODEL: model,
+  GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
@@ -532,22 +559,21 @@ const createChat = async (
 
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 750,
+    defaultWidth: 940, // large enough to show the sidebar on launch
     defaultHeight: 800,
   });
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 650,
+    minWidth: 750,
     resizable: true,
-    transparent: false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
@@ -634,10 +660,16 @@ const createChat = async (
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      electron.shell.openExternal(url);
+      shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
+  });
+
+  // Handle new-window events (alternative approach for external links)
+  mainWindow.webContents.on('new-window', (event, url) => {
+    event.preventDefault();
+    shell.openExternal(url);
   });
 
   // Load the index.html of the app.
@@ -1473,8 +1505,8 @@ app.whenReady().then(async () => {
           "default-src 'self';" +
           // Allow inline styles since we use them in our React components
           "style-src 'self' 'unsafe-inline';" +
-          // Scripts only from our app
-          "script-src 'self';" +
+          // Scripts from our app and inline scripts (for theme initialization)
+          "script-src 'self' 'unsafe-inline';" +
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
           // Connect to our local API and specific external services
@@ -1483,8 +1515,8 @@ app.whenReady().then(async () => {
           "object-src 'none';" +
           // Don't allow any frames
           "frame-src 'none';" +
-          // Font sources
-          "font-src 'self';" +
+          // Font sources - allow self, data URLs, and external fonts
+          "font-src 'self' data: https:;" +
           // Media sources - allow microphone
           "media-src 'self' mediastream:;" +
           // Form actions
@@ -1912,7 +1944,7 @@ app.whenReady().then(async () => {
         spawn('xdg-open', [url]);
       }
     } catch (error) {
-      console.error('Error opening URL in Chrome:', error);
+      console.error('Error opening URL in browser:', error);
     }
   });
 
