@@ -10,11 +10,15 @@ description.workspace = true
 [lints]
 workspace = true
 
+[features]
+rmcp = ["dep:rmcp", "goose/rmcp"]
+
 [dependencies]
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
+rmcp = { workspace = true, optional = true }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"

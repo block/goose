@@ -3473,6 +3473,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3512,6 +3513,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
+ "rmcp",
  "serde",
  "serde_json",
  "tokio",
@@ -3553,6 +3555,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "rustyline",
  "serde",
  "serde_json",
@@ -3648,6 +3651,7 @@ dependencies = [
  "once_cell",
  "regex",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_with",
@@ -3692,6 +3696,7 @@ dependencies = [
  "mcp-server",
  "once_cell",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -7119,6 +7124,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmcp"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37f2048a81a7ff7e8ef6bc5abced70c3d9114c8f03d85d7aaaafd9fd04f12e9e"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "paste",
+ "pin-project-lite",
+ "rmcp-macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72398e694b9f6dbb5de960cf158c8699e6a1854cb5bbaac7de0646b2005763c4"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "roaring"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7401,6 +7440,7 @@ version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
+ "chrono",
  "dyn-clone",
  "schemars_derive",
  "serde",

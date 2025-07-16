@@ -10,6 +10,9 @@ description.workspace = true
 [lints]
 workspace = true
 
+[features]
+rmcp = ["dep:rmcp"]
+
 [build-dependencies]
 tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
@@ -17,6 +20,7 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], 
 [dependencies]
 mcp-client = { path = "../mcp-client" }
 mcp-core = { path = "../mcp-core" }
+rmcp = { workspace = true, optional = true }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
