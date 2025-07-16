@@ -9,9 +9,6 @@ use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::recipe_tools::dynamic_task_tools::{
-    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
-};
 use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
     self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
 };
@@ -56,6 +53,7 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::router_tools;
 use super::subagent_manager::SubAgentManager;
+use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
@@ -297,8 +295,6 @@ impl Agent {
                 .await
         } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
             sub_recipe_execute_task_tool::run_tasks(tool_call.arguments.clone()).await
-        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            create_dynamic_task(tool_call.arguments.clone()).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -563,7 +559,7 @@ impl Agent {
             // Add subagent tool (only if ALPHA_FEATURES is enabled)
             let config = Config::global();
             if config.get_param::<bool>("ALPHA_FEATURES").unwrap_or(false) {
-                prefixed_tools.push(create_dynamic_task_tool());
+                prefixed_tools.push(subagent_tools::run_task_subagent_tool());
             }
 
             // Add resource tools if supported

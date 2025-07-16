@@ -11,8 +11,8 @@ use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubReci
 use super::param_utils::prepare_command_params;
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
-pub const EXECUTION_MODE_PARALLEL: &str = "parallel";
-pub const EXECUTION_MODE_SEQUENTIAL: &str = "sequential";
+const EXECUTION_MODE_PARALLEL: &str = "parallel";
+const EXECUTION_MODE_SEQUENTIAL: &str = "sequential";
 
 pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();

@@ -187,8 +187,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     // Create the agent
     let agent: Agent = Agent::new();
-
-    // Sub-recipes
     if let Some(sub_recipes) = session_config.sub_recipes {
         agent.add_sub_recipes(sub_recipes).await;
     }
