@@ -191,16 +191,19 @@ where
         service.ready().await.map_err(|_| Error::NotReady)?;
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
 
-        let mut params = params.clone();
-        params["_meta"] = json!({
-            "progressToken": format!("prog-{}", id),
-        });
+        // Only add _meta parameter for servers that support progress notifications
+        // For now, skip this to improve compatibility with simple MCP servers
+        let enhanced_params = params.clone();
+        // TODO: Add this back when progress token support is more widespread
+        // enhanced_params["_meta"] = json!({
+        //     "progressToken": format!("prog-{}", id),
+        // });
 
         let request = JsonRpcMessage::Request(JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             id: Some(id),
             method: method.to_string(),
-            params: Some(params),
+            params: Some(enhanced_params),
         });
 
         let response_msg = service

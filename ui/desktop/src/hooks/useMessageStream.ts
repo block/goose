@@ -401,7 +401,7 @@ export function useMessageStream({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/vnd.mcp-ui.remote-dom+javascript, application/json',
+            'Accept': 'application/json, text/html, text/uri-list, application/vnd.mcp-ui.remote-dom+javascript',
             'X-Secret-Key': getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
