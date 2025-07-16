@@ -62,10 +62,6 @@ Pre-created Task Based:
                                 "default": "sub_recipe",
                                 "description": "the type of task to execute, can be one of: sub_recipe, text_instruction"
                             },
-                            "timeout_in_seconds": {
-                                "type": "number",
-                                "description": "timeout in seconds for the task."
-                            },
                             "payload": {
                                 "type": "object",
                                 "properties": {

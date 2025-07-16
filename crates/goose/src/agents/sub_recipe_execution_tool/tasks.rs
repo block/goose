@@ -1,60 +1,29 @@
 use serde_json::Value;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::time::timeout;
 
 use crate::agents::sub_recipe_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::sub_recipe_execution_tool::task_types::{Task, TaskResult, TaskStatus};
-
-const DEFAULT_TASK_TIMEOUT_SECONDS: u64 = 300;
 
 pub async fn process_task(
     task: &Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
 ) -> TaskResult {
-    let timeout_in_seconds = task
-        .timeout_in_seconds
-        .unwrap_or(DEFAULT_TASK_TIMEOUT_SECONDS);
-    let task_clone = task.clone();
-    let timeout_duration = Duration::from_secs(timeout_in_seconds);
-
-    let task_execution_tracker_clone = task_execution_tracker.clone();
-    match timeout(
-        timeout_duration,
-        get_task_result(task_clone, task_execution_tracker),
-    )
-    .await
-    {
-        Ok(Ok(data)) => TaskResult {
+    match get_task_result(task.clone(), task_execution_tracker).await {
+        Ok(data) => TaskResult {
             task_id: task.id.clone(),
             status: TaskStatus::Completed,
             data: Some(data),
             error: None,
         },
-        Ok(Err(error)) => TaskResult {
+        Err(error) => TaskResult {
             task_id: task.id.clone(),
             status: TaskStatus::Failed,
             data: None,
             error: Some(error),
         },
-        Err(_) => {
-            let current_output = task_execution_tracker_clone
-                .get_current_output(&task.id)
-                .await
-                .unwrap_or_default();
-
-            TaskResult {
-                task_id: task.id.clone(),
-                status: TaskStatus::Failed,
-                data: Some(serde_json::json!({
-                    "partial_output": current_output
-                })),
-                error: Some(format!("Task timed out after {}s", timeout_in_seconds)),
-            }
-        }
     }
 }
 

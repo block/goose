@@ -2,7 +2,7 @@
 mod tests {
     use std::collections::HashMap;
 
-    use crate::recipe::{Execution, ExecutionRun, SubRecipe};
+    use crate::recipe::{Execution, SubRecipe};
     use serde_json::json;
     use serde_json::Value;
     use tempfile::TempDir;
@@ -11,23 +11,15 @@ mod tests {
         let sub_recipe = SubRecipe {
             name: "test_sub_recipe".to_string(),
             path: "test_sub_recipe.yaml".to_string(),
-            timeout_in_seconds: None,
             values: Some(HashMap::from([("key1".to_string(), "value1".to_string())])),
             executions: None,
         };
         sub_recipe
     }
 
-    fn create_execution_values(key: &str, values: Vec<String>) -> Execution {
-        let runs = values
-            .iter()
-            .map(|value| ExecutionRun {
-                values: Some(HashMap::from([(key.to_string(), value.to_string())])),
-            })
-            .collect();
+    fn create_execution() -> Execution {
         Execution {
             parallel: true,
-            runs: Some(runs),
         }
     }
 
@@ -183,10 +175,7 @@ mod tests {
                     prepare_sub_recipe(SUB_RECIPE_FILE_CONTENT_WITH_THREE_PARAMS);
                 sub_recipe.values =
                     Some(HashMap::from([("key1".to_string(), "value1".to_string())]));
-                sub_recipe.executions = Some(create_execution_values(
-                    "key2",
-                    vec!["key2_value_1".to_string(), "key2_value_2".to_string()],
-                ));
+                sub_recipe.executions = Some(create_execution());
 
                 let result = get_input_schema(&sub_recipe).unwrap();
 
@@ -210,10 +199,7 @@ mod tests {
                     ("key1".to_string(), "value1".to_string()),
                     ("key3".to_string(), "value3".to_string()),
                 ]));
-                sub_recipe.executions = Some(create_execution_values(
-                    "key2",
-                    vec!["key2_value_1".to_string(), "key2_value_2".to_string()],
-                ));
+                sub_recipe.executions = Some(create_execution());
 
                 let result = get_input_schema(&sub_recipe).unwrap();
 

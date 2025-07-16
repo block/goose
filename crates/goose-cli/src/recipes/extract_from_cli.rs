@@ -31,7 +31,6 @@ pub fn extract_recipe_info_from_cli(
                     let additional_sub_recipe = SubRecipe {
                         path: recipe_file_path.to_string_lossy().to_string(),
                         name,
-                        timeout_in_seconds: None,
                         values: None,
                         executions: None,
                     };

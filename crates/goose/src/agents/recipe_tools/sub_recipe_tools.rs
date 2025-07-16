@@ -5,14 +5,12 @@ use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
-use crate::agents::sub_recipe_execution_tool::lib::Task;
+use crate::agents::sub_recipe_execution_tool::lib::{ExecutionMode, Task};
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 use super::param_utils::prepare_command_params;
 
 pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
-const EXECUTION_MODE_PARALLEL: &str = "parallel";
-const EXECUTION_MODE_SEQUENTIAL: &str = "sequential";
 
 pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();
@@ -64,14 +62,13 @@ fn create_tasks_from_params(
             Task {
                 id: uuid::Uuid::new_v4().to_string(),
                 task_type: "sub_recipe".to_string(),
-                timeout_in_seconds: sub_recipe.timeout_in_seconds,
                 payload,
             }
         })
         .collect()
 }
 
-fn get_execution_mode(sub_recipe: &SubRecipe) -> &'static str {
+fn get_execution_mode(sub_recipe: &SubRecipe) -> ExecutionMode {
     let is_parallel = sub_recipe
         .executions
         .as_ref()
@@ -79,13 +76,13 @@ fn get_execution_mode(sub_recipe: &SubRecipe) -> &'static str {
         .unwrap_or(false);
 
     if is_parallel {
-        EXECUTION_MODE_PARALLEL
+        ExecutionMode::Parallel
     } else {
-        EXECUTION_MODE_SEQUENTIAL
+        ExecutionMode::Sequential
     }
 }
 
-fn create_task_execution_payload(tasks: Vec<Task>, execution_mode: &str) -> Value {
+fn create_task_execution_payload(tasks: Vec<Task>, execution_mode: ExecutionMode) -> Value {
     json!({
         "tasks": tasks,
         "execution_mode": execution_mode
@@ -118,15 +115,6 @@ fn get_params_with_values(sub_recipe: &SubRecipe) -> HashSet<String> {
     if let Some(params_with_value) = &sub_recipe.values {
         for param_name in params_with_value.keys() {
             sub_recipe_params_with_values.insert(param_name.clone());
-        }
-    }
-    if let Some(runs) = sub_recipe.executions.as_ref().and_then(|e| e.runs.as_ref()) {
-        for run in runs {
-            if let Some(params_with_value) = &run.values {
-                for param_name in params_with_value.keys() {
-                    sub_recipe_params_with_values.insert(param_name.clone());
-                }
-            }
         }
     }
     sub_recipe_params_with_values

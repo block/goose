@@ -18,7 +18,6 @@ pub enum ExecutionMode {
 pub struct Task {
     pub id: String,
     pub task_type: String,
-    pub timeout_in_seconds: Option<u64>,
     pub payload: Value,
 }
 
