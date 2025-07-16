@@ -24,7 +24,6 @@ That's exactly where MCP comes in. Best part is, you don't need to be a develope
 ## MCP Servers You Should Try Right Now
 So what can you connect your AI agent to? MCP Servers! MCP servers give your agent access to your tools. With [over 3000 MCP servers](https://glama.ai/mcp/servers) you can connect to, here is your top list of popular MCP servers you should try:
 
-- **[Google Drive](/docs/mcp/google-drive-mcp)**: File access and search capabilities for Google Drive
 - **[YouTube Transcript](/docs/mcp/youtube-transcript-mcp)**: Grab and work with YouTube video transcripts
 - **[Google Maps](/docs/mcp/google-maps-mcp)**: Location services, directions, and place details
 - **[Tavily Web Search](/docs/mcp/tavily-mcp)**: Web and local search using Tavily's Search API

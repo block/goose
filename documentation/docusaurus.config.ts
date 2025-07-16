@@ -192,10 +192,6 @@ const config: Config = {
             to: '/docs/mcp/github-mcp'
           },
           {
-            from: '/docs/tutorials/google-drive-mcp',
-            to: '/docs/mcp/google-drive-mcp'
-          },
-          {
             from: '/docs/tutorials/google-maps-mcp',
             to: '/docs/mcp/google-maps-mcp'
           },
