@@ -269,7 +269,6 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 
 /// Extract usage information from Anthropic's API response
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    
     // Extract usage data if available
     if let Some(usage) = data.get("usage") {
         // Get all token fields for analysis
@@ -293,15 +292,15 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-
         // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
         // The cache pricing should only affect cost calculation, not token count display
         let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-        
+
         // Convert to i32 with bounds checking
         let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
         let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 = (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+        let total_tokens_i32 =
+            (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
         Ok(Usage::new(
             Some(total_input_i32),
@@ -331,12 +330,17 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .unwrap_or(0);
 
         // If we found any token data, process it
-        if input_tokens > 0 || cache_creation_tokens > 0 || cache_read_tokens > 0 || output_tokens > 0 {
+        if input_tokens > 0
+            || cache_creation_tokens > 0
+            || cache_read_tokens > 0
+            || output_tokens > 0
+        {
             let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-            
+
             let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
             let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 = (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
+            let total_tokens_i32 =
+                (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
             tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
                     total_input_i32, output_tokens_i32, total_tokens_i32);
@@ -470,7 +474,7 @@ where
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
-            
+
             // Skip empty lines and non-data lines
             if line.trim().is_empty() || !line.starts_with("data: ") {
                 continue;
@@ -598,7 +602,7 @@ where
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
                         tracing::debug!("🔍 Anthropic message_delta parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                                 delta_usage.input_tokens, delta_usage.output_tokens, delta_usage.total_tokens);
-                        
+
                         // IMPORTANT: message_delta usage should be MERGED with existing usage, not replace it
                         // message_start has input tokens, message_delta has output tokens
                         if let Some(existing_usage) = &final_usage {
@@ -610,7 +614,7 @@ where
                                 (None, Some(output)) => Some(output),
                                 (None, None) => None,
                             };
-                            
+
                             let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
                             final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                             tracing::debug!("🔍 Anthropic MERGED usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
@@ -634,7 +638,7 @@ where
                     if let Some(usage_data) = event.data.get("usage") {
                         tracing::debug!("🔍 Anthropic streaming usage data: {}", serde_json::to_string_pretty(usage_data).unwrap_or_else(|_| format!("{:?}", usage_data)));
                         let usage = get_usage(usage_data).unwrap_or_default();
-                        tracing::debug!("🔍 Anthropic parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
+                        tracing::debug!("🔍 Anthropic parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
                         let model = event.data.get("model")
                             .and_then(|v| v.as_str())

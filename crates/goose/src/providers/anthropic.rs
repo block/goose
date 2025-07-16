@@ -209,7 +209,10 @@ impl Provider for AnthropicProvider {
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         let provider_usage = ProviderUsage::new(model, usage);
-        tracing::debug!("🔍 Anthropic non-streaming returning ProviderUsage: {:?}", provider_usage);
+        tracing::debug!(
+            "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
+            provider_usage
+        );
         Ok((message, provider_usage))
     }
 
