@@ -176,7 +176,7 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
     return (
       <div
         key={`${side}-${line.lineNumber}`}
-        className={`flex font-mono text-sm ${getLineStyle()}`}
+        className={`flex font-mono text-xs ${getLineStyle()}`}
       >
         <div className="w-12 text-textSubtle text-right pr-2 py-1 select-none flex-shrink-0">
           {line.lineNumber}
@@ -237,7 +237,7 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
     };
 
     return (
-      <div key={`unified-${index}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
+      <div key={`unified-${index}`} className={`flex font-mono text-xs ${getLineStyle()}`}>
         <div className="w-12 text-textSubtle text-right pr-1 py-1 select-none flex-shrink-0">
           {line.beforeLineNumber || ''}
         </div>
@@ -265,13 +265,13 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
   }, [viewMode, setViewMode]);
 
   return (
-    <div className="h-full flex flex-col bg-background-default">
+    <div className="h-full flex flex-col bg-background-default ">
       {viewMode === 'split' ? (
         /* Split Diff Content */
         <div className="flex-1 overflow-hidden flex">
           {/* Before (Left Side) */}
           <div className="flex-1 border-r border-borderSubtle">
-            <div className="bg-background-muted text-textStandard px-4 py-2 text-sm font-medium border-b border-borderSubtle">
+            <div className="bg-background-muted text-textStandard px-4 py-2 text-xs font-medium border-b border-borderSubtle">
               Before
             </div>
             <div className="h-[calc(100%-40px)] overflow-auto">
@@ -281,7 +281,7 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
 
           {/* After (Right Side) */}
           <div className="flex-1">
-            <div className="bg-background-muted text-textStandard px-4 py-2 text-sm font-medium border-b border-borderSubtle">
+            <div className="bg-background-muted text-textStandard px-4 py-2 text-xs font-medium border-b border-borderSubtle">
               After
             </div>
             <div className="h-[calc(100%-40px)] overflow-auto">
@@ -292,7 +292,7 @@ function MonacoDiffViewer({ diffContent, _fileName }: { diffContent: string; _fi
       ) : (
         /* Unified Diff Content */
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-auto">
+          <div className="h-full overflow-auto pb-(--radius-2xl)">
             {parsedDiff.unifiedLines.map((line, index) => renderUnifiedLine(line, index))}
           </div>
         </div>
@@ -403,11 +403,13 @@ export function Sidecar({ className = '' }: { className?: string }) {
   const isDiffViewer = currentView.id === 'diff';
 
   return (
-    <div className={`bg-background-default overflow-hidden rounded-2xl m-5 ${className}`}>
+    <div
+      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${className}`}
+    >
       {currentView && (
         <>
           {/* Sidecar Header */}
-          <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0">
+          <div className="flex items-center justify-between p-4 border-b border-borderSubtle flex-shrink-0 flex-grow-0">
             <div className="flex items-center space-x-2">
               {currentView.icon}
               <div className="flex flex-col">
@@ -428,9 +430,9 @@ export function Sidecar({ className = '' }: { className?: string }) {
                         variant="ghost"
                         size="sm"
                         onClick={() => setViewMode('unified')}
-                        className={`px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-borderProminent focus:ring-offset-1  ${
+                        className={`px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-borderProminent focus:ring-offset-1 ${
                           viewMode === 'unified'
-                            ? 'bg-background-default text-textStandard hover:text-textStandard hover:bg-background-default'
+                            ? 'bg-background-default text-textStandard hover:bg-background-default dark:hover:bg-background-default'
                             : 'text-textSubtle'
                         }`}
                       >
@@ -450,7 +452,7 @@ export function Sidecar({ className = '' }: { className?: string }) {
                         onClick={() => setViewMode('split')}
                         className={`px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-borderProminent focus:ring-offset-1  ${
                           viewMode === 'split'
-                            ? 'bg-background-default text-textStandard hover:text-textStandard hover:bg-background-default'
+                            ? 'bg-background-default text-textStandard hover:bg-background-default dark:hover:bg-background-default'
                             : 'text-textSubtle'
                         }`}
                       >
@@ -482,7 +484,9 @@ export function Sidecar({ className = '' }: { className?: string }) {
           </div>
 
           {/* Sidecar Content */}
-          <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
+          <div className="flex-1  border-4 overflow-hidden border-background-default border-t-0 rounded-b-2xl">
+            {currentView.content}
+          </div>
         </>
       )}
     </div>
