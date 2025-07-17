@@ -49,6 +49,7 @@ pub struct SuccessCheck {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SuccessCheckType {
     /// Execute a shell command and check its exit status
+    #[serde(alias = "shell")]
     Shell,
 }
 

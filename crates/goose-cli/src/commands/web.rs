@@ -491,6 +491,7 @@ async fn process_message_streaming(
         schedule_id: None,
         execution_mode: None,
         max_turns: None,
+        retry_config: None,
     };
 
     // Get response from agent
