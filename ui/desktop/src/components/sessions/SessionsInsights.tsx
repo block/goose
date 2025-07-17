@@ -23,6 +23,7 @@ export function SessionInsights() {
   const [error, setError] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   // const [recentProjects, setRecentProjects] = useState<ProjectMetadata[]>([]);
   const navigate = useNavigate();
 
@@ -67,7 +68,8 @@ export function SessionInsights() {
         setRecentSessions(sessions.slice(0, 3));
       } catch (error) {
         console.error('Failed to load recent sessions:', error);
-        // Don't set loading to false here since insights is the primary data
+      } finally {
+        setIsLoadingSessions(false);
       }
     };
 
@@ -400,7 +402,32 @@ export function SessionInsights() {
                 </Button>
               </div>
               <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">
-                {recentSessions.length > 0 ? (
+                {isLoadingSessions ? (
+                  // Show skeleton while sessions are loading
+                  <>
+                    <div className="flex items-center justify-between py-1 px-2">
+                      <div className="flex items-center space-x-2">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                        <Skeleton className="h-4 w-48" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <div className="flex items-center justify-between py-1 px-2">
+                      <div className="flex items-center space-x-2">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <div className="flex items-center justify-between py-1 px-2">
+                      <div className="flex items-center space-x-2">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                        <Skeleton className="h-4 w-52" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </>
+                ) : recentSessions.length > 0 ? (
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
