@@ -108,6 +108,23 @@ export const useChatEngine = ({
 
       onMessageStreamFinish?.();
     },
+    onError: (error) => {
+      console.log(
+        'CHAT ENGINE RECEIVED ERROR FROM MESSAGE STREAM:',
+        JSON.stringify(
+          {
+            errorMessage: error.message,
+            errorName: error.name,
+            isTokenLimitError: (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError,
+            errorStack: error.stack,
+            timestamp: new Date().toISOString(),
+            chatId: chat.id,
+          },
+          null,
+          2
+        )
+      );
+    },
   });
 
   // Wrap append to store messages in global history (if enabled)
