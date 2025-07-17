@@ -46,7 +46,7 @@ export default function GooseDesktopInstaller({
     
     // Add environment variables
     envVars.forEach(envVar => {
-      params.set('env', `${envVar.name}=${envVar.label}`);
+      params.append('env', `${envVar.name}=${envVar.label}`);
     });
     
     return `goose://extension?${params.toString()}`;
