@@ -1204,6 +1204,7 @@ async fn run_scheduled_job_internal(
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
             max_turns: None,
+            retry_config: None,
         };
 
         match agent
@@ -1424,6 +1425,7 @@ mod tests {
             settings: None,
             response: None,
             sub_recipes: None,
+            retry: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;
         writeln!(
