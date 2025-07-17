@@ -3,7 +3,7 @@ use crate::transport::Error;
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest, JsonRpcError, ErrorData};
 use reqwest::Client as HttpClient;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -60,6 +60,32 @@ impl StreamableHttpActor {
             headers,
         }
     }
+    
+    /// Helper function to determine if an error is authentication-related
+    fn is_authentication_error(error: &Error) -> bool {
+        match error {
+            Error::HttpError { status, .. } if *status == 401 || *status == 403 => true,
+            Error::StreamableHttpError(msg) if msg.contains("Authentication failed") => true,
+            _ => false,
+        }
+    }
+    
+    /// Helper function to send error responses back to the client
+    async fn send_error_response(&self, id: u64, code: u16, message: &str) {
+        let error_response = JsonRpcMessage::Error(JsonRpcError {
+            jsonrpc: "2.0".to_string(),
+            id: Some(id),
+            error: ErrorData {
+                code: code as i32,
+                message: message.to_string(),
+                data: None,
+            },
+        });
+        
+        if let Err(e) = self.sender.send(error_response).await {
+            warn!("Failed to send error response: {}", e);
+        }
+    }
 
     /// Main entry point for the actor
     pub async fn run(mut self) {
@@ -72,7 +98,16 @@ impl StreamableHttpActor {
         while let Some(message_str) = self.receiver.recv().await {
             if let Err(e) = self.handle_outgoing_message(message_str).await {
                 error!("Error handling outgoing message: {}", e);
-                break;
+                
+                // Don't shut down the actor for authentication errors - they should be handled
+                // by the retry logic in handle_outgoing_message
+                if Self::is_authentication_error(&e) {
+                    // Authentication errors are handled by the retry logic, continue processing
+                    continue;
+                } else {
+                    // For other errors, shut down the actor
+                    break;
+                }
             }
         }
 
@@ -92,6 +127,12 @@ impl StreamableHttpActor {
             JsonRpcMessage::Request(JsonRpcRequest { id: Some(_), .. })
         );
 
+        // Extract request ID for error responses
+        let request_id = match &parsed_message {
+            JsonRpcMessage::Request(JsonRpcRequest { id: Some(id), .. }) => Some(*id),
+            _ => None,
+        };
+
         // Try to send the request
         match self.send_request(&message_str, expects_response).await {
             Ok(()) => Ok(()),
@@ -102,19 +143,45 @@ impl StreamableHttpActor {
                     status
                 );
 
-                if let Some(token) = self.attempt_authentication().await? {
-                    info!("Authentication successful, retrying request...");
-                    self.headers
-                        .insert("Authorization".to_string(), format!("Bearer {}", token));
-                    self.send_request(&message_str, expects_response).await
-                } else {
-                    Err(Error::StreamableHttpError(
-                        "Authentication failed - service not supported or OAuth flow failed"
-                            .to_string(),
-                    ))
+                match self.attempt_authentication().await {
+                    Ok(Some(token)) => {
+                        info!("Authentication successful, retrying request...");
+                        self.headers
+                            .insert("Authorization".to_string(), format!("Bearer {}", token));
+                        self.send_request(&message_str, expects_response).await
+                    }
+                    Ok(None) => {
+                        let error_msg = "Authentication failed - service not supported or OAuth flow failed";
+                        warn!("{}", error_msg);
+                        
+                        // Send error response back to client if this was a request
+                        if let Some(id) = request_id {
+                            self.send_error_response(id, status, error_msg).await;
+                        }
+                        
+                        Err(Error::StreamableHttpError(error_msg.to_string()))
+                    }
+                    Err(e) => {
+                        let error_msg = format!("OAuth authentication failed: {}", e);
+                        warn!("{}", error_msg);
+                        
+                        // Send error response back to client if this was a request
+                        if let Some(id) = request_id {
+                            self.send_error_response(id, status, &error_msg).await;
+                        }
+                        
+                        Err(e)
+                    }
                 }
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                // For other HTTP errors, send error response back to client if this was a request
+                if let (Some(id), Error::HttpError { status, message }) = (request_id, &e) {
+                    self.send_error_response(id, *status, message).await;
+                }
+                
+                Err(e)
+            }
         }
     }
 
@@ -152,12 +219,50 @@ impl StreamableHttpActor {
         // Handle HTTP error status codes
         if !response.status().is_success() {
             let status = response.status();
-            if status.as_u16() == 404 {
+            let status_code = status.as_u16();
+            if status_code == 404 {
                 // Session not found - clear our session ID
                 *self.session_id.write().await = None;
                 return Err(Error::SessionError(
                     "Session expired or not found".to_string(),
                 ));
+            } else if status_code == 401 {
+                // RFC 6750 Bearer Token error handling
+                if let Some(auth_header) = response
+                    .headers()
+                    .get("www-authenticate")
+                    .and_then(|h| h.to_str().ok())
+                {
+                    if auth_header.contains("Bearer") {
+                        // Parse RFC 6750 Bearer token error details
+                        let error_description = if auth_header.contains("error_description=") {
+                            auth_header
+                                .split("error_description=\"")
+                                .nth(1)
+                                .and_then(|s| s.split('"').next())
+                                .unwrap_or("Bearer token authentication failed")
+                        } else if auth_header.contains("error=") {
+                            auth_header
+                                .split("error=")
+                                .nth(1)
+                                .and_then(|s| s.split(',').next())
+                                .unwrap_or("invalid_token")
+                        } else {
+                            "Bearer token required"
+                        };
+
+                        warn!("RFC 6750 Bearer token error: {}", error_description);
+
+                        // Return specific error for Bearer token issues
+                        return Err(Error::HttpError {
+                            status: status_code,
+                            message: format!(
+                                "Bearer token authentication failed: {}",
+                                error_description
+                            ),
+                        });
+                    }
+                }
             }
             let error_text = response
                 .text()
@@ -199,7 +304,9 @@ impl StreamableHttpActor {
                 let json_message: JsonRpcMessage =
                     serde_json::from_str(&response_text).map_err(Error::Serialization)?;
 
-                let _ = self.sender.send(json_message).await;
+                if let Err(e) = self.sender.send(json_message).await {
+                    warn!("Failed to send JSON response message: {}", e);
+                }
             }
         }
         // For notifications and responses, we get 202 Accepted with no body
@@ -270,7 +377,9 @@ impl StreamableHttpActor {
                     match serde_json::from_str::<JsonRpcMessage>(&event_data) {
                         Ok(message) => {
                             debug!("Received streaming HTTP response message: {:?}", message);
-                            let _ = self.sender.send(message).await;
+                            if let Err(e) = self.sender.send(message).await {
+                                warn!("Failed to send streaming response message: {}", e);
+                            }
                         }
                         Err(err) => {
                             warn!("Failed to parse streaming HTTP response message: {}", err);

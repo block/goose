@@ -399,7 +399,7 @@ async fn get_oauth_endpoints(
 
     Err(last_error.unwrap_or_else(|| {
         anyhow::anyhow!(
-            "No OAuth discovery endpoint found at {}. Tried paths: {:?}",
+            "No OAuth discovery endpoint found at {}. Remote server may not support dynamic client registration. Tried paths: {:?}",
             host,
             discovery_paths_for_error
         )
