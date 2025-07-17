@@ -427,7 +427,6 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
-  const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
   // Debounced function to update actual value
@@ -455,6 +454,13 @@ export default function ChatInput({
       debouncedAutosize(textAreaRef.current);
     }
   }, [debouncedAutosize, displayValue]);
+
+  // Reset textarea height when displayValue is empty
+  useEffect(() => {
+    if (textAreaRef.current && displayValue === '') {
+      textAreaRef.current.style.height = 'auto';
+    }
+  }, [displayValue]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
@@ -910,7 +916,6 @@ export default function ChatInput({
               ref={textAreaRef}
               rows={1}
               style={{
-                minHeight: `${minHeight}px`,
                 maxHeight: `${maxHeight}px`,
                 overflowY: 'auto',
                 opacity: isRecording ? 0 : 1,
