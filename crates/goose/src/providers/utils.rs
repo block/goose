@@ -47,46 +47,55 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
 /// Handle response from OpenAI compatible endpoints
 /// Error codes: https://platform.openai.com/docs/guides/error-codes
 /// Context window exceeded: https://community.openai.com/t/help-needed-tackling-context-length-limits-in-openai-models/617543
-pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
+pub async fn handle_status_openai_compat(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
-    // Try to parse the response body as JSON (if applicable)
-    let payload = match response.json::<Value>().await {
-        Ok(json) => json,
-        Err(e) => return Err(ProviderError::RequestFailed(e.to_string())),
-    };
 
     match status {
-        StatusCode::OK => Ok(payload),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                Status: {}. Response: {:?}", status, payload)))
-        }
-        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
-            tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-            );
-            if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(payload) {
-                let err = err_resp.error;
-                if err.is_context_length_exceeded() {
-                    return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
-                }
-                return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
-            }
-            Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
-        }
-        StatusCode::TOO_MANY_REQUESTS => {
-            Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-        }
-        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
-        }
+        StatusCode::OK => Ok(response),
         _ => {
-            tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-            );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+            let body = response.json::<Value>().await;
+            match (body, status) {
+                (Err(e), _) => Err(ProviderError::RequestFailed(e.to_string())),
+                (Ok(body), StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) => {
+                    Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                        Status: {}. Response: {:?}", status, body)))
+                }
+                (Ok(body), StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND) => {
+                    tracing::debug!(
+                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
+                    );
+                    if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body) {
+                        let err = err_resp.error;
+                        if err.is_context_length_exceeded() {
+                            return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+                        }
+                        return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
+                    }
+                    Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
+                }
+                (Ok(body), StatusCode::TOO_MANY_REQUESTS) => {
+                    Err(ProviderError::RateLimitExceeded(format!("{:?}", body)))
+                }
+                (Ok(body), StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE) => {
+                    Err(ProviderError::ServerError(format!("{:?}", body)))
+                }
+                (Ok(body), _) => {
+                    tracing::debug!(
+                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
+                    );
+                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                }
+            }
         }
     }
+}
+
+pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
+    let response = handle_status_openai_compat(response).await?;
+
+    response.json::<Value>().await.map_err(|e| {
+        ProviderError::RequestFailed(format!("Response body is not valid JSON: {}", e))
+    })
 }
 
 /// Check if the model is a Google model based on the "model" field in the payload.
@@ -319,12 +328,15 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace(
+pub fn emit_debug_trace<T1, T2>(
     model_config: &ModelConfig,
-    payload: &Value,
-    response: &Value,
+    payload: &T1,
+    response: &T2,
     usage: &Usage,
-) {
+) where
+    T1: ?Sized + Serialize,
+    T2: ?Sized + Serialize,
+{
     tracing::debug!(
         model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
         input = %serde_json::to_string_pretty(payload).unwrap_or_default(),

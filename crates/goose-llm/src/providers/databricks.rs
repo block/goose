@@ -210,6 +210,7 @@ impl Provider for DatabricksProvider {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
+        request_id: Option<&str>,
     ) -> Result<ProviderCompleteResponse, ProviderError> {
         let mut payload = create_request(
             &self.model,
@@ -223,6 +224,17 @@ impl Provider for DatabricksProvider {
             .as_object_mut()
             .expect("payload should have model key")
             .remove("model");
+
+        // Add client_request_id if provided
+        if let Some(req_id) = request_id {
+            payload
+                .as_object_mut()
+                .expect("payload should be an object")
+                .insert(
+                    "client_request_id".to_string(),
+                    serde_json::Value::String(req_id.to_string()),
+                );
+        }
 
         let response = self.post(payload.clone()).await?;
 
@@ -247,6 +259,7 @@ impl Provider for DatabricksProvider {
         system: &str,
         messages: &[Message],
         schema: &Value,
+        request_id: Option<&str>,
     ) -> Result<ProviderExtractResponse, ProviderError> {
         // 1. Build base payload (no tools)
         let mut payload = create_request(&self.model, system, messages, &[], &ImageFormat::OpenAi)?;
@@ -266,6 +279,17 @@ impl Provider for DatabricksProvider {
                     }
                 }),
             );
+
+        // Add client_request_id if provided
+        if let Some(req_id) = request_id {
+            payload
+                .as_object_mut()
+                .expect("payload should be an object")
+                .insert(
+                    "client_request_id".to_string(),
+                    serde_json::Value::String(req_id.to_string()),
+                );
+        }
 
         // 3. Call OpenAI
         let response = self.post(payload.clone()).await?;

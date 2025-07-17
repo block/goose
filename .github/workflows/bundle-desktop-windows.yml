@@ -20,7 +20,7 @@ on:
         description: 'Git ref to checkout'
         required: false
         type: string
-        default: 'refs/heads/main'
+        default: ''
     secrets:
       WINDOWS_CODESIGN_CERTIFICATE:
         required: false
@@ -43,9 +43,10 @@ jobs:
     steps:
       # 1) Check out source
       - name: Checkout repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
-          ref: ${{ inputs.ref }}
+          # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
+          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
           fetch-depth: 0
 
       # 2) Configure AWS credentials for code signing

@@ -8,7 +8,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_validate};
+use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -18,7 +18,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
+use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -246,6 +246,27 @@ enum RecipeCommand {
         )]
         recipe_name: String,
     },
+
+    /// List available recipes
+    #[command(about = "List available recipes")]
+    List {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Show verbose information including recipe descriptions
+        #[arg(
+            short,
+            long,
+            help = "Show verbose information including recipe descriptions"
+        )]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -441,7 +462,7 @@ enum Command {
             long = "no-session",
             help = "Run without storing a session file",
             long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-            conflicts_with_all = ["resume", "name", "path"] 
+            conflicts_with_all = ["resume", "name", "path"]
         )]
         no_session: bool,
 
@@ -860,16 +881,14 @@ pub async fn cli() -> Result<()> {
                 ),
                 (_, _, Some(recipe_name)) => {
                     if explain {
-                        explain_recipe_with_parameters(&recipe_name, params)?;
+                        explain_recipe(&recipe_name, params)?;
                         return Ok(());
                     }
                     if render_recipe {
-                        let recipe = load_recipe_content_as_template(&recipe_name, params)
-                            .unwrap_or_else(|err| {
-                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                                std::process::exit(1);
-                            });
-                        println!("{}", recipe);
+                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        }
                         return Ok(());
                     }
                     extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
@@ -994,6 +1013,9 @@ pub async fn cli() -> Result<()> {
                 }
                 RecipeCommand::Deeplink { recipe_name } => {
                     handle_deeplink(&recipe_name)?;
+                }
+                RecipeCommand::List { format, verbose } => {
+                    handle_list(&format, verbose)?;
                 }
             }
             return Ok(());

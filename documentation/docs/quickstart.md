@@ -11,6 +11,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
+import { PanelLeft } from 'lucide-react';
 
 # Goose in 5 minutes
 
@@ -183,10 +184,10 @@ While you're able to manually navigate to your working directory and open the HT
 <Tabs groupId="interface">
 
     <TabItem value="ui" label="Goose Desktop" default>
-        1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
-        2. Select `Advanced settings` from the menu.
-        3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
-        4. Scroll back to the top and click `<- Back` in the upper left corner to return to your session.
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click `Extensions` in the sidebar menu.
+        3. Toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        4. Return to your session to continue.
         5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
     <TabItem value="cli" label="Goose CLI">

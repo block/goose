@@ -14,7 +14,8 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
   return (
     <div className="parameter-input my-4 p-4 border rounded-lg bg-bgSubtle shadow-sm">
       <h3 className="text-lg font-bold text-textProminent mb-4">
-        Parameter: <code className="bg-bgApp px-2 py-1 rounded-md">{parameter.key}</code>
+        Parameter:{' '}
+        <code className="bg-background-default px-2 py-1 rounded-md">{parameter.key}</code>
       </h3>
 
       <div className="mb-4">
@@ -23,7 +24,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
           type="text"
           value={description || ''}
           onChange={(e) => onChange(key, { description: e.target.value })}
-          className="w-full p-3 border rounded-lg bg-bgApp text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+          className="w-full p-3 border rounded-lg bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
           placeholder={`E.g., "Enter the name for the new component"`}
         />
         <p className="text-sm text-textSubtle mt-1">This is the message the end-user will see.</p>
@@ -34,7 +35,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
         <div>
           <label className="block text-md text-textStandard mb-2 font-semibold">Requirement</label>
           <select
-            className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
+            className="w-full p-3 border rounded-lg bg-background-default text-textStandard"
             value={requirement}
             onChange={(e) =>
               onChange(key, { requirement: e.target.value as Parameter['requirement'] })
@@ -55,7 +56,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
               type="text"
               value={defaultValue}
               onChange={(e) => onChange(key, { default: e.target.value })}
-              className="w-full p-3 border rounded-lg bg-bgApp text-textStandard"
+              className="w-full p-3 border rounded-lg bg-background-default text-textStandard"
               placeholder="Enter default value"
             />
           </div>

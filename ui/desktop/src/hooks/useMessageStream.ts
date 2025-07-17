@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useId } from 'react';
+import { useState, useCallback, useEffect, useRef, useId, useReducer } from 'react';
 import useSWR from 'swr';
 import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
@@ -235,6 +235,9 @@ export function useMessageStream({
     };
   }, [headers, body]);
 
+  // TODO: not this?
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
+
   // Process the SSE stream from the server
   const processMessageStream = useCallback(
     async (response: Response, currentMessages: Message[]) => {
@@ -285,7 +288,19 @@ export function useMessageStream({
                     };
 
                     // Update messages with the new message
-                    currentMessages = [...currentMessages, newMessage];
+                    if (
+                      newMessage.id &&
+                      currentMessages.length > 0 &&
+                      currentMessages[currentMessages.length - 1].id === newMessage.id
+                    ) {
+                      // If the last message has the same ID, update it instead of adding a new one
+                      const lastMessage = currentMessages[currentMessages.length - 1];
+                      lastMessage.content = [...lastMessage.content, ...newMessage.content];
+                      forceUpdate();
+                    } else {
+                      currentMessages = [...currentMessages, newMessage];
+                    }
+
                     mutate(currentMessages, false);
                     break;
                   }
@@ -373,7 +388,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    [mutate, onFinish, onError]
+    [mutate, onFinish, onError, forceUpdate]
   );
 
   // Send a request to the server

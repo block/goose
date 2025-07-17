@@ -7,6 +7,8 @@ description: Connect Goose to your Bitcoin Lightning Wallet
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import { PanelLeft } from 'lucide-react';
 
 
 
@@ -47,15 +49,21 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
   <TabItem value="ui" label="Goose Desktop" default>
     <Tabs>
       <TabItem value="local" label="Local" default>
-        1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20Goose%20to%20your%20Bitcoin%20Lightning%20Wallet&env=NWC_CONNECTION_STRING%3DNWC%20Connection%20Secret)
-        2. Press `Yes` to confirm the installation
-        3. Obtain a NWC Connection secret from your lightning wallet (`nostr+walletconnect://...`) and paste it in to the "NWC Connection Secret" field
-        4. Click `Add Extension`
-        5. Scroll to the top and click `Exit` from the upper left corner
+        <GooseDesktopInstaller
+          extensionId="alby"
+          extensionName="Alby"
+          description="Connect Goose to your Bitcoin Lightning Wallet"
+          command="npx"
+          args={["-y", "@getalby/mcp"]}
+          envVars={[
+            { name: "NWC_CONNECTION_STRING", label: "NWC Connection Secret" }
+          ]}
+          customStep3="Obtain a NWC Connection secret from your lightning wallet (nostr+walletconnect://...) and paste it in to the 'NWC Connection Secret' field"
+        />
       </TabItem>
       <TabItem value="remote" label="Remote">
         1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20Goose%20to%20your%20Bitcoin%20Lightning%20Wallet)
-        2. Press `Yes` to confirm the installation
+        2. Press `OK` to confirm the installation
         3. Change the type to "Streamable HTTP"
         4. Change the endpoint to `https://mcp.getalby.com/mcp`
         5. Add a request header with Header name = `Authorization` and Value:
@@ -64,8 +72,9 @@ Bearer nostr+walletconnect://...
 ```
 
         6. Press the `+Add` button to finish adding the request header
-        7. Click `Add Extension`
-        8. Scroll to the top and click `Exit` from the upper left corner
+        7. Press `Add Extension`
+        8. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        9. Navigate to the chat
       </TabItem>
     </Tabs>
   </TabItem>

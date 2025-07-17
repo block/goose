@@ -107,6 +107,9 @@ These variables control how Goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
+| `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 
 **Examples**
 
@@ -125,9 +128,18 @@ export GOOSE_MAX_TURNS=25
 
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
+
+# Set the ANSI theme for the session
+export GOOSE_CLI_THEME=ansi
+
+# Use Temporal for scheduled recipes
+export GOOSE_SCHEDULER_TYPE=temporal
+
+# Custom Temporal binary (optional)
+export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
 ```
 
-### Context Limit Configuration
+### Model Context Limit Overrides
 
 These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match Goose's predefined model patterns.
 
@@ -151,6 +163,8 @@ export GOOSE_WORKER_CONTEXT_LIMIT=128000 # Smaller context for execution
 # Set context limit for planner
 export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
+
+For more details and examples, see [Model Context Limit Overrides](/docs/guides/smart-context-management#model-context-limit-overrides).
 
 ## Tool Configuration
 
@@ -269,6 +283,23 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
+## Experimental Features
+
+These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | "true", "1" (case insensitive) to enable | false |
+
+**Examples**
+
+```bash
+# Enable alpha features
+export ALPHA_FEATURES=true
+
+# Or enable for a single session
+ALPHA_FEATURES=true goose session
+```
 
 ## Notes
 

@@ -1,23 +1,31 @@
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use anyhow::Result;
+use async_stream::try_stream;
+use async_trait::async_trait;
+use futures::TryStreamExt;
+use reqwest::{Client, StatusCode};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::io;
+use std::time::Duration;
+use tokio::pin;
+use tokio_util::io::StreamReader;
+
+use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::formats::databricks::{create_request, get_usage, response_to_message};
+use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use mcp_core::tool::Tool;
 use serde_json::json;
-use url::Url;
-
-use anyhow::Result;
-use async_trait::async_trait;
-use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::time::Duration;
 use tokio::time::sleep;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
@@ -266,9 +274,6 @@ impl DatabricksProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
         // Check if this is an embedding request by looking at the payload structure
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let path = if is_embedding {
@@ -279,56 +284,71 @@ impl DatabricksProvider {
             format!("serving-endpoints/{}/invocations", self.model.model_name)
         };
 
-        let url = base_url.join(&path).map_err(|e| {
+        match self.post_with_retry(path.as_str(), &payload).await {
+            Ok(res) => res.json().await.map_err(|_| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn post_with_retry(
+        &self,
+        path: &str,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join(path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        // Initialize retry counter
         let mut attempts = 0;
-        let mut last_error = None;
-
         loop {
-            // Check if we've exceeded max retries
-            if attempts > 0 && attempts > self.retry_config.max_retries {
-                let error_msg = format!(
-                    "Exceeded maximum retry attempts ({}) for rate limiting (429)",
-                    self.retry_config.max_retries
-                );
-                tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
-            }
-
             let auth_header = self.ensure_auth_header().await?;
             let response = self
                 .client
                 .post(url.clone())
                 .header("Authorization", auth_header)
-                .json(&payload)
+                .json(payload)
                 .send()
                 .await?;
 
             let status = response.status();
-            let payload: Option<Value> = response.json().await.ok();
 
-            match status {
-                StatusCode::OK => {
-                    return payload.ok_or_else(|| {
-                        ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-                    });
-                }
-                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                    return Err(ProviderError::Authentication(format!(
-                        "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                        Status: {}. Response: {:?}",
-                        status, payload
-                    )));
+            break match status {
+                StatusCode::OK => Ok(response),
+                StatusCode::TOO_MANY_REQUESTS
+                | StatusCode::INTERNAL_SERVER_ERROR
+                | StatusCode::SERVICE_UNAVAILABLE => {
+                    if attempts < self.retry_config.max_retries {
+                        attempts += 1;
+                        tracing::warn!(
+                            "{}: retrying ({}/{})",
+                            status,
+                            attempts,
+                            self.retry_config.max_retries
+                        );
+
+                        let delay = self.retry_config.delay_for_attempt(attempts);
+                        tracing::info!("Backing off for {:?} before retry", delay);
+                        sleep(delay).await;
+
+                        continue;
+                    }
+
+                    Err(match status {
+                        StatusCode::TOO_MANY_REQUESTS => {
+                            ProviderError::RateLimitExceeded("Rate limit exceeded".to_string())
+                        }
+                        _ => ProviderError::ServerError("Server error".to_string()),
+                    })
                 }
                 StatusCode::BAD_REQUEST => {
                     // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
                     // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                    let payload_str = serde_json::to_string(&payload)
-                        .unwrap_or_default()
-                        .to_lowercase();
+                    let bytes = response.bytes().await?;
+                    let payload_str = String::from_utf8_lossy(&bytes).to_lowercase();
                     let check_phrases = [
                         "too long",
                         "context length",
@@ -347,13 +367,13 @@ impl DatabricksProvider {
                     }
 
                     let mut error_msg = "Unknown error".to_string();
-                    if let Some(payload) = &payload {
+                    if let Ok(response_json) = serde_json::from_slice::<Value>(&bytes) {
                         // try to convert message to string, if that fails use external_model_message
-                        error_msg = payload
+                        error_msg = response_json
                             .get("message")
                             .and_then(|m| m.as_str())
                             .or_else(|| {
-                                payload
+                                response_json
                                     .get("external_model_message")
                                     .and_then(|ext| ext.get("message"))
                                     .and_then(|m| m.as_str())
@@ -366,7 +386,7 @@ impl DatabricksProvider {
                         "{}",
                         format!(
                             "Provider request failed with status: {}. Payload: {:?}",
-                            status, payload
+                            status, payload_str
                         )
                     );
                     return Err(ProviderError::RequestFailed(format!(
@@ -374,50 +394,13 @@ impl DatabricksProvider {
                         status, error_msg
                     )));
                 }
-                StatusCode::TOO_MANY_REQUESTS => {
-                    attempts += 1;
-                    let error_msg = format!(
-                        "Rate limit exceeded (attempt {}/{}): {:?}",
-                        attempts, self.retry_config.max_retries, payload
-                    );
-                    tracing::warn!("{}. Retrying after backoff...", error_msg);
-
-                    // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::RateLimitExceeded(error_msg));
-
-                    // Calculate and apply the backoff delay
-                    let delay = self.retry_config.delay_for_attempt(attempts);
-                    tracing::info!("Backing off for {:?} before retry", delay);
-                    sleep(delay).await;
-
-                    // Continue to the next retry attempt
-                    continue;
-                }
-                StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                    attempts += 1;
-                    let error_msg = format!(
-                        "Server error (attempt {}/{}): {:?}",
-                        attempts, self.retry_config.max_retries, payload
-                    );
-                    tracing::warn!("{}. Retrying after backoff...", error_msg);
-
-                    // Store the error in case we need to return it after max retries
-                    last_error = Some(ProviderError::ServerError(error_msg));
-
-                    // Calculate and apply the backoff delay
-                    let delay = self.retry_config.delay_for_attempt(attempts);
-                    tracing::info!("Backing off for {:?} before retry", delay);
-                    sleep(delay).await;
-
-                    // Continue to the next retry attempt
-                    continue;
-                }
                 _ => {
                     tracing::debug!(
                         "{}",
                         format!(
                             "Provider request failed with status: {}. Payload: {:?}",
-                            status, payload
+                            status,
+                            response.text().await.ok().unwrap_or_default()
                         )
                     );
                     return Err(ProviderError::RequestFailed(format!(
@@ -425,7 +408,7 @@ impl DatabricksProvider {
                         status
                     )));
                 }
-            }
+            };
         }
     }
 }
@@ -472,18 +455,62 @@ impl Provider for DatabricksProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        // Remove the model key which is part of the url with databricks
+        payload
+            .as_object_mut()
+            .expect("payload should have model key")
+            .remove("model");
+
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("stream".to_string(), Value::Bool(true));
+
+        let response = self
+            .post_with_retry(
+                format!("serving-endpoints/{}/invocations", self.model.model_name).as_str(),
+                &payload,
+            )
+            .await?;
+
+        // Map reqwest error to io::Error
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        let model_config = self.model.clone();
+        // Wrap in a line decoder and yield lines inside the stream
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+            let message_stream = response_to_streaming_message(framed);
+            pin!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                yield (message, usage);
+            }
+        }))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 
     fn supports_embeddings(&self) -> bool {

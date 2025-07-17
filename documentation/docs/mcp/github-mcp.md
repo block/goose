@@ -6,64 +6,63 @@ description: Add GitHub MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import CLIStreamExtensionInstructions from '@site/src/components/CLIStreamExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
-This tutorial covers how to add the [GitHub MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github) as a Goose extension to enable file operations, repository management, search functionality, and more.
+This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a Goose extension to enable file operations, repository management, search functionality, and more.
 
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
+  Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-  **Command**
-  ```sh
-  npx -y @modelcontextprotocol/server-github
-  ```
+  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   </TabItem>
 </Tabs>
 
-  **Environment Variable**
+  **Endpoint URL**
   ```
-  GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
+  https://api.githubcopilot.com/mcp/
+  ```
+  **Custom Request Header**
+  ```
+  Authorization: Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>
   ```
 :::
 
 ## Configuration
-
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
+These steps configure the Remote MCP Server. For other deployment options, see the [official GitHub MCP Server documentation](https://github.com/github/github-mcp-server).
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=GitHub%20API&env=GITHUB_PERSONAL_ACCESS_TOKEN%3DGitHub%20Personal%20Access%20Token)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+    1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
+    2. Click the gear icon `⚙️` in the top right corner
+    3. Click `Advanced settings`
+    4. Under `Extensions`, click `Add custom extension`
+    5. On the `Add custom extension` modal, enter the following:
+       - **Extension Name**: GitHub
+       - **Type**: Streamable HTTP
+       - **Endpoint**: `https://api.githubcopilot.com/mcp/`
+       - **Request Headers**: 
+         - **Header name**: `Authorization`
+         - **Value**: `Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` 
+    6. Click `+ Add` to save the header
+    7. Click `Add Extension` to save the extension
+
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-
-    <CLIExtensionInstructions
+    <CLIStreamExtensionInstructions
       name="github"
-      command="npx -y @modelcontextprotocol/server-github"
+      endpointUri="https://api.githubcopilot.com/mcp/"
       timeout={300}
-      envVars={[
-        { key: "GITHUB_TOKEN", value: "••••••••••••••••" }
+      headers={[
+        { key: "Authorization", value: "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
       ]}
       infoNote={
         <>
-          When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.{" "}
-          <a
-            href="https://github.com/settings/personal-access-tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Create one here
-          </a>.
+          Obtain your <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">GitHub Personal Access Token</a> and paste it in
         </>
       }
     />

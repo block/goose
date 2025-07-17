@@ -1,4 +1,5 @@
 use crate::message::{Message, MessageContent};
+use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
 use mcp_core::{Content, ResourceContents, Role};
 use std::collections::HashSet;
@@ -75,11 +76,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
     for content in &mut new_message.content {
         match content {
             MessageContent::Text(text_content) => {
-                if text_content.text.len() > max_content_size {
+                if text_content.text.chars().count() > max_content_size {
                     let truncated = format!(
                         "{}\n\n[... content truncated from {} to {} characters ...]",
-                        &text_content.text[..max_content_size.min(text_content.text.len())],
-                        text_content.text.len(),
+                        safe_truncate(&text_content.text, max_content_size),
+                        text_content.text.chars().count(),
                         max_content_size
                     );
                     text_content.text = truncated;
@@ -89,11 +90,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
                         if let Content::Text(ref mut text_content) = content_item {
-                            if text_content.text.len() > max_content_size {
+                            if text_content.text.chars().count() > max_content_size {
                                 let truncated = format!(
                                     "{}\n\n[... tool response truncated from {} to {} characters ...]",
-                                    &text_content.text[..max_content_size.min(text_content.text.len())],
-                                    text_content.text.len(),
+                                    safe_truncate(&text_content.text, max_content_size),
+                                    text_content.text.chars().count(),
                                     max_content_size
                                 );
                                 text_content.text = truncated;
@@ -104,11 +105,11 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                             if let ResourceContents::TextResourceContents { text, .. } =
                                 &mut resource_content.resource
                             {
-                                if text.len() > max_content_size {
+                                if text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... resource content truncated from {} to {} characters ...]",
-                                        &text[..max_content_size.min(text.len())],
-                                        text.len(),
+                                        safe_truncate(text, max_content_size),
+                                        text.chars().count(),
                                         max_content_size
                                     );
                                     *text = truncated;

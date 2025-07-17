@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { Card } from './ui/card';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
-import { snakeToTitleCase } from '../utils';
+import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
-import Expand from './ui/Expand';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { ChevronRight, LoaderCircle } from 'lucide-react';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
+  isStreamingMessage?: boolean;
 }
 
 export default function ToolCallWithResponse({
@@ -20,6 +21,7 @@ export default function ToolCallWithResponse({
   toolRequest,
   toolResponse,
   notifications,
+  isStreamingMessage = false,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -27,10 +29,14 @@ export default function ToolCallWithResponse({
   }
 
   return (
-    <div className={'w-full text-textSubtle text-sm'}>
-      <Card className="">
-        <ToolCallView {...{ isCancelledMessage, toolCall, toolResponse, notifications }} />
-      </Card>
+    <div
+      className={cn(
+        'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+      )}
+    >
+      <ToolCallView
+        {...{ isCancelledMessage, toolCall, toolResponse, notifications, isStreamingMessage }}
+      />
     </div>
   );
 }
@@ -59,10 +65,19 @@ function ToolCallExpandable({
 
   return (
     <div className={className}>
-      <button onClick={toggleExpand} className="w-full flex justify-between items-center pr-2">
-        <span className="flex items-center">{label}</span>
-        <Expand size={5} isExpanded={isExpanded} />
-      </button>
+      <Button
+        onClick={toggleExpand}
+        className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
+        variant="ghost"
+      >
+        <span className="flex items-center font-mono">{label}</span>
+        <ChevronRight
+          className={cn(
+            'group-hover:opacity-100 transition-transform opacity-70',
+            isExpanded && 'rotate-90'
+          )}
+        />
+      </Button>
       {isExpanded && <div>{children}</div>}
     </div>
   );
@@ -76,6 +91,7 @@ interface ToolCallViewProps {
   };
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
+  isStreamingMessage?: boolean;
 }
 
 interface Progress {
@@ -110,8 +126,28 @@ function ToolCallView({
   toolCall,
   toolResponse,
   notifications,
+  isStreamingMessage = false,
 }: ToolCallViewProps) {
-  const responseStyle = localStorage.getItem('response_style');
+  const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+
+  // Listen for localStorage changes to update the response style
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setResponseStyle(localStorage.getItem('response_style'));
+    };
+
+    // Listen for storage events (changes from other tabs/windows)
+    window.addEventListener('storage', handleStorageChange);
+
+    // Listen for custom events (changes from same tab)
+    window.addEventListener('responseStyleChanged', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('responseStyleChanged', handleStorageChange);
+    };
+  }, []);
+
   const isExpandToolDetails = (() => {
     switch (responseStyle) {
       case 'concise':
@@ -123,9 +159,27 @@ function ToolCallView({
   })();
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
-  const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
-    ? 'loading'
-    : toolResponse?.toolResult.status;
+
+  // Check if streaming has finished but no tool response was received
+  // This is a workaround for cases where the backend doesn't send tool responses
+  const isStreamingComplete = !isStreamingMessage;
+  const shouldShowAsComplete = isStreamingComplete && !toolResponse;
+
+  const loadingStatus: LoadingStatus = !toolResponse
+    ? shouldShowAsComplete
+      ? 'success'
+      : 'loading'
+    : toolResponse.toolResult.status;
+
+  // Tool call timing tracking
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  // Track when tool call starts (when there's no response yet)
+  useEffect(() => {
+    if (!toolResponse && startTime === null) {
+      setStartTime(Date.now());
+    }
+  }, [toolResponse, startTime]);
 
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
@@ -134,10 +188,17 @@ function ToolCallView({
             const audience = item.annotations?.audience as string[] | undefined;
             return !audience || audience.includes('user');
           })
-          .map((item) => ({
-            result: item,
-            isExpandToolResults: ((item.annotations?.priority as number | undefined) ?? -1) >= 0.5,
-          }))
+          .map((item) => {
+            // Use user preference for detailed/concise, but still respect high priority items
+            const priority = (item.annotations?.priority as number | undefined) ?? -1;
+            const isHighPriority = priority >= 0.5;
+            const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
+
+            return {
+              result: item,
+              isExpandToolResults: isHighPriority || shouldExpandBasedOnStyle,
+            };
+          })
       : [];
 
   const logs = notifications
@@ -163,11 +224,19 @@ function ToolCallView({
   const isRenderingProgress =
     loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
 
-  // Only expand if there are actual results that need to be shown, not just for tool details
-  const isShouldExpand = toolResults.some((v) => v.isExpandToolResults);
+  // Determine if the main tool call should be expanded
+  const isShouldExpand = (() => {
+    // Always expand if there are high priority results that need to be shown
+    const hasHighPriorityResults = toolResults.some((v) => v.isExpandToolResults);
+
+    // Also expand based on user preference for detailed mode
+    const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
+
+    return hasHighPriorityResults || shouldExpandBasedOnStyle;
+  })();
 
   // Function to create a descriptive representation of what the tool is doing
-  const getToolDescription = () => {
+  const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
     const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
 
@@ -277,7 +346,7 @@ function ToolCallView({
         if (args.window_title) {
           return `capturing window "${truncate(getStringValue(args.window_title))}"`;
         }
-        return 'capturing screen';
+        return `capturing screen`;
 
       case 'automation_script':
         if (args.language) {
@@ -289,23 +358,29 @@ function ToolCallView({
         return 'final output';
 
       case 'computer_control':
-        return 'poking around...';
+        return `poking around...`;
 
       default: {
-        // Fallback to showing key parameters for unknown tools
+        // Generic fallback for unknown tools: ToolName + CompactArguments
+        // This ensures any MCP tool works without explicit handling
+        const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        if (entries.length === 0) return null;
+        
+        if (entries.length === 0) {
+          return `${toolDisplayName}`;
+        }
 
         // For a single parameter, show key and truncated value
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
           const truncatedValue = truncate(stringValue, 30);
-          return `${key}: ${truncatedValue}`;
+          return `${toolDisplayName} ${key}: ${truncatedValue}`;
         }
 
-        // For multiple parameters, just show the keys
-        return entries.map(([key]) => key).join(', ');
+        // For multiple parameters, show tool name and keys
+        const keys = entries.map(([key]) => key).join(', ');
+        return `${toolDisplayName} ${keys}`;
       }
     }
 
@@ -318,14 +393,20 @@ function ToolCallView({
       isForceExpand={isShouldExpand}
       label={
         <>
-          <Dot size={2} loadingStatus={loadingStatus} />
-          <span className="ml-[10px]">
+          <div className="w-2 flex items-center justify-center">
+            {loadingStatus === 'loading' ? (
+              <LoaderCircle className="animate-spin text-text-muted" size={3} />
+            ) : (
+              <Dot size={2} loadingStatus={loadingStatus} />
+            )}
+          </div>
+          <span className="ml-2">
             {(() => {
               const description = getToolDescription();
               if (description) {
                 return description;
               }
-              // Fallback to the original tool name formatting
+              // Fallback tool name formatting
               return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
             })()}
           </span>
@@ -334,17 +415,19 @@ function ToolCallView({
     >
       {/* Tool Details */}
       {isToolDetails && (
-        <div className="bg-bgStandard rounded-t mt-1">
+        <div className="border-t border-borderSubtle">
           <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
         </div>
       )}
 
       {logs && logs.length > 0 && (
-        <div className="bg-bgStandard mt-1">
+        <div className="border-t border-borderSubtle">
           <ToolLogsView
             logs={logs}
-            working={toolResults.length === 0}
-            isStartExpanded={toolResults.length === 0}
+            working={loadingStatus === 'loading'}
+            isStartExpanded={
+              loadingStatus === 'loading' || responseStyle === 'detailed' || responseStyle === null
+            }
           />
         </div>
       )}
@@ -352,7 +435,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-2" key={index}>
+          <div className="p-3 border-t border-borderSubtle" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -361,15 +444,8 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map(({ result, isExpandToolResults }, index) => {
-            const isLast = index === toolResults.length - 1;
             return (
-              <div
-                key={index}
-                className={`bg-bgStandard mt-1 
-                  ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
-                  ${isLast ? 'rounded-b' : ''}
-                `}
-              >
+              <div key={index} className={cn('border-t border-borderSubtle')}>
                 <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
               </div>
             );
@@ -391,13 +467,14 @@ interface ToolDetailsViewProps {
 function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   return (
     <ToolCallExpandable
-      label="Tool Details"
-      className="pl-[19px] py-1"
+      label={<span className="pl-4 font-medium">Tool Details</span>}
       isStartExpanded={isStartExpanded}
     >
-      {toolCall.arguments && (
-        <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
-      )}
+      <div className="pr-4 pl-8">
+        {toolCall.arguments && (
+          <ToolCallArguments args={toolCall.arguments as Record<string, ToolCallArgumentValue>} />
+        )}
+      </div>
     </ToolCallExpandable>
   );
 }
@@ -410,14 +487,14 @@ interface ToolResultViewProps {
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-[19px] py-1">Output</span>}
+      label={<span className="pl-4 py-1 font-medium">Output</span>}
       isStartExpanded={isStartExpanded}
     >
-      <div className="bg-bgApp rounded-b pl-[19px] pr-2 py-4">
+      <div className="pl-4 pr-4 py-4">
         {result.type === 'text' && result.text && (
           <MarkdownContent
             content={result.text}
-            className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+            className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}
         {result.type === 'image' && (
@@ -457,7 +534,7 @@ function ToolLogsView({
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-[19px] py-1">
+        <span className="pl-4 py-1 font-medium flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -475,7 +552,7 @@ function ToolLogsView({
     >
       <div
         ref={boxRef}
-        className={`flex flex-col items-start space-y-2 overflow-y-auto ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'} bg-bgApp`}
+        className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
           <span key={i} className="font-mono text-sm text-textSubtle">
@@ -493,16 +570,16 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="text-sm text-gray-700">{message}</div>}
+      {message && <div className="text-sm text-textSubtle">{message}</div>}
 
-      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden relative">
+      <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (
           <div
-            className="bg-blue-500 h-full transition-all duration-300"
+            className="bg-primary h-full transition-all duration-300"
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="absolute inset-0 animate-indeterminate bg-blue-500" />
+          <div className="absolute inset-0 animate-indeterminate bg-primary" />
         )}
       </div>
     </div>
