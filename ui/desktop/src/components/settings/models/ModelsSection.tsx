@@ -8,6 +8,7 @@ import { toastError } from '../../../toasts';
 import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ResetProviderSection from '../reset_provider/ResetProviderSection';
+import { shouldShowPredefinedModels } from './predefinedModelsUtils';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -19,6 +20,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { read, getProviders } = useConfig();
   const { getCurrentModelDisplayName, getCurrentProviderDisplayName } = useModelAndProvider();
+  const hasPredefinedModels = shouldShowPredefinedModels();
 
   // Function to load model data
   const loadModelData = useCallback(async () => {
@@ -80,17 +82,19 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
           <ModelSettingsButtons setView={setView} />
         </CardContent>
       </Card>
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Reset Provider and Model</CardTitle>
-          <CardDescription>
-            Clear your selected model and provider settings to start fresh
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <ResetProviderSection setView={setView} />
-        </CardContent>
-      </Card>
+      {!hasPredefinedModels && (
+        <Card className="pb-2 rounded-lg">
+          <CardHeader className="pb-0">
+            <CardTitle className="">Reset Provider and Model</CardTitle>
+            <CardDescription>
+              Clear your selected model and provider settings to start fresh
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-2">
+            <ResetProviderSection setView={setView} />
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }
