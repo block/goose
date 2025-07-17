@@ -133,7 +133,7 @@ export default function LangfuseSection() {
   };
 
   return (
-    <section id="session-sharing" className="space-y-4 pr-4 mt-1">
+    <section id="session-sharing" className="space-y-4 pr-4 mt-4">
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>Langfuse Observability</CardTitle>
