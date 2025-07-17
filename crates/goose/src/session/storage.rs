@@ -1066,6 +1066,32 @@ pub async fn persist_messages_with_schedule_id(
     provider: Option<Arc<dyn Provider>>,
     schedule_id: Option<String>,
 ) -> Result<()> {
+    persist_messages_with_schedule_id_and_working_dir(
+        session_file,
+        messages,
+        provider,
+        schedule_id,
+        None,
+    )
+    .await
+}
+
+/// Write messages to a session file with metadata, including an optional scheduled job ID and working directory
+///
+/// Overwrites the file with metadata as the first line, followed by all messages in JSONL format.
+/// If a provider is supplied, it will automatically generate a description when appropriate.
+///
+/// Security features:
+/// - Validates file paths to prevent directory traversal
+/// - Limits error message details in logs
+/// - Uses atomic file operations via save_messages_with_metadata
+pub async fn persist_messages_with_schedule_id_and_working_dir(
+    session_file: &Path,
+    messages: &[Message],
+    provider: Option<Arc<dyn Provider>>,
+    schedule_id: Option<String>,
+    working_dir: Option<PathBuf>,
+) -> Result<()> {
     // Validate the session file path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
@@ -1085,16 +1111,35 @@ pub async fn persist_messages_with_schedule_id(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description_with_schedule_id(&secure_path, messages, provider, schedule_id)
-                .await
+            generate_description_with_schedule_id_and_working_dir(
+                &secure_path,
+                messages,
+                provider,
+                schedule_id,
+                working_dir,
+            )
+            .await
         }
         _ => {
-            // Read existing metadata
-            let mut metadata = read_metadata(&secure_path)?;
+            // Read existing metadata or create new with proper working_dir
+            let mut metadata = if secure_path.exists() {
+                read_metadata(&secure_path)?
+            } else {
+                // Create new metadata with the provided working_dir or fall back to home
+                let work_dir = working_dir.clone().unwrap_or_else(get_home_dir);
+                SessionMetadata::new(work_dir)
+            };
+
+            // Update the working_dir if provided (even for existing files)
+            if let Some(work_dir) = working_dir {
+                metadata.working_dir = work_dir;
+            }
+            
             // Update the schedule_id if provided
             if schedule_id.is_some() {
                 metadata.schedule_id = schedule_id;
             }
+
             // Write the file with metadata and messages
             save_messages_with_metadata(&secure_path, &metadata, messages)
         }
@@ -1317,6 +1362,106 @@ pub async fn generate_description_with_schedule_id(
     metadata.description = sanitized_description;
     if schedule_id.is_some() {
         metadata.schedule_id = schedule_id;
+    }
+
+    // Update the file with the new metadata and existing messages
+    save_messages_with_metadata(&secure_path, &metadata, messages)
+}
+
+/// Generate a description for the session using the provider, including an optional scheduled job ID and working directory
+///
+/// This function is called when appropriate to generate a short description
+/// of the session based on the conversation history.
+///
+/// Security features:
+/// - Validates file paths to prevent directory traversal
+/// - Limits context size to prevent resource exhaustion
+/// - Uses secure file operations for saving
+pub async fn generate_description_with_schedule_id_and_working_dir(
+    session_file: &Path,
+    messages: &[Message],
+    provider: Arc<dyn Provider>,
+    schedule_id: Option<String>,
+    working_dir: Option<PathBuf>,
+) -> Result<()> {
+    // Validate the path for security
+    let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
+
+    // Security check: message count limit
+    if messages.len() > MAX_MESSAGE_COUNT {
+        tracing::warn!(
+            "Message count exceeds limit during description generation: {}",
+            messages.len()
+        );
+        return Err(anyhow::anyhow!(
+            "Too many messages for description generation"
+        ));
+    }
+
+    // Create a special message asking for a 3-word description
+    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+
+    // get context from messages so far, limiting each message to 300 chars for security
+    let context: Vec<String> = messages
+        .iter()
+        .filter(|m| m.role == mcp_core::role::Role::User)
+        .take(3) // Use up to first 3 user messages for context
+        .map(|m| {
+            let text = m.as_concat_text();
+            safe_truncate(&text, 300)
+        })
+        .collect();
+
+    if !context.is_empty() {
+        description_prompt = format!(
+            "Here are the first few user messages:\n{}\n\n{}",
+            context.join("\n"),
+            description_prompt
+        );
+    }
+
+    // Generate the description with error handling
+    let message = Message::user().with_text(&description_prompt);
+    let result = provider
+        .complete(
+            "Reply with only a description in four words or less",
+            &[message],
+            &[],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to generate session description: {}", e);
+            anyhow::anyhow!("Failed to generate session description")
+        })?;
+
+    let description = result.0.as_concat_text();
+
+    // Validate description length for security
+    let sanitized_description = if description.chars().count() > 100 {
+        tracing::warn!("Generated description too long, truncating");
+        safe_truncate(&description, 100)
+    } else {
+        description
+    };
+
+    // Create metadata with proper working_dir or read existing and update
+    let mut metadata = if secure_path.exists() {
+        read_metadata(&secure_path)?
+    } else {
+        // Create new metadata with the provided working_dir or fall back to home
+        let work_dir = working_dir.clone().unwrap_or_else(get_home_dir);
+        SessionMetadata::new(work_dir)
+    };
+
+    // Update description and schedule_id
+    metadata.description = sanitized_description;
+    if schedule_id.is_some() {
+        metadata.schedule_id = schedule_id;
+    }
+
+    // Update the working_dir if provided (even for existing files)
+    if let Some(work_dir) = working_dir {
+        metadata.working_dir = work_dir;
     }
 
     // Update the file with the new metadata and existing messages
@@ -1690,6 +1835,136 @@ mod tests {
         let read_metadata = read_metadata(&file_path)?;
         assert_ne!(read_metadata.working_dir, invalid_dir);
         assert_eq!(read_metadata.working_dir, get_home_dir());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_working_dir_preservation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create a temporary working directory
+        let working_dir = tempdir()?;
+        let working_dir_path = working_dir.path().to_path_buf();
+
+        // Create messages
+        let messages = vec![Message::user().with_text("test message")];
+
+        // Use persist_messages_with_schedule_id_and_working_dir to set working dir
+        persist_messages_with_schedule_id_and_working_dir(
+            &file_path,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        ).await?;
+
+        // Read back the metadata and verify working_dir is preserved
+        let metadata = read_metadata(&file_path)?;
+        assert_eq!(metadata.working_dir, working_dir_path);
+
+        // Verify the messages are also preserved
+        let read_messages = read_messages(&file_path)?;
+        assert_eq!(read_messages.len(), 1);
+        assert_eq!(read_messages[0].role, messages[0].role);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_working_dir_issue_fixed() -> Result<()> {
+        // This test demonstrates that the working_dir issue in jsonl files is fixed
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create a temporary working directory (this simulates the actual working directory)
+        let working_dir = tempdir()?;
+        let working_dir_path = working_dir.path().to_path_buf();
+
+        // Create messages
+        let messages = vec![Message::user().with_text("test message")];
+
+        // Get the home directory for comparison
+        let home_dir = get_home_dir();
+
+        // Test 1: Using the old persist_messages function (without working_dir)
+        // This will fall back to home directory since no working_dir is provided
+        persist_messages(&file_path, &messages, None).await?;
+
+        // Read back the metadata - this should now have the home directory as working_dir
+        let metadata_old = read_metadata(&file_path)?;
+        assert_eq!(metadata_old.working_dir, home_dir, "persist_messages should use home directory when no working_dir is provided");
+
+        // Test 2: Using the new persist_messages_with_schedule_id_and_working_dir function
+        // This should properly set the working_dir (this is the main fix)
+        persist_messages_with_schedule_id_and_working_dir(
+            &file_path,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        ).await?;
+
+        // Read back the metadata - this should now have the correct working_dir
+        let metadata_new = read_metadata(&file_path)?;
+        assert_eq!(metadata_new.working_dir, working_dir_path, "persist_messages_with_schedule_id_and_working_dir should use provided working_dir");
+        assert_ne!(metadata_new.working_dir, home_dir, "working_dir should be different from home directory");
+
+        // Test 3: Create a new session file without working_dir (should fall back to home)
+        let file_path_2 = dir.path().join("test2.jsonl");
+        persist_messages_with_schedule_id_and_working_dir(
+            &file_path_2,
+            &messages,
+            None,
+            None,
+            None, // No working_dir provided
+        ).await?;
+
+        let metadata_fallback = read_metadata(&file_path_2)?;
+        assert_eq!(metadata_fallback.working_dir, home_dir, "persist_messages_with_schedule_id_and_working_dir should fall back to home directory when no working_dir is provided");
+
+        // Test 4: Test that the fix works for existing files
+        // Create a session file and then add to it with different working_dir
+        let file_path_3 = dir.path().join("test3.jsonl");
+        
+        // First, create with home directory
+        persist_messages(&file_path_3, &messages, None).await?;
+        let metadata_initial = read_metadata(&file_path_3)?;
+        assert_eq!(metadata_initial.working_dir, home_dir, "Initial session should use home directory");
+        
+        // Then update with a specific working_dir
+        persist_messages_with_schedule_id_and_working_dir(
+            &file_path_3,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        ).await?;
+        
+        let metadata_updated = read_metadata(&file_path_3)?;
+        assert_eq!(metadata_updated.working_dir, working_dir_path, "Updated session should use new working_dir");
+
+        // Test 5: Most important test - simulate the real-world scenario where
+        // CLI and web interfaces pass the current directory instead of None
+        let file_path_4 = dir.path().join("test4.jsonl");
+        let current_dir = std::env::current_dir()?;
+        
+        // This is what web.rs and session/mod.rs do now after the fix
+        persist_messages_with_schedule_id_and_working_dir(
+            &file_path_4,
+            &messages,
+            None,
+            None,
+            Some(current_dir.clone()),
+        ).await?;
+        
+        let metadata_current = read_metadata(&file_path_4)?;
+        assert_eq!(metadata_current.working_dir, current_dir, "Session should use current directory when explicitly provided");
+        // This should NOT be the home directory anymore (unless current_dir == home_dir)
+        if current_dir != home_dir {
+            assert_ne!(metadata_current.working_dir, home_dir, "working_dir should be different from home directory when current_dir is different");
+        }
 
         Ok(())
     }

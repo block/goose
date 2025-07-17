@@ -475,7 +475,15 @@ async fn process_message_streaming(
     }
 
     let provider = provider.unwrap();
-    session::persist_messages(&session_file, &messages, Some(provider.clone())).await?;
+    let working_dir = Some(std::env::current_dir()?);
+    session::persist_messages_with_schedule_id_and_working_dir(
+        &session_file,
+        &messages,
+        Some(provider.clone()),
+        None,
+        working_dir,
+    )
+    .await?;
 
     // Create a session config
     let session_config = SessionConfig {

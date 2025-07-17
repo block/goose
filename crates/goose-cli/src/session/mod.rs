@@ -369,11 +369,15 @@ impl Session {
 
         // Persist messages with provider for automatic description generation
         if let Some(session_file) = &self.session_file {
-            session::persist_messages_with_schedule_id(
+            let working_dir = Some(
+                std::env::current_dir().expect("failed to get current session working directory"),
+            );
+            session::persist_messages_with_schedule_id_and_working_dir(
                 session_file,
                 &self.messages,
                 Some(provider),
                 self.scheduled_job_id.clone(),
+                working_dir,
             )
             .await?;
         }
@@ -491,11 +495,16 @@ impl Session {
 
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
-                                session::persist_messages_with_schedule_id(
+                                let working_dir = Some(
+                                    std::env::current_dir()
+                                        .expect("failed to get current session working directory"),
+                                );
+                                session::persist_messages_with_schedule_id_and_working_dir(
                                     session_file,
                                     &self.messages,
                                     Some(provider),
                                     self.scheduled_job_id.clone(),
+                                    working_dir,
                                 )
                                 .await?;
                             }
