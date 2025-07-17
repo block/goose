@@ -892,26 +892,11 @@ pub async fn cli() -> Result<()> {
                             }
                             return Ok(());
                         }
-                        {
-                            let (
-                                input_config,
-                                session_settings,
-                                sub_recipes,
-                                response,
-                                retry_config,
-                            ) = extract_recipe_info_from_cli(
-                                recipe_name,
-                                params,
-                                additional_sub_recipes,
-                            )?;
-                            (
-                                input_config,
-                                session_settings,
-                                sub_recipes,
-                                response,
-                                retry_config,
-                            )
-                        }
+                        extract_recipe_info_from_cli(
+                            recipe_name,
+                            params,
+                            additional_sub_recipes,
+                        )?
                     }
                     (None, None, None) => {
                         eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");

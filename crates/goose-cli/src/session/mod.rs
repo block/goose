@@ -65,7 +65,7 @@ pub struct Session {
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
-    retry_config: Option<RetryConfig>, // Retry configuration for automated validation and recovery
+    retry_config: Option<RetryConfig>,
 }
 
 // Cache structure for completion data

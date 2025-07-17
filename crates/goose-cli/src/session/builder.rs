@@ -141,7 +141,7 @@ async fn offer_extension_debugging_help(
         None,
         None,
         None,
-        None, // No retry config for debugging sessions
+        None,
     );
 
     // Process the debugging request
