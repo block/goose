@@ -1,4 +1,5 @@
 import React from 'react';
+import { PanelLeft } from 'lucide-react';
 
 interface EnvVar {
   name: string;
@@ -79,10 +80,11 @@ export default function GooseDesktopInstaller({
         <li>
           <a href={buildGooseUrl()}>Launch the installer</a>
         </li>
-        <li>Press <code>Yes</code> to confirm the installation</li>
+        <li>Press <code>OK</code> to confirm the installation</li>
         <li>{getStep3Content()}</li>
-        <li>Click <code>Save Configuration</code></li>
-        <li>Scroll to the top and click <code>Exit</code> from the upper left corner</li>
+        <li>Press <code>Add Extension</code></li>
+        <li>Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar</li>
+        <li>Navigate to the chat</li>
       </ol>
     </div>
   );
