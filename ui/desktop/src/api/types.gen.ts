@@ -338,6 +338,9 @@ export type ResourceContents = {
     uri: string;
 };
 
+/**
+ * A wrapper around rmcp::model::Role that implements ToSchema for utoipa
+ */
 export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {

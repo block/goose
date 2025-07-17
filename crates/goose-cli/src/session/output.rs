@@ -232,7 +232,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
         Ok(contents) => {
             for content in contents {
                 if let Some(audience) = content.audience() {
-                    if !audience.contains(&mcp_core::role::Role::User) {
+                    if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
                 }

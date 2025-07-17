@@ -14,9 +14,36 @@ use goose::session::SessionMetadata;
 use mcp_core::content::{Annotations, Content, EmbeddedResource, ImageContent, TextContent};
 use mcp_core::handler::ToolResultSchema;
 use mcp_core::resource::ResourceContents;
-use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolAnnotations};
-use utoipa::OpenApi;
+use utoipa::{OpenApi, ToSchema};
+
+/// A wrapper around rmcp::model::Role that implements ToSchema for utoipa
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Role {
+    /// A human user or client making a request
+    User,
+    /// An AI assistant or server providing a response
+    Assistant,
+}
+
+impl From<rmcp::model::Role> for Role {
+    fn from(role: rmcp::model::Role) -> Self {
+        match role {
+            rmcp::model::Role::User => Role::User,
+            rmcp::model::Role::Assistant => Role::Assistant,
+        }
+    }
+}
+
+impl From<Role> for rmcp::model::Role {
+    fn from(role: Role) -> Self {
+        match role {
+            Role::User => rmcp::model::Role::User,
+            Role::Assistant => rmcp::model::Role::Assistant,
+        }
+    }
+}
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]

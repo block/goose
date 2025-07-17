@@ -862,11 +862,11 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     // Try to extract role
     let role = if json_str.contains("\"role\":\"user\"") {
-        mcp_core::role::Role::User
+        rmcp::model::Role::User
     } else if json_str.contains("\"role\":\"assistant\"") {
-        mcp_core::role::Role::Assistant
+        rmcp::model::Role::Assistant
     } else {
-        mcp_core::role::Role::User // Default fallback
+        rmcp::model::Role::User // Default fallback
     };
 
     // Try to extract text content
@@ -901,8 +901,8 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     if !extracted_text.is_empty() {
         let message = match role {
-            mcp_core::role::Role::User => Message::user(),
-            mcp_core::role::Role::Assistant => Message::assistant(),
+            rmcp::model::Role::User => Message::user(),
+            rmcp::model::Role::Assistant => Message::assistant(),
         };
 
         return Ok(message.with_text(format!("[PARTIALLY RECOVERED] {}", extracted_text)));
@@ -1079,7 +1079,7 @@ pub async fn persist_messages_with_schedule_id(
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User && !m.as_concat_text().trim().is_empty())
+        .filter(|m| m.role == rmcp::model::Role::User && !m.as_concat_text().trim().is_empty())
         .count();
 
     // Check if we need to update the description (after 1st or 3rd user message)
@@ -1293,7 +1293,7 @@ pub async fn generate_description_with_schedule_id(
     // get context from messages so far, limiting each message to 300 chars for security
     let context: Vec<String> = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User)
         .take(3) // Use up to first 3 user messages for context
         .map(|m| {
             let text = m.as_concat_text();

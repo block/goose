@@ -82,7 +82,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
         .collect();
     let mut check_messages = vec![];
     check_messages.push(Message::new(
-        mcp_core::Role::User,
+        rmcp::model::Role::User,
         Utc::now().timestamp(),
         vec![MessageContent::Text(TextContent {
             text: format!(
@@ -270,7 +270,8 @@ mod tests {
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
     use mcp_core::ToolCall;
-    use mcp_core::{tool::Tool, Role, ToolResult};
+    use mcp_core::{tool::Tool, ToolResult};
+    use rmcp::model::Role;
     use serde_json::json;
     use tempfile::NamedTempFile;
 

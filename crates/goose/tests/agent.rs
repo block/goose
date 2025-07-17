@@ -635,7 +635,7 @@ mod final_output_tool_tests {
         let last_message = responses.last().unwrap();
 
         // Check that the last message is an assistant message with our final output
-        assert_eq!(last_message.role, mcp_core::role::Role::Assistant);
+        assert_eq!(last_message.role, rmcp::model::Role::Assistant);
         let message_text = last_message.as_concat_text();
         assert_eq!(message_text, r#"{"result":"Test output"}"#);
 
@@ -753,7 +753,7 @@ mod final_output_tool_tests {
         }
 
         // Check that the last message after the llm stream is the message directing the agent to continue
-        assert_eq!(last_message.role, mcp_core::role::Role::User);
+        assert_eq!(last_message.role, rmcp::model::Role::User);
         let message_text = last_message.as_concat_text();
         assert_eq!(message_text, FINAL_OUTPUT_CONTINUATION_MESSAGE);
 
