@@ -4,7 +4,7 @@ use console::style;
 use serde_json;
 
 use crate::recipes::github_recipe::RecipeSource;
-use crate::recipes::recipe::load_recipe;
+use crate::recipes::recipe::load_recipe_for_validation;
 use crate::recipes::search_recipe::list_available_recipes;
 
 /// Validates a recipe file
@@ -18,7 +18,7 @@ use crate::recipes::search_recipe::list_available_recipes;
 /// Result indicating success or failure
 pub fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
-    match load_recipe(recipe_name) {
+    match load_recipe_for_validation(recipe_name) {
         Ok(_) => {
             println!("{} recipe file is valid", style("✓").green().bold());
             Ok(())
@@ -41,7 +41,7 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 /// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     // Load the recipe file first to validate it
-    match load_recipe(recipe_name) {
+    match load_recipe_for_validation(recipe_name) {
         Ok(recipe) => {
             let mut full_url = String::new();
             if let Ok(recipe_json) = serde_json::to_string(&recipe) {

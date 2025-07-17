@@ -494,6 +494,9 @@ let appConfig = {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
+// Track power save blocker ID globally
+let powerSaveBlockerId: number | null = null;
+
 interface RecipeConfig {
   id: string;
   title: string;
@@ -1087,6 +1090,36 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   } catch (error) {
     console.error('Error getting quit confirmation state:', error);
     return true;
+  }
+});
+
+// Handle wakelock setting
+ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.enableWakelock = enable;
+    saveSettings(settings);
+
+    // Stop any existing power save blocker when disabling the setting
+    if (!enable && powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error setting wakelock:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-wakelock-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.enableWakelock ?? false;
+  } catch (error) {
+    console.error('Error getting wakelock state:', error);
+    return false;
   }
 });
 
@@ -1889,24 +1922,19 @@ app.whenReady().then(async () => {
     }
   });
 
-  let powerSaveBlockerId: number | null = null;
-
   ipcMain.handle('start-power-save-blocker', () => {
-    log.info('Starting power save blocker...');
     if (powerSaveBlockerId === null) {
-      powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-      log.info('Started power save blocker');
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       return true;
     }
+
     return false;
   });
 
   ipcMain.handle('stop-power-save-blocker', () => {
-    log.info('Stopping power save blocker...');
     if (powerSaveBlockerId !== null) {
       powerSaveBlocker.stop(powerSaveBlockerId);
       powerSaveBlockerId = null;
-      log.info('Stopped power save blocker');
       return true;
     }
     return false;

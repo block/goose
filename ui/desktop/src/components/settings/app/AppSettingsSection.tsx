@@ -19,6 +19,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
   const [quitConfirmationEnabled, setQuitConfirmationEnabled] = useState(true);
+  const [wakelockEnabled, setWakelockEnabled] = useState(true);
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -147,6 +148,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       setQuitConfirmationEnabled(enabled);
     });
 
+    window.electron.getWakelockState().then((enabled) => {
+      setWakelockEnabled(enabled);
+    });
+
     if (isMacOS) {
       window.electron.getDockIconState().then((enabled) => {
         setDockIconEnabled(enabled);
@@ -199,6 +204,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setQuitConfirmation(newState);
     if (success) {
       setQuitConfirmationEnabled(newState);
+    }
+  };
+
+  const handleWakelockToggle = async () => {
+    const newState = !wakelockEnabled;
+    const success = await window.electron.setWakelock(newState);
+    if (success) {
+      setWakelockEnabled(newState);
     }
   };
 
@@ -294,6 +307,23 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               <Switch
                 checked={quitConfirmationEnabled}
                 onCheckedChange={handleQuitConfirmationToggle}
+                variant="mono"
+              />
+            </div>
+          </div>
+
+          {/* Prevent Sleep */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-text-default text-xs">Prevent Sleep</h3>
+              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                Keep your computer awake while Goose is running a task (screen can still lock)
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={wakelockEnabled}
+                onCheckedChange={handleWakelockToggle}
                 variant="mono"
               />
             </div>

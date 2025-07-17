@@ -18,7 +18,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
+use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -881,16 +881,14 @@ pub async fn cli() -> Result<()> {
                 ),
                 (_, _, Some(recipe_name)) => {
                     if explain {
-                        explain_recipe_with_parameters(&recipe_name, params)?;
+                        explain_recipe(&recipe_name, params)?;
                         return Ok(());
                     }
                     if render_recipe {
-                        let recipe = load_recipe_content_as_template(&recipe_name, params)
-                            .unwrap_or_else(|err| {
-                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                                std::process::exit(1);
-                            });
-                        println!("{}", recipe);
+                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        }
                         return Ok(());
                     }
                     extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
