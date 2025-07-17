@@ -343,6 +343,60 @@ function BaseChatContent({
     }, 100);
   }, []);
 
+  // Helper function to render ProgressiveMessageList with consistent props
+  const renderProgressiveMessageList = useCallback(() => {
+    return showCollapsedSidecar ? (
+      <div className="relative pl-6 pr-18">
+        <ProgressiveMessageList
+          messages={filteredMessages}
+          chat={chat}
+          toolCallNotifications={toolCallNotifications}
+          append={append}
+          appendMessage={(newMessage) => {
+            const updatedMessages = [...messages, newMessage];
+            setMessages(updatedMessages);
+          }}
+          isUserMessage={isUserMessage}
+          onScrollToBottom={handleScrollToBottom}
+          isStreamingMessage={isLoading}
+          onRestore={(files) => {
+            // Show the restore modal first
+            setRestoreModalFiles(files);
+          }}
+        />
+      </div>
+    ) : (
+      <ProgressiveMessageList
+        messages={filteredMessages}
+        chat={chat}
+        toolCallNotifications={toolCallNotifications}
+        append={append}
+        appendMessage={(newMessage) => {
+          const updatedMessages = [...messages, newMessage];
+          setMessages(updatedMessages);
+        }}
+        isUserMessage={isUserMessage}
+        onScrollToBottom={handleScrollToBottom}
+        isStreamingMessage={isLoading}
+        onRestore={(files) => {
+          // Show the restore modal first
+          setRestoreModalFiles(files);
+        }}
+      />
+    );
+  }, [
+    filteredMessages,
+    chat,
+    toolCallNotifications,
+    append,
+    messages,
+    setMessages,
+    isUserMessage,
+    handleScrollToBottom,
+    isLoading,
+    showCollapsedSidecar,
+  ]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
@@ -418,44 +472,10 @@ function BaseChatContent({
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
-                    <ProgressiveMessageList
-                      messages={filteredMessages}
-                      chat={chat}
-                      toolCallNotifications={toolCallNotifications}
-                      append={append}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
-                      }}
-                      isUserMessage={isUserMessage}
-                      onScrollToBottom={handleScrollToBottom}
-                      isStreamingMessage={isLoading}
-                      onRestore={(files) => {
-                        // Show the restore modal first
-                        setRestoreModalFiles(files);
-                      }}
-                    />
+                    renderProgressiveMessageList()
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>
-                      <ProgressiveMessageList
-                        messages={filteredMessages}
-                        chat={chat}
-                        toolCallNotifications={toolCallNotifications}
-                        append={append}
-                        appendMessage={(newMessage) => {
-                          const updatedMessages = [...messages, newMessage];
-                          setMessages(updatedMessages);
-                        }}
-                        isUserMessage={isUserMessage}
-                        onScrollToBottom={handleScrollToBottom}
-                        isStreamingMessage={isLoading}
-                        onRestore={(files) => {
-                          // Show the restore modal first
-                          setRestoreModalFiles(files);
-                        }}
-                      />
-                    </SearchView>
+                    <SearchView>{renderProgressiveMessageList()}</SearchView>
                   )}
 
                   {error &&

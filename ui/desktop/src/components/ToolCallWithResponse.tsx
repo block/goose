@@ -11,7 +11,7 @@ import {
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle, FileDiff } from 'lucide-react';
+import { ChevronRight, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 
 // Extend the Window interface to include our custom property
@@ -204,18 +204,9 @@ function ToolCallView({
   const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
   const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
   const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
-  const hasDiffContent = diffContent !== undefined;
   console.log(resourceContents);
   console.log(checkpoint);
   console.log(diffContent);
-
-  const handleShowDiff = () => {
-    // Store diff content globally so the new window can access it
-    window.pendingDiffContent = diffContent;
-
-    // Dispatch a custom event to open diff in a new window
-    window.dispatchEvent(new CustomEvent('open-diff-viewer'));
-  };
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
@@ -460,7 +451,7 @@ function ToolCallView({
   };
 
   const toolLabel = (
-    <span className={cn("ml-2", extensionTooltip && "cursor-pointer hover:opacity-80")}>
+    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
       {getToolLabelContent()}
     </span>
   );
@@ -480,32 +471,13 @@ function ToolCallView({
               )}
             </div>
             {extensionTooltip ? (
-                <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+              <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
                 {toolLabel}
-                  </TooltipWrapper>
-                ) : (
-                toolLabel
-                )}
+              </TooltipWrapper>
+            ) : (
+              toolLabel
+            )}
           </div>
-          {/* Diff button */}
-          {hasDiffContent && (
-            <div className="relative group">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleShowDiff();
-                }}
-                className="p-1 hover:bg-background-subtle rounded transition-colors flex items-center gap-1"
-                title="Show Diff"
-              >
-                <FileDiff size={16} className="text-textSubtle" />
-              </button>
-              {/* Tooltip */}
-              <div className="absolute right-0 top-full mt-1 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                Show Diff
-              </div>
-            </div>
-          )}
         </div>
       }
     >
