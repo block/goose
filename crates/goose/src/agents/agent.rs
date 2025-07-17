@@ -201,25 +201,22 @@ impl Agent {
         initial_messages: &[Message],
     ) -> Result<bool> {
         let Some(session_config) = session else {
-            return Ok(false); // No retry if no session config
+            return Ok(false);
         };
 
         let Some(retry_config) = &session_config.retry_config else {
-            return Ok(false); // No retry if no retry config
+            return Ok(false);
         };
 
-        // Execute success checks
         let success = execute_success_checks(&retry_config.checks, retry_config).await?;
 
         if success {
             info!("All success checks passed, no retry needed");
-            return Ok(false); // Success, no retry needed
+            return Ok(false);
         }
 
-        // Check retry attempts
         let current_attempts = self.get_retry_attempts().await;
         if current_attempts >= retry_config.max_retries {
-            // Add max retries exceeded message
             let error_msg = Message::assistant().with_text(format!(
                 "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
                 retry_config.max_retries
@@ -229,10 +226,9 @@ impl Agent {
                 "Maximum retry attempts ({}) exceeded",
                 retry_config.max_retries
             );
-            return Ok(false); // No more retries
+            return Ok(false);
         }
 
-        // Execute cleanup command if provided
         if let Some(cleanup_cmd) = &retry_config.on_failure {
             info!("Executing cleanup command: {}", cleanup_cmd);
             if let Err(e) = execute_cleanup_command(cleanup_cmd, retry_config).await {
@@ -240,22 +236,19 @@ impl Agent {
             }
         }
 
-        // Reset message history to initial state
         messages.clear();
         messages.extend_from_slice(initial_messages);
         info!("Reset message history to initial state for retry");
 
-        // Clear final output tool state
         if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
             final_output_tool.final_output = None;
             info!("Cleared final output tool state for retry");
         }
 
-        // Increment retry attempts
         let new_attempts = self.increment_retry_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);
 
-        Ok(true) // Indicate retry is needed
+        Ok(true)
     }
 
     /// Set the scheduler service for this agent
