@@ -116,7 +116,20 @@ type AppConfigAPI = {
 const electronAPI: ElectronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
-  getConfig: () => config,
+  getConfig: () => {
+    // Add fallback to localStorage if config from preload is empty or missing
+    if (!config || Object.keys(config).length === 0) {
+      try {
+        const storedConfig = localStorage.getItem('gooseConfig');
+        if (storedConfig) {
+          return JSON.parse(storedConfig);
+        }
+      } catch (e) {
+        console.warn('Failed to parse stored config from localStorage:', e);
+      }
+    }
+    return config;
+  },
   hideWindow: () => ipcRenderer.send('hide-window'),
   directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
   createChatWindow: (
