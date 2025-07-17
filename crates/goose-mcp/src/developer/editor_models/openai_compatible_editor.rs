@@ -27,6 +27,7 @@ impl EditorModelImpl for OpenAICompatibleEditor {
         original_code: &str,
         _old_str: &str,
         update_snippet: &str,
+        _instruction: &str, // Not used by OpenAI compatible editor
     ) -> Result<String, String> {
         eprintln!("Calling OpenAI-compatible Editor API");
 

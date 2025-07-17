@@ -27,6 +27,7 @@ impl EditorModelImpl for RelaceEditor {
         original_code: &str,
         _old_str: &str,
         update_snippet: &str,
+        _instruction: &str, // Not used by Relace editor
     ) -> Result<String, String> {
         eprintln!("Calling Relace Editor API");
 

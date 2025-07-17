@@ -334,6 +334,10 @@ impl DeveloperRouter {
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
+                    "instruction": {
+                        "type": "string",
+                        "description": "Optional: A single sentence written in the first person describing what you are going to do for the sketched edit. Use it to disambiguate uncertainty in the edit."
+                    },
                     "file_text": {"type": "string"}
                 }
             }),
@@ -880,8 +884,12 @@ impl DeveloperRouter {
                     .ok_or_else(|| {
                         ToolError::InvalidParameters("Missing 'new_str' parameter".into())
                     })?;
+                let instruction = params
+                    .get("instruction")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(""); // Empty string for backward compatibility
 
-                self.text_editor_replace(&path, old_str, new_str).await
+                self.text_editor_replace(&path, old_str, new_str, instruction).await
             }
             "insert" => {
                 let insert_line = params
@@ -1082,6 +1090,7 @@ impl DeveloperRouter {
         path: &PathBuf,
         old_str: &str,
         new_str: &str,
+        instruction: &str,
     ) -> Result<Vec<Content>, ToolError> {
         // Check if file exists and is active
         if !path.exists() {
@@ -1100,7 +1109,7 @@ impl DeveloperRouter {
             // Editor API path - save history then call API directly
             self.save_file_history(path)?;
 
-            match editor.edit_code(&content, old_str, new_str).await {
+            match editor.edit_code(&content, old_str, new_str, instruction).await {
                 Ok(updated_content) => {
                     // Write the updated content directly
                     let normalized_content = normalize_line_endings(&updated_content);
