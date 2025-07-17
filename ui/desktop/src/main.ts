@@ -874,9 +874,43 @@ const openDirectoryDialog = async (
 
     addRecentDir(dirToAdd);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, dirToAdd);
+
     if (replaceWindow && currentWindow) {
+      // Replace current window with new one
+      await createChat(app, undefined, dirToAdd);
       currentWindow.close();
+    } else {
+      // Update the working directory in the current window's localStorage
+      if (currentWindow) {
+        try {
+          const updateConfigScript = `
+            try {
+              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
+              const updatedConfig = {
+                ...currentConfig,
+                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
+              };
+              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
+              
+              // Trigger a config update event so the UI can refresh
+              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
+                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
+              }));
+            } catch (e) {
+              console.error('Failed to update working directory in localStorage:', e);
+            }
+          `;
+          await currentWindow.webContents.executeJavaScript(updateConfigScript);
+          console.log(`Updated working directory to: ${dirToAdd}`);
+        } catch (error) {
+          console.error('Failed to update working directory:', error);
+          // Fallback: create new window
+          await createChat(app, undefined, dirToAdd);
+        }
+      } else {
+        // No current window, create new one
+        await createChat(app, undefined, dirToAdd);
+      }
     }
   }
   return result;
