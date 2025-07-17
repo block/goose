@@ -80,9 +80,9 @@ export default function GooseDesktopInstaller({
         <li>
           <a href={buildGooseUrl()}>Launch the installer</a>
         </li>
-        <li>Press <code>OK</code> to confirm the installation</li>
+        <li>Click <code>OK</code> to confirm the installation</li>
         <li>{getStep3Content()}</li>
-        <li>Press <code>Add Extension</code></li>
+        <li>Click <code>Add Extension</code></li>
         <li>Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar</li>
         <li>Navigate to the chat</li>
       </ol>
