@@ -651,9 +651,39 @@ const createChat = async (
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    mainWindow.webContents.executeJavaScript(`
-      localStorage.setItem('gooseConfig', '${configStr}')
-    `);
+    // Add error handling and retry logic for localStorage access
+    mainWindow.webContents
+      .executeJavaScript(
+        `
+      try {
+        if (typeof Storage !== 'undefined' && window.localStorage) {
+          localStorage.setItem('gooseConfig', '${configStr}');
+        } else {
+          console.warn('localStorage not available, retrying in 100ms');
+          setTimeout(() => {
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+            } catch (e) {
+              console.error('Failed to set localStorage after retry:', e);
+            }
+          }, 100);
+        }
+      } catch (e) {
+        console.error('Failed to access localStorage:', e);
+        // Retry after a short delay
+        setTimeout(() => {
+          try {
+            localStorage.setItem('gooseConfig', '${configStr}');
+          } catch (retryError) {
+            console.error('Failed to set localStorage after retry:', retryError);
+          }
+        }, 100);
+      }
+    `
+      )
+      .catch((error) => {
+        console.error('Failed to execute localStorage script:', error);
+      });
   });
 
   // Handle new window creation for links
