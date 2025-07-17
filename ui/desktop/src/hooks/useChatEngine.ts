@@ -68,6 +68,8 @@ export const useChatEngine = ({
     append: originalAppend,
     stop,
     isLoading,
+    isWaiting,
+    isStreaming,
     error,
     setMessages,
     input: _input,
@@ -369,6 +371,8 @@ export const useChatEngine = ({
     append,
     stop,
     isLoading,
+    isWaiting,
+    isStreaming,
     error,
     setMessages,
 
