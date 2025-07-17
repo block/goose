@@ -7,6 +7,7 @@ use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::Agent;
 use goose::config::APP_STRATEGY;
 use goose::scheduler_factory::SchedulerFactory;
+use goose::telemetry::{init_global_telemetry, shutdown_global_telemetry};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -15,6 +16,11 @@ use goose::providers::pricing::initialize_pricing_cache;
 pub async fn run() -> Result<()> {
     // Initialize logging
     crate::logging::setup_logging(Some("goosed"))?;
+
+    // Initialize telemetry
+    if let Err(e) = init_global_telemetry().await {
+        tracing::warn!("Failed to initialize telemetry: {}", e);
+    }
 
     let settings = configuration::Settings::new()?;
 
@@ -54,6 +60,14 @@ pub async fn run() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);
-    axum::serve(listener, app).await?;
+
+    let result = axum::serve(listener, app).await;
+
+    // Shutdown telemetry
+    if let Err(e) = shutdown_global_telemetry().await {
+        tracing::warn!("Failed to shutdown telemetry: {}", e);
+    }
+
+    result?;
     Ok(())
 }
