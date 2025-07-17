@@ -446,9 +446,6 @@ function BaseChatContent({
 
             {/* Custom content after messages */}
             {renderAfterMessages && renderAfterMessages()}
-
-            {/* Bottom padding to make space for the loading indicator */}
-            <div className="block h-20" />
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
