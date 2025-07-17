@@ -1,6 +1,6 @@
 import { Message, ResourceContent, ToolResponseMessageContent } from '../types/message';
 import { History } from './icons';
-import { useChatMessages } from '../hooks/useChatMessages';
+import { useChatContext } from '../contexts/ChatContext';
 
 interface MessageRestoreLinkProps {
   message: Message;
@@ -14,7 +14,15 @@ interface CheckpointPayload {
 }
 
 export default function MessageRestoreLink({ message, onRestore }: MessageRestoreLinkProps) {
-  const { messages } = useChatMessages();
+  const chatContext = useChatContext();
+
+  if (!chatContext) {
+    console.error('MessageRestoreLink must be used within a ChatProvider');
+    return null;
+  }
+
+  const { chat } = chatContext;
+  const messages = chat.messages;
 
   const handleRestoreClick = () => {
     // Find all checkpoint payloads after this message
