@@ -3,14 +3,14 @@ use std::{
     path::Path,
 };
 
+use crate::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
 use anyhow::Result;
-use goose::recipe::Recipe;
 use minijinja::{Environment, UndefinedBehavior};
 use regex::Regex;
 
-use crate::recipes::recipe::BUILT_IN_RECIPE_DIR_PARAM;
-
 const CURRENT_TEMPLATE_NAME: &str = "current_template";
+const OPEN_BRACE: &str = "{{";
+const CLOSE_BRACE: &str = "}}";
 
 fn preprocess_template_variables(content: &str) -> Result<String> {
     let all_template_variables = extract_template_variables(content);
@@ -27,6 +27,7 @@ fn extract_template_variables(content: &str) -> Vec<String> {
         .collect()
 }
 
+// filter out variables that are not only alphanumeric and underscores
 fn filter_complex_variables(template_variables: &[String]) -> Vec<String> {
     let valid_var_re = Regex::new(r"^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*$").unwrap();
     template_variables
@@ -40,15 +41,14 @@ fn filter_unparseable_variables(template_variables: &[String]) -> Result<Vec<Str
     let mut vars_to_convert = Vec::new();
 
     for var in template_variables {
-        // Create individual environment for each validation
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Lenient);
 
         let test_template = format!(
             "{open}{content}{close}",
-            open = "{{",
+            open = OPEN_BRACE,
             content = var,
-            close = "}}"
+            close = CLOSE_BRACE
         );
         if env.template_from_str(&test_template).is_err() {
             vars_to_convert.push(var.clone());
@@ -67,14 +67,14 @@ fn replace_unparseable_vars_with_raw(
     for var in unparsable_template_variables {
         let pattern = format!(
             "{open}{content}{close}",
-            open = "{{",
+            open = OPEN_BRACE,
             content = var,
-            close = "}}"
+            close = CLOSE_BRACE
         );
         let replacement = format!(
             "{{% raw %}}{open}{content}{close}{{% endraw %}}",
-            open = "{{",
-            close = "}}",
+            open = OPEN_BRACE,
+            close = CLOSE_BRACE,
             content = var
         );
         result = result.replace(&pattern, &replacement);
@@ -105,19 +105,6 @@ pub fn render_recipe_content_with_params(
     let rendered_content = template
         .render(params)
         .map_err(|e| anyhow::anyhow!("Failed to render the recipe {}", e))?;
-    Ok(rendered_content)
-}
-
-pub fn render_recipe_silent_when_variables_are_provided(
-    content: &str,
-    params: &HashMap<String, String>,
-) -> Result<String> {
-    let preprocessed_content = preprocess_template_variables(content)?;
-
-    let mut env = minijinja::Environment::new();
-    env.set_undefined_behavior(UndefinedBehavior::Lenient);
-    let template = env.template_from_str(&preprocessed_content)?;
-    let rendered_content = template.render(params)?;
     Ok(rendered_content)
 }
 
@@ -218,7 +205,7 @@ mod tests {
     mod render_content_with_params_tests {
         use std::collections::HashMap;
 
-        use crate::recipes::template_recipe::render_recipe_content_with_params;
+        use crate::recipe::template_recipe::render_recipe_content_with_params;
 
         #[test]
         fn test_render_content_with_params() {
