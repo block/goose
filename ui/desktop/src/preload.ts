@@ -83,6 +83,8 @@ type ElectronAPI = {
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
+  setWakelock: (enable: boolean) => Promise<boolean>;
+  getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   on: (
     channel: string,
@@ -176,6 +178,8 @@ const electronAPI: ElectronAPI = {
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
   getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
+  setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
+  getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   on: (
     channel: string,
