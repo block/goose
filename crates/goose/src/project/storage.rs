@@ -1,7 +1,7 @@
 use crate::project::{Project, ProjectMetadata};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{AppStrategy, AppStrategyArgs, choose_app_strategy};
 use serde_json;
 use std::fs::{self, File};
 use std::io::Write;
@@ -34,7 +34,7 @@ pub fn ensure_project_dir() -> Result<PathBuf> {
 fn generate_project_id() -> String {
     use rand::Rng;
     let timestamp = Utc::now().timestamp();
-    let random: u32 = rand::thread_rng().gen();
+    let random: u32 = rand::thread_rng().r#gen();
     format!("proj_{}_{}", timestamp, random)
 }
 

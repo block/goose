@@ -1,27 +1,27 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::State,
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
-    Json, Router,
 };
 use bytes::Bytes;
-use futures::{stream::StreamExt, Stream};
+use futures::{Stream, stream::StreamExt};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{push_message, Message, MessageContent},
+    message::{Message, MessageContent, push_message},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{protocol::JsonRpcMessage, role::Role, Content, ToolResult};
+use mcp_core::{Content, ToolResult, protocol::JsonRpcMessage, role::Role};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::{
     convert::Infallible,
     path::PathBuf,

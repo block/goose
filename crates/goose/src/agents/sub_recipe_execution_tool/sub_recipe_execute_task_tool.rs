@@ -1,4 +1,4 @@
-use mcp_core::{tool::ToolAnnotations, Content, Tool, ToolError};
+use mcp_core::{Content, Tool, ToolError, tool::ToolAnnotations};
 use serde_json::Value;
 
 use crate::agents::{

@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,7 +14,7 @@ use std::time::Duration;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{ImageFormat, emit_debug_trace, get_model, handle_response_openai_compat};
 
 use crate::config::{Config, ConfigError};
 use crate::message::Message;

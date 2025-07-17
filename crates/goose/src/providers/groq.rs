@@ -73,14 +73,20 @@ impl GroqProvider {
         let payload: Option<Value> = response.json().await.ok();
 
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => payload.ok_or_else(|| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
+                Err(ProviderError::Authentication(format!(
+                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                    Status: {}. Response: {:?}",
+                    status, payload
+                )))
             }
-            StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
-            }
+            StatusCode::PAYLOAD_TOO_LARGE => Err(ProviderError::ContextLengthExceeded(format!(
+                "{:?}",
+                payload
+            ))),
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
             }
@@ -89,9 +95,16 @@ impl GroqProvider {
             }
             _ => {
                 tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}",
+                    status
+                )))
             }
         }
     }

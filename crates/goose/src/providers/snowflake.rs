@@ -2,13 +2,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
-use super::utils::{get_model, ImageFormat};
+use super::utils::{ImageFormat, get_model};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -318,7 +318,7 @@ impl SnowflakeProvider {
                     .unwrap_or_else(|| "Invalid credentials".to_string());
 
                 Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}", 
+                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}",
                     error_msg
                 )))
             }

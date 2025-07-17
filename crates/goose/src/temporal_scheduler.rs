@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{info, warn};
 
-use crate::scheduler::{normalize_cron_expression, ScheduledJob, SchedulerError};
+use crate::scheduler::{ScheduledJob, SchedulerError, normalize_cron_expression};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::storage::SessionMetadata;
 

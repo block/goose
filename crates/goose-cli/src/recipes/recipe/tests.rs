@@ -111,12 +111,14 @@ mod tests {
             assert!(load_recipe_result.is_err());
             let err = load_recipe_result.unwrap_err();
             println!("{}", err.to_string());
-            assert!(err
-                .to_string()
-                .contains("Unnecessary parameter definitions: wrong_param_key."));
-            assert!(err
-                .to_string()
-                .contains("Missing definitions for parameters in the recipe file:"));
+            assert!(
+                err.to_string()
+                    .contains("Unnecessary parameter definitions: wrong_param_key.")
+            );
+            assert!(
+                err.to_string()
+                    .contains("Missing definitions for parameters in the recipe file:")
+            );
             assert!(err.to_string().contains("expected_param1"));
             assert!(err.to_string().contains("expected_param2"));
         }
@@ -154,8 +156,8 @@ mod tests {
         }
 
         #[test]
-        fn test_load_recipe_as_template_optional_parameters_with_empty_default_values_in_recipe_file(
-        ) {
+        fn test_load_recipe_as_template_optional_parameters_with_empty_default_values_in_recipe_file()
+         {
             let instructions_and_parameters = r#"
                 "instructions": "Test instructions with {{ optional_param }}",
                 "parameters": [

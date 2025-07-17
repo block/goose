@@ -10,9 +10,9 @@ use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use mcp_core::Role;
 use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
-use mcp_core::Role;
 
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "default";
 pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["default"];

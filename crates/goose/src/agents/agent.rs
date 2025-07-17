@@ -3,9 +3,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::stream::BoxStream;
-use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use futures::{FutureExt, Stream, StreamExt, TryStreamExt, stream};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -15,9 +15,9 @@ use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
 use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
-use crate::message::{push_message, Message};
-use crate::permission::permission_judge::check_tool_permissions;
+use crate::message::{Message, push_message};
 use crate::permission::PermissionConfirmation;
+use crate::permission::permission_judge::check_tool_permissions;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
@@ -25,11 +25,11 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{debug, error, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use crate::agents::extension_manager::{ExtensionManager, get_parameter_names};
 use crate::agents::platform_tools::{
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
     PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
@@ -37,7 +37,7 @@ use crate::agents::platform_tools::{
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::router_tool_selector::{
-    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
+    RouterToolSelectionStrategy, RouterToolSelector, create_tool_selector,
 };
 use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
@@ -45,7 +45,7 @@ use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use mcp_core::{
-    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
+    Content, ToolError, ToolResult, prompt::Prompt, protocol::GetPromptResult, tool::Tool,
 };
 
 use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
@@ -55,7 +55,7 @@ use super::platform_tools;
 use super::router_tools;
 use super::subagent_manager::SubAgentManager;
 use super::subagent_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE, ToolCallResult};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -345,7 +345,7 @@ impl Agent {
                                 "Failed to select tools: {}",
                                 e
                             ))),
-                        )
+                        );
                     }
                 },
                 None => {
@@ -354,7 +354,7 @@ impl Agent {
                         Err(ToolError::ExecutionError(
                             "No tool selector available".to_string(),
                         )),
-                    )
+                    );
                 }
             };
             ToolCallResult::from(Ok(selected_tools))
@@ -438,7 +438,7 @@ impl Agent {
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
                     ))),
-                )
+                );
             }
             Err(e) => {
                 return (
@@ -447,7 +447,7 @@ impl Agent {
                         "Failed to get extension config: {}",
                         e
                     ))),
-                )
+                );
             }
         };
 

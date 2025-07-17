@@ -1,5 +1,5 @@
 use bat::WrappingMode;
-use console::{style, Color};
+use console::{Color, style};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
@@ -823,7 +823,8 @@ mod tests {
         let original_home = env::var("HOME").ok();
 
         // Set a test home directory
-        env::set_var("HOME", "/Users/testuser");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("HOME", "/Users/testuser") };
 
         assert_eq!(
             shorten_path("/Users/testuser/documents/file.txt", false),
@@ -838,9 +839,11 @@ mod tests {
 
         // Restore the original home dir
         if let Some(home) = original_home {
-            env::set_var("HOME", home);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("HOME", home) };
         } else {
-            env::remove_var("HOME");
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::remove_var("HOME") };
         }
     }
 

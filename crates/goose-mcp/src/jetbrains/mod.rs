@@ -10,14 +10,14 @@ use mcp_core::{
     role::Role,
     tool::Tool,
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
-use tokio::time::{sleep, Duration};
+use tokio::sync::{Mutex, mpsc};
+use tokio::time::{Duration, sleep};
 use tracing::error;
 
 use self::proxy::JetBrainsProxy;

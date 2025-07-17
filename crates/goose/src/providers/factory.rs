@@ -177,7 +177,7 @@ mod tests {
     use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use mcp_core::{Role, content::TextContent};
     use std::env;
 
     #[allow(dead_code)]
@@ -236,7 +236,8 @@ mod tests {
         let saved_turns = env::var("GOOSE_LEAD_TURNS").ok();
 
         // Test with basic lead model configuration
-        env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_MODEL", "gpt-4o") };
 
         // This will try to create a lead/worker provider
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
@@ -255,24 +256,32 @@ mod tests {
         }
 
         // Test with different lead provider
-        env::set_var("GOOSE_LEAD_PROVIDER", "anthropic");
-        env::set_var("GOOSE_LEAD_TURNS", "5");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_PROVIDER", "anthropic") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_TURNS", "5") };
 
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
         // Similar validation as above - will fail due to missing API keys but confirms the logic
 
         // Restore env vars
         match saved_lead {
-            Some(val) => env::set_var("GOOSE_LEAD_MODEL", val),
-            None => env::remove_var("GOOSE_LEAD_MODEL"),
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            Some(val) => unsafe { env::set_var("GOOSE_LEAD_MODEL", val) },
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { env::remove_var("GOOSE_LEAD_MODEL") },
         }
         match saved_provider {
-            Some(val) => env::set_var("GOOSE_LEAD_PROVIDER", val),
-            None => env::remove_var("GOOSE_LEAD_PROVIDER"),
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            Some(val) => unsafe { env::set_var("GOOSE_LEAD_PROVIDER", val) },
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { env::remove_var("GOOSE_LEAD_PROVIDER") },
         }
         match saved_turns {
-            Some(val) => env::set_var("GOOSE_LEAD_TURNS", val),
-            None => env::remove_var("GOOSE_LEAD_TURNS"),
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            Some(val) => unsafe { env::set_var("GOOSE_LEAD_TURNS", val) },
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { env::remove_var("GOOSE_LEAD_TURNS") },
         }
     }
 
@@ -295,11 +304,13 @@ mod tests {
 
         // Clear all lead env vars
         for (key, _) in &saved_vars {
-            env::remove_var(key);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::remove_var(key) };
         }
 
         // Set only the required lead model
-        env::set_var("GOOSE_LEAD_MODEL", "grok-3");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_MODEL", "grok-3") };
 
         // This should use defaults for all other values
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
@@ -317,9 +328,12 @@ mod tests {
         }
 
         // Test with custom values
-        env::set_var("GOOSE_LEAD_TURNS", "7");
-        env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", "4");
-        env::set_var("GOOSE_LEAD_FALLBACK_TURNS", "3");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_TURNS", "7") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", "4") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_FALLBACK_TURNS", "3") };
 
         let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
         // Should still attempt to create lead/worker provider with custom settings
@@ -327,8 +341,10 @@ mod tests {
         // Restore all env vars
         for (key, value) in saved_vars {
             match value {
-                Some(val) => env::set_var(key, val),
-                None => env::remove_var(key),
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                Some(val) => unsafe { env::set_var(key, val) },
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                None => unsafe { env::remove_var(key) },
             }
         }
     }
@@ -343,11 +359,16 @@ mod tests {
         let saved_fallback = env::var("GOOSE_LEAD_FALLBACK_TURNS").ok();
 
         // Ensure all GOOSE_LEAD_* variables are not set
-        env::remove_var("GOOSE_LEAD_MODEL");
-        env::remove_var("GOOSE_LEAD_PROVIDER");
-        env::remove_var("GOOSE_LEAD_TURNS");
-        env::remove_var("GOOSE_LEAD_FAILURE_THRESHOLD");
-        env::remove_var("GOOSE_LEAD_FALLBACK_TURNS");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_LEAD_MODEL") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_LEAD_PROVIDER") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_LEAD_TURNS") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_LEAD_FAILURE_THRESHOLD") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_LEAD_FALLBACK_TURNS") };
 
         // This should try to create a regular provider
         let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
@@ -367,19 +388,24 @@ mod tests {
 
         // Restore env vars
         if let Some(val) = saved_lead {
-            env::set_var("GOOSE_LEAD_MODEL", val);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("GOOSE_LEAD_MODEL", val) };
         }
         if let Some(val) = saved_provider {
-            env::set_var("GOOSE_LEAD_PROVIDER", val);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("GOOSE_LEAD_PROVIDER", val) };
         }
         if let Some(val) = saved_turns {
-            env::set_var("GOOSE_LEAD_TURNS", val);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("GOOSE_LEAD_TURNS", val) };
         }
         if let Some(val) = saved_threshold {
-            env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", val);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", val) };
         }
         if let Some(val) = saved_fallback {
-            env::set_var("GOOSE_LEAD_FALLBACK_TURNS", val);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("GOOSE_LEAD_FALLBACK_TURNS", val) };
         }
     }
 
@@ -399,11 +425,13 @@ mod tests {
 
         // Clear env vars to ensure clean test
         for (key, _) in &saved_vars {
-            env::remove_var(key);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::remove_var(key) };
         }
 
         // Set up lead model to trigger lead/worker mode
-        env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_LEAD_MODEL", "gpt-4o") };
 
         // Create a default model with explicit context_limit
         let default_model =
@@ -413,20 +441,26 @@ mod tests {
         let result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
 
         // Test case 2: With GOOSE_WORKER_CONTEXT_LIMIT - should override original
-        env::set_var("GOOSE_WORKER_CONTEXT_LIMIT", "32000");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_WORKER_CONTEXT_LIMIT", "32000") };
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
-        env::remove_var("GOOSE_WORKER_CONTEXT_LIMIT");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_WORKER_CONTEXT_LIMIT") };
 
         // Test case 3: With GOOSE_CONTEXT_LIMIT - should override original
-        env::set_var("GOOSE_CONTEXT_LIMIT", "64000");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_CONTEXT_LIMIT", "64000") };
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
-        env::remove_var("GOOSE_CONTEXT_LIMIT");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_CONTEXT_LIMIT") };
 
         // Restore env vars
         for (key, value) in saved_vars {
             match value {
-                Some(val) => env::set_var(key, val),
-                None => env::remove_var(key),
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                Some(val) => unsafe { env::set_var(key, val) },
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                None => unsafe { env::remove_var(key) },
             }
         }
 

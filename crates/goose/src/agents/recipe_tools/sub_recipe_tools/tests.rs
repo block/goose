@@ -3,8 +3,8 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::recipe::SubRecipe;
-    use serde_json::json;
     use serde_json::Value;
+    use serde_json::json;
     use tempfile::TempDir;
 
     fn setup_default_sub_recipe() -> SubRecipe {

@@ -2,12 +2,11 @@ use std::vec;
 
 use anyhow::Result;
 use goose_llm::{
-    completion,
+    Message, ModelConfig, completion,
     extractors::generate_tooltip,
     types::completion::{
         CompletionRequest, CompletionResponse, ExtensionConfig, ToolApprovalMode, ToolConfig,
     },
-    Message, ModelConfig,
 };
 use serde_json::json;
 

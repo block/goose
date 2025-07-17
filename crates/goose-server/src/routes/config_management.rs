@@ -2,15 +2,15 @@ use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::State,
     routing::{delete, get, post},
-    Json, Router,
 };
-use etcetera::{choose_app_strategy, AppStrategy};
-use goose::config::Config;
+use etcetera::{AppStrategy, choose_app_strategy};
 use goose::config::APP_STRATEGY;
-use goose::config::{extensions::name_to_key, PermissionManager};
+use goose::config::Config;
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
+use goose::config::{PermissionManager, extensions::name_to_key};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
 use goose::providers::pricing::{

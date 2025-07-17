@@ -6,7 +6,7 @@ use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, json, Map, Value};
+use serde_json::{Map, Value, from_value, json};
 use std::io::Read;
 use std::path::Path;
 
@@ -57,21 +57,37 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
             match (body, status) {
                 (Err(e), _) => Err(ProviderError::RequestFailed(e.to_string())),
                 (Ok(body), StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) => {
-                    Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                        Status: {}. Response: {:?}", status, body)))
+                    Err(ProviderError::Authentication(format!(
+                        "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                        Status: {}. Response: {:?}",
+                        status, body
+                    )))
                 }
                 (Ok(body), StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND) => {
                     tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status, body
+                        )
                     );
                     if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body) {
                         let err = err_resp.error;
                         if err.is_context_length_exceeded() {
-                            return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+                            return Err(ProviderError::ContextLengthExceeded(
+                                err.message.unwrap_or("Unknown error".to_string()),
+                            ));
                         }
-                        return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
+                        return Err(ProviderError::RequestFailed(format!(
+                            "{} (status {})",
+                            err,
+                            status.as_u16()
+                        )));
                     }
-                    Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
+                    Err(ProviderError::RequestFailed(format!(
+                        "Unknown error (status {})",
+                        status
+                    )))
                 }
                 (Ok(body), StatusCode::TOO_MANY_REQUESTS) => {
                     Err(ProviderError::RateLimitExceeded(format!("{:?}", body)))
@@ -81,9 +97,16 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
                 }
                 (Ok(body), _) => {
                     tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
+                        "{}",
+                        format!(
+                            "Provider request failed with status: {}. Payload: {:?}",
+                            status, body
+                        )
                     );
-                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                    Err(ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}",
+                        status
+                    )))
                 }
             }
         }
@@ -153,26 +176,47 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
     let final_status = get_google_final_status(status, payload.as_ref());
 
     match final_status {
-        StatusCode::OK =>  payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+        StatusCode::OK => payload.ok_or_else(|| {
+            ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+        }),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                Status: {}. Response: {:?}", final_status, payload )))
+            Err(ProviderError::Authentication(format!(
+                "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}",
+                final_status, payload
+            )))
         }
         StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {
                 if let Some(error) = payload.get("error") {
-                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
-                    let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
-                    if error_status == "INVALID_ARGUMENT" && error_msg.to_lowercase().contains("exceeds") {
+                    error_msg = error
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
+                    let error_status = error
+                        .get("status")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("Unknown status");
+                    if error_status == "INVALID_ARGUMENT"
+                        && error_msg.to_lowercase().contains("exceeds")
+                    {
                         return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
                     }
                 }
             }
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+                "{}",
+                format!(
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    final_status, payload
+                )
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
+            Err(ProviderError::RequestFailed(format!(
+                "Request failed with status: {}. Message: {}",
+                final_status, error_msg
+            )))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -182,9 +226,16 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
         }
         _ => {
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+                "{}",
+                format!(
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    final_status, payload
+                )
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", final_status)))
+            Err(ProviderError::RequestFailed(format!(
+                "Request failed with status: {}",
+                final_status
+            )))
         }
     }
 }
@@ -279,13 +330,13 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
             _ => {
                 return Err(ProviderError::RequestFailed(
                     "Unsupported image format".to_string(),
-                ))
+                ));
             }
         },
         None => {
             return Err(ProviderError::RequestFailed(
                 "Unknown image format".to_string(),
-            ))
+            ));
         }
     };
 
@@ -417,10 +468,12 @@ mod tests {
         // Test loading fake PNG file
         let result = load_image_file(fake_png_path_str);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not a valid image"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("not a valid image")
+        );
 
         // Test non-existent file
         let result = load_image_file("nonexistent.png");
@@ -436,10 +489,12 @@ mod tests {
         // Test loading unsupported GIF format
         let result = load_image_file(gif_path_str);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported image format"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unsupported image format")
+        );
     }
 
     #[test]

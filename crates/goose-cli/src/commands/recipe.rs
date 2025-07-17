@@ -99,11 +99,7 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
                     };
 
                     let description = if let Some(desc) = &recipe.description {
-                        if desc.is_empty() {
-                            "(none)"
-                        } else {
-                            desc
-                        }
+                        if desc.is_empty() { "(none)" } else { desc }
                     } else {
                         "(none)"
                     };
@@ -227,9 +223,11 @@ response:
 
         let result = handle_validate(&recipe_path);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("JSON schema validation failed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("JSON schema validation failed")
+        );
     }
 }

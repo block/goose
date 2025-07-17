@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     fs,
@@ -13,15 +13,15 @@ use std::{
 use tokio::sync::mpsc;
 
 use mcp_core::{
+    Content,
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
     protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations, ToolCall},
-    Content,
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 
 // MemoryRouter implementation
 #[derive(Clone)]
@@ -608,7 +608,7 @@ impl<'a> MemoryArgs<'a> {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "is_global must be a boolean or string 'true'/'false'",
-                ))
+                ));
             }
         };
 

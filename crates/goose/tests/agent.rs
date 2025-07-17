@@ -156,7 +156,10 @@ async fn run_truncate_test(
     // Ollama and OpenRouter truncate by default even when the context window is exceeded
     // We don't have control over the truncation behavior in these providers
     if provider_type == ProviderType::Ollama || provider_type == ProviderType::OpenRouter {
-        println!("WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded", provider_type);
+        println!(
+            "WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded",
+            provider_type
+        );
         return Ok(());
     }
 
@@ -446,9 +449,10 @@ mod schedule_tool_tests {
         assert!(schedule_tool.is_some());
 
         let tool = schedule_tool.unwrap();
-        assert!(tool
-            .description
-            .contains("Manage scheduled recipe execution"));
+        assert!(
+            tool.description
+                .contains("Manage scheduled recipe execution")
+        );
     }
 
     #[tokio::test]
@@ -476,9 +480,10 @@ mod schedule_tool_tests {
         assert!(schedule_tool.is_some());
 
         let tool = schedule_tool.unwrap();
-        assert!(tool
-            .description
-            .contains("Manage scheduled recipe execution"));
+        assert!(
+            tool.description
+                .contains("Manage scheduled recipe execution")
+        );
 
         // Verify the tool has the expected actions in its schema
         if let Some(properties) = tool.input_schema.get("properties") {
@@ -521,12 +526,14 @@ mod schedule_tool_tests {
                     session_id_prop.get("type").unwrap().as_str().unwrap(),
                     "string"
                 );
-                assert!(session_id_prop
-                    .get("description")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .contains("Session identifier for session_content action"));
+                assert!(
+                    session_id_prop
+                        .get("description")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .contains("Session identifier for session_content action")
+                );
             }
         }
     }
@@ -841,7 +848,7 @@ mod max_turns_tests {
         while let Some(response_result) = reply_stream.next().await {
             match response_result {
                 Ok(AgentEvent::Message(response)) => {
-                    if let Some(MessageContent::ToolConfirmationRequest(ref req)) =
+                    if let Some(MessageContent::ToolConfirmationRequest(req)) =
                         response.content.first()
                     {
                         agent.handle_confirmation(

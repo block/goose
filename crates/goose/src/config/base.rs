@@ -1,4 +1,4 @@
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{AppStrategy, AppStrategyArgs, choose_app_strategy};
 use fs2::FileExt;
 use keyring::Entry;
 use once_cell::sync::{Lazy, OnceCell};
@@ -268,7 +268,10 @@ impl Config {
                 }
 
                 // Last resort: create a fresh default config file
-                tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
+                tracing::error!(
+                    "Could not recover config file, creating fresh default configuration. Original error: {}",
+                    parse_error
+                );
 
                 // Try to load from init-config.yaml if it exists, otherwise use empty config
                 let default_config = self
@@ -720,7 +723,7 @@ pub fn load_init_config_from_workspace() -> Result<HashMap<String, Value>, Confi
             return Err(ConfigError::FileError(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Could not determine executable path",
-            )))
+            )));
         }
     };
 
@@ -779,7 +782,8 @@ mod tests {
         assert_eq!(value, "test_value");
 
         // Test with environment variable override
-        std::env::set_var("TEST_KEY", "env_value");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("TEST_KEY", "env_value") };
         let value: String = config.get_param("test_key")?;
         assert_eq!(value, "env_value");
 
@@ -888,10 +892,12 @@ mod tests {
         assert_eq!(value, "secret123");
 
         // Test environment variable override
-        std::env::set_var("API_KEY", "env_secret");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("API_KEY", "env_secret") };
         let value: String = config.get_secret("api_key")?;
         assert_eq!(value, "env_secret");
-        std::env::remove_var("API_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::remove_var("API_KEY") };
 
         // Test deleting a secret
         config.delete_secret("api_key")?;

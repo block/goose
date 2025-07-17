@@ -6,7 +6,7 @@ use serde_json::json;
 use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 mod test_support;
 use test_support::{
-    create_temp_recipe, create_test_session_metadata, MockBehavior, ScheduleToolTestBuilder,
+    MockBehavior, ScheduleToolTestBuilder, create_temp_recipe, create_test_session_metadata,
 };
 
 // Test all actions of the scheduler platform tool
@@ -128,9 +128,11 @@ async fn test_schedule_tool_create_action() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Successfully created scheduled job"));
+        assert!(
+            text_content
+                .text
+                .contains("Successfully created scheduled job")
+        );
     }
 
     // Verify the scheduler was called
@@ -287,9 +289,11 @@ async fn test_schedule_tool_run_now_action() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Successfully started job 'job1'"));
+        assert!(
+            text_content
+                .text
+                .contains("Successfully started job 'job1'")
+        );
     }
 
     // Verify the scheduler was called
@@ -456,9 +460,11 @@ async fn test_schedule_tool_unpause_action() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Successfully unpaused job 'job1'"));
+        assert!(
+            text_content
+                .text
+                .contains("Successfully unpaused job 'job1'")
+        );
     }
 
     // Verify the scheduler was called
@@ -488,9 +494,11 @@ async fn test_schedule_tool_delete_action() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Successfully deleted job 'job1'"));
+        assert!(
+            text_content
+                .text
+                .contains("Successfully deleted job 'job1'")
+        );
     }
 
     // Verify the scheduler was called
@@ -522,9 +530,11 @@ async fn test_schedule_tool_kill_action() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Successfully killed running job 'job1'"));
+        assert!(
+            text_content
+                .text
+                .contains("Successfully killed running job 'job1'")
+        );
     }
 
     // Verify the scheduler was called
@@ -586,9 +596,11 @@ async fn test_schedule_tool_inspect_action_running() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Job 'job1' is currently running"));
+        assert!(
+            text_content
+                .text
+                .contains("Job 'job1' is currently running")
+        );
     }
 
     // Verify the scheduler was called
@@ -618,9 +630,11 @@ async fn test_schedule_tool_inspect_action_not_running() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("Job 'job1' is not currently running"));
+        assert!(
+            text_content
+                .text
+                .contains("Job 'job1' is not currently running")
+        );
     }
 
     // Verify the scheduler was called
@@ -739,9 +753,11 @@ async fn test_schedule_tool_sessions_action_empty() {
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
     if let Content::Text(text_content) = &content[0] {
-        assert!(text_content
-            .text
-            .contains("No sessions found for job 'job1'"));
+        assert!(
+            text_content
+                .text
+                .contains("No sessions found for job 'job1'")
+        );
     }
 
     // Verify the scheduler was called
@@ -810,9 +826,11 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
     if let Ok(content) = result {
         assert_eq!(content.len(), 1);
         if let mcp_core::Content::Text(text_content) = &content[0] {
-            assert!(text_content
-                .text
-                .contains("Session 'test_session_real' Content:"));
+            assert!(
+                text_content
+                    .text
+                    .contains("Session 'test_session_real' Content:")
+            );
             assert!(text_content.text.contains("Metadata:"));
             assert!(text_content.text.contains("Messages:"));
             assert!(text_content.text.contains("Hello"));

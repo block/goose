@@ -1,6 +1,6 @@
 use anyhow::Result;
 use console::style;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use goose::config::Config;
 use serde_yaml;
 

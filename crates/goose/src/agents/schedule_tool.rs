@@ -25,7 +25,7 @@ impl Agent {
             None => {
                 return Err(ToolError::ExecutionError(
                     "Scheduler not available. This tool only works in server mode.".to_string(),
-                ))
+                ));
             }
         };
 
@@ -133,7 +133,7 @@ impl Agent {
                 return Err(ToolError::ExecutionError(format!(
                     "Cannot read recipe file: {}",
                     e
-                )))
+                )));
             }
         }
 
@@ -295,7 +295,10 @@ impl Agent {
                 let duration = Utc::now().signed_duration_since(start_time);
                 Ok(vec![Content::text(format!(
                     "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
-                    job_id, session_id, start_time.to_rfc3339(), duration.num_seconds()
+                    job_id,
+                    session_id,
+                    start_time.to_rfc3339(),
+                    duration.num_seconds()
                 ))])
             }
             Ok(None) => Ok(vec![Content::text(format!(

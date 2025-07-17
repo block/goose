@@ -2,11 +2,11 @@
 
 use anyhow::Result;
 use dotenv::dotenv;
+use goose_llm::ModelConfig;
 use goose_llm::message::Message;
 use goose_llm::providers::base::Provider;
 use goose_llm::providers::{databricks::DatabricksProvider, openai::OpenAiProvider};
-use goose_llm::ModelConfig;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -46,10 +46,8 @@ fn check_required_env_vars(required: &[&str]) -> bool {
 }
 
 // --- Shared inputs for "paper" task ---
-const PAPER_SYSTEM: &str =
-    "You are an expert at structured data extraction. Extract the metadata of a research paper into JSON.";
-const PAPER_TEXT: &str =
-    "Application of Quantum Algorithms in Interstellar Navigation: A New Frontier \
+const PAPER_SYSTEM: &str = "You are an expert at structured data extraction. Extract the metadata of a research paper into JSON.";
+const PAPER_TEXT: &str = "Application of Quantum Algorithms in Interstellar Navigation: A New Frontier \
      by Dr. Stella Voyager, Dr. Nova Star, Dr. Lyra Hunter. Abstract: This paper \
      investigates the utilization of quantum algorithms to improve interstellar \
      navigation systems. Keywords: Quantum algorithms, interstellar navigation, \

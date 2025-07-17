@@ -1,10 +1,10 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::post,
-    Json, Router,
 };
 use goose::message::Message;
 use serde::{Deserialize, Serialize};

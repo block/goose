@@ -365,7 +365,7 @@ function ToolCallView({
         // This ensures any MCP tool works without explicit handling
         const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        
+
         if (entries.length === 0) {
           return `${toolDisplayName}`;
         }

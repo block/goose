@@ -1,10 +1,9 @@
 use anyhow::Result;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use goose_llm::{
-    completion,
+    Message, ModelConfig, completion,
     message::MessageContent,
     types::completion::{CompletionRequest, CompletionResponse},
-    Message, ModelConfig,
 };
 use serde_json::json;
 use std::{fs, vec};

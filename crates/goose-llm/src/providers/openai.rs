@@ -4,12 +4,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{
     errors::ProviderError,
     formats::openai::{create_request, get_usage, response_to_message},
-    utils::{emit_debug_trace, get_env, get_model, handle_response_openai_compat, ImageFormat},
+    utils::{ImageFormat, emit_debug_trace, get_env, get_model, handle_response_openai_compat},
 };
 use crate::{
     message::Message,
@@ -213,7 +213,7 @@ impl Provider for OpenAiProvider {
                 return Err(ProviderError::ResponseParseError(format!(
                     "Unexpected content type: {:?}",
                     other
-                )))
+                )));
             }
         };
 

@@ -4,9 +4,9 @@ mod shell;
 
 use anyhow::Result;
 use base64::Engine;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     future::Future,
@@ -21,24 +21,24 @@ use tokio::{
 };
 use url::Url;
 
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use mcp_core::{
+    Content,
     handler::{PromptError, ResourceError, ToolError},
     protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
     resource::Resource,
     tool::Tool,
-    Content,
 };
 use mcp_core::{
     prompt::{Prompt, PromptArgument, PromptTemplate},
     tool::ToolAnnotations,
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 
 use mcp_core::role::Role;
 
-use self::editor_models::{create_editor_model, EditorModel};
+use self::editor_models::{EditorModel, create_editor_model};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
@@ -740,11 +740,9 @@ impl DeveloperRouter {
         let char_count = output_str.chars().count();
         if char_count > MAX_CHAR_COUNT {
             return Err(ToolError::ExecutionError(format!(
-                    "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
-                    command,
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
+                "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
+                command, char_count, MAX_CHAR_COUNT
+            )));
         }
 
         Ok(vec![
@@ -1349,8 +1347,12 @@ impl DeveloperRouter {
         let windows = Window::all()
             .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
 
-        let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
+        let window_titles: Vec<String> = windows
+            .into_iter()
+            .map(|w| w.title().ok())
+            .filter(|t| t.is_some())
+            .map(|t| t.unwrap().to_string())
+            .collect();
 
         Ok(vec![
             Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
@@ -1490,7 +1492,7 @@ impl DeveloperRouter {
 
             let window = windows
                 .into_iter()
-                .find(|w| w.title() == window_title)
+                .find(|w| w.title().is_ok_and(|t| t == window_title))
                 .ok_or_else(|| {
                     ToolError::ExecutionError(format!(
                         "No window found with title '{}'",
@@ -2333,22 +2335,30 @@ mod tests {
         let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
 
         // Should use traditional description with str_replace command
-        assert!(text_editor_tool
-            .description
-            .contains("Replace a string in a file with a new string"));
-        assert!(text_editor_tool
-            .description
-            .contains("the `old_str` needs to exactly match one"));
+        assert!(
+            text_editor_tool
+                .description
+                .contains("Replace a string in a file with a new string")
+        );
+        assert!(
+            text_editor_tool
+                .description
+                .contains("the `old_str` needs to exactly match one")
+        );
         assert!(text_editor_tool.description.contains("str_replace"));
 
         // Should not contain editor API description or edit_file command
-        assert!(!text_editor_tool
-            .description
-            .contains("Edit the file with the new content"));
+        assert!(
+            !text_editor_tool
+                .description
+                .contains("Edit the file with the new content")
+        );
         assert!(!text_editor_tool.description.contains("edit_file"));
-        assert!(!text_editor_tool
-            .description
-            .contains("work out how to place old_str with it intelligently"));
+        assert!(
+            !text_editor_tool
+                .description
+                .contains("work out how to place old_str with it intelligently")
+        );
 
         temp_dir.close().unwrap();
     }

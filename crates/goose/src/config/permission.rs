@@ -1,5 +1,5 @@
 use super::APP_STRATEGY;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -301,8 +301,10 @@ mod tests {
         assert!(!config.ask_before.contains(&"prefix__tool3".to_string()));
 
         // Verify other entries remain
-        assert!(config
-            .always_allow
-            .contains(&"nonprefix__tool2".to_string()));
+        assert!(
+            config
+                .always_allow
+                .contains(&"nonprefix__tool2".to_string())
+        );
     }
 }

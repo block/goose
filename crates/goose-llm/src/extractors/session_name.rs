@@ -5,7 +5,7 @@ use crate::{message::Message, types::json_value_ffi::JsonValueFfi};
 use anyhow::Result;
 use goose::utils::safe_truncate;
 use indoc::indoc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const SESSION_NAME_EXAMPLES: &[&str] = &[
     "Research Synthesis",

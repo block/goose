@@ -11,7 +11,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 use storage::CredentialsManager;
@@ -25,20 +25,19 @@ use mcp_core::{
     resource::Resource,
     tool::Tool,
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 
 use google_docs1::{self, Docs};
 use google_drive3::common::ReadSeek;
 use google_drive3::{
-    self,
+    self, DriveHub,
     api::{
         Comment, File, FileShortcutDetails, LabelFieldModification, LabelModification,
         ModifyLabelsRequest, Permission, Reply, Scope,
     },
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
-    DriveHub,
 };
 use google_labels::DriveLabelsHub;
 use google_sheets4::{self, Sheets};
@@ -1124,7 +1123,7 @@ impl GoogleDriveRouter {
                     return Err(ToolError::ExecutionError(format!(
                         "Failed to execute google drive label list '{}'.",
                         e
-                    )))
+                    )));
                 }
             };
             let label_ids = label_results
@@ -1285,8 +1284,8 @@ impl GoogleDriveRouter {
                 "Failed to execute google drive export for {}, {}.",
                 uri, e
             ))),
-            Ok(r) => {
-                if let Ok(body) = r.into_body().collect().await {
+            Ok(r) => match r.into_body().collect().await {
+                Ok(body) => {
                     if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
                         if !include_images {
                             let content = self.strip_image_body(&response);
@@ -1310,13 +1309,12 @@ impl GoogleDriveRouter {
                             uri,
                         )))
                     }
-                } else {
-                    Err(ToolError::ExecutionError(format!(
-                        "Failed to export google drive document, {}.",
-                        uri,
-                    )))
                 }
-            }
+                _ => Err(ToolError::ExecutionError(format!(
+                    "Failed to export google drive document, {}.",
+                    uri,
+                ))),
+            },
         }
     }
 
@@ -1344,35 +1342,36 @@ impl GoogleDriveRouter {
             ))),
             Ok(r) => {
                 if mime_type.starts_with("text/") || mime_type == "application/json" {
-                    if let Ok(body) = r.0.into_body().collect().await {
-                        if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
-                            if !include_images {
-                                let content = self.strip_image_body(&response);
-                                Ok(vec![Content::text(content).with_priority(0.1)])
-                            } else {
-                                let images = self.resize_images(&response).map_err(|e| {
-                                    ToolError::ExecutionError(format!(
-                                        "Failed to resize image(s): {}",
-                                        e
-                                    ))
-                                })?;
+                    match r.0.into_body().collect().await {
+                        Ok(body) => {
+                            if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
+                                if !include_images {
+                                    let content = self.strip_image_body(&response);
+                                    Ok(vec![Content::text(content).with_priority(0.1)])
+                                } else {
+                                    let images = self.resize_images(&response).map_err(|e| {
+                                        ToolError::ExecutionError(format!(
+                                            "Failed to resize image(s): {}",
+                                            e
+                                        ))
+                                    })?;
 
-                                let content = self.strip_image_body(&response);
-                                Ok(std::iter::once(Content::text(content).with_priority(0.1))
-                                    .chain(images.iter().cloned())
-                                    .collect::<Vec<Content>>())
+                                    let content = self.strip_image_body(&response);
+                                    Ok(std::iter::once(Content::text(content).with_priority(0.1))
+                                        .chain(images.iter().cloned())
+                                        .collect::<Vec<Content>>())
+                                }
+                            } else {
+                                Err(ToolError::ExecutionError(format!(
+                                    "Failed to convert google drive to string, {}.",
+                                    uri,
+                                )))
                             }
-                        } else {
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to convert google drive to string, {}.",
-                                uri,
-                            )))
                         }
-                    } else {
-                        Err(ToolError::ExecutionError(format!(
+                        _ => Err(ToolError::ExecutionError(format!(
                             "Failed to get google drive document, {}.",
                             uri,
-                        )))
+                        ))),
                     }
                 } else {
                     //TODO: handle base64 image case, see typscript mcp-gdrive
@@ -1501,7 +1500,7 @@ impl GoogleDriveRouter {
                         Ok(vec![Content::text(sheets_info).with_priority(0.1)])
                     }
                 }
-            },
+            }
             "get_columns" => {
                 // Get the sheet name if provided, otherwise we'll use the first sheet
                 let sheet_name = params
@@ -1543,14 +1542,13 @@ impl GoogleDriveRouter {
                         Ok(vec![Content::text(headers).with_priority(0.1)])
                     }
                 }
-            },
+            }
             "get_values" => {
-                let range = params
-                    .get("range")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let range = params.get("range").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The range is required for get_values operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
                 let result = self
                     .sheets
@@ -1588,21 +1586,19 @@ impl GoogleDriveRouter {
                         Ok(vec![Content::text(csv_content).with_priority(0.1)])
                     }
                 }
-            },
+            }
             "update_values" => {
-                let range = params
-                    .get("range")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let range = params.get("range").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The range is required for update_values operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
-                let values_csv = params
-                    .get("values")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let values_csv = params.get("values").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The values parameter is required for update_values operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
                 // Parse the CSV data into a 2D array of values
                 let mut values: Vec<Vec<serde_json::Value>> = Vec::new();
@@ -1660,21 +1656,19 @@ impl GoogleDriveRouter {
                         Ok(vec![Content::text(response).with_priority(0.1)])
                     }
                 }
-            },
+            }
             "update_cell" => {
-                let cell = params
-                    .get("cell")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let cell = params.get("cell").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The cell parameter is required for update_cell operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
-                let value = params
-                    .get("value")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let value = params.get("value").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The value parameter is required for update_cell operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
                 // Determine the input option (default to USER_ENTERED)
                 let value_input_option = params
@@ -1709,20 +1703,22 @@ impl GoogleDriveRouter {
                         let update_response = r.1;
                         let updated_range = update_response.updated_range.unwrap_or_default();
 
-                        Ok(vec![Content::text(format!(
-                            "Successfully updated cell '{}' with value '{}'.",
-                            updated_range, value
-                        )).with_priority(0.1)])
+                        Ok(vec![
+                            Content::text(format!(
+                                "Successfully updated cell '{}' with value '{}'.",
+                                updated_range, value
+                            ))
+                            .with_priority(0.1),
+                        ])
                     }
                 }
-            },
+            }
             "add_sheet" => {
-                let title = params
-                    .get("title")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let title = params.get("title").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The title parameter is required for add_sheet operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
                 // Create the AddSheetReques
                 let add_sheet_request = google_sheets4::api::AddSheetRequest {
@@ -1787,20 +1783,19 @@ impl GoogleDriveRouter {
                         }
 
                         // Generic success message if we couldn't extract specific details
-                        Ok(vec![Content::text(format!(
-                            "Successfully added new sheet '{}'.",
-                            title
-                        )).with_priority(0.1)])
+                        Ok(vec![
+                            Content::text(format!("Successfully added new sheet '{}'.", title))
+                                .with_priority(0.1),
+                        ])
                     }
                 }
-            },
+            }
             "clear_values" => {
-                let range = params
-                    .get("range")
-                    .and_then(|q| q.as_str())
-                    .ok_or(ToolError::InvalidParameters(
+                let range = params.get("range").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters(
                         "The range is required for clear_values operation".to_string(),
-                    ))?;
+                    ),
+                )?;
 
                 // Create the ClearValuesReques
                 let clear_values_request = google_sheets4::api::ClearValuesRequest::default();
@@ -1824,13 +1819,16 @@ impl GoogleDriveRouter {
                         let response = r.1;
                         let cleared_range = response.cleared_range.unwrap_or_default();
 
-                        Ok(vec![Content::text(format!(
-                            "Successfully cleared values in range '{}'.",
-                            cleared_range
-                        )).with_priority(0.1)])
+                        Ok(vec![
+                            Content::text(format!(
+                                "Successfully cleared values in range '{}'.",
+                                cleared_range
+                            ))
+                            .with_priority(0.1),
+                        ])
                     }
                 }
-            },
+            }
             _ => Err(ToolError::InvalidParameters(format!(
                 "Invalid operation: {}. Supported operations are: list_sheets, get_columns, get_values, update_values, update_cell, add_sheet, clear_values",
                 operation
@@ -2075,7 +2073,7 @@ impl GoogleDriveRouter {
                         (None, None) | (Some(_), Some(_)) => {
                             return Err(ToolError::InvalidParameters(
                                 "Either the body or path param is required".to_string(),
-                            ))
+                            ));
                         }
                         (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
                         (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
@@ -2294,7 +2292,7 @@ impl GoogleDriveRouter {
                         return Err(ToolError::InvalidParameters(format!(
                             "Label operation invalid: {:?}",
                             op.get("operation")
-                        )))
+                        )));
                     }
                 }
             };
@@ -2378,7 +2376,7 @@ impl GoogleDriveRouter {
                         (None, None) | (Some(_), Some(_)) => {
                             return Err(ToolError::InvalidParameters(
                                 "Either the body or path param is required".to_string(),
-                            ))
+                            ));
                         }
                         (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
                         (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
@@ -2435,7 +2433,7 @@ impl GoogleDriveRouter {
                     return Err(ToolError::ExecutionError(format!(
                         "Failed to execute google drive comment list, {}.",
                         e
-                    )))
+                    )));
                 }
                 Ok(r) => {
                     let mut content =
@@ -2626,14 +2624,18 @@ impl GoogleDriveRouter {
                         Ok(vec![Content::text(content).with_priority(0.1)])
                     }
                 }
-            },
+            }
             "insert_text" => {
                 let text = params.get("text").and_then(|q| q.as_str()).ok_or(
-                    ToolError::InvalidParameters("The text parameter is required for insert_text operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The text parameter is required for insert_text operation".to_string(),
+                    ),
                 )?;
 
                 let position = params.get("position").and_then(|q| q.as_i64()).ok_or(
-                    ToolError::InvalidParameters("The position parameter is required for insert_text operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The position parameter is required for insert_text operation".to_string(),
+                    ),
                 )?;
 
                 // Create the insert text request
@@ -2670,17 +2672,20 @@ impl GoogleDriveRouter {
                         "Failed to execute Google Docs insert_text operation, {}.",
                         e
                     ))),
-                    Ok(_) => {
-                        Ok(vec![Content::text(format!(
+                    Ok(_) => Ok(vec![
+                        Content::text(format!(
                             "Successfully inserted text at position {}.",
                             position
-                        )).with_priority(0.1)])
-                    }
+                        ))
+                        .with_priority(0.1),
+                    ]),
                 }
-            },
+            }
             "append_text" => {
                 let text = params.get("text").and_then(|q| q.as_str()).ok_or(
-                    ToolError::InvalidParameters("The text parameter is required for append_text operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The text parameter is required for append_text operation".to_string(),
+                    ),
                 )?;
 
                 // First, get the document to find the end position
@@ -2699,15 +2704,15 @@ impl GoogleDriveRouter {
                             "Failed to get document to determine end position, {}.",
                             e
                         )));
-                    },
+                    }
                     Ok(r) => {
                         let document = r.1;
                         if let Some(body) = document.body {
-                            body.content.and_then(|content| {
-                                content.last().and_then(|last_item| {
-                                    last_item.end_index
+                            body.content
+                                .and_then(|content| {
+                                    content.last().and_then(|last_item| last_item.end_index)
                                 })
-                            }).unwrap_or(1) // Default to 1 if we can't determine the end position
+                                .unwrap_or(1) // Default to 1 if we can't determine the end position
                         } else {
                             1 // Default to 1 if there's no body
                         }
@@ -2748,18 +2753,24 @@ impl GoogleDriveRouter {
                         "Failed to execute Google Docs append_text operation, {}.",
                         e
                     ))),
-                    Ok(_) => {
-                        Ok(vec![Content::text("Successfully appended text to the document.").with_priority(0.1)])
-                    }
+                    Ok(_) => Ok(vec![
+                        Content::text("Successfully appended text to the document.")
+                            .with_priority(0.1),
+                    ]),
                 }
-            },
+            }
             "replace_text" => {
                 let text = params.get("text").and_then(|q| q.as_str()).ok_or(
-                    ToolError::InvalidParameters("The text parameter is required for replace_text operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The text parameter is required for replace_text operation".to_string(),
+                    ),
                 )?;
 
                 let replace_text = params.get("replaceText").and_then(|q| q.as_str()).ok_or(
-                    ToolError::InvalidParameters("The replaceText parameter is required for replace_text operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The replaceText parameter is required for replace_text operation"
+                            .to_string(),
+                    ),
                 )?;
 
                 // Create the replace all text request
@@ -2808,16 +2819,21 @@ impl GoogleDriveRouter {
                             })
                             .unwrap_or(0);
 
-                        Ok(vec![Content::text(format!(
-                            "Successfully replaced {} occurrences of '{}' with '{}'.",
-                            replacements, replace_text, text
-                        )).with_priority(0.1)])
+                        Ok(vec![
+                            Content::text(format!(
+                                "Successfully replaced {} occurrences of '{}' with '{}'.",
+                                replacements, replace_text, text
+                            ))
+                            .with_priority(0.1),
+                        ])
                     }
                 }
-            },
+            }
             "create_paragraph" => {
                 let text = params.get("text").and_then(|q| q.as_str()).ok_or(
-                    ToolError::InvalidParameters("The text parameter is required for create_paragraph operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The text parameter is required for create_paragraph operation".to_string(),
+                    ),
                 )?;
 
                 // Get the end position of the document
@@ -2836,15 +2852,15 @@ impl GoogleDriveRouter {
                             "Failed to get document to determine end position, {}.",
                             e
                         )));
-                    },
+                    }
                     Ok(r) => {
                         let document = r.1;
                         if let Some(body) = document.body {
-                            body.content.and_then(|content| {
-                                content.last().and_then(|last_item| {
-                                    last_item.end_index
+                            body.content
+                                .and_then(|content| {
+                                    content.last().and_then(|last_item| last_item.end_index)
                                 })
-                            }).unwrap_or(1) // Default to 1 if we can't determine the end position
+                                .unwrap_or(1) // Default to 1 if we can't determine the end position
                         } else {
                             1 // Default to 1 if there's no body
                         }
@@ -2885,18 +2901,24 @@ impl GoogleDriveRouter {
                         "Failed to execute Google Docs create_paragraph operation, {}.",
                         e
                     ))),
-                    Ok(_) => {
-                        Ok(vec![Content::text("Successfully created a new paragraph.").with_priority(0.1)])
-                    }
+                    Ok(_) => Ok(vec![
+                        Content::text("Successfully created a new paragraph.").with_priority(0.1),
+                    ]),
                 }
-            },
+            }
             "delete_content" => {
                 let start_position = params.get("startPosition").and_then(|q| q.as_i64()).ok_or(
-                    ToolError::InvalidParameters("The startPosition parameter is required for delete_content operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The startPosition parameter is required for delete_content operation"
+                            .to_string(),
+                    ),
                 )?;
 
                 let end_position = params.get("endPosition").and_then(|q| q.as_i64()).ok_or(
-                    ToolError::InvalidParameters("The endPosition parameter is required for delete_content operation".to_string()),
+                    ToolError::InvalidParameters(
+                        "The endPosition parameter is required for delete_content operation"
+                            .to_string(),
+                    ),
                 )?;
 
                 // Create the delete content range request
@@ -2932,14 +2954,15 @@ impl GoogleDriveRouter {
                         "Failed to execute Google Docs delete_content operation, {}.",
                         e
                     ))),
-                    Ok(_) => {
-                        Ok(vec![Content::text(format!(
+                    Ok(_) => Ok(vec![
+                        Content::text(format!(
                             "Successfully deleted content from position {} to {}.",
                             start_position, end_position
-                        )).with_priority(0.1)])
-                    }
+                        ))
+                        .with_priority(0.1),
+                    ]),
                 }
-            },
+            }
             _ => Err(ToolError::InvalidParameters(format!(
                 "Invalid operation: {}. Supported operations are: get_document, insert_text, append_text, replace_text, create_paragraph, delete_content",
                 operation
@@ -2973,7 +2996,7 @@ impl GoogleDriveRouter {
                     return Err(ToolError::ExecutionError(format!(
                         "Failed to execute google drive list, {}.",
                         e
-                    )))
+                    )));
                 }
                 Ok(r) => {
                     let mut content =
@@ -3012,7 +3035,8 @@ impl GoogleDriveRouter {
             p.permission_details.unwrap_or_default(),
             p.role.unwrap_or_default(),
             p.type_.unwrap_or_default(),
-            p.id.unwrap_or_default())
+            p.id.unwrap_or_default()
+        )
     }
 
     async fn get_permissions(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -3046,7 +3070,7 @@ impl GoogleDriveRouter {
                     return Err(ToolError::ExecutionError(format!(
                         "Failed to execute google drive list, {}.",
                         e
-                    )))
+                    )));
                 }
                 Ok(r) => {
                     let mut content =
@@ -3107,7 +3131,7 @@ impl GoogleDriveRouter {
                         return Err(ToolError::InvalidParameters(
                             "The 'create' operation requires the 'role' and 'type' parameters."
                                 .to_string(),
-                        ))
+                        ));
                     }
                 };
                 let mut req = Permission {
@@ -3125,7 +3149,7 @@ impl GoogleDriveRouter {
                         return Err(ToolError::InvalidParameters(format!(
                             "The '{}' operation for type '{}' requires the 'target' parameter.",
                             operation, permission_type
-                        )))
+                        )));
                     }
                 }
 
@@ -3156,7 +3180,7 @@ impl GoogleDriveRouter {
                         return Err(ToolError::InvalidParameters(
                             "The 'update' operation requires the 'permissionId', and 'role'."
                                 .to_string(),
-                        ))
+                        ));
                     }
                 };
                 // A permission update requires a permissionId, which is also

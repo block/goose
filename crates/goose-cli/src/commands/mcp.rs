@@ -11,11 +11,11 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 
 #[cfg(unix)]
-use nix::sys::signal::{kill, Signal};
-#[cfg(unix)]
-use nix::unistd::getpgrp;
+use nix::sys::signal::{Signal, kill};
 #[cfg(unix)]
 use nix::unistd::Pid;
+#[cfg(unix)]
+use nix::unistd::getpgrp;
 
 pub async fn run_server(name: &str) -> Result<()> {
     // Initialize logging

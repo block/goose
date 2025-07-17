@@ -2,11 +2,11 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 
 /// Convert internal Message format to Snowflake's API message specification

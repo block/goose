@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::Mutex;
 use tracing::{Event, Subscriber};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 // Type alias to reduce complexity
 type ErrorRegistry = RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>;

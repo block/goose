@@ -10,7 +10,7 @@ use crate::providers::base::Provider;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{AppStrategy, AppStrategyArgs, choose_app_strategy};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -698,7 +698,7 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
                         match content_item {
-                            Content::Text(ref mut text_content) => {
+                            Content::Text(text_content) => {
                                 if text_content.text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
@@ -709,7 +709,7 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                     text_content.text = truncated;
                                 }
                             }
-                            Content::Resource(ref mut resource_content) => {
+                            Content::Resource(resource_content) => {
                                 if let ResourceContents::TextResourceContents { text, .. } =
                                     &mut resource_content.resource
                                 {

@@ -1,12 +1,12 @@
 use cliclack::spinner;
 use console::style;
+use goose::agents::Agent;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
 };
-use goose::agents::Agent;
-use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::agents::{ExtensionConfig, extension::Envs};
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
 use goose::config::{
@@ -15,9 +15,9 @@ use goose::config::{
 };
 use goose::message::Message;
 use goose::providers::{create, providers};
-use mcp_core::tool::ToolAnnotations;
 use mcp_core::Tool;
-use serde_json::{json, Value};
+use mcp_core::tool::ToolAnnotations;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -1036,7 +1036,9 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 
     // Check if GOOSE_MODE is set as an environment variable
     if std::env::var("GOOSE_MODE").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
+        let _ = cliclack::log::info(
+            "Notice: GOOSE_MODE environment variable is set and will override the configuration here.",
+        );
     }
 
     let mode = cliclack::select("Which Goose mode would you like to configure?")
@@ -1089,7 +1091,9 @@ pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
 
     // Check if GOOSE_ROUTER_STRATEGY is set as an environment variable
     if std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.");
+        let _ = cliclack::log::info(
+            "Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.",
+        );
     }
 
     let strategy = cliclack::select("Which router strategy would you like to use?")
@@ -1131,7 +1135,9 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
     // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
     if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.");
+        let _ = cliclack::log::info(
+            "Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.",
+        );
     }
     let tool_log_level = cliclack::select("Which tool output would you like to show?")
         .item("high", "High Importance", "")
@@ -1236,24 +1242,27 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config)?;
     agent.update_provider(new_provider).await?;
-    if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
-        agent
-            .add_extension(config.clone())
-            .await
-            .unwrap_or_else(|_| {
-                println!(
-                    "{} Failed to check extension: {}",
-                    style("Error").red().italic(),
-                    config.name()
-                );
-            });
-    } else {
-        println!(
-            "{} Configuration not found for extension: {}",
-            style("Warning").yellow().italic(),
-            selected_extension_name
-        );
-        return Ok(());
+    match ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
+        Ok(Some(config)) => {
+            agent
+                .add_extension(config.clone())
+                .await
+                .unwrap_or_else(|_| {
+                    println!(
+                        "{} Failed to check extension: {}",
+                        style("Error").red().italic(),
+                        config.name()
+                    );
+                });
+        }
+        _ => {
+            println!(
+                "{} Configuration not found for extension: {}",
+                style("Warning").yellow().italic(),
+                selected_extension_name
+            );
+            return Ok(());
+        }
     }
 
     let mut permission_manager = PermissionManager::default();
@@ -1381,7 +1390,9 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
 
     // Check if GOOSE_SCHEDULER_TYPE is set as an environment variable
     if std::env::var("GOOSE_SCHEDULER_TYPE").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_SCHEDULER_TYPE environment variable is set and will override the configuration here.");
+        let _ = cliclack::log::info(
+            "Notice: GOOSE_SCHEDULER_TYPE environment variable is set and will override the configuration here.",
+        );
     }
 
     // Get current scheduler type from config for display
@@ -1421,7 +1432,9 @@ fn configure_scheduler_dialog() -> Result<(), Box<dyn Error>> {
             println!("  • Temporal scheduler requires Temporal CLI to be installed");
             println!("  • macOS: brew install temporal");
             println!("  • Linux/Windows: https://github.com/temporalio/cli/releases");
-            println!("  • If Temporal is unavailable, Goose will automatically fall back to the built-in scheduler");
+            println!(
+                "  • If Temporal is unavailable, Goose will automatically fall back to the built-in scheduler"
+            );
             println!("  • The scheduling engines do not share the list of schedules");
         }
         _ => unreachable!(),

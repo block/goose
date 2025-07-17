@@ -4,13 +4,13 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
+use tokio_cron_scheduler::{Job, JobScheduler as TokioJobScheduler, job::JobId};
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
@@ -433,7 +433,11 @@ impl Scheduler {
         let mut jobs_guard = self.jobs.lock().await;
         for job_to_load in list {
             if !Path::new(&job_to_load.source).exists() {
-                tracing::warn!("Recipe file {} for scheduled job {} not found in shared store. Skipping job load.", job_to_load.source, job_to_load.id);
+                tracing::warn!(
+                    "Recipe file {} for scheduled job {} not found in shared store. Skipping job load.",
+                    job_to_load.source,
+                    job_to_load.id
+                );
                 continue;
             }
 
@@ -1008,14 +1012,17 @@ impl Scheduler {
                 // Abort the running task if it exists
                 {
                     let mut running_tasks_guard = self.running_tasks.lock().await;
-                    if let Some(abort_handle) = running_tasks_guard.remove(sched_id) {
-                        abort_handle.abort();
-                        tracing::info!("Aborted running task for job '{}'", sched_id);
-                    } else {
-                        tracing::warn!(
-                            "No abort handle found for job '{}' in running tasks map",
-                            sched_id
-                        );
+                    match running_tasks_guard.remove(sched_id) {
+                        Some(abort_handle) => {
+                            abort_handle.abort();
+                            tracing::info!("Aborted running task for job '{}'", sched_id);
+                        }
+                        _ => {
+                            tracing::warn!(
+                                "No abort handle found for job '{}' in running tasks map",
+                                sched_id
+                            );
+                        }
                     }
                 }
 
@@ -1281,7 +1288,11 @@ async fn run_scheduled_job_internal(
                             &fallback_metadata,
                             &all_session_messages,
                         ) {
-                            tracing::error!("[Job {}] Failed to persist final messages with fallback metadata: {}", job.id, e_fb);
+                            tracing::error!(
+                                "[Job {}] Failed to persist final messages with fallback metadata: {}",
+                                job.id,
+                                e_fb
+                            );
                         }
                     }
                 }
@@ -1331,7 +1342,7 @@ mod tests {
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use mcp_core::{content::TextContent, tool::Tool, Role};
+    use mcp_core::{Role, content::TextContent, tool::Tool};
     // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
     // `read_metadata` is still used by the test itself, so keep it or its module.
     use crate::session::storage::read_metadata;
@@ -1395,8 +1406,10 @@ mod tests {
     #[tokio::test]
     async fn test_scheduled_session_has_schedule_id() -> Result<(), Box<dyn std::error::Error>> {
         // Set environment variables for the test
-        env::set_var("GOOSE_PROVIDER", "test_provider");
-        env::set_var("GOOSE_MODEL", "test_model");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_PROVIDER", "test_provider") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_MODEL", "test_model") };
 
         let temp_dir = tempdir()?;
         let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
@@ -1489,8 +1502,10 @@ mod tests {
         );
 
         // Clean up environment variables
-        env::remove_var("GOOSE_PROVIDER");
-        env::remove_var("GOOSE_MODEL");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_PROVIDER") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_MODEL") };
 
         Ok(())
     }

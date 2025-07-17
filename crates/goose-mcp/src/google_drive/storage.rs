@@ -1,6 +1,6 @@
 use anyhow::Result;
 use keyring::Entry;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::fs;
 use std::path::Path;
 use thiserror::Error;

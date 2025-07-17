@@ -1,6 +1,6 @@
 use console::style;
-use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
+use goose::agents::extension::ExtensionError;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
@@ -11,8 +11,8 @@ use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
 
-use super::output;
 use super::Session;
+use super::output;
 
 /// Configuration for building a new Goose session
 ///
@@ -102,8 +102,7 @@ async fn offer_extension_debugging_help(
     // Create a debugging prompt with context about the extension failure
     let debug_prompt = format!(
         "I'm having trouble starting an extension called '{}'. Here's the error I encountered:\n\n{}\n\nCan you help me diagnose what might be wrong and suggest how to fix it? Please consider common issues like:\n- Missing dependencies or tools\n- Configuration problems\n- Network connectivity (for remote extensions)\n- Permission issues\n- Path or environment variable problems",
-        extension_name,
-        error_message
+        extension_name, error_message
     );
 
     // Create a minimal agent for debugging

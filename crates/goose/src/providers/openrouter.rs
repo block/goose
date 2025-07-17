@@ -1,7 +1,7 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -296,7 +296,10 @@ impl Provider for OpenRouterProvider {
         {
             Ok(response) => response,
             Err(e) => {
-                tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
+                tracing::warn!(
+                    "Failed to fetch models from OpenRouter API: {}, falling back to manual model entry",
+                    e
+                );
                 return Ok(None);
             }
         };
@@ -305,7 +308,10 @@ impl Provider for OpenRouterProvider {
         let json: serde_json::Value = match response.json().await {
             Ok(json) => json,
             Err(e) => {
-                tracing::warn!("Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry", e);
+                tracing::warn!(
+                    "Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry",
+                    e
+                );
                 return Ok(None);
             }
         };
@@ -358,7 +364,9 @@ impl Provider for OpenRouterProvider {
 
         // If no models with tool support were found, fall back to manual entry
         if models.is_empty() {
-            tracing::warn!("No models with tool support found in OpenRouter API response, falling back to manual model entry");
+            tracing::warn!(
+                "No models with tool support found in OpenRouter API response, falling back to manual model entry"
+            );
             return Ok(None);
         }
 

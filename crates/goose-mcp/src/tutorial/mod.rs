@@ -1,7 +1,7 @@
 use anyhow::Result;
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{future::Future, pin::Pin};
 use tokio::sync::mpsc;
 
@@ -13,8 +13,8 @@ use mcp_core::{
     role::Role,
     tool::{Tool, ToolAnnotations},
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 
 use mcp_core::content::Content;
 
@@ -148,7 +148,7 @@ impl Router for TutorialRouter {
 
                     let content = this.load_tutorial(name).await?;
                     Ok(vec![
-                        Content::text(content).with_audience(vec![Role::Assistant])
+                        Content::text(content).with_audience(vec![Role::Assistant]),
                     ])
                 }
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),

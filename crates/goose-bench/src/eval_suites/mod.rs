@@ -6,6 +6,6 @@ mod utils;
 mod vibes;
 
 pub use evaluation::*;
-pub use factory::{register_eval, EvaluationSuite};
+pub use factory::{EvaluationSuite, register_eval};
 pub use metrics::*;
 pub use utils::*;

@@ -2,7 +2,7 @@ use crate::recipes::print_recipe::{
     missing_parameters_command_line, print_parameters_with_values, print_recipe_explanation,
     print_required_parameters_for_template,
 };
-use crate::recipes::search_recipe::{retrieve_recipe_file, RecipeFile};
+use crate::recipes::search_recipe::{RecipeFile, retrieve_recipe_file};
 use crate::recipes::template_recipe::{
     parse_recipe_content, render_recipe_content_with_params, render_recipe_for_preview,
 };
@@ -190,7 +190,10 @@ fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Re
     if optional_params_without_default_values.is_empty() {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
+        Err(anyhow::anyhow!(
+            "Optional parameters missing default values in the recipe: {}. Please provide defaults.",
+            optional_params_without_default_values.join(", ")
+        ))
     }
 }
 

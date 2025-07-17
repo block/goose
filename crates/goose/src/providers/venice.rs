@@ -3,14 +3,14 @@ use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::{tool::Tool, Role, ToolCall, ToolResult};
+use mcp_core::{Role, ToolCall, ToolResult, tool::Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -170,9 +170,10 @@ impl VeniceProvider {
                         if let Some(errors) = tools.get("_errors") {
                             if errors.to_string().contains("not supported by this model") {
                                 let model_name = self.model.model_name.clone();
-                                return Err(ProviderError::RequestFailed(
-                                    format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
-                                ));
+                                return Err(ProviderError::RequestFailed(format!(
+                                    "The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.",
+                                    model_name
+                                )));
                             }
                         }
                     }
@@ -187,9 +188,10 @@ impl VeniceProvider {
                                 {
                                     if message.contains("tools is not supported by this model") {
                                         let model_name = self.model.model_name.clone();
-                                        return Err(ProviderError::RequestFailed(
-                                            format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
-                                        ));
+                                        return Err(ProviderError::RequestFailed(format!(
+                                            "The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.",
+                                            model_name
+                                        )));
                                     }
                                 }
                             }

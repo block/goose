@@ -7,7 +7,7 @@ use aws_config;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use mcp_core::Tool;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::time::sleep;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -47,7 +47,8 @@ impl SageMakerTgiProvider {
                 map.into_iter()
                     .filter(|(key, _)| key.starts_with("AWS_"))
                     .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
-                    .for_each(|(key, s)| std::env::set_var(key, s));
+                    // TODO: Audit that the environment access only happens in single-threaded code.
+                    .for_each(|(key, s)| unsafe { std::env::set_var(key, s) });
             }
         };
 

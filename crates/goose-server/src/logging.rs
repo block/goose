@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use std::fs;
 use std::path::PathBuf;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
-    filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
-    Registry,
+    EnvFilter, Layer, Registry, filter::LevelFilter, fmt, layer::SubscriberExt,
+    util::SubscriberInitExt,
 };
 
 use goose::config::APP_STRATEGY;
@@ -97,15 +97,18 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with(console_layer.with_filter(LevelFilter::INFO));
 
     // Initialize with Langfuse if available
-    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
-        subscriber
-            .with(langfuse.with_filter(LevelFilter::DEBUG))
-            .try_init()
-            .context("Failed to set global subscriber")?;
-    } else {
-        subscriber
-            .try_init()
-            .context("Failed to set global subscriber")?;
+    match langfuse_layer::create_langfuse_observer() {
+        Some(langfuse) => {
+            subscriber
+                .with(langfuse.with_filter(LevelFilter::DEBUG))
+                .try_init()
+                .context("Failed to set global subscriber")?;
+        }
+        _ => {
+            subscriber
+                .try_init()
+                .context("Failed to set global subscriber")?;
+        }
     }
 
     Ok(())

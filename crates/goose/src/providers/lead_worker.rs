@@ -7,7 +7,7 @@ use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderU
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::{tool::Tool, Content};
+use mcp_core::{Content, tool::Tool};
 
 /// A provider that switches between a lead model and a worker model based on turn count
 /// and can fallback to lead model on consecutive failures
@@ -169,7 +169,9 @@ impl LeadWorkerProvider {
                         *fallback_remaining -= 1;
                         if *fallback_remaining == 0 {
                             *in_fallback = false;
-                            tracing::info!("✅ SWITCHING BACK TO WORKER MODEL: Exiting fallback mode - worker model resumed");
+                            tracing::info!(
+                                "✅ SWITCHING BACK TO WORKER MODEL: Exiting fallback mode - worker model resumed"
+                            );
                         }
                     }
                 }
@@ -380,7 +382,10 @@ impl Provider for LeadWorkerProvider {
         // For technical failures, try with default model (lead provider) instead
         let final_result = match &result {
             Err(_) => {
-                tracing::warn!("Technical failure with {} provider, retrying with default model (lead provider)", provider_type);
+                tracing::warn!(
+                    "Technical failure with {} provider, retrying with default model (lead provider)",
+                    provider_type
+                );
 
                 // Try with lead provider as the default/fallback for technical failures
                 let default_result = self.lead_provider.complete(system, messages, tools).await;
@@ -393,7 +398,9 @@ impl Provider for LeadWorkerProvider {
                         default_result
                     }
                     Err(_) => {
-                        tracing::error!("❌ Default model (lead provider) also failed - returning original error");
+                        tracing::error!(
+                            "❌ Default model (lead provider) also failed - returning original error"
+                        );
                         result // Return the original error
                     }
                 }
@@ -455,7 +462,7 @@ mod tests {
     use crate::message::MessageContent;
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use mcp_core::{Role, content::TextContent};
 
     #[derive(Clone)]
     struct MockProvider {

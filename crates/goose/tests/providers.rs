@@ -255,7 +255,7 @@ impl ProviderTester {
     }
 
     async fn test_image_content_support(&self) -> Result<()> {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+        use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
         use mcp_core::content::ImageContent;
         use std::fs;
 
@@ -398,8 +398,10 @@ where
     if let Some(mods) = &env_modifications {
         for (&var, value) in mods.iter() {
             match value {
-                Some(val) => std::env::set_var(var, val),
-                None => std::env::remove_var(var),
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                Some(val) => unsafe { std::env::set_var(var, val) },
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                None => unsafe { std::env::remove_var(var) },
             }
         }
     }
@@ -416,12 +418,14 @@ where
 
     // Restore original environment
     for (&var, value) in original_env.iter() {
-        std::env::set_var(var, value);
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var(var, value) };
     }
     if let Some(mods) = env_modifications {
         for &var in mods.keys() {
             if !original_env.contains_key(var) {
-                std::env::remove_var(var);
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                unsafe { std::env::remove_var(var) };
             }
         }
     }

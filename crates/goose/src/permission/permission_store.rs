@@ -2,7 +2,7 @@ use crate::message::ToolRequest;
 use anyhow::Result;
 use blake3::Hasher;
 use chrono::Utc;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;

@@ -1,14 +1,14 @@
 use chrono::Utc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::field::{Field, Visit};
-use tracing::{span, Event, Id, Level, Metadata, Subscriber};
+use tracing::{Event, Id, Level, Metadata, Subscriber, span};
+use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::Layer;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]

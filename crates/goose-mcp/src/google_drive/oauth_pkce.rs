@@ -256,8 +256,8 @@ impl PkceOAuth2Client {
         Ok(access_token)
     }
 
-    fn start_redirect_server(
-    ) -> Result<(AuthorizationCode, CsrfToken), Box<dyn Error + Send + Sync>> {
+    fn start_redirect_server()
+    -> Result<(AuthorizationCode, CsrfToken), Box<dyn Error + Send + Sync>> {
         let listener = TcpListener::bind("127.0.0.1:18080")?;
         println!("Listening for the authorization code on http://localhost:18080");
 

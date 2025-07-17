@@ -15,7 +15,8 @@ async fn main() -> Result<()> {
     dotenv().ok();
 
     // Clear any token to force OAuth
-    std::env::remove_var("DATABRICKS_TOKEN");
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { std::env::remove_var("DATABRICKS_TOKEN") };
 
     // Create the provider
     let provider = DatabricksProvider::default();

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use goose::agents::Agent;
 use goose::config::APP_STRATEGY;
 use goose::scheduler_factory::SchedulerFactory;

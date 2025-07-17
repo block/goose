@@ -1,4 +1,4 @@
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 use std::sync::Arc;
 
@@ -94,14 +94,16 @@ pub struct AsyncResult {
 ///
 /// The result pointer must be a valid pointer returned by a goose FFI function,
 /// or NULL.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goose_free_async_result(result: *mut AsyncResult) {
-    if !result.is_null() {
-        let result = &mut *result;
-        if !result.error_message.is_null() {
-            let _ = CString::from_raw(result.error_message);
+    unsafe {
+        if !result.is_null() {
+            let result = &mut *result;
+            if !result.error_message.is_null() {
+                let _ = CString::from_raw(result.error_message);
+            }
+            let _ = Box::from_raw(result);
         }
-        let _ = Box::from_raw(result);
     }
 }
 
@@ -119,74 +121,78 @@ pub unsafe extern "C" fn goose_free_async_result(result: *mut AsyncResult) {
 ///
 /// The config pointer must be valid or NULL. The resulting agent must be freed
 /// with goose_agent_free when no longer needed.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> AgentPtr {
-    // Check for null pointer
-    if config.is_null() {
-        eprintln!("Error: config pointer is null");
-        return ptr::null_mut();
-    }
+    unsafe {
+        // Check for null pointer
+        if config.is_null() {
+            eprintln!("Error: config pointer is null");
+            return ptr::null_mut();
+        }
 
-    let config = &*config;
+        let config = &*config;
 
-    // We currently only support Databricks provider
-    // This match ensures future compiler errors if new provider types are added without handling
-    match config.provider_type {
-        ProviderType::Databricks => (), // Databricks provider is supported
-    }
+        // We currently only support Databricks provider
+        // This match ensures future compiler errors if new provider types are added without handling
+        match config.provider_type {
+            ProviderType::Databricks => (), // Databricks provider is supported
+        }
 
-    // Get api_key from config or environment
-    let api_key = if !config.api_key.is_null() {
-        CStr::from_ptr(config.api_key).to_string_lossy().to_string()
-    } else {
-        match std::env::var("DATABRICKS_API_KEY") {
-            Ok(key) => key,
-            Err(_) => {
-                eprintln!("Error: api_key not provided and DATABRICKS_API_KEY environment variable not set");
-                return ptr::null_mut();
+        // Get api_key from config or environment
+        let api_key = if !config.api_key.is_null() {
+            CStr::from_ptr(config.api_key).to_string_lossy().to_string()
+        } else {
+            match std::env::var("DATABRICKS_API_KEY") {
+                Ok(key) => key,
+                Err(_) => {
+                    eprintln!(
+                        "Error: api_key not provided and DATABRICKS_API_KEY environment variable not set"
+                    );
+                    return ptr::null_mut();
+                }
             }
+        };
+
+        // Check and get required model_name (no env fallback for model)
+        if config.model_name.is_null() {
+            eprintln!("Error: model_name is required but was null");
+            return ptr::null_mut();
         }
-    };
+        let model_name = CStr::from_ptr(config.model_name)
+            .to_string_lossy()
+            .to_string();
 
-    // Check and get required model_name (no env fallback for model)
-    if config.model_name.is_null() {
-        eprintln!("Error: model_name is required but was null");
-        return ptr::null_mut();
-    }
-    let model_name = CStr::from_ptr(config.model_name)
-        .to_string_lossy()
-        .to_string();
-
-    // Get host from config or environment
-    let host = if !config.host.is_null() {
-        CStr::from_ptr(config.host).to_string_lossy().to_string()
-    } else {
-        match std::env::var("DATABRICKS_HOST") {
-            Ok(url) => url,
-            Err(_) => {
-                eprintln!(
-                    "Error: host not provided and DATABRICKS_HOST environment variable not set"
-                );
-                return ptr::null_mut();
+        // Get host from config or environment
+        let host = if !config.host.is_null() {
+            CStr::from_ptr(config.host).to_string_lossy().to_string()
+        } else {
+            match std::env::var("DATABRICKS_HOST") {
+                Ok(url) => url,
+                Err(_) => {
+                    eprintln!(
+                        "Error: host not provided and DATABRICKS_HOST environment variable not set"
+                    );
+                    return ptr::null_mut();
+                }
             }
-        }
-    };
+        };
 
-    // Create model config with model name
-    let model_config = ModelConfig::new(model_name);
+        // Create model config with model name
+        let model_config = ModelConfig::new(model_name);
 
-    // Create Databricks provider with required parameters
-    match DatabricksProvider::from_params(host, api_key, model_config) {
-        Ok(provider) => {
-            let agent = Agent::new();
-            get_runtime().block_on(async {
-                let _ = agent.update_provider(Arc::new(provider)).await;
-            });
-            Box::into_raw(Box::new(agent))
-        }
-        Err(e) => {
-            eprintln!("Error creating Databricks provider: {:?}", e);
-            ptr::null_mut()
+        // Create Databricks provider with required parameters
+        match DatabricksProvider::from_params(host, api_key, model_config) {
+            Ok(provider) => {
+                let agent = Agent::new();
+                get_runtime().block_on(async {
+                    let _ = agent.update_provider(Arc::new(provider)).await;
+                });
+                Box::into_raw(Box::new(agent))
+            }
+            Err(e) => {
+                eprintln!("Error creating Databricks provider: {:?}", e);
+                ptr::null_mut()
+            }
         }
     }
 }
@@ -204,10 +210,12 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
 /// The agent_ptr must be a valid pointer returned by goose_agent_new,
 /// or have a null internal pointer. The agent_ptr must not be used after
 /// calling this function.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goose_agent_free(agent_ptr: AgentPtr) {
-    if !agent_ptr.is_null() {
-        let _ = Box::from_raw(agent_ptr);
+    unsafe {
+        if !agent_ptr.is_null() {
+            let _ = Box::from_raw(agent_ptr);
+        }
     }
 }
 
@@ -231,54 +239,56 @@ pub unsafe extern "C" fn goose_agent_free(agent_ptr: AgentPtr) {
 ///
 /// The agent_ptr must be a valid pointer returned by goose_agent_new.
 /// The message must be a valid C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goose_agent_send_message(
     agent_ptr: AgentPtr,
     message: *const c_char,
 ) -> *mut c_char {
-    if agent_ptr.is_null() || message.is_null() {
-        return ptr::null_mut();
-    }
+    unsafe {
+        if agent_ptr.is_null() || message.is_null() {
+            return ptr::null_mut();
+        }
 
-    let agent = &mut *agent_ptr;
-    let message = CStr::from_ptr(message).to_string_lossy().to_string();
+        let agent = &mut *agent_ptr;
+        let message = CStr::from_ptr(message).to_string_lossy().to_string();
 
-    let messages = vec![Message::user().with_text(&message)];
+        let messages = vec![Message::user().with_text(&message)];
 
-    // Block on the async call using our global runtime
-    let response = get_runtime().block_on(async {
-        let mut stream = match agent.reply(&messages, None).await {
-            Ok(stream) => stream,
-            Err(e) => return format!("Error getting reply from agent: {}", e),
-        };
+        // Block on the async call using our global runtime
+        let response = get_runtime().block_on(async {
+            let mut stream = match agent.reply(&messages, None).await {
+                Ok(stream) => stream,
+                Err(e) => return format!("Error getting reply from agent: {}", e),
+            };
 
-        let mut full_response = String::new();
+            let mut full_response = String::new();
 
-        while let Some(message_result) = stream.next().await {
-            match message_result {
-                Ok(AgentEvent::Message(message)) => {
-                    // Get text or serialize to JSON
-                    // Note: Message doesn't have as_text method, we'll serialize to JSON
-                    if let Ok(json) = serde_json::to_string(&message) {
-                        full_response.push_str(&json);
+            while let Some(message_result) = stream.next().await {
+                match message_result {
+                    Ok(AgentEvent::Message(message)) => {
+                        // Get text or serialize to JSON
+                        // Note: Message doesn't have as_text method, we'll serialize to JSON
+                        if let Ok(json) = serde_json::to_string(&message) {
+                            full_response.push_str(&json);
+                        }
+                    }
+                    Ok(AgentEvent::McpNotification(_)) => {
+                        // TODO: Handle MCP notifications.
+                    }
+                    Ok(AgentEvent::ModelChange { .. }) => {
+                        // Model change events are informational, just continue
+                    }
+
+                    Err(e) => {
+                        full_response.push_str(&format!("\nError in message stream: {}", e));
                     }
                 }
-                Ok(AgentEvent::McpNotification(_)) => {
-                    // TODO: Handle MCP notifications.
-                }
-                Ok(AgentEvent::ModelChange { .. }) => {
-                    // Model change events are informational, just continue
-                }
-
-                Err(e) => {
-                    full_response.push_str(&format!("\nError in message stream: {}", e));
-                }
             }
-        }
-        full_response
-    });
+            full_response
+        });
 
-    string_to_c_char(&response)
+        string_to_c_char(&response)
+    }
 }
 
 // Tool schema creation will be implemented in a future commit
@@ -295,10 +305,12 @@ pub unsafe extern "C" fn goose_agent_send_message(
 ///
 /// The string must have been allocated by a goose FFI function, or be NULL.
 /// The string must not be used after calling this function.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn goose_free_string(s: *mut c_char) {
-    if !s.is_null() {
-        let _ = CString::from_raw(s);
+    unsafe {
+        if !s.is_null() {
+            let _ = CString::from_raw(s);
+        }
     }
 }
 

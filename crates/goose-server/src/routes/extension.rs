@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 
 use super::utils::verify_secret_key;
 use crate::state::AppState;
-use axum::{extract::State, routing::post, Json, Router};
-use goose::agents::{extension::Envs, ExtensionConfig};
+use axum::{Json, Router, extract::State, routing::post};
+use goose::agents::{ExtensionConfig, extension::Envs};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use tracing;
@@ -1052,7 +1052,8 @@ mod tests {
         });
 
         // Set the environment variable to point to our mock server
-        env::set_var("GOOSE_ALLOWLIST", format!("{}{}", server_url, server_path));
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_ALLOWLIST", format!("{}{}", server_url, server_path)) };
 
         // Give the server a moment to start
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -1070,7 +1071,8 @@ mod tests {
         assert_eq!(extensions.extensions[1].command, "uvx mcp_github");
 
         // Clean up
-        env::remove_var("GOOSE_ALLOWLIST");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_ALLOWLIST") };
 
         // Wait for the server thread to complete
         handle.join().unwrap();
@@ -1091,7 +1093,8 @@ mod tests {
         assert!(!is_command_allowed_with_allowlist(cmd, &allowlist));
 
         // Set the bypass environment variable
-        env::set_var("GOOSE_ALLOWLIST_BYPASS", "true");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_ALLOWLIST_BYPASS", "true") };
 
         // With bypass enabled, any command should be allowed regardless of allowlist
         assert!(is_command_allowed(
@@ -1100,21 +1103,25 @@ mod tests {
         ));
 
         // Test case insensitivity
-        env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE") };
         assert!(is_command_allowed(
             "uvx",
             &vec!["unauthorized_command".to_string()]
         ));
 
         // Clean up
-        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_ALLOWLIST_BYPASS") };
 
         // Create a mock function to test with allowlist and bypass
         let test_with_allowlist_and_bypass = |bypass_value: &str, expected: bool| {
             if bypass_value.is_empty() {
-                env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                unsafe { env::remove_var("GOOSE_ALLOWLIST_BYPASS") };
             } else {
-                env::set_var("GOOSE_ALLOWLIST_BYPASS", bypass_value);
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                unsafe { env::set_var("GOOSE_ALLOWLIST_BYPASS", bypass_value) };
             }
 
             // This is what we're testing - a direct call that simulates what happens in is_command_allowed
@@ -1150,6 +1157,7 @@ mod tests {
         test_with_allowlist_and_bypass("", false);
 
         // Final cleanup
-        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("GOOSE_ALLOWLIST_BYPASS") };
     }
 }

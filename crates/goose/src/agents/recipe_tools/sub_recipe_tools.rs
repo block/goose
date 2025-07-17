@@ -3,7 +3,7 @@ use std::fs;
 
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::agents::sub_recipe_execution_tool::lib::{ExecutionMode, Task};
 use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
@@ -29,7 +29,10 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
         ),
         input_schema,
         Some(ToolAnnotations {
-            title: Some(format!("create multiple sub recipe tasks for {}", sub_recipe.name)),
+            title: Some(format!(
+                "create multiple sub recipe tasks for {}",
+                sub_recipe.name
+            )),
             read_only_hint: false,
             destructive_hint: true,
             idempotent_hint: false,

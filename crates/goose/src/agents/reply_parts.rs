@@ -8,11 +8,11 @@ use futures::stream::StreamExt;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
+use crate::providers::base::{MessageStream, Provider, ProviderUsage, stream_from_single_message};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
-    augment_message_with_tool_calls, convert_tool_messages_to_text,
-    modify_system_prompt_for_tool_json, OllamaInterpreter,
+    OllamaInterpreter, augment_message_with_tool_calls, convert_tool_messages_to_text,
+    modify_system_prompt_for_tool_json,
 };
 use crate::session;
 use mcp_core::tool::Tool;

@@ -5,7 +5,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{Client, types as bedrock};
 use mcp_core::Tool;
 use serde_json::Value;
 use tokio::time::sleep;
@@ -48,7 +48,8 @@ impl BedrockProvider {
                 map.into_iter()
                     .filter(|(key, _)| key.starts_with("AWS_"))
                     .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
-                    .for_each(|(key, s)| std::env::set_var(key, s));
+                    // TODO: Audit that the environment access only happens in single-threaded code.
+                    .for_each(|(key, s)| unsafe { std::env::set_var(key, s) });
             }
         };
 

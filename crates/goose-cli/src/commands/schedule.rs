@@ -1,8 +1,8 @@
-use anyhow::{bail, Context, Result};
-use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
+use anyhow::{Context, Result, bail};
+use base64::engine::{Engine, general_purpose::STANDARD as BASE64_STANDARD};
 use goose::scheduler::{
-    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob,
-    SchedulerError,
+    ScheduledJob, SchedulerError, get_default_scheduled_recipes_dir,
+    get_default_scheduler_storage_path,
 };
 use goose::scheduler_factory::SchedulerFactory;
 use goose::temporal_scheduler::TemporalScheduler;
@@ -390,7 +390,9 @@ pub async fn handle_schedule_cron_help() -> Result<()> {
     println!(
         "  goose schedule add --id daily-backup --cron \"@daily\" --recipe-source backup.yaml"
     );
-    println!("  goose schedule add --id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml");
+    println!(
+        "  goose schedule add --id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml"
+    );
 
     Ok(())
 }

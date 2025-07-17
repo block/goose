@@ -1,7 +1,7 @@
 use super::EditorModelImpl;
 use anyhow::Result;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Relace-specific editor that uses the predicted outputs convention
 #[derive(Debug)]

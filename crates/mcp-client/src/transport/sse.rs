@@ -241,7 +241,8 @@ impl Transport for SseTransport {
     async fn start(&self) -> Result<Self::Handle, Error> {
         // Set environment variables
         for (key, value) in &self.env {
-            std::env::set_var(key, value);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var(key, value) };
         }
 
         // Create a channel for outgoing TransportMessages

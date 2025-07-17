@@ -1,6 +1,6 @@
 use anyhow::Context;
 use chrono::Local;
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -141,7 +141,9 @@ impl BenchmarkWorkDir {
             use std::path::Component;
 
             match first {
-                Component::ParentDir => Err(anyhow::anyhow!("RelativePathBaseError: Only paths relative to the current working directory are supported.")),
+                Component::ParentDir => Err(anyhow::anyhow!(
+                    "RelativePathBaseError: Only paths relative to the current working directory are supported."
+                )),
                 // If first component is "."
                 Component::CurDir => Ok(components.collect()),
                 // Otherwise, keep the full path
@@ -168,7 +170,9 @@ impl BenchmarkWorkDir {
         }
 
         if p.is_absolute() {
-            return Err(anyhow::anyhow!("AbsolutePathError: Only paths relative to the current working directory are supported."));
+            return Err(anyhow::anyhow!(
+                "AbsolutePathError: Only paths relative to the current working directory are supported."
+            ));
         }
 
         let asset_rel_path = Self::chop_relative_base(p.clone())

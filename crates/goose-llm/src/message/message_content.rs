@@ -167,7 +167,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
-        if let MessageContent::ToolReq(ref tool_request) = self {
+        if let MessageContent::ToolReq(tool_request) = self {
             Some(tool_request)
         } else {
             None
@@ -175,7 +175,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
-        if let MessageContent::ToolResp(ref tool_response) = self {
+        if let MessageContent::ToolResp(tool_response) = self {
             Some(tool_response)
         } else {
             None
@@ -263,8 +263,8 @@ impl From<Content> for MessageContent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::core::{ToolCall, ToolError};
     use crate::UniFfiTag;
+    use crate::types::core::{ToolCall, ToolError};
     use serde_json::json;
     use uniffi::{FfiConverter, RustBuffer};
 

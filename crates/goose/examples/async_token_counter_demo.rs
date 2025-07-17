@@ -17,7 +17,7 @@
 /// let bytes = response.bytes().await?;
 /// tokio::fs::write(&file_path, bytes).await?;
 /// ```
-use goose::token_counter::{create_async_token_counter, TokenCounter};
+use goose::token_counter::{TokenCounter, create_async_token_counter};
 use std::time::Instant;
 
 #[tokio::main]

@@ -5,7 +5,7 @@ use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, json, Value};
+use serde_json::{Value, from_value, json};
 
 use super::base::Usage;
 use crate::{

@@ -5,7 +5,7 @@ use crate::types::core::{Content, Role};
 use crate::types::json_value_ffi::JsonValueFfi;
 use anyhow::Result;
 use indoc::indoc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const TOOLTIP_EXAMPLES: &[&str] = &[
     "analyzing KPIs",

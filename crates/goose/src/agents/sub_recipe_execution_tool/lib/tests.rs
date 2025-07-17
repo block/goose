@@ -139,7 +139,10 @@ fn test_format_error_summary() {
 
     let summary = format_error_summary(2, 5, failed_tasks);
 
-    assert_eq!(summary, "2/5 tasks failed:\nTask 'task1': Error 1\nOutput: output1\nTask 'task2': Error 2\nOutput: output2");
+    assert_eq!(
+        summary,
+        "2/5 tasks failed:\nTask 'task1': Error 1\nOutput: output1\nTask 'task2': Error 2\nOutput: output2"
+    );
 }
 
 #[test]

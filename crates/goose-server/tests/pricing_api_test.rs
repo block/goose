@@ -1,5 +1,5 @@
-use axum::http::StatusCode;
 use axum::Router;
+use axum::http::StatusCode;
 use axum::{body::Body, http::Request};
 use etcetera::AppStrategy;
 use serde_json::json;

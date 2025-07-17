@@ -10,7 +10,7 @@ use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
 mod tests;
 
 use mcp_core::protocol::JsonRpcMessage;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 pub async fn execute_tasks(
@@ -35,7 +35,7 @@ pub async fn execute_tasks(
                 return Err(format!(
                     "Task with ID '{}' not found in TasksManager",
                     task_id
-                ))
+                ));
             }
         }
     }

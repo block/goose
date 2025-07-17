@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use goose::config::Config;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
@@ -6,8 +6,8 @@ use std::{env, fs};
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 
 use super::github_recipe::{
-    list_github_recipes, retrieve_recipe_from_github, RecipeInfo, RecipeSource,
-    GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY,
+    GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY, RecipeInfo, RecipeSource, list_github_recipes,
+    retrieve_recipe_from_github,
 };
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";

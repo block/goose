@@ -1,4 +1,4 @@
-use crate::error::{to_env_var, ConfigError};
+use crate::error::{ConfigError, to_env_var};
 use config::{Config, Environment};
 use serde::Deserialize;
 use std::net::SocketAddr;

@@ -15,7 +15,7 @@ use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
-use super::utils::{get_model, ImageFormat};
+use super::utils::{ImageFormat, get_model};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -554,14 +554,17 @@ impl Provider for DatabricksProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            if let Ok(error_text) = response.text().await {
-                tracing::warn!(
-                    "Failed to fetch Databricks models: {} - {}",
-                    status,
-                    error_text
-                );
-            } else {
-                tracing::warn!("Failed to fetch Databricks models: {}", status);
+            match response.text().await {
+                Ok(error_text) => {
+                    tracing::warn!(
+                        "Failed to fetch Databricks models: {} - {}",
+                        status,
+                        error_text
+                    );
+                }
+                _ => {
+                    tracing::warn!("Failed to fetch Databricks models: {}", status);
+                }
             }
             return Ok(None); // Return None to fall back to manual input
         }

@@ -19,10 +19,10 @@ impl BenchRunner {
             Some(path) => {
                 if !path.is_absolute() {
                     anyhow::bail!(
-                         "Config Error in '{}': 'output_dir' must be an absolute path, but found relative path: {}",
-                         config_path.display(),
-                         path.display()
-                     );
+                        "Config Error in '{}': 'output_dir' must be an absolute path, but found relative path: {}",
+                        config_path.display(),
+                        path.display()
+                    );
                 }
                 path.clone()
             }

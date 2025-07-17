@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use goose::project::{Project, ProjectMetadata};
 use serde::{Deserialize, Serialize};

@@ -1,7 +1,7 @@
 use crate::{
-    providers::{create, errors::ProviderError, ProviderExtractResponse},
-    types::json_value_ffi::JsonValueFfi,
     Message, ModelConfig,
+    providers::{ProviderExtractResponse, create, errors::ProviderError},
+    types::json_value_ffi::JsonValueFfi,
 };
 
 /// Generates a structured output based on the provided schema,

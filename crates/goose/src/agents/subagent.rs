@@ -1,5 +1,5 @@
 use crate::{
-    agents::{extension_manager::ExtensionManager, Agent},
+    agents::{Agent, extension_manager::ExtensionManager},
     message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
     providers::base::Provider,
@@ -13,7 +13,7 @@ use mcp_core::{handler::ToolError, role::Role, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, json};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{debug, error, instrument};
 use uuid::Uuid;
 

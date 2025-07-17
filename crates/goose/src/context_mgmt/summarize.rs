@@ -220,8 +220,8 @@ mod tests {
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::{tool::Tool, Role};
     use mcp_core::{Content, TextContent, ToolCall};
+    use mcp_core::{Role, tool::Tool};
     use serde_json::json;
     use std::sync::Arc;
 

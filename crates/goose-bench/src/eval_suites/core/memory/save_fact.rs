@@ -3,8 +3,8 @@
 use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
-    ExtensionRequirements,
+    EvalMetricValue, Evaluation, ExtensionRequirements, collect_baseline_metrics,
+    metrics_hashmap_to_vec,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;

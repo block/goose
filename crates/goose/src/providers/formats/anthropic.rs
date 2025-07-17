@@ -2,11 +2,11 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 
 // Constants for frequently used strings in Anthropic API format
@@ -342,8 +342,12 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             let total_tokens_i32 =
                 (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
+            tracing::debug!(
+                "🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}",
+                total_input_i32,
+                output_tokens_i32,
+                total_tokens_i32
+            );
 
             Ok(Usage::new(
                 Some(total_input_i32),
@@ -795,9 +799,11 @@ mod tests {
                 thinking.thinking,
                 "This is a step-by-step thought process..."
             );
-            assert!(thinking
-                .signature
-                .starts_with("EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8g"));
+            assert!(
+                thinking
+                    .signature
+                    .starts_with("EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8g")
+            );
         } else {
             panic!("Expected Thinking content at index 0");
         }
@@ -911,7 +917,8 @@ mod tests {
         let original_value = std::env::var("CLAUDE_THINKING_ENABLED").ok();
 
         // Set the env var for this test
-        std::env::set_var("CLAUDE_THINKING_ENABLED", "true");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("CLAUDE_THINKING_ENABLED", "true") };
 
         // Execute the test
         let result = (|| {
@@ -940,8 +947,10 @@ mod tests {
 
         // Restore the original env var state
         match original_value {
-            Some(val) => std::env::set_var("CLAUDE_THINKING_ENABLED", val),
-            None => std::env::remove_var("CLAUDE_THINKING_ENABLED"),
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            Some(val) => unsafe { std::env::set_var("CLAUDE_THINKING_ENABLED", val) },
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            None => unsafe { std::env::remove_var("CLAUDE_THINKING_ENABLED") },
         }
 
         // Return the test result

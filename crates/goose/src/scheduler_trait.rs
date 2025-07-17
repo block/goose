@@ -34,7 +34,7 @@ pub trait SchedulerTrait: Send + Sync {
 
     /// Update a schedule's cron expression
     async fn update_schedule(&self, sched_id: &str, new_cron: String)
-        -> Result<(), SchedulerError>;
+    -> Result<(), SchedulerError>;
 
     /// Kill a running job
     async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError>;

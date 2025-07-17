@@ -3,8 +3,8 @@ use mcp_core::{Content, ToolError};
 use serde_json::Value;
 use std::sync::Arc;
 
-use crate::agents::subagent_types::SpawnSubAgentArgs;
 use crate::agents::Agent;
+use crate::agents::subagent_types::SpawnSubAgentArgs;
 
 impl Agent {
     /// Handle running a complete subagent task (replaces the individual spawn/send/check tools)

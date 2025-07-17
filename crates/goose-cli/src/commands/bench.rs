@@ -1,6 +1,6 @@
-use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
-use crate::{logging, session, Session};
+use crate::session::build_session;
+use crate::{Session, logging, session};
 use async_trait::async_trait;
 use goose::message::Message;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};

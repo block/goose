@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use goose::recipe::{Response, SubRecipe};
 
 use crate::recipes::search_recipe::retrieve_recipe_file;

@@ -46,7 +46,7 @@ async-stream = "0.3"
 minijinja = "2.8.0"
 include_dir = "0.7.4"
 tiktoken-rs = "0.6.0"
-chrono = { version = "0.4.38", features = ["serde"] }
+chrono = { version = "=0.4.38", features = ["serde"] }
 indoc = "2.0.5"
 nanoid = "0.4"
 sha2 = "0.10"

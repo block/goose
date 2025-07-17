@@ -1,10 +1,10 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
-    Json, Router,
 };
 use goose::config::Config;
 use goose::config::PermissionManager;

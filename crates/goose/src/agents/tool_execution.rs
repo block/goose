@@ -7,8 +7,8 @@ use futures::{Stream, StreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 use tokio::sync::Mutex;
 
-use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
+use crate::config::permission::PermissionLevel;
 use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
 use mcp_core::{Content, ToolResult};
@@ -29,7 +29,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
     }
 }
 
-use super::agent::{tool_stream, ToolStream};
+use super::agent::{ToolStream, tool_stream};
 use crate::agents::Agent;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \

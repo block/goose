@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -7,8 +7,8 @@ use std::sync::Once;
 use tokio::sync::Mutex;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
-    filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
-    Registry,
+    EnvFilter, Layer, Registry, filter::LevelFilter, fmt, layer::SubscriberExt,
+    util::SubscriberInitExt,
 };
 
 use goose::tracing::langfuse_layer;
@@ -187,9 +187,11 @@ mod tests {
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
         if cfg!(windows) {
-            env::set_var("USERPROFILE", temp_dir.path());
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("USERPROFILE", temp_dir.path()) };
         } else {
-            env::set_var("HOME", temp_dir.path());
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("HOME", temp_dir.path()) };
         }
         temp_dir
     }
@@ -239,11 +241,14 @@ mod tests {
 
         // Set up environment
         if cfg!(windows) {
-            env::set_var("USERPROFILE", test_dir);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("USERPROFILE", test_dir) };
         } else {
-            env::set_var("HOME", test_dir);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("HOME", test_dir) };
             // Also set TMPDIR to prevent temp directory sharing between tests
-            env::set_var("TMPDIR", test_dir);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::set_var("TMPDIR", test_dir) };
         }
 
         // Create error capture if needed - but don't use it in tests to avoid tokio runtime issues
@@ -459,33 +464,43 @@ mod tests {
 
         // Clear all Langfuse environment variables
         for (var, _) in &original_vars {
-            env::remove_var(var);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::remove_var(var) };
         }
 
         // Test without any environment variables
         assert!(langfuse_layer::create_langfuse_observer().is_none());
 
         // Test with standard Langfuse variables
-        env::set_var("LANGFUSE_PUBLIC_KEY", "test_public_key");
-        env::set_var("LANGFUSE_SECRET_KEY", "test_secret_key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_PUBLIC_KEY", "test_public_key") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_SECRET_KEY", "test_secret_key") };
         assert!(langfuse_layer::create_langfuse_observer().is_some());
 
         // Clear and test with init project variables
-        env::remove_var("LANGFUSE_PUBLIC_KEY");
-        env::remove_var("LANGFUSE_SECRET_KEY");
-        env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test_public_key");
-        env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test_secret_key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_PUBLIC_KEY") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_SECRET_KEY") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test_public_key") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test_secret_key") };
         assert!(langfuse_layer::create_langfuse_observer().is_some());
 
         // Test fallback behavior
-        env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY") };
         assert!(langfuse_layer::create_langfuse_observer().is_none());
 
         // Restore original environment variables
         for (var, value) in original_vars {
             match value {
-                Some(val) => env::set_var(var, val),
-                None => env::remove_var(var),
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                Some(val) => unsafe { env::set_var(var, val) },
+                // TODO: Audit that the environment access only happens in single-threaded code.
+                None => unsafe { env::remove_var(var) },
             }
         }
     }

@@ -25,4 +25,4 @@ libc = "0.2"
 once_cell = "1.18"
 
 [build-dependencies]
-cbindgen = "0.24.0"
+cbindgen = "0.29.0"

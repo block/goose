@@ -65,7 +65,8 @@ impl StreamableHttpActor {
     pub async fn run(mut self) {
         // Set environment variables
         for (key, value) in &self.env {
-            std::env::set_var(key, value);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var(key, value) };
         }
 
         // Handle outgoing messages

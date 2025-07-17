@@ -1,7 +1,7 @@
 use super::EditorModelImpl;
 use anyhow::Result;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// OpenAI-compatible editor that uses the standard chat completions format
 #[derive(Debug)]

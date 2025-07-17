@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{future, FutureExt};
+use futures::{FutureExt, future};
 use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
+use mcp_core::{Content, Tool, ToolCall, ToolError, prompt::Prompt};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -340,10 +340,7 @@ impl ExtensionManager {
                 You should only disable extensions found from the search_available_extensions tool. \
                 List all the extensions available to disable in the response. \
                 Explain that minimizing extensions helps with the recall of the correct tools to use.",
-                enabled_extensions_count,
-                total_tools,
-                MIN_EXTENSIONS,
-                MIN_TOOLS,
+                enabled_extensions_count, total_tools, MIN_EXTENSIONS, MIN_TOOLS,
             ))
         } else {
             Value::String(String::new()) // Empty string if under limits
@@ -919,24 +916,32 @@ mod tests {
         );
 
         // Test basic case
-        assert!(extension_manager
-            .get_client_for_tool("test_client__tool")
-            .is_some());
+        assert!(
+            extension_manager
+                .get_client_for_tool("test_client__tool")
+                .is_some()
+        );
 
         // Test leading underscores
-        assert!(extension_manager
-            .get_client_for_tool("__client__tool")
-            .is_some());
+        assert!(
+            extension_manager
+                .get_client_for_tool("__client__tool")
+                .is_some()
+        );
 
         // Test multiple underscores in client name, and ending with __
-        assert!(extension_manager
-            .get_client_for_tool("__cli__ent____tool")
-            .is_some());
+        assert!(
+            extension_manager
+                .get_client_for_tool("__cli__ent____tool")
+                .is_some()
+        );
 
         // Test unicode in tool name, "client 🚀" should become "client_"
-        assert!(extension_manager
-            .get_client_for_tool("client___tool")
-            .is_some());
+        assert!(
+            extension_manager
+                .get_client_for_tool("client___tool")
+                .is_some()
+        );
     }
 
     #[tokio::test]

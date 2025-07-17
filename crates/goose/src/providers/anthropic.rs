@@ -93,25 +93,46 @@ impl AnthropicProvider {
 
         // https://docs.anthropic.com/en/api/errors
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => payload.ok_or_else(|| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
+                Err(ProviderError::Authentication(format!(
+                    "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                    Status: {}. Response: {:?}",
+                    status, payload
+                )))
             }
             StatusCode::BAD_REQUEST => {
                 let mut error_msg = "Unknown error".to_string();
                 if let Some(payload) = &payload {
                     if let Some(error) = payload.get("error") {
-                    tracing::debug!("Bad Request Error: {error:?}");
-                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
-                    if error_msg.to_lowercase().contains("too long") || error_msg.to_lowercase().contains("too many") {
-                        return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
+                        tracing::debug!("Bad Request Error: {error:?}");
+                        error_msg = error
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Unknown error")
+                            .to_string();
+                        if error_msg.to_lowercase().contains("too long")
+                            || error_msg.to_lowercase().contains("too many")
+                        {
+                            return Err(ProviderError::ContextLengthExceeded(
+                                error_msg.to_string(),
+                            ));
+                        }
                     }
-                }}
+                }
                 tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}. Message: {}",
+                    status, error_msg
+                )))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -121,9 +142,16 @@ impl AnthropicProvider {
             }
             _ => {
                 tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}",
+                    status
+                )))
             }
         }
     }
@@ -203,8 +231,12 @@ impl Provider for AnthropicProvider {
         // Parse response
         let message = response_to_message(response.clone())?;
         let usage = get_usage(&response)?;
-        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
-                usage.input_tokens, usage.output_tokens, usage.total_tokens);
+        tracing::debug!(
+            "🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.total_tokens
+        );
 
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);

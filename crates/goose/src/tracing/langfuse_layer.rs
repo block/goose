@@ -2,7 +2,7 @@ use crate::tracing::observation_layer::{BatchManager, ObservationLayer, SpanTrac
 use chrono::Utc;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
@@ -257,9 +257,11 @@ mod tests {
                 "LANGFUSE_URL",
             ] {
                 if let Some(value) = self.original_env_vars.get(var) {
-                    env::set_var(var, value);
+                    // TODO: Audit that the environment access only happens in single-threaded code.
+                    unsafe { env::set_var(var, value) };
                 } else {
-                    env::remove_var(var);
+                    // TODO: Audit that the environment access only happens in single-threaded code.
+                    unsafe { env::remove_var(var) };
                 }
             }
         }
@@ -400,7 +402,8 @@ mod tests {
             "LANGFUSE_INIT_PROJECT_SECRET_KEY",
             "LANGFUSE_URL",
         ] {
-            env::remove_var(var);
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { env::remove_var(var) };
         }
 
         let observer = create_langfuse_observer();
@@ -410,45 +413,56 @@ mod tests {
         );
 
         // Test 2: Only public key set (regular)
-        env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key") };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_none(),
             "Observer should be None with only public key"
         );
-        env::remove_var("LANGFUSE_PUBLIC_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_PUBLIC_KEY") };
 
         // Test 3: Only secret key set (regular)
-        env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key") };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_none(),
             "Observer should be None with only secret key"
         );
-        env::remove_var("LANGFUSE_SECRET_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_SECRET_KEY") };
 
         // Test 4: Only public key set (init project)
-        env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key") };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_none(),
             "Observer should be None with only init project public key"
         );
-        env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY") };
 
         // Test 5: Only secret key set (init project)
-        env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key") };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_none(),
             "Observer should be None with only init project secret key"
         );
-        env::remove_var("LANGFUSE_INIT_PROJECT_SECRET_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_INIT_PROJECT_SECRET_KEY") };
 
         // Test 6: Both regular keys set (should succeed)
-        env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key");
-        env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key");
-        env::set_var("LANGFUSE_URL", fixture.mock_server_uri());
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_URL", fixture.mock_server_uri()) };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_some(),
@@ -456,12 +470,16 @@ mod tests {
         );
 
         // Clean up regular keys
-        env::remove_var("LANGFUSE_PUBLIC_KEY");
-        env::remove_var("LANGFUSE_SECRET_KEY");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_PUBLIC_KEY") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::remove_var("LANGFUSE_SECRET_KEY") };
 
         // Test 7: Both init project keys set (should succeed)
-        env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key");
-        env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key");
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key") };
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key") };
         let observer = create_langfuse_observer();
         assert!(
             observer.is_some(),

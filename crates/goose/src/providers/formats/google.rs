@@ -7,8 +7,8 @@ use anyhow::Result;
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
-use rand::{distributions::Alphanumeric, Rng};
-use serde_json::{json, Map, Value};
+use rand::{Rng, distributions::Alphanumeric};
+use serde_json::{Map, Value, json};
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {

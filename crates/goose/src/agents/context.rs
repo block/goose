@@ -4,7 +4,7 @@ use crate::message::Message;
 use crate::token_counter::create_async_token_counter;
 
 use crate::context_mgmt::summarize::summarize_messages_async;
-use crate::context_mgmt::truncate::{truncate_messages, OldestFirstTruncation};
+use crate::context_mgmt::truncate::{OldestFirstTruncation, truncate_messages};
 use crate::context_mgmt::{estimate_target_context_limit, get_messages_token_counts_async};
 
 use super::super::agents::Agent;
@@ -40,8 +40,12 @@ impl Agent {
             new_token_counts.push(assistant_tokens);
         } else {
             // If we can't fit the assistant message, at least log what happened
-            tracing::warn!("Cannot add truncation notice message due to context limits. Current: {}, Assistant: {}, Limit: {}", 
-                          current_total, assistant_tokens, target_context_limit);
+            tracing::warn!(
+                "Cannot add truncation notice message due to context limits. Current: {}, Assistant: {}, Limit: {}",
+                current_total,
+                assistant_tokens,
+                target_context_limit
+            );
         }
 
         Ok((new_messages, new_token_counts))
@@ -77,8 +81,12 @@ impl Agent {
                 new_token_counts.push(assistant_tokens);
             } else {
                 // If we can't fit the assistant message, at least log what happened
-                tracing::warn!("Cannot add summarization notice message due to context limits. Current: {}, Assistant: {}, Limit: {}", 
-                              current_total, assistant_tokens, target_context_limit);
+                tracing::warn!(
+                    "Cannot add summarization notice message due to context limits. Current: {}, Assistant: {}, Limit: {}",
+                    current_total,
+                    assistant_tokens,
+                    target_context_limit
+                );
             }
         }
 

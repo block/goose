@@ -184,7 +184,7 @@ impl MessageContent {
 
     // Add this new method to check for summarization requested content
     pub fn as_summarization_requested(&self) -> Option<&SummarizationRequested> {
-        if let MessageContent::SummarizationRequested(ref summarization_requested) = self {
+        if let MessageContent::SummarizationRequested(summarization_requested) = self {
             Some(summarization_requested)
         } else {
             None
@@ -192,7 +192,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
-        if let MessageContent::ToolRequest(ref tool_request) = self {
+        if let MessageContent::ToolRequest(tool_request) = self {
             Some(tool_request)
         } else {
             None
@@ -200,7 +200,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
-        if let MessageContent::ToolResponse(ref tool_response) = self {
+        if let MessageContent::ToolResponse(tool_response) = self {
             Some(tool_response)
         } else {
             None
@@ -208,7 +208,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
-        if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
+        if let MessageContent::ToolConfirmationRequest(tool_confirmation_request) = self {
             Some(tool_confirmation_request)
         } else {
             None
@@ -315,7 +315,7 @@ pub fn push_message(messages: &mut Vec<Message>, message: Message) {
         .filter(|m| m.id.is_some() && m.id == message.id)
     {
         match (last.content.last_mut(), message.content.last()) {
-            (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
+            (Some(MessageContent::Text(last)), Some(MessageContent::Text(new)))
                 if message.content.len() == 1 =>
             {
                 last.text.push_str(&new.text);
@@ -516,7 +516,7 @@ mod tests {
     use mcp_core::handler::ToolError;
     use mcp_core::prompt::PromptMessageContent;
     use mcp_core::resource::ResourceContents;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     #[test]
     fn test_message_serialization() {

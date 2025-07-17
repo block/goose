@@ -1,8 +1,8 @@
 use base64::Engine;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
@@ -12,22 +12,22 @@ use tokio::{process::Command, sync::mpsc};
 use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
+    Content,
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
     protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations},
-    Content,
 };
-use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use mcp_server::router::CapabilitiesBuilder;
 
 mod docx_tool;
 mod pdf_tool;
 mod xlsx_tool;
 
 mod platform;
-use platform::{create_system_automation, SystemAutomation};
+use platform::{SystemAutomation, create_system_automation};
 
 /// An extension designed for non-developers to help them with common tasks like
 /// web scraping, data processing, and automation.
@@ -625,37 +625,38 @@ impl ComputerControllerRouter {
         }
 
         // Process based on save_as parameter
-        let (content, extension) =
-            match save_as {
-                "text" => {
-                    let text = response.text().await.map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to get text: {}", e))
-                    })?;
-                    (text.into_bytes(), "txt")
-                }
-                "json" => {
-                    let text = response.text().await.map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to get text: {}", e))
-                    })?;
-                    // Verify it's valid JSON
-                    serde_json::from_str::<Value>(&text).map_err(|e| {
-                        ToolError::ExecutionError(format!("Invalid JSON response: {}", e))
-                    })?;
-                    (text.into_bytes(), "json")
-                }
-                "binary" => {
-                    let bytes = response.bytes().await.map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to get bytes: {}", e))
-                    })?;
-                    (bytes.to_vec(), "bin")
-                }
-                _ => {
-                    return Err(ToolError::InvalidParameters(format!(
+        let (content, extension) = match save_as {
+            "text" => {
+                let text = response
+                    .text()
+                    .await
+                    .map_err(|e| ToolError::ExecutionError(format!("Failed to get text: {}", e)))?;
+                (text.into_bytes(), "txt")
+            }
+            "json" => {
+                let text = response
+                    .text()
+                    .await
+                    .map_err(|e| ToolError::ExecutionError(format!("Failed to get text: {}", e)))?;
+                // Verify it's valid JSON
+                serde_json::from_str::<Value>(&text).map_err(|e| {
+                    ToolError::ExecutionError(format!("Invalid JSON response: {}", e))
+                })?;
+                (text.into_bytes(), "json")
+            }
+            "binary" => {
+                let bytes = response.bytes().await.map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to get bytes: {}", e))
+                })?;
+                (bytes.to_vec(), "bin")
+            }
+            _ => {
+                return Err(ToolError::InvalidParameters(format!(
                     "Invalid 'save_as' parameter: {}. Valid options are: 'text', 'json', 'binary'",
                     save_as
                 )));
-                }
-            };
+            }
+        };
 
         // Save to cache
         let cache_path = self.save_to_cache(&content, "web", extension).await?;
@@ -739,9 +740,10 @@ impl ComputerControllerRouter {
                 script_path.display().to_string()
             }
             _ => {
-                return Err( ToolError::InvalidParameters(
-                    format!("Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell", language)
-                ));
+                return Err(ToolError::InvalidParameters(format!(
+                    "Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell",
+                    language
+                )));
             }
         };
 
@@ -1095,7 +1097,7 @@ impl ComputerControllerRouter {
             _ => Err(ToolError::InvalidParameters(format!(
                 "Invalid 'command' parameter: {}. Valid options are: 'list', 'view', 'delete', 'clear'",
                 command
-            )))
+            ))),
         }
     }
 }

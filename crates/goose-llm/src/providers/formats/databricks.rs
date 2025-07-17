@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Error};
-use serde_json::{json, Value};
+use anyhow::{Error, anyhow};
+use serde_json::{Value, json};
 
 use crate::{
     message::{Message, MessageContent},
@@ -7,7 +7,7 @@ use crate::{
     providers::{
         base::Usage,
         errors::ProviderError,
-        utils::{convert_image, is_valid_function_name, sanitize_function_name, ImageFormat},
+        utils::{ImageFormat, convert_image, is_valid_function_name, sanitize_function_name},
     },
     types::core::{Content, Role, Tool, ToolCall, ToolError},
 };
@@ -122,14 +122,16 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                     }
                                 }
                             }
-                            let tool_response_content: Value = json!(tool_content
-                                .iter()
-                                .map(|content| match content {
-                                    Content::Text(text) => text.text.clone(),
-                                    _ => String::new(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join(" "));
+                            let tool_response_content: Value = json!(
+                                tool_content
+                                    .iter()
+                                    .map(|content| match content {
+                                        Content::Text(text) => text.text.clone(),
+                                        _ => String::new(),
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(" ")
+                            );
 
                             // Add tool response as a separate message
                             result.push(json!({
@@ -751,10 +753,12 @@ mod tests {
 
         let result = format_tools(&[tool1, tool2]);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Duplicate tool name"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate tool name")
+        );
 
         Ok(())
     }

@@ -4,13 +4,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use url::Url;
 
 use super::{
     errors::ProviderError,
     formats::databricks::{create_request, get_usage, response_to_message},
-    utils::{get_env, get_model, ImageFormat},
+    utils::{ImageFormat, get_env, get_model},
 };
 use crate::{
     message::Message,
@@ -307,7 +307,7 @@ impl Provider for DatabricksProvider {
                 return Err(ProviderError::ResponseParseError(format!(
                     "Unexpected content type: {:?}",
                     other
-                )))
+                )));
             }
         };
 

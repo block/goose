@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
@@ -299,7 +299,7 @@ pub fn from_bedrock_tool_result_content_block(
         _ => {
             return Err(ToolError::ExecutionError(
                 "Unsupported tool result from Bedrock".to_string(),
-            ))
+            ));
         }
     })
 }

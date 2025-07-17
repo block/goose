@@ -18,7 +18,7 @@ ctor = "0.2.7"
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 async-trait = "0.1.86"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"

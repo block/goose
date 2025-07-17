@@ -5,15 +5,15 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     routing::get,
-    Json, Router,
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
+use goose::session::info::{SessionInfo, SortOrder, get_valid_sorted_sessions};
 use serde::Serialize;
 use tracing::{error, info};
 use utoipa::ToSchema;

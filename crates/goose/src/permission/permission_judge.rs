@@ -1,14 +1,14 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
-use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
+use crate::config::permission::PermissionLevel;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
-use mcp_core::{tool::Tool, TextContent};
+use mcp_core::{TextContent, tool::Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -270,7 +270,7 @@ mod tests {
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
     use mcp_core::ToolCall;
-    use mcp_core::{tool::Tool, Role, ToolResult};
+    use mcp_core::{Role, ToolResult, tool::Tool};
     use serde_json::json;
     use tempfile::NamedTempFile;
 
@@ -343,9 +343,11 @@ mod tests {
         assert_eq!(messages.len(), 1);
         let content = &messages[0].content[0];
         if let MessageContent::Text(text_content) = content {
-            assert!(text_content
-                .text
-                .contains("Analyze the tool requests and list the tools"));
+            assert!(
+                text_content
+                    .text
+                    .contains("Analyze the tool requests and list the tools")
+            );
             assert!(text_content.text.contains("file_reader"));
         } else {
             panic!("Expected text content");

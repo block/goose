@@ -20,7 +20,7 @@ use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
 use crate::session;
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use crate::session::{SessionBuilderConfig, SessionSettings, build_session};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -896,7 +896,9 @@ pub async fn cli() -> Result<()> {
                     extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
                 }
                 (None, None, None) => {
-                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+                    eprintln!(
+                        "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+                    );
                     std::process::exit(1);
                 }
             };
