@@ -32,24 +32,19 @@ export default function GooseDesktopInstaller({
   
   // Build the goose:// URL
   const buildGooseUrl = () => {
-    const params = new URLSearchParams();
-    params.set('cmd', command);
+    const urlParts = [
+      `cmd=${encodeURIComponent(command)}`,
+      ...args.map(arg => `arg=${encodeURIComponent(arg)}`),
+      `id=${encodeURIComponent(extensionId)}`,
+      `name=${encodeURIComponent(extensionName)}`,
+      `description=${encodeURIComponent(description)}`,
+      // Add environment variables (matching TLDR sections encoding)
+      ...envVars.map(envVar => 
+        `env=${encodeURIComponent(`${envVar.name}=${envVar.label}`)}`
+      )
+    ];
     
-    // Add all args
-    args.forEach(arg => {
-      params.append('arg', arg);
-    });
-    
-    params.set('id', extensionId);
-    params.set('name', extensionName);
-    params.set('description', description);
-    
-    // Add environment variables
-    envVars.forEach(envVar => {
-      params.append('env', `${envVar.name}=${envVar.label}`);
-    });
-    
-    return `goose://extension?${params.toString()}`;
+    return `goose://extension?${urlParts.join('&')}`;
   };
 
   // Generate step 3 content
