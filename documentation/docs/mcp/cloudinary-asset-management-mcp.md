@@ -5,6 +5,7 @@ description: Add Cloudinary Asset Management MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/4diEvoRFVrQ" />
@@ -38,11 +39,16 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=--package&arg=@cloudinary/asset-management&arg=--&arg=mcp&arg=start&id=cloudinary&name=Cloudinary%20Asset%20Management&description=Powerful%20media%20processing%20and%20transformation&env=CLOUDINARY_URL%3DCloudinary%20URL)
-  2. Press `Yes` to confirm the installation
-  3. Obtain your [CLOUDINARY_URL](https://console.cloudinary.com/settings/api-keys) from your Cloudinary dashboard and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="cloudinary"
+    extensionName="Cloudinary Asset Management"
+    description="Powerful media processing and transformation"
+    command="npx"
+    args={["-y", "--package", "@cloudinary/asset-management", "--", "mcp", "start"]}
+    envVars={[{ name: "CLOUDINARY_URL", label: "Cloudinary URL (cloudinary://api_key:api_secret@cloud_name)" }]}
+    apiKeyLink="https://console.cloudinary.com/settings/api-keys"
+    apiKeyLinkText="Get your Cloudinary URL"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
