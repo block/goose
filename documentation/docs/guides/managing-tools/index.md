@@ -33,7 +33,7 @@ import styles from '@site/src/components/Card/styles.module.css';
     <Card 
       title="Ollama Tool Shim"
       description="Enable tool calling for models that don't natively support it using an experimental local interpreter model setup."
-      link="/docs/guides/experimental-features#ollama-tool-shim"
+      link="/docs/experimental/ollama"
     />
   </div>
 </div>

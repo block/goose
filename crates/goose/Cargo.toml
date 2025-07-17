@@ -43,7 +43,7 @@ uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
 async-trait = "0.1"
 async-stream = "0.3"
-minijinja = "2.8.0"
+minijinja = { version = "2.10.2", features = ["loader"] }
 include_dir = "0.7.4"
 tiktoken-rs = "0.6.0"
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -81,6 +81,7 @@ fs2 = "0.4.3"
 tokio-stream = "0.1.17"
 dashmap = "6.1"
 ahash = "0.8"
+tokio-util = "0.7.15"
 
 # Vector database for tool selection
 lancedb = "0.13"

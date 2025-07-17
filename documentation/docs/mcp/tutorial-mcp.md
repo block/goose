@@ -41,7 +41,8 @@ goose configure
 │  ● Built-in Extension (Use an extension that comes with Goose)
 // highlight-end  
 │  ○ Command-line Extension 
-│  ○ Remote Extension 
+│  ○ Remote Extension (SSE) 
+│  ○ Remote Extension (Streaming HTTP) 
 └  
 ```
 

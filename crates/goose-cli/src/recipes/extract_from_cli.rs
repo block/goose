@@ -3,8 +3,10 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result};
 use goose::recipe::{Response, SubRecipe};
 
+use crate::recipes::print_recipe::print_recipe_info;
+use crate::recipes::recipe::load_recipe;
 use crate::recipes::search_recipe::retrieve_recipe_file;
-use crate::{cli::InputConfig, recipes::recipe::load_recipe_as_template, session::SessionSettings};
+use crate::{cli::InputConfig, session::SessionSettings};
 
 #[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
@@ -17,10 +19,11 @@ pub fn extract_recipe_info_from_cli(
     Option<Vec<SubRecipe>>,
     Option<Response>,
 )> {
-    let recipe = load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
+    let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
     });
+    print_recipe_info(&recipe, params);
     let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
     if !additional_sub_recipes.is_empty() {
         for sub_recipe_name in additional_sub_recipes {
@@ -32,6 +35,7 @@ pub fn extract_recipe_info_from_cli(
                         path: recipe_file_path.to_string_lossy().to_string(),
                         name,
                         values: None,
+                        sequential_when_repeated: true,
                     };
                     all_sub_recipes.push(additional_sub_recipe);
                 }
@@ -47,7 +51,7 @@ pub fn extract_recipe_info_from_cli(
     }
     Ok((
         InputConfig {
-            contents: recipe.prompt,
+            contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
             extensions_override: recipe.extensions,
             additional_system_prompt: recipe.instructions,
         },

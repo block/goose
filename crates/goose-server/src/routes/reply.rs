@@ -11,7 +11,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{Message, MessageContent},
+    message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -225,13 +225,14 @@ async fn handler(
                 return;
             }
         };
+        let saved_message_count = all_messages.len();
 
         loop {
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                            all_messages.push(message.clone());
+                            push_message(&mut all_messages, message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
                                 let _ = stream_event(
@@ -242,16 +243,6 @@ async fn handler(
                                 ).await;
                                 break;
                             }
-
-
-                            let session_path = session_path.clone();
-                            let messages = all_messages.clone();
-                            let provider = Arc::clone(provider.as_ref().unwrap());
-                            tokio::spawn(async move {
-                                if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
-                                    tracing::error!("Failed to store session history: {:?}", e);
-                                }
-                            });
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                             if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
@@ -301,6 +292,17 @@ async fn handler(
                     }
                 }
             }
+        }
+
+        if all_messages.len() > saved_message_count {
+            let provider = Arc::clone(provider.as_ref().unwrap());
+            tokio::spawn(async move {
+                if let Err(e) =
+                    session::persist_messages(&session_path, &all_messages, Some(provider)).await
+                {
+                    tracing::error!("Failed to store session history: {:?}", e);
+                }
+            });
         }
 
         let _ = stream_event(
@@ -404,7 +406,7 @@ async fn ask_handler(
     }
 
     if !response_message.content.is_empty() {
-        all_messages.push(response_message);
+        push_message(&mut all_messages, response_message);
     }
 
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {

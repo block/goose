@@ -83,6 +83,8 @@ type ElectronAPI = {
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
+  setWakelock: (enable: boolean) => Promise<boolean>;
+  getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   on: (
     channel: string,
@@ -116,7 +118,20 @@ type AppConfigAPI = {
 const electronAPI: ElectronAPI = {
   platform: process.platform,
   reactReady: () => ipcRenderer.send('react-ready'),
-  getConfig: () => config,
+  getConfig: () => {
+    // Add fallback to localStorage if config from preload is empty or missing
+    if (!config || Object.keys(config).length === 0) {
+      try {
+        const storedConfig = localStorage.getItem('gooseConfig');
+        if (storedConfig) {
+          return JSON.parse(storedConfig);
+        }
+      } catch (e) {
+        console.warn('Failed to parse stored config from localStorage:', e);
+      }
+    }
+    return config;
+  },
   hideWindow: () => ipcRenderer.send('hide-window'),
   directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
   createChatWindow: (
@@ -163,6 +178,8 @@ const electronAPI: ElectronAPI = {
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
   getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
+  setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
+  getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   on: (
     channel: string,

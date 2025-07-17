@@ -1,16 +1,32 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { FolderKey } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
 import { debounce } from 'lodash';
-import BottomMenu from './bottom_menu/BottomMenu';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
+import { DirSwitcher } from './bottom_menu/DirSwitcher';
+import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
+import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import { ManualSummarizeButton } from './context_management/ManualSummaryButton';
+import { AlertType, useAlerts } from './alerts';
+import { useToolCount } from './alerts/useToolCount';
+import { useConfig } from './ConfigContext';
+import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
+import { useDictationSettings } from '../hooks/useDictationSettings';
+import { useChatContextManager } from './context_management/ChatContextManager';
+import { useChatContext } from '../contexts/ChatContext';
+import { COST_TRACKING_ENABLED } from '../updates';
+import { CostTracker } from './bottom_menu/CostTracker';
+import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
+import { Recipe } from '../recipe';
 
 interface PastedImage {
   id: string;
@@ -24,18 +40,28 @@ interface PastedImage {
 const MAX_IMAGES_PER_MESSAGE = 5;
 const MAX_IMAGE_SIZE_MB = 5;
 
+// Constants for token and tool alerts
+const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
+const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
+const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
+
+interface ModelLimit {
+  pattern: string;
+  context_limit: number;
+}
+
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
   commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
-  droppedFiles?: string[];
+  droppedFiles?: DroppedFile[];
+  onFilesProcessed?: () => void; // Callback to clear dropped files after processing
   setView: (view: View) => void;
   numTokens?: number;
   inputTokens?: number;
   outputTokens?: number;
-  hasMessages?: boolean;
   messages?: Message[];
   setMessages: (messages: Message[]) => void;
   sessionCosts?: {
@@ -45,6 +71,9 @@ interface ChatInputProps {
       totalCost: number;
     };
   };
+  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
+  disableAnimation?: boolean;
+  recipeConfig?: Recipe | null;
 }
 
 export default function ChatInput({
@@ -53,19 +82,41 @@ export default function ChatInput({
   onStop,
   commandHistory = [],
   initialValue = '',
+  droppedFiles = [],
+  onFilesProcessed,
   setView,
   numTokens,
   inputTokens,
   outputTokens,
-  droppedFiles = [],
   messages = [],
   setMessages,
+  disableAnimation = false,
   sessionCosts,
+  setIsGoosehintsModalOpen,
+  recipeConfig,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const { alerts, addAlert, clearAlerts } = useAlerts();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const toolCount = useToolCount();
+  const { isLoadingSummary } = useChatContextManager();
+  const { getProviders, read } = useConfig();
+  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
+  const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
+  const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
+
+  // Draft functionality - get chat context and global draft context
+  // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
+  const chatContext = useChatContext(); // This should always be available now
+  const draftLoadedRef = useRef(false);
+
+  // Debug logging for draft context
+  useEffect(() => {
+    // Debug logging removed - draft functionality is working correctly
+  }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
   const [mentionPopover, setMentionPopover] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -79,7 +130,10 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
   });
-  const mentionPopoverRef = useRef<{ getDisplayFiles: () => FileItemWithMatch[]; selectFile: (index: number) => void }>(null);
+  const mentionPopoverRef = useRef<{
+    getDisplayFiles: () => FileItemWithMatch[];
+    selectFile: (index: number) => void;
+  }>(null);
 
   // Whisper hook for voice dictation
   const {
@@ -114,10 +168,16 @@ export default function ChatInput({
     },
   });
 
+  // Get dictation settings to check configuration status
+  const { settings: dictationSettings } = useDictationSettings();
+
   // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
+
+    // Reset draft loaded flag when initialValue changes
+    draftLoadedRef.current = false;
 
     // Use a functional update to get the current pastedImages
     // and perform cleanup. This avoids needing pastedImages in the deps.
@@ -136,6 +196,38 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
+  // Draft functionality - load draft if no initial value or recipe
+  useEffect(() => {
+    // Reset draft loaded flag when context changes
+    draftLoadedRef.current = false;
+  }, [chatContext?.contextKey]);
+
+  useEffect(() => {
+    // Only load draft once and if conditions are met
+    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+      const draftText = chatContext.draft || '';
+
+      if (draftText) {
+        setDisplayValue(draftText);
+        setValue(draftText);
+      }
+
+      // Always mark as loaded after checking, regardless of whether we found a draft
+      draftLoadedRef.current = true;
+    }
+  }, [chatContext, initialValue, recipeConfig]);
+
+  // Save draft when user types (debounced)
+  const debouncedSaveDraft = useMemo(
+    () =>
+      debounce((value: string) => {
+        if (chatContext && chatContext.setDraft) {
+          chatContext.setDraft(value);
+        }
+      }, 500), // Save draft after 500ms of no typing
+    [chatContext]
+  );
+
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -143,7 +235,27 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const [processedFilePaths, setProcessedFilePaths] = useState<string[]>([]);
+
+  // Use shared file drop hook for ChatInput
+  const {
+    droppedFiles: localDroppedFiles,
+    setDroppedFiles: setLocalDroppedFiles,
+    handleDrop: handleLocalDrop,
+    handleDragOver: handleLocalDragOver,
+  } = useFileDrop();
+
+  // Merge local dropped files with parent dropped files
+  const allDroppedFiles = [...droppedFiles, ...localDroppedFiles];
+
+  const handleRemoveDroppedFile = (idToRemove: string) => {
+    // Remove from local dropped files
+    setLocalDroppedFiles((prev) => prev.filter((file) => file.id !== idToRemove));
+
+    // If it's from parent, call the parent's callback
+    if (onFilesProcessed && droppedFiles.some((file) => file.id === idToRemove)) {
+      onFilesProcessed();
+    }
+  };
 
   const handleRemovePastedImage = (idToRemove: string) => {
     const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
@@ -189,24 +301,133 @@ export default function ChatInput({
     }
   }, []);
 
-  const minHeight = '1rem';
-  const maxHeight = 10 * 24;
-
-  // If we have dropped files, add them to the input and update our state.
-  useEffect(() => {
-    if (processedFilePaths !== droppedFiles && droppedFiles.length > 0) {
-      // Append file paths that aren't in displayValue.
-      const currentText = displayValue || '';
-      const joinedPaths = currentText.trim()
-        ? `${currentText.trim()} ${droppedFiles.filter((path) => !currentText.includes(path)).join(' ')}`
-        : droppedFiles.join(' ');
-
-      setDisplayValue(joinedPaths);
-      setValue(joinedPaths);
-      textAreaRef.current?.focus();
-      setProcessedFilePaths(droppedFiles);
+  // Load model limits from the API
+  const getModelLimits = async () => {
+    try {
+      const response = await read('model-limits', false);
+      if (response) {
+        // The response is already parsed, no need for JSON.parse
+        return response as ModelLimit[];
+      }
+    } catch (err) {
+      console.error('Error fetching model limits:', err);
     }
-  }, [droppedFiles, processedFilePaths, displayValue]);
+    return [];
+  };
+
+  // Helper function to find model limit using pattern matching
+  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
+    if (!modelName) return null;
+    const matchingLimit = modelLimits.find((limit) =>
+      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
+    );
+    return matchingLimit ? matchingLimit.context_limit : null;
+  };
+
+  // Load providers and get current model's token limit
+  const loadProviderDetails = async () => {
+    try {
+      // Reset token limit loaded state
+      setIsTokenLimitLoaded(false);
+
+      // Get current model and provider first to avoid unnecessary provider fetches
+      const { model, provider } = await getCurrentModelAndProvider();
+      if (!model || !provider) {
+        console.log('No model or provider found');
+        setIsTokenLimitLoaded(true);
+        return;
+      }
+
+      const providers = await getProviders(true);
+
+      // Find the provider details for the current provider
+      const currentProvider = providers.find((p) => p.name === provider);
+      if (currentProvider?.metadata?.known_models) {
+        // Find the model's token limit from the backend response
+        const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
+        if (modelConfig?.context_limit) {
+          setTokenLimit(modelConfig.context_limit);
+          setIsTokenLimitLoaded(true);
+          return;
+        }
+      }
+
+      // Fallback: Use pattern matching logic if no exact model match was found
+      const modelLimit = await getModelLimits();
+      const fallbackLimit = findModelLimit(model as string, modelLimit);
+      if (fallbackLimit !== null) {
+        setTokenLimit(fallbackLimit);
+        setIsTokenLimitLoaded(true);
+        return;
+      }
+
+      // If no match found, use the default model limit
+      setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      setIsTokenLimitLoaded(true);
+    } catch (err) {
+      console.error('Error loading providers or token limit:', err);
+      // Set default limit on error
+      setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      setIsTokenLimitLoaded(true);
+    }
+  };
+
+  // Initial load and refresh when model changes
+  useEffect(() => {
+    loadProviderDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentModel, currentProvider]);
+
+  // Handle tool count alerts and token usage
+  useEffect(() => {
+    clearAlerts();
+
+    // Only show token alerts if we have loaded the real token limit
+    if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
+      if (numTokens >= tokenLimit) {
+        // Only show error alert when limit reached
+        addAlert({
+          type: AlertType.Error,
+          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You've reached the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          autoShow: true, // Auto-show token limit errors
+        });
+      } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
+        // Only show warning alert when approaching limit
+        addAlert({
+          type: AlertType.Warning,
+          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          autoShow: true, // Auto-show token limit warnings
+        });
+      } else {
+        // Show info alert only when not in warning/error state
+        addAlert({
+          type: AlertType.Info,
+          message: 'Context window',
+          progress: {
+            current: numTokens,
+            total: tokenLimit,
+          },
+        });
+      }
+    }
+
+    // Add tool count alert if we have the data
+    if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
+      addAlert({
+        type: AlertType.Warning,
+        message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
+        action: {
+          text: 'View extensions',
+          onClick: () => setView('settings'),
+        },
+        autoShow: false, // Don't auto-show tool count warnings
+      });
+    }
+    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+
+  const maxHeight = 10 * 24;
 
   // Debounced function to update actual value
   const debouncedSetValue = useMemo(
@@ -234,16 +455,23 @@ export default function ChatInput({
     }
   }, [debouncedAutosize, displayValue]);
 
+  // Reset textarea height when displayValue is empty
+  useEffect(() => {
+    if (textAreaRef.current && displayValue === '') {
+      textAreaRef.current.style.height = 'auto';
+    }
+  }, [displayValue]);
+
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
-    
+
     setDisplayValue(val); // Update display immediately
     debouncedSetValue(val); // Debounce the actual state update
-
+    debouncedSaveDraft(val); // Save draft with debounce
     // Mark that the user has typed something
     setHasUserTyped(true);
-    
+
     // Check for @ mention
     checkForMention(val, cursorPosition, evt.target);
   };
@@ -252,24 +480,24 @@ export default function ChatInput({
     // Find the last @ before the cursor
     const beforeCursor = text.slice(0, cursorPosition);
     const lastAtIndex = beforeCursor.lastIndexOf('@');
-    
+
     if (lastAtIndex === -1) {
       // No @ found, close mention popover
-      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
-    
+
     // Check if there's a space between @ and cursor (which would end the mention)
     const afterAt = beforeCursor.slice(lastAtIndex + 1);
     if (afterAt.includes(' ') || afterAt.includes('\n')) {
-      setMentionPopover(prev => ({ ...prev, isOpen: false }));
+      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
-    
+
     // Calculate position for the popover - position it above the chat input
     const textAreaRect = textArea.getBoundingClientRect();
-    
-    setMentionPopover(prev => ({
+
+    setMentionPopover((prev) => ({
       ...prev,
       isOpen: true,
       position: {
@@ -298,48 +526,60 @@ export default function ChatInput({
           id: `error-${Date.now()}`,
           dataUrl: '',
           isLoading: false,
-          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed.`,
+          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed. Currently have ${pastedImages.length}.`,
         },
       ]);
 
-      // Remove the error message after 3 seconds
+      // Remove the error message after 5 seconds
       setTimeout(() => {
         setPastedImages((prev) => prev.filter((img) => !img.id.startsWith('error-')));
-      }, 3000);
+      }, 5000);
 
       return;
     }
 
     evt.preventDefault();
 
+    // Process each image file
+    const newImages: PastedImage[] = [];
+
     for (const file of imageFiles) {
       // Check individual file size before processing
       if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
         const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        setPastedImages((prev) => [
-          ...prev,
-          {
-            id: errorId,
-            dataUrl: '',
-            isLoading: false,
-            error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
-          },
-        ]);
+        newImages.push({
+          id: errorId,
+          dataUrl: '',
+          isLoading: false,
+          error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
+        });
 
-        // Remove the error message after 3 seconds
+        // Remove the error message after 5 seconds
         setTimeout(() => {
           setPastedImages((prev) => prev.filter((img) => img.id !== errorId));
-        }, 3000);
+        }, 5000);
 
         continue;
       }
 
+      const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      // Add the image with loading state
+      newImages.push({
+        id: imageId,
+        dataUrl: '',
+        isLoading: true,
+      });
+
+      // Process the image asynchronously
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) {
-          const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          setPastedImages((prev) => [...prev, { id: imageId, dataUrl, isLoading: true }]);
+          // Update the image with the data URL
+          setPastedImages((prev) =>
+            prev.map((img) => (img.id === imageId ? { ...img, dataUrl, isLoading: true } : img))
+          );
 
           try {
             const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
@@ -362,8 +602,21 @@ export default function ChatInput({
           }
         }
       };
+      reader.onerror = () => {
+        console.error('Failed to read image file:', file.name);
+        setPastedImages((prev) =>
+          prev.map((img) =>
+            img.id === imageId
+              ? { ...img, error: 'Failed to read image file.', isLoading: false }
+              : img
+          )
+        );
+      };
       reader.readAsDataURL(file);
     }
+
+    // Add all new images to the existing list
+    setPastedImages((prev) => [...prev, ...newImages]);
   };
 
   // Cleanup debounced functions on unmount
@@ -371,8 +624,9 @@ export default function ChatInput({
     return () => {
       debouncedSetValue.cancel?.();
       debouncedAutosize.cancel?.();
+      debouncedSaveDraft.cancel?.();
     };
-  }, [debouncedSetValue, debouncedAutosize]);
+  }, [debouncedSetValue, debouncedAutosize, debouncedSaveDraft]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {
@@ -466,18 +720,25 @@ export default function ChatInput({
       .filter((img) => img.filePath && !img.error && !img.isLoading)
       .map((img) => img.filePath as string);
 
+    // Get paths from all dropped files (both parent and local)
+    const droppedFilePaths = allDroppedFiles
+      .filter((file) => !file.error && !file.isLoading)
+      .map((file) => file.path);
+
     let textToSend = displayValue.trim();
 
-    if (validPastedImageFilesPaths.length > 0) {
-      const pathsString = validPastedImageFilesPaths.join(' ');
+    // Combine pasted images and dropped files
+    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+    if (allFilePaths.length > 0) {
+      const pathsString = allFilePaths.join(' ');
       textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
     }
 
     if (textToSend) {
       if (displayValue.trim()) {
         LocalMessageStorage.addMessage(displayValue);
-      } else if (validPastedImageFilesPaths.length > 0) {
-        LocalMessageStorage.addMessage(validPastedImageFilesPaths.join(' '));
+      } else if (allFilePaths.length > 0) {
+        LocalMessageStorage.addMessage(allFilePaths.join(' '));
       }
 
       handleSubmit(
@@ -491,6 +752,19 @@ export default function ChatInput({
       setSavedInput('');
       setIsInGlobalHistory(false);
       setHasUserTyped(false);
+
+      // Clear draft when message is sent
+      if (chatContext && chatContext.clearDraft) {
+        chatContext.clearDraft();
+      }
+
+      // Clear both parent and local dropped files after processing
+      if (onFilesProcessed && droppedFiles.length > 0) {
+        onFilesProcessed();
+      }
+      if (localDroppedFiles.length > 0) {
+        setLocalDroppedFiles([]);
+      }
     }
   };
 
@@ -501,17 +775,17 @@ export default function ChatInput({
         evt.preventDefault();
         const displayFiles = mentionPopoverRef.current.getDisplayFiles();
         const maxIndex = Math.max(0, displayFiles.length - 1);
-        setMentionPopover(prev => ({
+        setMentionPopover((prev) => ({
           ...prev,
-          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex)
+          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex),
         }));
         return;
       }
       if (evt.key === 'ArrowUp') {
         evt.preventDefault();
-        setMentionPopover(prev => ({
+        setMentionPopover((prev) => ({
           ...prev,
-          selectedIndex: Math.max(prev.selectedIndex - 1, 0)
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0),
         }));
         return;
       }
@@ -522,7 +796,7 @@ export default function ChatInput({
       }
       if (evt.key === 'Escape') {
         evt.preventDefault();
-        setMentionPopover(prev => ({ ...prev, isOpen: false }));
+        setMentionPopover((prev) => ({ ...prev, isOpen: false }));
         return;
       }
     }
@@ -547,8 +821,10 @@ export default function ChatInput({
       evt.preventDefault();
       const canSubmit =
         !isLoading &&
+        !isLoadingSummary &&
         (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+          allDroppedFiles.some((file) => !file.error && !file.isLoading));
       if (canSubmit) {
         performSubmit();
       }
@@ -559,8 +835,10 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
+      !isLoadingSummary &&
       (displayValue.trim() ||
-        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading));
+        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+        allDroppedFiles.some((file) => !file.error && !file.isLoading));
     if (canSubmit) {
       performSubmit();
     }
@@ -579,14 +857,16 @@ export default function ChatInput({
   const handleMentionFileSelect = (filePath: string) => {
     // Replace the @ mention with the file path
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
-    const afterMention = displayValue.slice(mentionPopover.mentionStart + 1 + mentionPopover.query.length);
+    const afterMention = displayValue.slice(
+      mentionPopover.mentionStart + 1 + mentionPopover.query.length
+    );
     const newValue = `${beforeMention}${filePath}${afterMention}`;
-    
+
     setDisplayValue(newValue);
     setValue(newValue);
-    setMentionPopover(prev => ({ ...prev, isOpen: false }));
+    setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
-    
+
     // Set cursor position after the inserted file path
     setTimeout(() => {
       if (textAreaRef.current) {
@@ -597,25 +877,34 @@ export default function ChatInput({
   };
 
   const hasSubmittableContent =
-    displayValue.trim() || pastedImages.some((img) => img.filePath && !img.error && !img.isLoading);
+    displayValue.trim() ||
+    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+    allDroppedFiles.some((file) => !file.error && !file.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
+  const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
   return (
-    <>
-      <div
-        className={`flex flex-col relative h-auto border rounded-lg transition-colors ${
-          isFocused
-            ? 'border-borderProminent hover:border-borderProminent'
-            : 'border-borderSubtle hover:border-borderStandard'
-        } bg-bgApp z-10`}
-      >
-        <form onSubmit={onFormSubmit}>
-          <div className="relative">
+    <div
+      className={`flex flex-col relative h-auto p-4 transition-colors ${
+        disableAnimation ? '' : 'page-transition'
+      } ${
+        isFocused
+          ? 'border-borderProminent hover:border-borderProminent'
+          : 'border-borderSubtle hover:border-borderStandard'
+      } bg-background-default z-10 rounded-t-2xl`}
+      data-drop-zone="true"
+      onDrop={handleLocalDrop}
+      onDragOver={handleLocalDragOver}
+    >
+      <form onSubmit={onFormSubmit} className="flex flex-col">
+        {/* Input row with inline action buttons */}
+        <div className="relative flex items-end">
+          <div className="relative flex-1">
             <textarea
               data-testid="chat-input"
               autoFocus
               id="dynamic-textarea"
-              placeholder={isRecording ? '' : 'What can goose help with?   @ files • ⌘↑/⌘↓'}
+              placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
               value={displayValue}
               onChange={handleChange}
               onCompositionStart={handleCompositionStart}
@@ -627,15 +916,14 @@ export default function ChatInput({
               ref={textAreaRef}
               rows={1}
               style={{
-                minHeight: `${minHeight}px`,
                 maxHeight: `${maxHeight}px`,
                 overflowY: 'auto',
                 opacity: isRecording ? 0 : 1,
               }}
-              className="w-full pl-4 pr-[108px] outline-none border-none focus:ring-0 bg-transparent pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+              className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
             />
             {isRecording && (
-              <div className="absolute inset-0 flex items-center pl-4 pr-[108px] pt-3 pb-1.5">
+              <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
                 <WaveformVisualizer
                   audioContext={audioContext}
                   analyser={analyser}
@@ -645,77 +933,42 @@ export default function ChatInput({
             )}
           </div>
 
-          {pastedImages.length > 0 && (
-            <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
-              {pastedImages.map((img) => (
-                <div key={img.id} className="relative group w-20 h-20">
-                  {img.dataUrl && (
-                    <img
-                      src={img.dataUrl} // Use dataUrl for instant preview
-                      alt={`Pasted image ${img.id}`}
-                      className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                    />
-                  )}
-                  {img.isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                    </div>
-                  )}
-                  {img.error && !img.isLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                      <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
-                        {img.error.substring(0, 50)}
-                      </p>
-                      {img.dataUrl && (
-                        <button
+          {/* Inline action buttons on the right */}
+          <div className="flex items-center gap-1 px-2 relative">
+            {/* Microphone button - show if dictation is enabled, disable if not configured */}
+            {dictationSettings?.enabled && (
+              <>
+                {!canUseDictation ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button
                           type="button"
-                          onClick={() => handleRetryImageSave(img.id)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white rounded px-1 py-0.5 text-[8px] leading-none"
-                          title="Retry saving image"
+                          size="sm"
+                          shape="round"
+                          variant="outline"
+                          onClick={() => {}}
+                          disabled={true}
+                          className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
                         >
-                          Retry
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {!img.isLoading && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePastedImage(img.id)}
-                      className="absolute -top-1 -right-1 bg-gray-700 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                      aria-label="Remove image"
-                    >
-                      <Close className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isLoading ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onStop?.();
-              }}
-              className="absolute right-3 top-2 text-textSubtle rounded-full border border-borderSubtle hover:border-borderStandard hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-            >
-              <Stop size={24} />
-            </Button>
-          ) : (
-            <>
-              {/* Microphone button - only show if dictation is enabled and configured */}
-              {canUseDictation && (
-                <>
+                          <Microphone />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {dictationSettings.provider === 'openai'
+                        ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
+                        : dictationSettings.provider === 'elevenlabs'
+                          ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
+                          : 'Dictation provider is not properly configured.'}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
                   <Button
                     type="button"
-                    size="icon"
-                    variant="ghost"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
                     onClick={() => {
                       if (isRecording) {
                         stopRecording();
@@ -724,108 +977,292 @@ export default function ChatInput({
                       }
                     }}
                     disabled={isTranscribing}
-                    className={`absolute right-12 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
+                    className={`rounded-full px-6 py-2 ${
                       isRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                         : isTranscribing
-                          ? 'text-textSubtle cursor-not-allowed animate-pulse'
-                          : 'text-textSubtle hover:text-textStandard'
+                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
                     }`}
-                    title={
-                      isRecording
-                        ? `Stop recording (${Math.floor(recordingDuration)}s, ~${estimatedSize.toFixed(1)}MB)`
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Start dictation'
-                    }
                   >
                     <Microphone />
                   </Button>
-                  {/* Recording/transcribing status indicator - positioned above the input */}
-                  {(isRecording || isTranscribing) && (
-                    <div className="absolute right-0 -top-8 bg-bgApp px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-                      {isTranscribing ? (
-                        <span className="text-blue-500 flex items-center gap-1">
-                          <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                          Transcribing...
-                        </span>
-                      ) : (
-                        <span
-                          className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                        >
-                          <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                          {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                          {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+                )}
+              </>
+            )}
+
+            {/* Send/Stop button */}
+            {isLoading ? (
+              <Button
+                type="button"
+                onClick={onStop}
+                size="sm"
+                shape="round"
+                variant="outline"
+                className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+              >
+                <Stop />
+              </Button>
+            ) : (
               <Button
                 type="submit"
-                size="icon"
-                variant="ghost"
+                size="sm"
+                shape="round"
+                variant="outline"
                 disabled={
-                  !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
+                  !hasSubmittableContent ||
+                  isAnyImageLoading ||
+                  isAnyDroppedFileLoading ||
+                  isRecording ||
+                  isTranscribing ||
+                  isLoadingSummary
                 }
-                className={`absolute right-3 top-2 transition-colors rounded-full w-7 h-7 [&_svg]:size-4 ${
-                  !hasSubmittableContent || isAnyImageLoading || isRecording || isTranscribing
-                    ? 'text-textSubtle cursor-not-allowed'
-                    : 'bg-bgAppInverse text-textProminentInverse hover:cursor-pointer'
+                className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                  !hasSubmittableContent ||
+                  isAnyImageLoading ||
+                  isAnyDroppedFileLoading ||
+                  isRecording ||
+                  isTranscribing ||
+                  isLoadingSummary
+                    ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                    : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                 }`}
                 title={
-                  isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isRecording
-                      ? 'Recording...'
-                      : isTranscribing
-                        ? 'Transcribing...'
-                        : 'Send'
+                  isLoadingSummary
+                    ? 'Summarizing conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : 'Send'
                 }
               >
-                <Send />
+                <Send className="w-4 h-4" />
+                <span className="text-sm">Send</span>
               </Button>
-            </>
-          )}
-        </form>
+            )}
 
-        <div className="flex items-center transition-colors text-textSubtle relative text-xs p-2 pr-3 border-t border-borderSubtle gap-2">
-          <div className="gap-1 flex items-center justify-between w-full">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={handleFileSelect}
-              className="text-textSubtle hover:text-textStandard w-7 h-7 [&_svg]:size-4"
-            >
-              <Attach />
-            </Button>
-
-            <BottomMenu
-              setView={setView}
-              numTokens={numTokens}
-              inputTokens={inputTokens}
-              outputTokens={outputTokens}
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-              sessionCosts={sessionCosts}
-            />
+            {/* Recording/transcribing status indicator - positioned above the button row */}
+            {(isRecording || isTranscribing) && (
+              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+                {isTranscribing ? (
+                  <span className="text-blue-500 flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    Transcribing...
+                  </span>
+                ) : (
+                  <span
+                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                  >
+                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      <MentionPopover
-        ref={mentionPopoverRef}
-        isOpen={mentionPopover.isOpen}
-        onClose={() => setMentionPopover(prev => ({ ...prev, isOpen: false }))}
-        onSelect={handleMentionFileSelect}
-        position={mentionPopover.position}
-        query={mentionPopover.query}
-        selectedIndex={mentionPopover.selectedIndex}
-        onSelectedIndexChange={(index) => setMentionPopover(prev => ({ ...prev, selectedIndex: index }))}
-      />
-    </>
+        {/* Combined files and images preview */}
+        {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
+          <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+            {/* Render pasted images first */}
+            {pastedImages.map((img) => (
+              <div key={img.id} className="relative group w-20 h-20">
+                {img.dataUrl && (
+                  <img
+                    src={img.dataUrl}
+                    alt={`Pasted image ${img.id}`}
+                    className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                  />
+                )}
+                {img.isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                  </div>
+                )}
+                {img.error && !img.isLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                    <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                      {img.error.substring(0, 50)}
+                    </p>
+                    {img.dataUrl && (
+                      <Button
+                        type="button"
+                        onClick={() => handleRetryImageSave(img.id)}
+                        title="Retry saving image"
+                        variant="outline"
+                        size="xs"
+                      >
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {!img.isLoading && (
+                  <Button
+                    type="button"
+                    shape="round"
+                    onClick={() => handleRemovePastedImage(img.id)}
+                    className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                    aria-label="Remove image"
+                    variant="outline"
+                    size="xs"
+                  >
+                    <Close />
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            {/* Render dropped files after pasted images */}
+            {allDroppedFiles.map((file) => (
+              <div key={file.id} className="relative group">
+                {file.isImage ? (
+                  // Image preview
+                  <div className="w-20 h-20">
+                    {file.dataUrl && (
+                      <img
+                        src={file.dataUrl}
+                        alt={file.name}
+                        className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
+                      />
+                    )}
+                    {file.isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                      </div>
+                    )}
+                    {file.error && !file.isLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                        <p className="text-red-400 text-[10px] leading-tight break-all">
+                          {file.error.substring(0, 30)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // File box preview
+                  <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
+                    <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
+                      {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-textStandard truncate" title={file.name}>
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
+                    </div>
+                  </div>
+                )}
+                {!file.isLoading && (
+                  <Button
+                    type="button"
+                    shape="round"
+                    onClick={() => handleRemoveDroppedFile(file.id)}
+                    className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                    aria-label="Remove file"
+                    variant="outline"
+                    size="xs"
+                  >
+                    <Close />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Secondary actions and controls row below input */}
+        <div className="flex flex-row items-center gap-1 p-2 relative">
+          {/* Directory path */}
+          <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
+          <div className="w-px h-4 bg-border-default mx-2" />
+
+          {/* Attach button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                onClick={handleFileSelect}
+              >
+                <Attach className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Attach file or directory</TooltipContent>
+          </Tooltip>
+          <div className="w-px h-4 bg-border-default mx-2" />
+
+          {/* Model selector, mode selector, alerts, summarize button */}
+          <div className="flex flex-row items-center">
+            {/* Cost Tracker */}
+            {COST_TRACKING_ENABLED && (
+              <>
+                <div className="flex items-center h-full ml-1 mr-1">
+                  <CostTracker
+                    inputTokens={inputTokens}
+                    outputTokens={outputTokens}
+                    sessionCosts={sessionCosts}
+                  />
+                </div>
+              </>
+            )}
+            <Tooltip>
+              <div>
+                <ModelsBottomBar
+                  dropdownRef={dropdownRef}
+                  setView={setView}
+                  alerts={alerts}
+                  recipeConfig={recipeConfig}
+                  hasMessages={messages.length > 0}
+                />
+              </div>
+            </Tooltip>
+            <div className="w-px h-4 bg-border-default mx-2" />
+            <BottomMenuModeSelection />
+            {messages.length > 0 && (
+              <ManualSummarizeButton
+                messages={messages}
+                isLoading={isLoading}
+                setMessages={setMessages}
+              />
+            )}
+            <div className="w-px h-4 bg-border-default mx-2" />
+            <div className="flex items-center h-full">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                    onClick={() => setIsGoosehintsModalOpen?.(true)}
+                  >
+                    <FolderKey size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Configure goosehints</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <MentionPopover
+            ref={mentionPopoverRef}
+            isOpen={mentionPopover.isOpen}
+            onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
+            onSelect={handleMentionFileSelect}
+            position={mentionPopover.position}
+            query={mentionPopover.query}
+            selectedIndex={mentionPopover.selectedIndex}
+            onSelectedIndexChange={(index) =>
+              setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
+            }
+          />
+        </div>
+      </form>
+    </div>
   );
 }

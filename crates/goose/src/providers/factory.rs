@@ -212,17 +212,17 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(TextContent {
                         text: format!(
                             "Response from {} with model {}",
                             self.name, self.model_config.model_name
                         ),
                         annotations: None,
                     })],
-                },
+                ),
                 ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
             ))
         }

@@ -58,142 +58,143 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
      4. It will ask you to login or reauthenticate to Square, and may ask you to confirm the permissions you want to allow.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
+    1. Run the `configure` command:
+    ```sh
+    goose configure
+    ```
+
+    2. Choose to add a `Command-line Extension`
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◆  What type of extension would you like to add?
+      │  ○ Built-in Extension 
+      │  ○ Command-line Extension (Run a local command or script)
+      // highlight-start    
+      │  ● Remote Extension (SSE) 
+      // highlight-end    
+      │  ○ Remote Extension (Streaming HTTP)    
+      └ 
+    ```
+
+    3. Give your extension a name
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◇  What type of extension would you like to add?
+      │  Remote Extension (SSE) 
+      │
+      // highlight-start
+      ◆  What would you like to call this extension?
+      │  square-mcp-remote
+      // highlight-end
+      └ 
   ```
 
-  1. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    │  ○ Command-line Extension (Run a local command or script)
-    // highlight-start    
-    │  ● Remote Extension 
-    // highlight-end    
-    └ 
-  ```
+    4. Enter the SSE URI
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◇  What type of extension would you like to add?
+      │  Remote Extension (SSE) 
+      │
+      ◇  What would you like to call this extension?
+      │  square-mcp-remote
+      │
+      // highlight-start
+      ◆  What is the SSE endpoint URI?
+      │  https://mcp.squareup.com/sse
+      // highlight-end
+      └ 
+    ```  
 
-  1. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Remote Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  square-mcp-remote
-    // highlight-end
-    └ 
-  ```
+    5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◇  What type of extension would you like to add?
+      │  Remote Extension (SSE) 
+      │
+      ◇  What would you like to call this extension?
+      │  square-mcp-remote
+      │
+      ◆  What is the SSE endpoint URI?
+      │  https://mcp.squareup.com/sse
+      │
+      // highlight-start
+      ◆  Please set the timeout for this tool (in secs):
+      │  300
+      // highlight-end
+      └ 
+    ```  
 
-  1. Enter the SSE URI
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Remote Extension
-    │
-    ◇  What would you like to call this extension?
-    │  square-mcp-remote
-    │
-    // highlight-start
-    ◆  What is the SSE endpoint URI?
-    │  https://mcp.squareup.com/sse
-    // highlight-end
-    └ 
-  ```  
+    6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◇  What type of extension would you like to add?
+      │  Remote Extension (SSE) 
+      │
+      ◇  What would you like to call this extension?
+      │  square-mcp-remote
+      │
+      ◆  What is the SSE endpoint URI?
+      │  https://mcp.squareup.com/sse
+      │
+      ◆  Please set the timeout for this tool (in secs):
+      │  300
+      │
+      // highlight-start
+      ◇  Would you like to add a description?
+      │  No
+      // highlight-end
+      └ 
+    ```  
 
-  1. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Remote Extension
-    │
-    ◇  What would you like to call this extension?
-    │  square-mcp-remote
-    │
-    ◆  What is the SSE endpoint URI?
-    │  https://mcp.squareup.com/sse
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    └ 
-  ```  
-
-  1. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Remote Extension
-    │
-    ◇  What would you like to call this extension?
-    │  square-mcp-remote
-    │
-    ◆  What is the SSE endpoint URI?
-    │  https://mcp.squareup.com/sse
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```  
-
-  1. Obtain a [Square Access Token](https://developer.squareup.com/apps) and paste it in.
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Remote Extension
-    │
-    ◇  What would you like to call this extension?
-    │  square-mcp-remote
-    │
-    ◆  What is the SSE endpoint URI?
-    │  https://mcp.squareup.com/sse
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    ◇  Would you like to add a description?
-    │  No
-    │
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  No
-    // highlight-end
-    │
-    └  Added square-mcp-remote extension
-  ```  
+    7. Obtain a [Square Access Token](https://developer.squareup.com/apps) and paste it in.
+    ```sh
+      ┌   goose-configure 
+      │
+      ◇  What would you like to configure?
+      │  Add Extension (Connect to a new extension) 
+      │
+      ◇  What type of extension would you like to add?
+      │  Remote Extension (SSE) 
+      │
+      ◇  What would you like to call this extension?
+      │  square-mcp-remote
+      │
+      ◆  What is the SSE endpoint URI?
+      │  https://mcp.squareup.com/sse
+      │
+      ◇  Please set the timeout for this tool (in secs):
+      │  300
+      │
+      ◇  Would you like to add a description?
+      │  No
+      │
+      // highlight-start
+      ◆  Would you like to add environment variables?
+      │  No
+      // highlight-end
+      │
+      └  Added square-mcp-remote extension
+    ```  
       </TabItem>
   </Tabs>
 
@@ -256,7 +257,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

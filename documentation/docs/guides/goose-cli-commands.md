@@ -32,7 +32,7 @@ goose configure
 
 ### session [options]
 
-- Start a session and give it a name
+#### Start a session and give it a name
 
     **Options:**
 
@@ -43,8 +43,9 @@ goose configure
     ```bash
     goose session --name <n>
     ```
+---
 
-- Resume a previous session
+#### Resume a previous session
 
     **Options:**
 
@@ -59,8 +60,9 @@ goose configure
     ```bash
     goose session --resume --id <id>
     ```
+---
 
-- Start a session with the specified extension
+#### Start a session with the specified extension
 
      **Options:**
 
@@ -83,8 +85,9 @@ goose configure
     ```bash
     goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
     ```
+---
 
-- Start a session with the specified remote extension over SSE
+#### Start a session with the specified remote extension over SSE
 
      **Options:**
 
@@ -102,7 +105,48 @@ goose configure
     goose session --with-remote-extension "http://localhost:8080/sse"
     ```
 
-- Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
+---
+
+#### Start a session with the specified remote extension over Streaming HTTP
+
+     **Options:**
+
+     **`--with-streamable-http-extension <url>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-streamable-http-extension <url>
+    ```
+
+    **Examples:**
+
+    ```bash
+    goose session --with-streamable-http-extension "https://example.com/streamable"
+    ```
+
+    **Advanced Examples:**
+
+    ```bash
+    # Start a session with a streamable HTTP extension
+    goose session --with-streamable-http-extension "http://api.example.com"
+
+    # Use multiple streamable HTTP extensions
+    goose session \
+      --with-streamable-http-extension "http://api1.example.com" \
+      --with-streamable-http-extension "http://api2.example.com"
+
+    # Mix different extension types
+    goose session \
+      --with-extension "echo hello" \
+      --with-remote-extension "http://sse.example.com/sse" \
+      --with-streamable-http-extension "http://http.example.com" \
+      --with-builtin "developer"
+    ```
+
+---
+
+#### Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
     **Options:**
 
@@ -119,8 +163,9 @@ goose configure
     ```bash
     goose session --with-builtin computercontroller
     ```
+---
 
-- Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
+#### Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
 
     **Options:**
 
@@ -131,8 +176,9 @@ goose configure
     ```bash
     goose session --name my-session --debug
     ```
+---
 
-- Limit the maximum number of turns the agent can take before asking for user input to continue
+#### Limit the maximum number of turns the agent can take before asking for user input to continue
 
     **Options:**
 
@@ -145,6 +191,34 @@ goose configure
     ```
 
 ---
+
+#### Set the [maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
+
+    **Options:**
+
+    **`--max-turns <NUMBER>`**
+
+    **Usage:**
+
+    ```bash
+    goose session --max-turns 10
+    ```
+
+    **Examples:**
+
+    ```bash
+    # Low limit for step-by-step control
+    goose session --max-turns 3
+    
+    # Moderate limit for controlled automation
+    goose session --max-turns 25
+    
+    # Combined with other options
+    goose session --name my-project --max-turns 10 --debug
+    ```
+
+---
+
 ### session list [options]
 
 List all saved sessions.
@@ -301,8 +375,11 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--recipe <RECIPE_FILE_NAME> <OPTIONS>`**: Load a custom recipe in current session
 - **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`)
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
+- **`--with-remote-extension <URL>`**: Add remote extensions over SSE (can be used multiple times in the same command)
+- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
+- **`--max-turns <NUMBER>`**: [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
 - **`--max-turns <NUMBER>`**: Limit the maximum number of turns the agent can take before asking for user input to continue (default: 1000)
@@ -335,6 +412,9 @@ goose run --no-session -i instructions.txt
 
 #Run with a limit of 25 turns before asking for user input
 goose run --max-turns 25 -i plan.md
+
+#Run with limited turns before prompting user
+goose run --recipe recipe.yaml --max-turns 10
 ```
 
 ---
@@ -378,7 +458,7 @@ goose recipe help
 
 ---
 ### schedule
-Automate recipes by running them on a schedule using a cron job.
+Automate recipes by running them on a [schedule](/docs/guides/recipes/session-recipes.md#schedule-recipe).
 
 **Usage:**
 ```bash
@@ -392,9 +472,13 @@ goose schedule <COMMAND>
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
 
+Use the following commands if you're scheduling recipes using the [Temporal scheduler](https://docs.temporal.io/evaluate/development-production-features/schedules) (requires the Temporal CLI):
+- `services-status`: Check if any Temporal services are running
+- `services-stop`: Stop any running Temporal services
+
 **Options:**
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
-- `--cron "* * * * * *"`: Specifies when a job should run using a 6-field [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string in the format "seconds minutes hours day-of-month month day-of-week"
+- `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string with either 5, 6, or 7 digits in the format "seconds minutes hours day-of-month month day-of-week year"
 - `--recipe-source <PATH>`: Path to the recipe YAML file
 - `--limit <NUMBER>`: (Optional) max number of sessions to display when using the `sessions` command
 
@@ -509,7 +593,8 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/prompts [--extension <n>]` - List all available prompts, optionally filtered by extension
 - `/recipe <recipe file name>` - Generate and save a session recipe to `recipe.yaml` or the filename specified by the command parameter.
 - `/summarize` - Summarize the current session to reduce context length while preserving key information
-- `/t` - Toggle between Light/Dark/Ansi themes
+- `/t` - Toggle between `light`, `dark`, and `ansi` themes
+- `/t <theme>` - Set the `light`, `dark`, or `ansi` theme
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
@@ -539,6 +624,40 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 ### Slash Commands
 - **`/exit` or `/quit`** - Exit the session
-- **`/t`** - Toggle between Light/Dark/Ansi themes
-- **`/t <theme>`** - Set theme directly (`/t light`, `/t dark`, or `/t ansi`)
+- **`/t`** - Toggle between `light`, `dark`, and `ansi` themes
+- **`/t <theme>`** - Set the `light`, `dark`, or `ansi` theme
 - **`/?` or `/help`** - Display the help menu
+
+### Themes
+
+The `/t` command controls the syntax highlighting theme for markdown content in Goose CLI responses. This affects the styles used for headers, code blocks, bold/italic text, and other markdown elements in the response output.
+
+**Commands:**
+- `/t` - Cycles through themes: `light` → `dark` → `ansi` → `light`
+- `/t light` - Sets `light` theme (subtle light colors)
+- `/t dark` - Sets `dark` theme (subtle darker colors)
+- `/t ansi` - Sets `ansi` theme (most visually distinct option with brighter colors)
+
+**Configuration:**
+- The default theme is `dark`
+- The theme setting is saved to the [configuration file](/docs/guides/config-file) as `GOOSE_CLI_THEME` and persists between sessions
+- The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
+
+:::info
+Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
+
+The Goose CLI theme is independent from the Goose Desktop theme.
+:::
+
+**Examples:**
+```bash
+# Set ANSI theme for the session via environment variable
+export GOOSE_CLI_THEME=ansi
+goose session --name use-custom-theme
+
+# Toggle theme during a session
+/t
+
+# Set the light theme during a session
+/t light
+```

@@ -11,6 +11,7 @@ import {
   Tray,
   App,
   globalShortcut,
+  shell,
   Event,
 } from 'electron';
 import type { OpenDialogReturnValue } from 'electron';
@@ -37,7 +38,7 @@ import {
   SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
-import * as electron from 'electron';
+// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -132,7 +133,28 @@ async function ensureTempDirExists(): Promise<string> {
 
 if (started) app.quit();
 
-app.setAsDefaultProtocolClient('goose');
+// In development mode, force registration as the default protocol client
+// In production, register normally
+if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  // Development mode - force registration
+  console.log('[Main] Development mode: Forcing protocol registration for goose://');
+  app.setAsDefaultProtocolClient('goose');
+
+  if (process.platform === 'darwin') {
+    try {
+      // Reset the default handler to ensure dev version takes precedence
+      spawn('open', ['-a', process.execPath, '--args', '--reset-protocol-handler', 'goose'], {
+        detached: true,
+        stdio: 'ignore',
+      });
+    } catch (error) {
+      console.warn('[Main] Could not reset protocol handler:', error);
+    }
+  }
+} else {
+  // Production mode - normal registration
+  app.setAsDefaultProtocolClient('goose');
+}
 
 // Only apply single instance lock on Windows where it's needed for deep links
 let gotTheLock = true;
@@ -422,7 +444,11 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [process.env.GOOSE_DEFAULT_PROVIDER, process.env.GOOSE_DEFAULT_MODEL];
+  return [
+    process.env.GOOSE_DEFAULT_PROVIDER,
+    process.env.GOOSE_DEFAULT_MODEL,
+    process.env.GOOSE_PREDEFINED_MODELS,
+  ];
 };
 
 const generateSecretKey = () => {
@@ -446,7 +472,7 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-let [provider, model] = getGooseProvider();
+let [provider, model, predefinedModels] = getGooseProvider();
 
 let sharingUrl = getSharingUrl();
 
@@ -455,6 +481,7 @@ let gooseVersion = getVersion();
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
   GOOSE_DEFAULT_MODEL: model,
+  GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
@@ -466,6 +493,9 @@ let appConfig = {
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
+
+// Track power save blocker ID globally
+let powerSaveBlockerId: number | null = null;
 
 interface RecipeConfig {
   id: string;
@@ -532,22 +562,21 @@ const createChat = async (
 
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 750,
+    defaultWidth: 940, // large enough to show the sidebar on launch
     defaultHeight: 800,
   });
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
     frame: process.platform === 'darwin' ? false : true,
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 650,
+    minWidth: 750,
     resizable: true,
-    transparent: false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
@@ -625,19 +654,55 @@ const createChat = async (
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    mainWindow.webContents.executeJavaScript(`
-      localStorage.setItem('gooseConfig', '${configStr}')
-    `);
+    // Add error handling and retry logic for localStorage access
+    mainWindow.webContents
+      .executeJavaScript(
+        `
+      try {
+        if (typeof Storage !== 'undefined' && window.localStorage) {
+          localStorage.setItem('gooseConfig', '${configStr}');
+        } else {
+          console.warn('localStorage not available, retrying in 100ms');
+          setTimeout(() => {
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+            } catch (e) {
+              console.error('Failed to set localStorage after retry:', e);
+            }
+          }, 100);
+        }
+      } catch (e) {
+        console.error('Failed to access localStorage:', e);
+        // Retry after a short delay
+        setTimeout(() => {
+          try {
+            localStorage.setItem('gooseConfig', '${configStr}');
+          } catch (retryError) {
+            console.error('Failed to set localStorage after retry:', retryError);
+          }
+        }, 100);
+      }
+    `
+      )
+      .catch((error) => {
+        console.error('Failed to execute localStorage script:', error);
+      });
   });
 
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      electron.shell.openExternal(url);
+      shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
+  });
+
+  // Handle new-window events (alternative approach for external links)
+  mainWindow.webContents.on('new-window', (event, url) => {
+    event.preventDefault();
+    shell.openExternal(url);
   });
 
   // Load the index.html of the app.
@@ -1025,6 +1090,36 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   } catch (error) {
     console.error('Error getting quit confirmation state:', error);
     return true;
+  }
+});
+
+// Handle wakelock setting
+ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.enableWakelock = enable;
+    saveSettings(settings);
+
+    // Stop any existing power save blocker when disabling the setting
+    if (!enable && powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error setting wakelock:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-wakelock-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.enableWakelock ?? false;
+  } catch (error) {
+    console.error('Error getting wakelock state:', error);
+    return false;
   }
 });
 
@@ -1473,8 +1568,8 @@ app.whenReady().then(async () => {
           "default-src 'self';" +
           // Allow inline styles since we use them in our React components
           "style-src 'self' 'unsafe-inline';" +
-          // Scripts only from our app
-          "script-src 'self';" +
+          // Scripts from our app and inline scripts (for theme initialization)
+          "script-src 'self' 'unsafe-inline';" +
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
           // Connect to our local API and specific external services
@@ -1483,8 +1578,8 @@ app.whenReady().then(async () => {
           "object-src 'none';" +
           // Don't allow any frames
           "frame-src 'none';" +
-          // Font sources
-          "font-src 'self';" +
+          // Font sources - allow self, data URLs, and external fonts
+          "font-src 'self' data: https:;" +
           // Media sources - allow microphone
           "media-src 'self' mediastream:;" +
           // Form actions
@@ -1827,24 +1922,19 @@ app.whenReady().then(async () => {
     }
   });
 
-  let powerSaveBlockerId: number | null = null;
-
   ipcMain.handle('start-power-save-blocker', () => {
-    log.info('Starting power save blocker...');
     if (powerSaveBlockerId === null) {
-      powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-      log.info('Started power save blocker');
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       return true;
     }
+
     return false;
   });
 
   ipcMain.handle('stop-power-save-blocker', () => {
-    log.info('Stopping power save blocker...');
     if (powerSaveBlockerId !== null) {
       powerSaveBlocker.stop(powerSaveBlockerId);
       powerSaveBlockerId = null;
-      log.info('Stopped power save blocker');
       return true;
     }
     return false;
@@ -1912,7 +2002,7 @@ app.whenReady().then(async () => {
         spawn('xdg-open', [url]);
       }
     } catch (error) {
-      console.error('Error opening URL in Chrome:', error);
+      console.error('Error opening URL in browser:', error);
     }
   });
 

@@ -203,14 +203,14 @@ impl SageMakerTgiProvider {
         // Strip any HTML tags that might have been generated
         let clean_text = self.strip_html_tags(generated_text);
 
-        Ok(Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
+        Ok(Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![MessageContent::Text(TextContent {
                 text: clean_text,
                 annotations: None,
             })],
-        })
+        ))
     }
 
     /// Strip HTML tags from text to ensure clean output

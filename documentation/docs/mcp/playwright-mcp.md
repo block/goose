@@ -52,8 +52,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
+    // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
-    │  ○ Remote Extension 
+    // highlight-end    
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 
