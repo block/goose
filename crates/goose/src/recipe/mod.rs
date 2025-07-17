@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
+use crate::agents::types::RetryConfig;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +37,7 @@ fn default_version() -> String {
 /// * `author` - Information about the Recipe's creator and metadata
 /// * `parameters` - Additional parameters for the Recipe
 /// * `response` - Response configuration including JSON schema validation
+/// * `retry` - Retry configuration for automated validation and recovery
 ///
 /// # Example
 ///
@@ -65,6 +67,7 @@ fn default_version() -> String {
 ///     parameters: None,
 ///     response: None,
 ///     sub_recipes: None,
+///     retry: None,
 /// };
 ///
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -108,6 +111,9 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryConfig>, // retry configuration for automated validation and recovery
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -238,6 +244,7 @@ pub struct RecipeBuilder {
     parameters: Option<Vec<RecipeParameter>>,
     response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
+    retry: Option<RetryConfig>,
 }
 
 impl Recipe {
@@ -270,6 +277,7 @@ impl Recipe {
             parameters: None,
             response: None,
             sub_recipes: None,
+            retry: None,
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
@@ -368,6 +376,12 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the retry configuration for the Recipe
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -393,6 +407,7 @@ impl RecipeBuilder {
             parameters: self.parameters,
             response: self.response,
             sub_recipes: self.sub_recipes,
+            retry: self.retry,
         })
     }
 }
