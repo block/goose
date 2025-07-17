@@ -771,6 +771,7 @@ pub async fn cli() -> Result<()> {
                         quiet: false,
                         sub_recipes: None,
                         final_output_response: None,
+                        retry_config: None,
                     })
                     .await;
                     setup_logging(
@@ -828,76 +829,95 @@ pub async fn cli() -> Result<()> {
             provider,
             model,
         }) => {
-            let (input_config, session_settings, sub_recipes, final_output_response) = match (
-                instructions,
-                input_text,
-                recipe,
-            ) {
-                (Some(file), _, _) if file == "-" => {
-                    let mut input = String::new();
-                    std::io::stdin()
-                        .read_to_string(&mut input)
-                        .expect("Failed to read from stdin");
+            let (input_config, session_settings, sub_recipes, final_output_response, retry_config) =
+                match (instructions, input_text, recipe) {
+                    (Some(file), _, _) if file == "-" => {
+                        let mut input = String::new();
+                        std::io::stdin()
+                            .read_to_string(&mut input)
+                            .expect("Failed to read from stdin");
 
-                    (
-                        InputConfig {
-                            contents: Some(input),
-                            extensions_override: None,
-                            additional_system_prompt: system,
-                        },
-                        None,
-                        None,
-                        None,
-                    )
-                }
-                (Some(file), _, _) => {
-                    let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
+                        (
+                            InputConfig {
+                                contents: Some(input),
+                                extensions_override: None,
+                                additional_system_prompt: system,
+                            },
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    }
+                    (Some(file), _, _) => {
+                        let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
                             err
                         );
                         std::process::exit(1);
                     });
-                    (
+                        (
+                            InputConfig {
+                                contents: Some(contents),
+                                extensions_override: None,
+                                additional_system_prompt: None,
+                            },
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    }
+                    (_, Some(text), _) => (
                         InputConfig {
-                            contents: Some(contents),
+                            contents: Some(text),
                             extensions_override: None,
-                            additional_system_prompt: None,
+                            additional_system_prompt: system,
                         },
                         None,
                         None,
                         None,
-                    )
-                }
-                (_, Some(text), _) => (
-                    InputConfig {
-                        contents: Some(text),
-                        extensions_override: None,
-                        additional_system_prompt: system,
-                    },
-                    None,
-                    None,
-                    None,
-                ),
-                (_, _, Some(recipe_name)) => {
-                    if explain {
-                        explain_recipe(&recipe_name, params)?;
-                        return Ok(());
-                    }
-                    if render_recipe {
-                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
-                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                            std::process::exit(1);
+                        None,
+                    ),
+                    (_, _, Some(recipe_name)) => {
+                        if explain {
+                            explain_recipe(&recipe_name, params)?;
+                            return Ok(());
                         }
-                        return Ok(());
+                        if render_recipe {
+                            if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
+                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                                std::process::exit(1);
+                            }
+                            return Ok(());
+                        }
+                        {
+                            let (
+                                input_config,
+                                session_settings,
+                                sub_recipes,
+                                response,
+                                retry_config,
+                            ) = extract_recipe_info_from_cli(
+                                recipe_name,
+                                params,
+                                additional_sub_recipes,
+                            )?;
+                            (
+                                input_config,
+                                session_settings,
+                                sub_recipes,
+                                response,
+                                retry_config,
+                            )
+                        }
                     }
-                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
-                }
-                (None, None, None) => {
-                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
-                    std::process::exit(1);
-                }
-            };
+                    (None, None, None) => {
+                        eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+                        std::process::exit(1);
+                    }
+                };
 
             let mut session = build_session(SessionBuilderConfig {
                 identifier: identifier.map(extract_identifier),
@@ -920,6 +940,7 @@ pub async fn cli() -> Result<()> {
                 quiet,
                 sub_recipes,
                 final_output_response,
+                retry_config,
             })
             .await;
 
@@ -1051,6 +1072,7 @@ pub async fn cli() -> Result<()> {
                     quiet: false,
                     sub_recipes: None,
                     final_output_response: None,
+                    retry_config: None,
                 })
                 .await;
                 setup_logging(
